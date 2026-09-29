@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Lịch Sử Đơn Hàng</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --orange: #F59E0B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    /* Top Navbar */
+    .top-header {
+      background: #FFF; padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .top-title { font-size: 16px; font-weight: 800; color: var(--text); }
+
+    /* Order Status Tabs */
+    .tabs-bar {
+      background: #FFF; display: flex; border-bottom: 1px solid var(--border);
+      overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .tabs-bar::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex: 0 0 auto; text-align: center; padding: 12px 14px; font-size: 12px; font-weight: 700;
+      color: var(--text-muted); cursor: pointer; border-bottom: 2.5px solid transparent;
+      transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .tab-btn.active {
+      color: var(--primary); border-bottom-color: var(--primary);
+    }
+    .tab-pill-num {
+      font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 10px;
+    }
+    .tab-pill-unpaid {
+      background: #FFF0ED; color: var(--primary);
+    }
+    .tab-pill-confirm {
+      background: #EFF6FF; color: var(--blue);
+    }
+    .tab-pill-active {
+      background: #F1F5F9; color: #475569;
+    }
+    .tab-btn.active .tab-pill-active {
+      background: #FFF0ED; color: var(--primary);
+    }
+
+    /* Scroll Body */
+    .order-content {
+      flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px;
+      padding-bottom: 80px;
+    }
+
+    /* Order Card */
+    .order-item-card {
+      background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .card-top {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 8px; border-bottom: 1px dashed var(--border);
+    }
+    .shop-brand { display: flex; align-items: center; gap: 8px; }
+    .shop-logo-mini {
+      width: 28px; height: 28px; background: #FFF0ED; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+    }
+    .shop-name-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .status-badge {
+      font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+    }
+    .badge-delivering { background: #EFF6FF; color: var(--blue); border: 1px solid #BFDBFE; }
+    .badge-completed { background: #ECFDF5; color: var(--green); border: 1px solid #A7F3D0; }
+    .badge-cancelled { background: #F1F5F9; color: var(--text-muted); border: 1px solid #CBD5E1; }
+
+    .card-body {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    }
+    .dish-summary-text {
+      font-size: 12px; color: #475569; line-height: 1.5;
+    }
+    .order-price-val {
+      font-size: 14px; font-weight: 800; color: var(--primary); text-align: right;
+    }
+    .order-date-text {
+      font-size: 10.5px; color: var(--text-muted); margin-top: 2px;
+    }
+
+    .card-actions {
+      display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px;
+      border-top: 1px solid #F1F5F9;
+    }
+    .btn-action-sm {
+      padding: 6px 14px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .btn-track {
+      background: var(--primary); color: #FFF; border: none;
+    }
+    .btn-reorder {
+      background: #FFF; color: var(--text); border: 1px solid var(--border);
+    }
+    .btn-complain {
+      background: #FFF; color: #DC2626; border: 1px solid #FECACA;
+    }
+
+    /* Bottom Navigation Bar */
+    .bottom-nav {
+      height: 58px; background: #FFFFFF; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around; align-items: center;
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600;
+      gap: 3px; width: 25%;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 18px; line-height: 1; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>10:25</span>
+      <span>📶 5G 🔋 98%</span>
+    </div>
+
+    <!-- Header -->
+    <div class="top-header">
+      <div class="top-title">Đơn Hàng Của Tôi</div>
+      <span style="font-size: 12px; color: var(--text-muted);">Khách: An Nguyễn</span>
+    </div>
+
+    <!-- Tabs Bar -->
+    <div class="tabs-bar">
+      <div class="tab-btn active" id="tab-all" onclick="switchOrderTab(this, 'all')">
+        <span>Tất cả</span>
+      </div>
+      <div class="tab-btn" id="tab-unpaid" onclick="switchOrderTab(this, 'unpaid')">
+        <span>Chờ thanh toán</span>
+        <span class="tab-pill-num tab-pill-unpaid" id="badgeCountUnpaid">1</span>
+      </div>
+      <div class="tab-btn" id="tab-confirming" onclick="switchOrderTab(this, 'confirming')">
+        <span>Chờ xác nhận</span>
+        <span class="tab-pill-num tab-pill-confirm">1</span>
+      </div>
+      <div class="tab-btn" id="tab-active" onclick="switchOrderTab(this, 'active')">
+        <span>Đang đến</span>
+        <span class="tab-pill-num tab-pill-active">1</span>
+      </div>
+      <div class="tab-btn" id="tab-history" onclick="switchOrderTab(this, 'history')">
+        <span>Đã xong</span>
+      </div>
+    </div>
+
+    <!-- Scroll Content -->
+    <div class="order-content" id="orderList">
+
+      <!-- 1. ĐƠN CHỜ THANH TOÁN (Đơn vừa tạo ở b8/b8_payment chưa thanh toán mà bấm về màn hình chính) -->
+      <div class="order-item-card order-unpaid" id="card-unpaid-88291" style="border: 1.5px solid #FDBA74; background: #FFFCF9;">
+        <div class="card-top">
+          <div class="shop-brand">
+            <div class="shop-logo-mini">🧋</div>
+            <div>
+              <span class="shop-name-title">Hồng Trà Ngô Gia - Tô Vĩnh Diện</span>
+              <div style="font-size: 10.5px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#ORD_OISHI_88291</div>
+            </div>
+          </div>
+          <span class="status-badge" style="background: #FFF7ED; color: #EA580C; border: 1px solid #FFEDD5; font-weight: 800;">
+            ⏳ Chờ thanh toán
+          </span>
+        </div>
+
+        <div class="card-body">
+          <div class="dish-summary-text">
+            • 1x Trà Xí Muội Ô Long (Size M, 100% đường)<br>
+            • 1x Trà Xí Muội Ngô Gia (Size M)<br>
+            <span style="font-size: 11px; color: #DC2626; font-weight: 700;">⏱️ Hạn thanh toán: còn <span id="unpaidCountDown">28:40</span></span>
+          </div>
+          <div>
+            <div class="order-price-val">78.000 đ</div>
+            <div class="order-date-text">Cọc 20%: 21.000 đ</div>
+          </div>
+        </div>
+
+        <div style="background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #9A3412; display: flex; align-items: center; gap: 6px;">
+          <span>💡</span>
+          <span>Đơn hàng chưa hoàn tất thanh toán. Vui lòng thanh toán để quán nhận đơn.</span>
+        </div>
+
+        <div class="card-actions">
+          <button type="button" class="btn-action-sm btn-complain" onclick="cancelUnpaidOrder()">✕ Hủy đơn</button>
+          <a href="b8_payment.html?mode=DEPOSIT&channel=momo&total=78000&deposit=21000&remain=57000" class="btn-action-sm btn-track" style="background: linear-gradient(135deg, #FF6933, #EE4D2D); box-shadow: 0 2px 8px rgba(238,77,45,0.3);">
+            💳 Thanh Toán Ngay ➔
+          </a>
+        </div>
+      </div>
+
+      <!-- 2. ĐƠN CHỜ XÁC NHẬN (Đã thanh toán/đã cọc, đang chờ quán xác nhận làm món) -->
+      <div class="order-item-card order-confirming" style="border: 1.5px solid #BFDBFE; background: #F8FAFC;">
+        <div class="card-top">
+          <div class="shop-brand">
+            <div class="shop-logo-mini">🧋</div>
+            <div>
+              <span class="shop-name-title">Trà Sữa Ngô Gia - Chi nhánh Q.1</span>
+              <div style="font-size: 10.5px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#ORD_OISHI_88290</div>
+            </div>
+          </div>
+          <span class="status-badge" style="background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; font-weight: 800;">
+            ⏱️ Chờ quán xác nhận
+          </span>
+        </div>
+
+        <div class="card-body">
+          <div class="dish-summary-text">
+            • 1x Trà Sữa Trân Châu Hoàng Kim (Size L, 70% đường)<br>
+            • 1x Trà Đào Cam Sả (Size M, Đá riêng)<br>
+            <span style="font-size: 11px; color: #2563EB; font-weight: 600;">👨‍🍳 Quán đang nhận đơn và chuẩn bị pha chế (1 - 3 phút)</span>
+          </div>
+          <div>
+            <div class="order-price-val">82.000 đ</div>
+            <div class="order-date-text">Đã thanh toán MoMo</div>
+          </div>
+        </div>
+
+        <div style="background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #047857; display: flex; align-items: center; gap: 6px;">
+          <span>✓</span>
+          <span>Đã thanh toán thành công. Đang đợi quán bấm nhận đơn.</span>
+        </div>
+
+        <div class="card-actions">
+          <a href="tel:02838229999" class="btn-action-sm btn-reorder">📞 Gọi Quán</a>
+          <a href="b8_success.html" class="btn-action-sm btn-reorder">💬 Nhắn Quán</a>
+          <a href="b9.html?step=1" class="btn-action-sm btn-track" style="background: #2563EB;">
+            Chi Tiết Đơn ➔
+          </a>
+        </div>
+      </div>
+
+      <!-- 3. ĐƠN ĐANG ĐẾN (Shipper đang giao hàng) -->
+      <div class="order-item-card order-active">
+        <div class="card-top">
+          <div class="shop-brand">
+            <div class="shop-logo-mini">🧋</div>
+            <div>
+              <span class="shop-name-title">Hồng Trà Ngô Gia - Tô Vĩnh Diện</span>
+              <div style="font-size: 10.5px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#ORD_OISHI_88288</div>
+            </div>
+          </div>
+          <span class="status-badge badge-delivering">🚚 Đang giao hàng</span>
+        </div>
+
+        <div class="card-body">
+          <div class="dish-summary-text">
+            • 1x Trà Xí Muội Ô Long (Size M, 100% đường)<br>
+            • 1x Trà Xí Muội Ngô Gia (Size M)<br>
+            <span style="font-size: 11px; color: var(--blue);">🛵 Shipper: Phạm Phúc M... (TX-19) đang di chuyển</span>
+          </div>
+          <div>
+            <div class="order-price-val">78.000 đ</div>
+            <div class="order-date-text">Đã bao gồm ship 25k</div>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <a href="tel:0938123456" class="btn-action-sm btn-reorder">📞 Gọi Shipper</a>
+          <a href="b9.html" class="btn-action-sm btn-track">Theo Dõi Trực Tiếp ➔</a>
+        </div>
+      </div>
+
+      <!-- 4. ĐƠN ĐÃ HOÀN TẤT -->
+      <div class="order-item-card order-history">
+        <div class="card-top">
+          <div class="shop-brand">
+            <div class="shop-logo-mini">🍛</div>
+            <span class="shop-name-title">Cơm Tấm Sườn Ba Ghiền</span>
+          </div>
+          <span class="status-badge badge-completed">✓ Đã giao thành công</span>
+        </div>
+
+        <div class="card-body">
+          <div class="dish-summary-text">
+            • 1x Cơm Sườn Bì Chả Đặc Biệt<br>
+            • 1x Canh khổ qua dồn thịt
+          </div>
+          <div>
+            <div class="order-price-val">100.000 đ</div>
+            <div class="order-date-text">Hôm qua 12:30</div>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <a href="b12.html" class="btn-action-sm btn-complain">⚠️ Khiếu nại</a>
+          <a href="b5.html" class="btn-action-sm btn-reorder">Đặt lại món</a>
+        </div>
+      </div>
+
+      <!-- 5. ĐƠN ĐÃ HOÀN TẤT -->
+      <div class="order-item-card order-history">
+        <div class="card-top">
+          <div class="shop-brand">
+            <div class="shop-logo-mini">🍵</div>
+            <span class="shop-name-title">Phúc Long Tea & Coffee - Huỳnh Thúc Kháng</span>
+          </div>
+          <span class="status-badge badge-completed">✓ Đã giao thành công</span>
+        </div>
+
+        <div class="card-body">
+          <div class="dish-summary-text">
+            • 2x Trà Ô Long Sữa Lớn<br>
+            • 1x Bánh Croissant Bơ Tỏi
+          </div>
+          <div>
+            <div class="order-price-val">135.000 đ</div>
+            <div class="order-date-text">3 ngày trước</div>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <a href="b12.html" class="btn-action-sm btn-complain">⚠️ Khiếu nại</a>
+          <a href="b5.html" class="btn-action-sm btn-reorder">Đặt lại món</a>
+        </div>
+      </div>
+
+      <!-- Thông báo khi tab trống -->
+      <div id="emptyTabNotice" style="display: none; text-align: center; padding: 40px 16px; color: var(--text-muted); font-size: 13px;">
+        <div style="font-size: 36px; margin-bottom: 8px;">📦</div>
+        <div>Không có đơn hàng nào trong mục này.</div>
+      </div>
+    </div>
+
+    <!-- Thanh Bottom Navigation -->
+    <nav class="bottom-nav">
+      <a href="b1.html" class="nav-item">
+        <span class="nav-icon">🏠</span>
+        <span>Trang chủ</span>
+      </a>
+      <a href="b3.html" class="nav-item active">
+        <span class="nav-icon">🧾</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="b10.html" class="nav-item">
+        <span class="nav-icon">🔔</span>
+        <span>Thông báo</span>
+      </a>
+      <a href="b11.html" class="nav-item">
+        <span class="nav-icon">👤</span>
+        <span>Tôi</span>
+      </a>
+    </nav>
+  </div>
+
+  <script>
+    function switchOrderTab(btn, type) {
+      document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+
+      const allCards = document.querySelectorAll('.order-item-card');
+      let visibleCount = 0;
+
+      allCards.forEach(card => {
+        let show = false;
+        if (type === 'all') {
+          show = true;
+        } else if (type === 'unpaid') {
+          show = card.classList.contains('order-unpaid');
+        } else if (type === 'confirming') {
+          show = card.classList.contains('order-confirming');
+        } else if (type === 'active') {
+          show = card.classList.contains('order-active');
+        } else if (type === 'history') {
+          show = card.classList.contains('order-history');
+        }
+
+        if (show) {
+          card.style.display = 'flex';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      const emptyNotice = document.getElementById('emptyTabNotice');
+      if (emptyNotice) {
+        emptyNotice.style.display = visibleCount === 0 ? 'block' : 'none';
+      }
+    }
+
+    function cancelUnpaidOrder() {
+      if (confirm('Bạn có chắc muốn hủy đơn hàng chờ thanh toán #ORD_OISHI_88291?')) {
+        const card = document.getElementById('card-unpaid-88291');
+        if (card) {
+          card.style.transition = 'all 0.3s ease';
+          card.style.opacity = '0.5';
+          card.innerHTML = `
+            <div style="padding: 16px; text-align: center; color: #DC2626; font-size: 12.5px; font-weight: 700;">
+              ✕ Đơn hàng #ORD_OISHI_88291 đã được hủy theo yêu cầu của bạn.
+            </div>
+          `;
+          setTimeout(() => {
+            card.remove();
+            const badge = document.getElementById('badgeCountUnpaid');
+            if (badge) badge.innerText = '0';
+          }, 1500);
+        }
+      }
+    }
+
+    // Đếm ngược hạn thanh toán đơn chờ
+    let unpaidSeconds = 1720;
+    const countEl = document.getElementById('unpaidCountDown');
+    if (countEl) {
+      setInterval(() => {
+        if (unpaidSeconds > 0) {
+          unpaidSeconds--;
+          const m = Math.floor(unpaidSeconds / 60).toString().padStart(2, '0');
+          const s = (unpaidSeconds % 60).toString().padStart(2, '0');
+          countEl.innerText = `${m}:${s}`;
+        } else {
+          countEl.innerText = 'Hết hạn';
+        }
+      }, 1000);
+    }
+
+    // Tự động kích hoạt tab theo query string: ?tab=unpaid hoặc ?tab=confirming
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTab = urlParams.get('tab');
+    if (activeTab) {
+      const targetBtn = document.getElementById('tab-' + activeTab);
+      if (targetBtn) targetBtn.click();
+    }
+  </script>
+
+</body>
+</html>

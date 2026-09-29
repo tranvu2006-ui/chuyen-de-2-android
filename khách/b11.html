@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Tài Khoản Của Tôi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --star: #FFB800;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    .profile-header {
+      background: #FFF; padding: 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 14px;
+    }
+    .avatar-wrap {
+      width: 54px; height: 54px; border-radius: 50%; background: #EFF6FF;
+      display: flex; align-items: center; justify-content: center; font-size: 26px;
+      border: 2px solid #BFDBFE;
+    }
+    .profile-info h2 { font-size: 16px; font-weight: 800; color: var(--text); }
+    .profile-phone { font-size: 12px; color: var(--text-muted); font-family: monospace; margin-top: 2px; }
+
+    .content {
+      flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px;
+      padding-bottom: 80px;
+    }
+
+    /* Thẻ Điểm Uy Tín Khách Hàng (Tương thích Admin) */
+    .trust-card {
+      background: linear-gradient(135deg, #1E293B, #0F172A); color: #FFF;
+      border-radius: 16px; padding: 18px 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+      border: 1px solid #334155; position: relative; overflow: hidden;
+    }
+    .trust-card::after {
+      content: '🛡️'; position: absolute; right: 10px; bottom: -10px; font-size: 80px; opacity: 0.12;
+    }
+    .trust-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .trust-title { font-size: 12px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .trust-badge {
+      background: #ECFDF5; color: #065F46; font-size: 11px; font-weight: 800;
+      padding: 3px 8px; border-radius: 20px;
+    }
+    .trust-score-row { display: flex; align-items: baseline; gap: 6px; }
+    .score-num { font-size: 32px; font-weight: 800; color: #FACC15; }
+    .score-max { font-size: 14px; color: #94A3B8; font-weight: 600; }
+    .trust-desc { font-size: 11.5px; color: #CBD5E1; margin-top: 6px; line-height: 1.4; }
+
+    /* Menu Nhóm */
+    .menu-group-card {
+      background: #FFF; border-radius: 14px; border: 1px solid var(--border); overflow: hidden;
+    }
+    .menu-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 13px 16px; border-bottom: 1px solid #F1F5F9; text-decoration: none; color: var(--text);
+      cursor: pointer; transition: background 0.15s;
+    }
+    .menu-item:last-child { border-bottom: none; }
+    .menu-item:hover { background: #F8FAFC; }
+    .menu-item-left { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; }
+    .menu-icon { font-size: 16px; width: 22px; text-align: center; }
+    .menu-arrow { color: #94A3B8; font-size: 14px; }
+
+    /* Bottom Navigation */
+    .bottom-nav {
+      height: 58px; background: #FFFFFF; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around; align-items: center;
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600;
+      gap: 3px; width: 25%;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 18px; line-height: 1; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <div class="status-bar">
+      <span>10:28</span>
+      <span>📶 5G 🔋 98%</span>
+    </div>
+
+    <!-- Profile Header -->
+    <div class="profile-header">
+      <div class="avatar-wrap">👤</div>
+      <div class="profile-info">
+        <h2>An Nguyễn</h2>
+        <div class="profile-phone">0901.234.567 • Thành viên Vàng</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- Thẻ Điểm Uy Tín (Đồng bộ cột TrustScore trong Admin) -->
+      <div class="trust-card">
+        <div class="trust-top">
+          <span class="trust-title">Điểm Uy Tín Người Dùng</span>
+          <span class="trust-badge">✓ Cực Kỳ Uy Tín</span>
+        </div>
+        <div class="trust-score-row">
+          <span class="score-num">98</span>
+          <span class="score-max">/ 100</span>
+        </div>
+        <div class="trust-desc">
+          Tỷ lệ nhận đơn thành công 99.2% • 0 lần bùng hàng.<br>
+          Bạn được hệ thống Oishi Food ưu tiên giao hàng nhanh và chấp nhận thanh toán COD tiền mặt không giới hạn.
+        </div>
+      </div>
+
+      <!-- Thẻ Trạng Thái Đơn Hàng Nhanh -->
+      <div class="menu-group-card" style="padding: 12px 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 8px 10px 8px; border-bottom: 1px solid #F1F5F9;">
+          <span style="font-size: 13px; font-weight: 800; color: var(--text);">Đơn Hàng Của Tôi</span>
+          <a href="b3.html?tab=all" style="font-size: 11px; font-weight: 700; color: var(--primary); text-decoration: none;">Xem tất cả ›</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; padding-top: 10px;">
+          <a href="b3.html?tab=unpaid" style="text-decoration: none; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative;">
+            <span style="font-size: 20px;">💳</span>
+            <span style="font-size: 10.5px; font-weight: 700; color: #1E293B;">Chờ t.toán</span>
+            <span style="position: absolute; top: -4px; right: 14px; background: #EE4D2D; color: #FFF; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 10px;">1</span>
+          </a>
+          <a href="b3.html?tab=confirming" style="text-decoration: none; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative;">
+            <span style="font-size: 20px;">⏱️</span>
+            <span style="font-size: 10.5px; font-weight: 700; color: #1E293B;">Chờ xác nhận</span>
+            <span style="position: absolute; top: -4px; right: 14px; background: #2563EB; color: #FFF; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 10px;">1</span>
+          </a>
+          <a href="b3.html?tab=active" style="text-decoration: none; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative;">
+            <span style="font-size: 20px;">🛵</span>
+            <span style="font-size: 10.5px; font-weight: 700; color: #1E293B;">Đang đến</span>
+            <span style="position: absolute; top: -4px; right: 14px; background: #059669; color: #FFF; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 10px;">1</span>
+          </a>
+          <a href="b3.html?tab=history" style="text-decoration: none; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+            <span style="font-size: 20px;">⭐</span>
+            <span style="font-size: 10.5px; font-weight: 700; color: #64748B;">Đã xong</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Menu Nhóm 1: Quản lý mua hàng -->
+      <div class="menu-group-card">
+        <a href="b3.html" class="menu-item">
+          <div class="menu-item-left">
+            <span class="menu-icon">🧾</span>
+            <span>Lịch sử đơn hàng của tôi</span>
+          </div>
+          <span class="menu-arrow">›</span>
+        </a>
+        <div class="menu-item" onclick="alert('Địa chỉ giao hàng:\n1. 104 Hai Bà Trưng, P. Đa Kao, Quận 1\n2. 12 Lê Lợi, P. Bến Nghé, Quận 1')">
+          <div class="menu-item-left">
+            <span class="menu-icon">📍</span>
+            <span>Sổ địa chỉ nhận hàng (TP.HCM)</span>
+          </div>
+          <span class="menu-arrow">›</span>
+        </div>
+        <div class="menu-item" onclick="alert('Ví liên kết:\n• Ví MoMo: Đang liên kết (0901***567)\n• Cổng VNPAY: Sẵn sàng')">
+          <div class="menu-item-left">
+            <span class="menu-icon">💳</span>
+            <span>Phương thức thanh toán đã lưu</span>
+          </div>
+          <span class="menu-arrow">›</span>
+        </div>
+      </div>
+
+      <!-- Menu Nhóm 2: Hỗ trợ & Khiếu nại -->
+      <div class="menu-group-card">
+        <a href="b12.html" class="menu-item">
+          <div class="menu-item-left">
+            <span class="menu-icon">⚖️</span>
+            <span>Trung tâm khiếu nại & phản ánh quán</span>
+          </div>
+          <span class="menu-arrow">›</span>
+        </a>
+        <div class="menu-item" onclick="alert('Hotline CSKH Oishi Food 24/7:\n📞 1900 6868 (Miễn phí cuộc gọi)')">
+          <div class="menu-item-left">
+            <span class="menu-icon">🎧</span>
+            <span>Tổng đài CSKH Oishi Food</span>
+          </div>
+          <span class="menu-arrow">›</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+      <a href="b1.html" class="nav-item">
+        <span class="nav-icon">🏠</span>
+        <span>Trang chủ</span>
+      </a>
+      <a href="b3.html" class="nav-item">
+        <span class="nav-icon">🧾</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="b10.html" class="nav-item">
+        <span class="nav-icon">🔔</span>
+        <span>Thông báo</span>
+      </a>
+      <a href="b11.html" class="nav-item active">
+        <span class="nav-icon">👤</span>
+        <span>Tôi</span>
+      </a>
+    </nav>
+  </div>
+
+</body>
+</html>

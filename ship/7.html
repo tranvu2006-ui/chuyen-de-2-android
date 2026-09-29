@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food Driver - Hồ Sơ Tài Xế Quán</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F4F6F8;
+      --card: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #059669;
+      --blue: #2563EB;
+      --amber: #D97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+
+    .status-bar {
+      height: 30px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    .top-header {
+      background: #FFF; padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .page-title { font-size: 16px; font-weight: 800; color: var(--text); }
+    .badge-driver-id {
+      font-size: 11px; font-weight: 700; background: #EFF6FF; color: var(--blue);
+      padding: 3px 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace;
+    }
+
+    .content {
+      flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px;
+      padding-bottom: 80px;
+    }
+
+    /* Driver Profile Card */
+    .profile-card {
+      background: #FFF; border-radius: 18px; padding: 16px; border: 1px solid var(--border);
+      display: flex; gap: 14px; align-items: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .profile-avatar {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #FFEBE6; border: 3px solid #FFD2C8;
+      display: flex; align-items: center; justify-content: center; font-size: 30px;
+      flex-shrink: 0;
+    }
+    .profile-info { flex: 1; }
+    .profile-name { font-size: 16.5px; font-weight: 800; color: var(--text); }
+    .profile-phone { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .profile-rating {
+      display: inline-flex; align-items: center; gap: 4px; background: #FEF3C7;
+      color: #92400E; font-size: 11px; font-weight: 800; padding: 2px 8px;
+      border-radius: 6px; margin-top: 6px;
+    }
+
+    /* Quán Trực Thuộc Duy Nhất (ShopeeFood Style) */
+    .store-affiliation-card {
+      background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+      border: 1.5px solid #BFDBFE; border-radius: 16px; padding: 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .affiliation-tag {
+      font-size: 10px; font-weight: 800; color: var(--blue); text-transform: uppercase;
+      letter-spacing: 0.5px; display: flex; align-items: center; gap: 5px;
+    }
+    .store-main-name { font-size: 15px; font-weight: 800; color: #1E3A8A; }
+    .store-address { font-size: 11.5px; color: #3B82F6; line-height: 1.3; }
+    .store-rule-badge {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 11px;
+      background: #FFF; color: #1E40AF; padding: 6px 10px; border-radius: 8px;
+      font-weight: 700; width: fit-content; border: 1px solid #BFDBFE;
+    }
+
+    /* Thống kê hoạt động */
+    .metrics-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    }
+    .metric-box {
+      background: #FFF; border-radius: 12px; padding: 12px 10px; border: 1px solid var(--border);
+      text-align: center;
+    }
+    .metric-val { font-size: 16px; font-weight: 800; color: var(--text); }
+    .metric-lbl { font-size: 10.5px; color: var(--text-muted); margin-top: 3px; }
+
+    /* Thông tin phương tiện */
+    .section-card {
+      background: #FFF; border-radius: 16px; padding: 14px; border: 1px solid var(--border);
+    }
+    .sec-title {
+      font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .info-list { display: flex; flex-direction: column; gap: 8px; }
+    .info-item {
+      display: flex; justify-content: space-between; align-items: center; font-size: 12px;
+      padding-bottom: 8px; border-bottom: 1px dashed #F1F5F9;
+    }
+    .info-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .info-label { color: var(--text-muted); }
+    .info-value { font-weight: 700; color: var(--text); }
+
+    /* Quy tắc vận hành Oishi Food */
+    .rules-card {
+      background: #FFF; border-radius: 16px; padding: 14px; border: 1px solid var(--border);
+    }
+    .rule-item {
+      display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; color: #334155;
+      margin-bottom: 8px; line-height: 1.4;
+    }
+    .rule-item:last-child { margin-bottom: 0; }
+    .rule-bullet {
+      width: 16px; height: 16px; border-radius: 50%; background: #ECFDF5;
+      color: var(--green); display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; flex-shrink: 0; margin-top: 2px;
+    }
+
+    /* Nút Đăng xuất / Tạm nghỉ */
+    .btn-logout {
+      width: 100%; height: 44px; background: #FFF1F2; color: #E11D48;
+      border: 1px solid #FECDD3; border-radius: 12px; font-size: 13px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+
+    /* TRUNG TÂM BÁO CÁO SỰ CỐ CHO SHIPPER */
+    .incident-hub-card {
+      background: #FFF; border-radius: 18px; padding: 14px; border: 1.5px solid #FECDD3;
+      box-shadow: 0 4px 14px rgba(225, 29, 72, 0.08); display: flex; flex-direction: column; gap: 10px;
+    }
+    .incident-hub-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 8px; border-bottom: 1px dashed var(--border);
+    }
+    .hub-title-wrap { display: flex; align-items: center; gap: 8px; }
+    .hub-icon { font-size: 22px; }
+    .hub-title-wrap h3 { font-size: 13.5px; font-weight: 800; color: #BE123C; }
+    .hub-title-wrap p { font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
+
+    .btn-create-incident {
+      background: #E11D48; color: #FFF; border: none; border-radius: 8px;
+      padding: 6px 11px; font-size: 11.5px; font-weight: 800; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(225, 29, 72, 0.3); transition: background 0.2s;
+    }
+    .btn-create-incident:hover { background: #BE123C; }
+
+    .hotline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-hotline-item {
+      display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px;
+      text-decoration: none; border: 1px solid var(--border); transition: all 0.2s;
+    }
+    .btn-hotline-item.support { background: #EFF6FF; border-color: #BFDBFE; color: #1D4ED8; }
+    .btn-hotline-item.shop { background: #F0FDF4; border-color: #BBF7D0; color: #15803D; }
+    .hl-icon { font-size: 18px; }
+    .hl-text b { font-size: 11px; display: block; font-weight: 800; }
+    .hl-text span { font-size: 9.5px; opacity: 0.85; }
+
+    .incident-history-wrap { display: flex; flex-direction: column; gap: 6px; }
+    .history-title-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #475569;
+    }
+
+    .incident-ticket-item {
+      background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+      padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; font-size: 11px;
+    }
+    .ticket-top { display: flex; justify-content: space-between; align-items: center; }
+    .ticket-id { font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #1E293B; }
+    .ticket-badge { font-size: 9.5px; font-weight: 700; padding: 1.5px 6px; border-radius: 4px; }
+    .ticket-badge.resolved { background: #ECFDF5; color: #047857; }
+    .ticket-badge.processing { background: #FFF1F2; color: #BE123C; }
+    .ticket-reason { font-weight: 700; color: #334155; }
+    .ticket-desc { font-size: 10px; color: var(--text-muted); }
+    .ticket-comp { font-size: 10px; color: #059669; font-weight: 700; }
+
+    /* Modal Báo Cáo Sự Cố Cho Shipper Trong Profile */
+    .modal-overlay {
+      position: absolute; inset: 0; background: rgba(15, 23, 42, 0.75);
+      z-index: 100; display: none; align-items: center; justify-content: center; padding: 14px;
+      backdrop-filter: blur(2px);
+    }
+    .modal-overlay.open { display: flex; }
+    .incident-modal-box {
+      background: #FFF; width: 100%; border-radius: 20px; padding: 16px;
+      display: flex; flex-direction: column; gap: 10px; max-height: 90%; overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: popModal 0.25s ease;
+    }
+    @keyframes popModal {
+      from { transform: scale(0.88); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .incident-modal-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 1px solid var(--border); padding-bottom: 8px;
+    }
+    .incident-title-wrap { display: flex; align-items: center; gap: 8px; }
+    .incident-title-wrap h3 { font-size: 14.5px; font-weight: 800; color: #E11D48; }
+    .incident-title-wrap p { font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
+    .btn-close-modal {
+      width: 28px; height: 28px; border-radius: 50%; background: #F1F5F9;
+      border: none; font-size: 13px; font-weight: 700; cursor: pointer; color: #64748B;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-label { font-size: 11px; font-weight: 700; color: #334155; }
+    .form-select, .form-textarea {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 8px 10px; font-size: 11.5px; outline: none; background: #FAFAFA;
+      font-family: inherit; transition: border-color 0.2s;
+    }
+    .form-select:focus, .form-textarea:focus { border-color: #E11D48; background: #FFF; }
+    
+    .proof-upload-box {
+      border: 1.5px dashed #93C5FD; border-radius: 10px; padding: 10px;
+      text-align: center; background: #EFF6FF; cursor: pointer; transition: all 0.2s;
+      position: relative;
+    }
+    .proof-upload-box:hover { border-color: #3B82F6; background: #DBEAFE; }
+
+    .incident-modal-footer {
+      display: flex; gap: 8px; margin-top: 4px; padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .btn-incident-secondary {
+      flex: 1; padding: 9px; border-radius: 8px; border: 1px solid #BFDBFE;
+      background: #EFF6FF; color: var(--blue); font-size: 11px; font-weight: 700;
+      cursor: pointer; text-align: center;
+    }
+    .btn-incident-submit {
+      flex: 1.3; padding: 9px; border-radius: 8px; border: none;
+      background: #E11D48; color: #FFF; font-size: 11.5px; font-weight: 800;
+      cursor: pointer; box-shadow: 0 3px 8px rgba(225, 29, 72, 0.3);
+      transition: background 0.2s;
+    }
+    .btn-incident-submit:hover { background: #BE123C; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>09:41</span>
+      <span>●●● 5G 100%</span>
+    </div>
+
+    <!-- Top Header -->
+    <div class="top-header">
+      <span class="page-title">Hồ Sơ Tài Xế Quán</span>
+      <span class="badge-driver-id">TX-14</span>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Profile Card -->
+      <div class="profile-card">
+        <div class="profile-avatar">🛵</div>
+        <div class="profile-info">
+          <div class="profile-name">Trần Văn Nam</div>
+          <div class="profile-phone">0903.882.910 • Nam</div>
+          <div class="profile-rating">⭐ 4.9 (1.240 đánh giá)</div>
+        </div>
+      </div>
+
+      <!-- Quán Trực Thuộc Duy Nhất -->
+      <div class="store-affiliation-card">
+        <div class="affiliation-tag">
+          <span>🏪</span>
+          <span>QUÁN TRỰC THUỘC ĐỘC QUYỀN (1 QUÁN DUY NHẤT)</span>
+        </div>
+        <div class="store-main-name">Trà Sữa Ngô Gia - Thủ Đức</div>
+        <div class="store-address">📍 28 Tô Vĩnh Diện, P. Linh Chiểu, TP. Thủ Đức, TP.HCM</div>
+        <div class="store-rule-badge">
+          <span>🔒</span>
+          <span>Chỉ nhận đơn phát sinh từ Quán Ngô Gia</span>
+        </div>
+      </div>
+
+      <!-- Thống kê hoạt động -->
+      <div class="metrics-grid">
+        <div class="metric-box">
+          <div class="metric-val" style="color:var(--green);">100%</div>
+          <div class="metric-lbl">Tỉ lệ nhận đơn</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val" style="color:var(--blue);">3 đơn</div>
+          <div class="metric-lbl">Ghép tối đa</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val" style="color:var(--amber);">1.2%</div>
+          <div class="metric-lbl">Hủy trước lấy</div>
+        </div>
+      </div>
+
+      <!-- Thông tin phương tiện & Giấy phép -->
+      <div class="section-card">
+        <div class="sec-title">
+          <span>🏍️</span>
+          <span>Phương tiện di chuyển</span>
+        </div>
+        <div class="info-list">
+          <div class="info-item">
+            <span class="info-label">Dòng xe</span>
+            <span class="info-value">Yamaha Sirius Fi (Đỏ Đen)</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Biển số đăng ký</span>
+            <span class="info-value" style="font-family:'JetBrains Mono', monospace; color:var(--blue);">59-T1 882.91</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Tình trạng bảo hiểm</span>
+            <span class="info-value" style="color:var(--green);">✓ Có hiệu lực (đến 2027)</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Trang bị</span>
+            <span class="info-value">Thùng giữ nhiệt Oishi Food 48L</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cơ chế hoạt động & Quyền hạn -->
+      <div class="rules-card">
+        <div class="sec-title">
+          <span>📜</span>
+          <span>Cơ chế nhận đơn & Hủy đơn</span>
+        </div>
+        <div class="rule-item">
+          <span class="rule-bullet">✓</span>
+          <div><b>Thuộc 1 quán duy nhất:</b> Shipper chỉ nhận đơn của Quán Trà Sữa Ngô Gia (theo mô hình ShopeeFood chuyên quán).</div>
+        </div>
+        <div class="rule-item">
+          <span class="rule-bullet">✓</span>
+          <div><b>Lấy nhiều đơn cùng lúc:</b> Được quyền nhận ghép tối đa 3 đơn cùng tuyến để tối ưu chi phí và thời gian giao hàng.</div>
+        </div>
+        <div class="rule-item">
+          <span class="rule-bullet">✓</span>
+          <div><b>Hủy đơn trước khi lấy:</b> Có quyền hủy đơn khi chưa nhận món tại quán (do quán chuẩn bị lâu, hỏng xe...). Đơn hủy sẽ <b>tự động hoàn trả về danh sách của quán</b>.</div>
+        </div>
+        <div class="rule-item">
+          <span class="rule-bullet">🔒</span>
+          <div><b>Khóa hủy khi đã lấy hàng:</b> Sau khi tài xế xác nhận "Đã Lấy Món", nút hủy bị khóa để đảm bảo an toàn đơn hàng.</div>
+        </div>
+      </div>
+
+      <button class="btn-logout" onclick="alert('Đã kết thúc ca trực của Quán Ngô Gia. Hẹn gặp lại bạn!')">
+        <span>🚪</span>
+        <span>Kết Thúc Ca Trực / Đăng Xuất</span>
+      </button>
+    </div>
+
+    <!-- Bottom Nav Bar -->
+    <nav class="bottom-nav">
+      <a href="1.html" class="nav-item">
+        <span class="nav-icon">🧾</span>
+        <span>Thu nhập</span>
+      </a>
+      <a href="2.html" class="nav-item">
+        <span class="nav-icon">🛵</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="7.html" class="nav-item active">
+        <span class="nav-icon">👤</span>
+        <span>Hồ sơ</span>
+      </a>
+    </nav>
+  </div>
+
+</body>
+</html>

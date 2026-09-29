@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food Driver - Xác Nhận Lấy Đơn Gộp Tại Quán</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #059669;
+      --green-light: #ECFDF5;
+      --green-border: #A7F3D0;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --purple: #7C3AED;
+      --purple-light: #F5F3FF;
+      --amber: #D97706;
+      --amber-light: #FFFBEB;
+      --danger: #EF4444;
+      --bg-gray: #F8F9FA;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: #FFF;
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+
+    .status-bar {
+      height: 30px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    /* Driver Navbar */
+    .driver-navbar {
+      height: 54px; background: #FFF; padding: 0 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .order-header-info { display: flex; align-items: center; gap: 8px; }
+    .btn-back-round {
+      width: 32px; height: 32px; border-radius: 50%; background: #F1F5F9;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+      color: #333; text-decoration: none; font-weight: 700;
+    }
+    .order-header-text { display: flex; flex-direction: column; }
+    .order-code-title { font-size: 14px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .badge-bundle-header {
+      font-size: 10px; font-weight: 800; background: #FEF3C7; color: #B45309;
+      padding: 1.5px 6px; border-radius: 4px;
+    }
+    
+    .btn-cancel-top {
+      background: #FFF1F2; color: var(--danger); border: 1px solid #FECDD3;
+      border-radius: 8px; padding: 6px 10px; font-size: 11.5px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 4px;
+    }
+
+    /* Stepper 2 Chặng */
+    .trip-stepper {
+      background: #FFF; padding: 10px 16px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid var(--border);
+    }
+    .step-item { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; }
+    .step-badge {
+      width: 22px; height: 22px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; font-size: 11px; color: #FFF;
+    }
+    .step-active .step-badge { background: var(--primary); box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.2); }
+    .step-active span { color: var(--primary); }
+    .step-pending .step-badge { background: #CBD5E1; color: #64748B; }
+    .step-pending span { color: var(--text-muted); }
+    .step-divider { flex: 1; height: 1.5px; background: #E2E8F0; margin: 0 10px; }
+
+    /* Nội dung cuộn kiểm tra hàng */
+    .content {
+      flex: 1; overflow-y: auto; padding: 12px 14px 115px 14px; display: flex; flex-direction: column; gap: 12px;
+      background: #F8F9FA;
+    }
+
+    /* Thông báo đã đến quán & nhận đơn gộp */
+    .arrived-alert-card {
+      background: linear-gradient(135deg, #ECFDF5, #F0FDF4);
+      border: 1.5px solid #A7F3D0; border-radius: 14px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 6px rgba(5,150,105,0.06);
+    }
+    .arrived-icon { font-size: 26px; }
+    .arrived-text h4 { font-size: 13.5px; font-weight: 800; color: #065F46; }
+    .arrived-text p { font-size: 11px; color: #047857; margin-top: 2px; line-height: 1.35; }
+
+    /* Quán Card + Thống kê đơn gộp */
+    .shop-card-bundle {
+      background: #FFF; border-radius: 14px; padding: 12px 14px; border: 1px solid var(--border);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .shop-header-row {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .shop-header-row h3 { font-size: 14.5px; font-weight: 800; color: var(--text); }
+    .shop-header-row p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .btn-call-mini {
+      width: 36px; height: 36px; border-radius: 50%; background: #E8F7EE;
+      color: var(--green); display: flex; align-items: center; justify-content: center;
+      text-decoration: none; font-size: 16px; flex-shrink: 0;
+    }
+
+    .bundle-metric-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 6px;
+      background: #F8FAFC; border-radius: 10px; padding: 8px 10px; border: 1px solid #E2E8F0;
+    }
+    .bundle-metric-item { display: flex; flex-direction: column; }
+    .bundle-metric-item .lbl { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+    .bundle-metric-item .val { font-size: 12px; font-weight: 800; color: var(--text); margin-top: 1px; }
+    .bundle-metric-item .val.green { color: var(--green); }
+
+    /* Thanh Điều Khiển Danh Sách (List View Toolbar) */
+    .list-toolbar {
+      display: flex; align-items: center; justify-content: space-between; padding: 0 2px;
+    }
+    .list-title {
+      font-size: 13px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px;
+    }
+    .btn-check-all {
+      font-size: 11px; font-weight: 700; color: var(--blue); background: #EFF6FF;
+      border: 1px solid #BFDBFE; border-radius: 8px; padding: 4px 9px; cursor: pointer;
+      display: flex; align-items: center; gap: 4px; transition: all 0.2s;
+    }
+    .btn-check-all:hover { background: #DBEAFE; }
+
+    /* THẺ TỪNG ĐƠN TRONG LIST VIEW */
+    .list-order-card {
+      background: #FFF; border-radius: 16px; padding: 14px;
+      border: 1.5px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      position: relative; transition: border-color 0.2s;
+    }
+    .list-order-card.ready {
+      border-color: #86EFAC;
+    }
+
+    .order-card-header-bar {
+      display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;
+      padding-bottom: 8px; border-bottom: 1px dashed var(--border);
+    }
+    .order-card-id-wrap { display: flex; align-items: center; gap: 6px; }
+    .order-card-id { font-size: 14px; font-weight: 800; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+    .badge-sequence {
+      font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px;
+    }
+    .badge-seq-1 { background: #DBEAFE; color: #1D4ED8; }
+    .badge-seq-2 { background: #F3E8FF; color: #6D28D9; }
+
+    .badge-payment-status {
+      font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-align: right;
+    }
+    .pay-prepaid { background: #ECFDF5; color: #047857; }
+    .pay-cod { background: #FEF3C7; color: #B45309; }
+
+    .btn-priority-toggle {
+      font-size: 10.5px; font-weight: 800; border-radius: 6px; padding: 2.5px 8px;
+      cursor: pointer; border: 1.5px solid var(--border); background: #F8FAFC; color: #64748B;
+      transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .btn-priority-toggle:hover { border-color: #94A3B8; }
+    .btn-priority-toggle.active {
+      background: #EFF6FF; color: #1D4ED8; border-color: #93C5FD;
+      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
+    }
+
+    /* Thông tin khách & điểm giao */
+    .cust-delivery-info {
+      display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: #334155; margin-bottom: 10px;
+    }
+    .cust-name-row { display: flex; justify-content: space-between; align-items: center; }
+    .cust-name-row b { color: var(--text); font-size: 12.5px; }
+    .btn-call-cust {
+      color: var(--blue); font-size: 11px; font-weight: 700; text-decoration: none;
+      background: #EFF6FF; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px;
+    }
+    .cust-address-row { display: flex; gap: 5px; line-height: 1.4; color: #475569; }
+
+    /* Checklist các món của từng đơn */
+    .order-dishes-checklist {
+      background: #F8FAFC; border-radius: 12px; padding: 10px 12px; border: 1px solid #EDF2F7;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .order-dish-row {
+      display: flex; align-items: flex-start; gap: 8px; cursor: pointer;
+      font-size: 12px;
+    }
+    .order-dish-row input[type="checkbox"] {
+      width: 17px; height: 17px; accent-color: var(--green); margin-top: 2px; cursor: pointer; flex-shrink: 0;
+    }
+    .dish-text-wrap { flex: 1; }
+    .dish-text-wrap b { color: var(--text); font-size: 12.5px; }
+    .dish-text-wrap span { display: block; font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
+
+    /* Ghi chú khách */
+    .order-cust-note {
+      background: #FFFBEB; border-radius: 8px; padding: 6px 9px; font-size: 10.5px; color: #92400E;
+      margin-top: 8px; display: flex; align-items: center; gap: 5px;
+    }
+
+    /* Nút xác nhận từng đơn */
+    .order-card-footer {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 8px;
+      border-top: 1px solid #F1F5F9;
+    }
+    .order-status-pill {
+      font-size: 11px; font-weight: 700; color: var(--green); display: flex; align-items: center; gap: 4px;
+    }
+    .btn-toggle-order-check {
+      background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; border-radius: 8px;
+      padding: 5px 12px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 4px;
+    }
+
+    /* Thanh Thao Tác Chân Màn Hình */
+    .bottom-sheet-fixed {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: #FFF; border-top: 1px solid var(--border); padding: 10px 16px 20px 16px;
+      box-shadow: 0 -6px 20px rgba(0,0,0,0.08); z-index: 20;
+    }
+
+    .bottom-summary-info {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+      font-size: 11.5px;
+    }
+    .bottom-summary-info b { color: var(--text); }
+    .bottom-summary-info .earning-highlight { color: var(--green); font-weight: 800; font-size: 12.5px; }
+
+    .swipe-container {
+      position: relative; width: 100%; height: 50px; background: #FFEBE6;
+      border-radius: 26px; overflow: hidden; display: flex; align-items: center;
+      justify-content: center; user-select: none; border: 1px solid #FFD0C7;
+    }
+    .swipe-label {
+      font-size: 12.5px; font-weight: 800; color: var(--primary); pointer-events: none;
+    }
+    .swipe-thumb {
+      position: absolute; left: 3px; top: 3px; width: 44px; height: 44px;
+      background: var(--primary); border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; color: #FFF; font-size: 18px;
+      cursor: grab; box-shadow: 0 3px 8px rgba(238, 77, 45, 0.4);
+      touch-action: none; transition: background 0.2s;
+    }
+
+    /* Modal Hủy Đơn Khi Chưa Lấy Hàng */
+    .modal-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.65);
+      z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #FFF; width: 100%; border-radius: 18px; padding: 18px;
+      display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .modal-title { font-size: 15px; font-weight: 800; color: var(--danger); display: flex; align-items: center; gap: 6px; }
+    .modal-desc { font-size: 12px; color: #64748B; line-height: 1.45; }
+    .select-reason {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 12px; outline: none; background: #FAFAFA;
+    }
+    .modal-btns { display: flex; gap: 8px; margin-top: 4px; }
+    .btn-modal-back {
+      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: #F1F5F9; color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .btn-modal-confirm-cancel {
+      flex: 1.2; padding: 10px; border-radius: 8px; border: none;
+      background: var(--danger); color: #FFF; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>10:25</span>
+      <span>📶 5G 🔋 92%</span>
+    </div>
+
+    <!-- Header ShopeeFood Driver -->
+    <div class="driver-navbar">
+      <div class="order-header-info">
+        <a href="4.html" class="btn-back-round">←</a>
+        <div class="order-header-text">
+          <div class="order-code-title">
+            <span>Đơn Gộp Tại Quán</span>
+            <span class="badge-bundle-header">2 Đơn</span>
+          </div>
+        </div>
+      </div>
+      <!-- NÚT HỦY ĐƠN KHI CHƯA LẤY HÀNG -->
+      <button class="btn-cancel-top" id="btnCancelPickup" onclick="openCancelModal()">
+        <span>✕</span>
+        <span>Hủy đơn</span>
+      </button>
+    </div>
+
+    <!-- Stepper 2 Chặng Đơn Gộp -->
+    <div class="trip-stepper">
+      <div class="step-item step-active">
+        <div class="step-badge">1</div>
+        <span>Kiểm tra & Lấy 2 đơn gộp</span>
+      </div>
+      <div class="step-divider"></div>
+      <div class="step-item step-pending">
+        <div class="step-badge">2</div>
+        <span>Lộ trình giao 2 khách</span>
+      </div>
+    </div>
+
+    <!-- Nội dung cuộn List View các đơn gộp -->
+    <div class="content">
+      <!-- Thẻ thông báo tài xế đã đến quán & lấy đơn gộp -->
+      <div class="arrived-alert-card">
+        <div class="arrived-icon">👨🏻‍🍳</div>
+        <div class="arrived-text">
+          <h4>BẠN ĐÃ CÓ MẶT TẠI QUÁN • LẤY GỘP 2 ĐƠN</h4>
+          <p>Đọc 2 mã đơn cho nhân viên quán: <b>#88291</b> & <b>#88292</b>. Kiểm tra đủ món từng đơn theo danh sách bên dưới.</p>
+        </div>
+      </div>
+
+      <!-- Thẻ thông tin quán & thống kê cước -->
+      <div class="shop-card-bundle">
+        <div class="shop-header-row">
+          <div>
+            <h3>Trà Sữa Ngô Gia (Q.Thủ Đức)</h3>
+            <p>📍 28 Tô Vĩnh Diện, P. Linh Chiểu, TP. Thủ Đức</p>
+          </div>
+          <a href="tel:02838229999" class="btn-call-mini" title="Gọi quán">📞</a>
+        </div>
+        <div class="bundle-metric-grid">
+          <div class="bundle-metric-item">
+            <span class="lbl">Số đơn gộp</span>
+            <span class="val">2 đơn (4 món)</span>
+          </div>
+          <div class="bundle-metric-item">
+            <span class="lbl">Thu hộ COD</span>
+            <span class="val" style="color:var(--amber);">72.000 đ</span>
+          </div>
+          <div class="bundle-metric-item">
+            <span class="lbl">Cước tài xế nhận</span>
+            <span class="val green">+45.000 đ (+25k +20k)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- THANH ĐIỀU KHIỂN DANH SÁCH (LIST VIEW TOOLBAR) -->
+      <div class="list-toolbar">
+        <div class="list-title">
+          <span>📋</span>
+          <span>DANH SÁCH ĐƠN GỘP CẦN KIỂM TRA</span>
+          <span style="font-size:11px; color:var(--green); font-weight:800;" id="txtProgressBadge">(2/2 Đã xong)</span>
+        </div>
+        <button class="btn-check-all" onclick="checkAllDishes()">
+          <span>✓</span>
+          <span>Chọn tất cả</span>
+        </button>
+      </div>
+
+      <!-- 1. ĐƠN 1 TRONG LIST VIEW (#ORD-88291) -->
+      <div class="list-order-card ready" id="cardOrder1">
+        <div class="order-card-header-bar">
+          <div class="order-card-id-wrap">
+            <span class="order-card-id">#ORD_88291</span>
+            <button class="btn-priority-toggle active" id="btnPrio1" onclick="setFirstDelivery('88291')" title="Nhấn để chọn giao đơn này trước">
+              <span id="badgePrio1Text">Chặng 1 • Giao trước ⚡</span>
+            </button>
+          </div>
+          <div class="badge-payment-status pay-prepaid">
+            💳 Đã trả MoMo • Thu COD: 0 đ
+          </div>
+        </div>
+
+        <div class="cust-delivery-info">
+          <div class="cust-name-row">
+            <div>Khách nhận: <b style="cursor:pointer; color:#1D4ED8; text-decoration:underline;" onclick="setFirstDelivery('88291')" title="Nhấn vào tên khách để giao trước">An Nguyễn 👆</b> (⭐ 98/100)</div>
+            <a href="tel:0903882910" class="btn-call-cust">📞 Gọi khách</a>
+          </div>
+          <div class="cust-address-row">
+            <span>📍</span>
+            <span><b>104 Hai Bà Trưng, P. Đa Kao, Q.1</b> (6.2 km từ quán)</span>
+          </div>
+        </div>
+
+        <!-- Checklist món đơn 1 -->
+        <div class="order-dishes-checklist">
+          <label class="order-dish-row">
+            <input type="checkbox" checked class="chk-item chk-group-1" onchange="updateChecklistProgress()">
+            <div class="dish-text-wrap">
+              <b>1x Trà Xí Muội Ô Long (Size M)</b>
+              <span>100% đường • Ít đá</span>
+            </div>
+          </label>
+
+          <label class="order-dish-row">
+            <input type="checkbox" checked class="chk-item chk-group-1" onchange="updateChecklistProgress()">
+            <div class="dish-text-wrap">
+              <b>1x Trà Xí Muội Ngô Gia (Size M)</b>
+              <span>70% đường • Đá riêng</span>
+            </div>
+          </label>
+
+          <label class="order-dish-row">
+            <input type="checkbox" checked class="chk-item chk-group-1" onchange="updateChecklistProgress()">
+            <div class="dish-text-wrap">
+              <b>Kèm 2 ống hút to & Túi niêm phong #88291</b>
+              <span>Kiểm tra miệng túi đã dán kín tem</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="order-cust-note">
+          <span>💬</span>
+          <span><b>Ghi chú:</b> "Cho mình xin thêm 2 ống hút to nha quán"</span>
+        </div>
+
+        <div class="order-card-footer">
+          <span class="order-status-pill" id="statusPill1">
+            <span>✓</span> <span>Đã kiểm đủ món Đơn 1</span>
+          </span>
+          <button class="btn-toggle-order-check" onclick="toggleOrderCheck(1)">
+            <span>✓</span> <span>Xác nhận Đơn 1</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. ĐƠN 2 TRONG LIST VIEW (#ORD-88292) -->
+      <div class="list-order-card ready" id="cardOrder2">
+        <div class="order-card-header-bar">
+          <div class="order-card-id-wrap">
+            <span class="order-card-id">#ORD_88292</span>
+            <button class="btn-priority-toggle" id="btnPrio2" onclick="setFirstDelivery('88292')" title="Nhấn để chọn giao đơn này trước">
+              <span id="badgePrio2Text">Chặng 2 • Cùng tuyến</span>
+            </button>
+          </div>
+          <div class="badge-payment-status pay-cod">
+            💵 Thu hộ COD: 72.000 đ
+          </div>
+        </div>
+
+        <div class="cust-delivery-info">
+          <div class="cust-name-row">
+            <div>Khách nhận: <b style="cursor:pointer; color:#1D4ED8; text-decoration:underline;" onclick="setFirstDelivery('88292')" title="Nhấn vào tên khách để giao trước">Minh Khang 👆</b> (⭐ 99/100)</div>
+            <a href="tel:0918456789" class="btn-call-cust">📞 Gọi khách</a>
+          </div>
+          <div class="cust-address-row">
+            <span>📍</span>
+            <span><b>18 Lê Duẩn, P. Bến Nghé, Q.1</b> (Cách điểm 1 chỉ 1.2 km)</span>
+          </div>
+        </div>
+
+        <!-- Checklist món đơn 2 -->
+        <div class="order-dishes-checklist">
+          <label class="order-dish-row">
+            <input type="checkbox" checked class="chk-item chk-group-2" onchange="updateChecklistProgress()">
+            <div class="dish-text-wrap">
+              <b>2x Hồng Trà Sữa Trân Châu (Size L)</b>
+              <span>50% đường • Ít đá</span>
+            </div>
+          </label>
+
+          <label class="order-dish-row">
+            <input type="checkbox" checked class="chk-item chk-group-2" onchange="updateChecklistProgress()">
+            <div class="dish-text-wrap">
+              <b>Túi niêm phong dán tem Ngô Gia #88292</b>
+              <span>2 ly size L + 2 ống hút trân châu</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="order-cust-note">
+          <span>💬</span>
+          <span><b>Ghi chú:</b> "Giao lên sảnh lầu 2 gọi mình nhé"</span>
+        </div>
+
+        <div class="order-card-footer">
+          <span class="order-status-pill" id="statusPill2">
+            <span>✓</span> <span>Đã kiểm đủ món Đơn 2</span>
+          </span>
+          <button class="btn-toggle-order-check" onclick="toggleOrderCheck(2)">
+            <span>✓</span> <span>Xác nhận Đơn 2</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thanh Trượt Gạt Sang Phải Xác Nhận Đã Lấy Cả 2 Đơn Gộp -->
+    <div class="bottom-sheet-fixed">
+      <div class="bottom-summary-info">
+        <span>Đã kiểm tra: <b id="lblCheckedSummary">2/2 đơn gộp</b></span>
+        <span class="earning-highlight">Nhận +45.000 đ</span>
+      </div>
+      <div class="swipe-container" id="swipeTrack">
+        <span class="swipe-label" id="txtSwipeLabel">Gạt sang phải xác nhận ĐÃ LẤY CẢ 2 ĐƠN GỘP ›››</span>
+        <div class="swipe-thumb" id="swipeHandle">➔</div>
+      </div>
+    </div>
+
+    <!-- Modal Hủy Đơn Gộp -->
+    <div class="modal-overlay" id="cancelModal">
+      <div class="modal-box">
+        <div class="modal-title">
+          <span>✕</span>
+          <span>HỦY ĐƠN HÀNG GỘP</span>
+        </div>
+        <p class="modal-desc">
+          Bạn đang yêu cầu hủy đơn khi <b>chưa lấy hàng</b> tại quán.<br>
+          Vui lòng chọn đơn bạn muốn hủy:
+        </p>
+
+        <div style="font-size:11.5px; font-weight:700; color:var(--text);">Chọn phạm vi hủy:</div>
+        <select class="select-reason" id="cancelScope">
+          <option value="Hủy Đơn 2 (#ORD_88292) - Giữ lại Đơn 1">Chỉ hủy Đơn 2 (#ORD_88292 - Minh Khang)</option>
+          <option value="Hủy Đơn 1 (#ORD_88291) - Giữ lại Đơn 2">Chỉ hủy Đơn 1 (#ORD_88291 - An Nguyễn)</option>
+          <option value="Hủy CẢ 2 ĐƠN GỘP">Hủy CẢ 2 ĐƠN GỘP (Trả lại quán)</option>
+        </select>
+
+        <div style="font-size:11.5px; font-weight:700; color:var(--text); margin-top:2px;">Lý do hủy:</div>
+        <select class="select-reason" id="cancelReason">
+          <option value="Quán làm lâu không kịp tuyến">Quán làm lâu không kịp thời gian tuyến</option>
+          <option value="Bị trùng tuyến hoặc xe gặp sự cố">Xe gặp sự cố kỹ thuật dọc đường</option>
+          <option value="Lý do cá nhân đột xuất">Lý do cá nhân đột xuất</option>
+        </select>
+
+        <div class="modal-btns">
+          <button class="btn-modal-back" onclick="closeCancelModal()">Quay Lại</button>
+          <button class="btn-modal-confirm-cancel" onclick="confirmCancelOrder()">Xác Nhận Hủy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Logic Checklist tiến độ đơn gộp
+    function updateChecklistProgress() {
+      const allCheckboxes = document.querySelectorAll('.chk-item');
+      const checkedBoxes = document.querySelectorAll('.chk-item:checked');
+      const group1Boxes = document.querySelectorAll('.chk-group-1');
+      const group1Checked = document.querySelectorAll('.chk-group-1:checked');
+      const group2Boxes = document.querySelectorAll('.chk-group-2');
+      const group2Checked = document.querySelectorAll('.chk-group-2:checked');
+
+      const card1 = document.getElementById('cardOrder1');
+      const card2 = document.getElementById('cardOrder2');
+      const pill1 = document.getElementById('statusPill1');
+      const pill2 = document.getElementById('statusPill2');
+
+      const g1Complete = group1Boxes.length === group1Checked.length;
+      const g2Complete = group2Boxes.length === group2Checked.length;
+
+      if (g1Complete) {
+        card1.classList.add('ready');
+        pill1.innerHTML = '<span>✓</span> <span>Đã kiểm đủ món Đơn 1</span>';
+        pill1.style.color = 'var(--green)';
+      } else {
+        card1.classList.remove('ready');
+        pill1.innerHTML = `<span>⏳</span> <span>Còn ${group1Boxes.length - group1Checked.length} món chưa tích</span>`;
+        pill1.style.color = 'var(--amber)';
+      }
+
+      if (g2Complete) {
+        card2.classList.add('ready');
+        pill2.innerHTML = '<span>✓</span> <span>Đã kiểm đủ món Đơn 2</span>';
+        pill2.style.color = 'var(--green)';
+      } else {
+        card2.classList.remove('ready');
+        pill2.innerHTML = `<span>⏳</span> <span>Còn ${group2Boxes.length - group2Checked.length} món chưa tích</span>`;
+        pill2.style.color = 'var(--amber)';
+      }
+
+      let completedOrders = 0;
+      if (g1Complete) completedOrders++;
+      if (g2Complete) completedOrders++;
+
+      document.getElementById('txtProgressBadge').innerText = `(${completedOrders}/2 Đã xong)`;
+      document.getElementById('lblCheckedSummary').innerText = `${completedOrders}/2 đơn gộp`;
+    }
+
+    function checkAllDishes() {
+      const allCheckboxes = document.querySelectorAll('.chk-item');
+      allCheckboxes.forEach(cb => cb.checked = true);
+      updateChecklistProgress();
+    }
+
+    function toggleOrderCheck(orderNum) {
+      const group = document.querySelectorAll(`.chk-group-${orderNum}`);
+      const allChecked = Array.from(group).every(cb => cb.checked);
+      group.forEach(cb => cb.checked = !allChecked);
+      updateChecklistProgress();
+    }
+
+    // Tài xế tự do chọn thứ tự giao đơn nào trước ngay tại quán
+    let selectedFirstDelivery = '88291';
+    function setFirstDelivery(orderId) {
+      selectedFirstDelivery = orderId;
+      const btn1 = document.getElementById('btnPrio1');
+      const btn2 = document.getElementById('btnPrio2');
+      const txt1 = document.getElementById('badgePrio1Text');
+      const txt2 = document.getElementById('badgePrio2Text');
+
+      if (orderId === '88292') {
+        btn2.classList.add('active');
+        btn1.classList.remove('active');
+        txt2.innerHTML = 'Chặng 1 • Giao trước ⚡';
+        txt1.innerHTML = 'Chặng 2 • Cùng tuyến';
+      } else {
+        btn1.classList.add('active');
+        btn2.classList.remove('active');
+        txt1.innerHTML = 'Chặng 1 • Giao trước ⚡';
+        txt2.innerHTML = 'Chặng 2 • Cùng tuyến';
+      }
+    }
+
+    // Logic Kéo Gạt Xác Nhận Đã Lấy 2 Đơn Gộp
+    const track = document.getElementById('swipeTrack');
+    const handle = document.getElementById('swipeHandle');
+    const txtLabel = document.getElementById('txtSwipeLabel');
+    let isDragging = false;
+    let startX = 0;
+
+    function onStart(e) {
+      isDragging = true;
+      startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+      handle.style.transition = 'none';
+    }
+
+    function onMove(e) {
+      if (!isDragging) return;
+      const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+      const deltaX = currentX - startX;
+      const maxDrag = track.clientWidth - handle.clientWidth - 6;
+
+      if (deltaX > 0 && deltaX <= maxDrag) {
+        handle.style.left = `${deltaX + 3}px`;
+      } else if (deltaX > maxDrag) {
+        handle.style.left = `${maxDrag + 3}px`;
+      }
+    }
+
+    function onEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      const maxDrag = track.clientWidth - handle.clientWidth - 6;
+      const currentLeft = parseInt(handle.style.left || '3');
+
+      if (currentLeft >= maxDrag * 0.7) {
+        // Tự động tích chọn hết các món
+        checkAllDishes();
+
+        handle.style.transition = 'left 0.2s ease';
+        handle.style.left = `${maxDrag + 3}px`;
+        handle.innerHTML = '✓';
+        handle.style.background = 'var(--green)';
+        txtLabel.innerText = "✓ ĐÃ LẤY CẢ 2 ĐƠN GỘP THÀNH CÔNG!";
+        txtLabel.style.color = "var(--green)";
+
+        // Lưu trạng thái đã lấy đơn gộp vào localStorage
+        let orders = JSON.parse(localStorage.getItem('oishi_orders') || '[]');
+        let ord1 = orders.find(o => o.id === 'ORD_OISHI_88291');
+        if (ord1) {
+          ord1.driverPickedUp = true;
+          ord1.status = 'IN_TRANSIT';
+        }
+        localStorage.setItem('oishi_orders', JSON.stringify(orders));
+
+        setTimeout(() => {
+          const custName = (selectedFirstDelivery === '88292') ? 'Khách hàng Minh Khang (18 Lê Duẩn, Q.1)' : 'Khách hàng An Nguyễn (104 Hai Bà Trưng, Q.1)';
+          alert(`✓ ĐÃ XÁC NHẬN LẤY CẢ 2 ĐƠN GỘP THÀNH CÔNG!\n\n🛵 Bắt đầu di chuyển giao chặng 1 cho: ${custName} trước!`);
+          window.location.href = `6.html?order=${selectedFirstDelivery}`; // Chuyển sang màn hình giao hàng lộ trình đa chặng
+        }, 300);
+      } else {
+        handle.style.transition = 'left 0.3s ease';
+        handle.style.left = '3px';
+      }
+    }
+
+    handle.addEventListener('touchstart', onStart);
+    window.addEventListener('touchmove', onMove);
+    window.addEventListener('touchend', onEnd);
+    handle.addEventListener('mousedown', onStart);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+
+    // Xử lý modal hủy đơn gộp
+    function openCancelModal() {
+      document.getElementById('cancelModal').classList.add('open');
+    }
+    function closeCancelModal() {
+      document.getElementById('cancelModal').classList.remove('open');
+    }
+    function confirmCancelOrder() {
+      const scope = document.getElementById('cancelScope').value;
+      const reason = document.getElementById('cancelReason').value;
+      closeCancelModal();
+
+      if (scope.includes('Hủy CẢ 2 ĐƠN')) {
+        alert(`Đã hủy nhận cả 2 đơn gộp thành công! Đơn hàng được tự động hoàn trả về danh sách chờ của Quán Ngô Gia.\nLý do: ${reason}`);
+        window.location.href = '2.html';
+      } else {
+        alert(`✓ Đã xác nhận: ${scope}\nĐơn hủy đã được hoàn trả về quán để phân phối tài xế khác. Bạn tiếp tục giao đơn còn lại!`);
+        // Ẩn đơn tương ứng
+        if (scope.includes('Đơn 2')) {
+          document.getElementById('cardOrder2').style.display = 'none';
+        } else {
+          document.getElementById('cardOrder1').style.display = 'none';
+        }
+      }
+    }
+  </script>
+
+</body>
+</html>

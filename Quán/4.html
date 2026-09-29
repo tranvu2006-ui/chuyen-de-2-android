@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Luồng Xác Nhận & Xử Lý Đơn Quán</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --primary-light: #FFF0ED;
+      --bg: #F8FAFC;
+      --card: #FFFFFF;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --green-dark: #059669;
+      --green-light: #ECFDF5;
+      --danger: #EF4444;
+      --danger-light: #FEF2F2;
+      --blue: #2563EB;
+      --blue-light: #EFF6FF;
+      --amber: #F59E0B;
+      --amber-light: #FFFBEB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    /* Khung điện thoại di động */
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 28px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    /* Top Brand & Shop Info Header */
+    .shop-header {
+      background: #FFF; padding: 10px 16px; border-bottom: 1px solid var(--border);
+    }
+    .brand-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .brand-left { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    .brand-logo {
+      width: 32px; height: 32px; background: var(--primary); color: #FFF;
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px;
+    }
+    .brand-title { font-size: 15px; font-weight: 800; color: var(--primary); letter-spacing: -0.3px; }
+    .role-tag { font-size: 11px; font-weight: 700; background: #EFF6FF; color: var(--blue); padding: 3px 8px; border-radius: 6px; }
+
+    .shop-profile-box { display: flex; justify-content: space-between; align-items: center; }
+    .shop-name-wrap h2 { font-size: 14px; font-weight: 800; color: var(--text); }
+    .shop-name-wrap p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Switch trạng thái mở cửa quán */
+    .open-status-toggle { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; color: var(--green); }
+    .toggle-switch { position: relative; width: 38px; height: 20px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #CBD5E1; transition: .3s; border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 14px; width: 14px;
+      left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
+    }
+    input:checked + .slider { background-color: var(--green); }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    /* Nội dung chính cuộn */
+    .main-body {
+      flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px;
+      padding-bottom: 75px;
+    }
+
+    /* 1. Banner Đơn Mới Đến Rung Chuông Nhắc Nhở */
+    .incoming-alert-banner {
+      background: linear-gradient(135deg, #EE4D2D, #C93415);
+      border-radius: 14px; padding: 12px 14px; color: #FFF;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 4px 14px rgba(238,77,45,0.3);
+      animation: alertPulse 2s infinite ease-in-out;
+    }
+    @keyframes alertPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 4px 14px rgba(238,77,45,0.3); }
+      50% { transform: scale(1.015); box-shadow: 0 6px 20px rgba(238,77,45,0.5); }
+    }
+    .alert-left { display: flex; align-items: center; gap: 10px; }
+    .alert-bell { font-size: 24px; animation: bellRing 1.5s infinite; display: inline-block; }
+    @keyframes bellRing {
+      0%, 100% { transform: rotate(0); }
+      10%, 30% { transform: rotate(-15deg); }
+      20%, 40% { transform: rotate(15deg); }
+    }
+    .alert-title { font-size: 13.5px; font-weight: 800; line-height: 1.3; }
+    .alert-sub { font-size: 11px; opacity: 0.9; margin-top: 1px; }
+    .alert-timer {
+      background: rgba(0,0,0,0.25); padding: 4px 10px; border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+    }
+
+    /* 2. Stepper Tiến Trình 4 Bước Của Quán */
+    .stepper-card { background: #FFF; border-radius: 14px; padding: 12px 14px; border: 1px solid var(--border); }
+    .stepper-title {
+      font-size: 11.5px; font-weight: 800; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.4px; margin-bottom: 10px; display: flex; justify-content: space-between;
+    }
+    .timeline-stepper { display: flex; justify-content: space-between; position: relative; margin: 4px 4px 0 4px; }
+    .timeline-stepper::before {
+      content: ''; position: absolute; top: 12px; left: 16px; right: 16px; height: 3px;
+      background: #E2E8F0; z-index: 1;
+    }
+    .timeline-progress {
+      position: absolute; top: 12px; left: 16px; height: 3px;
+      background: var(--primary); z-index: 2; transition: width 0.3s ease;
+    }
+    .step-node {
+      display: flex; flex-direction: column; align-items: center; position: relative; z-index: 3;
+      cursor: pointer; width: 68px; text-align: center;
+    }
+    .node-dot {
+      width: 24px; height: 24px; border-radius: 50%; background: #E2E8F0;
+      color: #64748B; font-size: 11px; font-weight: 800; display: flex;
+      align-items: center; justify-content: center; transition: all 0.2s ease;
+    }
+    .step-node.done .node-dot { background: var(--primary); color: #FFF; }
+    .step-node.active .node-dot {
+      background: var(--primary); color: #FFF; box-shadow: 0 0 0 4px rgba(238, 77, 45, 0.25);
+      transform: scale(1.1);
+    }
+    .step-node.completed .node-dot { background: var(--green); color: #FFF; }
+    .node-label { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 6px; line-height: 1.25; }
+    .step-node.active .node-label { color: var(--primary); font-weight: 800; }
+    .step-node.done .node-label { color: var(--text); font-weight: 700; }
+
+    /* 3. Thẻ Trạng Thái Hiện Tại */
+    .status-badge-card {
+      background: #FFF; border-radius: 14px; padding: 12px 14px; border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .status-left { display: flex; align-items: center; gap: 10px; }
+    .status-icon-box {
+      width: 40px; height: 40px; border-radius: 10px; background: #FFF0ED;
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .status-title-text { font-size: 13.5px; font-weight: 800; color: var(--text); }
+    .status-desc-text { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .badge-stage-tag { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
+
+    /* 4. Thẻ Đơn Hàng Chi Tiết */
+    .order-detail-card {
+      background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 10px;
+    }
+    .order-card-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px dashed var(--border); }
+    .order-id-pill { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .order-time { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+
+    .customer-info-box {
+      background: #F8FAFC; border-radius: 10px; padding: 10px 12px; border: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .cust-left { display: flex; align-items: center; gap: 8px; }
+    .cust-avatar { width: 34px; height: 34px; border-radius: 50%; background: #EFF6FF; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 1px solid #BFDBFE; }
+    .cust-name { font-size: 12.5px; font-weight: 800; color: var(--text); }
+    .cust-trust { font-size: 10px; font-weight: 700; color: var(--green-dark); background: #DCFCE7; padding: 1px 6px; border-radius: 4px; display: inline-block; margin-top: 2px; }
+    .btn-call-cust { display: flex; align-items: center; gap: 4px; background: #ECFDF5; color: var(--green-dark); padding: 6px 10px; border-radius: 8px; text-decoration: none; font-size: 11px; font-weight: 700; border: 1px solid #A7F3D0; }
+
+    .order-address-box { font-size: 11.5px; color: #475569; line-height: 1.45; }
+    .note-pill-box { background: #FFFBEB; border: 1px dashed #FDE68A; border-radius: 8px; padding: 8px 10px; font-size: 11px; color: #92400E; display: flex; gap: 6px; align-items: flex-start; }
+
+    .dishes-list-title { font-size: 12px; font-weight: 800; color: var(--text); margin-top: 2px; display: flex; justify-content: space-between; align-items: center; }
+    .dish-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px dashed #F1F5F9; font-size: 12px; }
+    .dish-item:last-child { border-bottom: none; }
+    .dish-name { font-weight: 700; color: #1E293B; }
+    .dish-options { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+    .dish-price { font-weight: 700; color: var(--text); }
+
+    .bill-summary-wrap { background: #F8FAFC; border-radius: 10px; padding: 10px 12px; border: 1px solid var(--border); }
+    .bill-row { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 4px; color: #475569; }
+    .bill-row.total { font-size: 13.5px; font-weight: 800; color: var(--primary); border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 6px; margin-bottom: 0; }
+    .payment-tag-paid { font-size: 11px; font-weight: 700; color: #15803D; background: #DCFCE7; padding: 2px 6px; border-radius: 4px; }
+
+    /* Action Sections */
+    .prep-time-section { background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border); }
+    .prep-label { font-size: 12px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    .time-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+    .time-pill-btn { padding: 8px 0; border-radius: 8px; font-size: 11px; font-weight: 700; border: 1px solid var(--border); background: #F8FAFC; color: #475569; cursor: pointer; text-align: center; }
+    .time-pill-btn.active { background: #FFF0ED; border-color: var(--primary); color: var(--primary); font-weight: 800; }
+    .confirm-actions-row { display: flex; gap: 8px; }
+    .btn-reject { flex: 0.35; height: 44px; background: #FEE2E2; color: var(--danger); border: none; border-radius: 10px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .btn-confirm-main { flex: 0.65; height: 44px; background: linear-gradient(135deg, #FF6933, #EE4D2D); color: #FFF; border: none; border-radius: 10px; font-size: 13.5px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(238, 77, 45, 0.3); }
+
+    .cooking-section { display: none; background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border); }
+    .cooking-timer-box { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 12px; text-align: center; margin-bottom: 12px; }
+    .cooking-countdown { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 800; color: #B45309; }
+    .kitchen-checklist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .kitchen-check-item { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #334155; padding: 8px 10px; background: #F8FAFC; border-radius: 8px; }
+    .kitchen-btns-row { display: flex; gap: 8px; }
+    .btn-print-bill { flex: 0.4; height: 42px; background: #F1F5F9; color: var(--text); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .btn-done-cooking { flex: 0.6; height: 42px; background: #059669; color: #FFF; border: none; border-radius: 10px; font-size: 12.5px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(5,150,105,0.25); }
+
+    .dispatch-section { background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border); }
+    .dispatch-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 10px; }
+    .driver-handoff-card { border: 1.5px solid #BFDBFE; border-radius: 12px; padding: 12px; display: flex; align-items: center; justify-content: space-between; background: #EFF6FF; }
+    .driver-handoff-left { display: flex; align-items: center; gap: 10px; }
+    .driver-handoff-avatar { width: 42px; height: 42px; border-radius: 50%; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .driver-handoff-name { font-size: 13px; font-weight: 700; color: #1E293B; }
+    .driver-handoff-sub { font-size: 11px; color: #059669; font-weight: 600; margin-top: 2px; }
+
+    /* Nút Nhắn Tin Khách Hàng */
+    .btn-chat-cust {
+      display: flex; align-items: center; gap: 4px; background: #EFF6FF; color: var(--blue);
+      padding: 6px 10px; border-radius: 8px; font-size: 11px; font-weight: 700;
+      border: 1px solid #BFDBFE; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-chat-cust:hover { background: #DBEAFE; }
+
+    /* Modal Nhắn Tin Trực Tiếp */
+    .chat-modal-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(2px);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 100;
+    }
+    .chat-modal-box {
+      width: 100%; height: 500px; background: #FFF; border-radius: 24px 24px 0 0;
+      display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 -10px 30px rgba(0,0,0,0.25);
+      animation: slideUpChat 0.25s ease-out;
+    }
+    @keyframes slideUpChat {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .chat-modal-header {
+      padding: 12px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .chat-target-info { display: flex; align-items: center; gap: 10px; }
+    .chat-avatar {
+      width: 38px; height: 38px; border-radius: 50%; background: #EFF6FF; border: 1.5px solid #BFDBFE;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .chat-name { font-size: 13px; font-weight: 800; color: var(--text); }
+    .chat-sub { font-size: 10.5px; color: var(--green); font-weight: 600; margin-top: 1px; }
+    .chat-close-btn {
+      width: 30px; height: 30px; border-radius: 50%; border: none; background: #E2E8F0;
+      color: #475569; font-weight: 800; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+
+    .chat-messages-wrap {
+      flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+      background: #F8FAFC;
+    }
+    .msg-bubble {
+      max-width: 80%; padding: 9px 12px; border-radius: 14px; font-size: 12px; line-height: 1.4;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .msg-bubble.incoming {
+      align-self: flex-start; background: #FFFFFF; border: 1px solid var(--border);
+      color: var(--text); border-bottom-left-radius: 4px;
+    }
+    .msg-bubble.outgoing {
+      align-self: flex-end; background: var(--primary); color: #FFF;
+      border-bottom-right-radius: 4px; box-shadow: 0 2px 6px rgba(238,77,45,0.2);
+    }
+    .msg-time { font-size: 9.5px; opacity: 0.75; align-self: flex-end; }
+
+    .chat-quick-chips {
+      display: flex; gap: 6px; padding: 8px 12px; background: #FFF; border-top: 1px solid var(--border);
+      overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+    }
+    .quick-chip {
+      background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 16px; padding: 5px 11px;
+      font-size: 11px; font-weight: 700; color: #334155; cursor: pointer; flex-shrink: 0;
+    }
+    .quick-chip:hover { background: #E2E8F0; }
+
+    .chat-input-row {
+      display: flex; gap: 8px; padding: 10px 14px; background: #FFF; border-top: 1px solid var(--border);
+      align-items: center;
+    }
+    .chat-input-row input {
+      flex: 1; height: 38px; border-radius: 19px; border: 1px solid var(--border);
+      padding: 0 14px; font-size: 12.5px; outline: none; background: #F8FAFC;
+    }
+    .chat-input-row input:focus { border-color: var(--primary); background: #FFF; }
+    .btn-chat-send {
+      height: 38px; padding: 0 16px; border-radius: 19px; background: var(--primary);
+      color: #FFF; font-size: 12px; font-weight: 800; border: none; cursor: pointer;
+    }
+
+    /* Bottom Nav */
+    .bottom-nav { height: 58px; background: #FFFFFF; border-top: 1px solid var(--border); display: flex; justify-content: space-around; align-items: center; position: absolute; bottom: 0; left: 0; right: 0; z-index: 20; }
+    .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600; gap: 3px; width: 25%; }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 18px; line-height: 1; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>10:15</span>
+      <span>📶 5G 🔋 98%</span>
+    </div>
+
+    <!-- Header Thông Tin Quán -->
+    <div class="shop-header">
+      <div class="brand-top">
+        <a href="5.html" class="brand-left">
+          <div class="brand-logo">🍲</div>
+          <span class="brand-title">Oishi Food Merchant</span>
+        </a>
+        <span class="role-tag">Cửa Hàng</span>
+      </div>
+
+      <div class="shop-profile-box">
+        <div class="shop-name-wrap">
+          <h2>Hồng Trà Ngô Gia</h2>
+          <p>📍 28 Tô Vĩnh Diện, TP. Thủ Đức • Đang mở cửa</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nội dung chính -->
+    <div class="main-body">
+
+      <!-- Trạng Thái Đơn Hàng Hiện Tại -->
+      <div class="status-badge-card" id="statusBadgeCard">
+        <div class="status-left">
+          <div class="status-icon-box" id="statusIconBox">🛵</div>
+          <div>
+            <div class="status-title-text" id="statusMainTitle">Tài Xế Quán Đã Nhận Đơn</div>
+            <div class="status-desc-text" id="statusSubTitle">Đơn đã xác nhận từ ngoài • Tài xế đang đến quầy nhận món</div>
+          </div>
+        </div>
+        <span class="badge-stage-tag" id="badgeStageTag" style="background:#EFF6FF; color:#1D4ED8;">Chờ Bàn Giao</span>
+      </div>
+
+      <!-- 4. Thẻ Đơn Hàng Chi Tiết -->
+      <div class="order-detail-card">
+        <div class="order-card-header">
+          <div class="order-id-pill">
+            <span>🧾</span>
+            <span>#ORD_OISHI_88291</span>
+          </div>
+          <div class="order-time">Vừa đặt lúc 10:15</div>
+        </div>
+
+        <!-- Khách hàng -->
+        <div class="customer-info-box">
+          <div class="cust-left">
+            <div class="cust-avatar">👤</div>
+            <div>
+              <div class="cust-name">An Nguyễn</div>
+              <div class="cust-trust">⭐ Uy Tín: 98/100 (Khách quen)</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-chat-cust" onclick="openChatModal('customer')">
+              <span>💬</span> <span>Nhắn Khách</span>
+            </button>
+            <a href="tel:0901234567" class="btn-call-cust">
+              <span>📞</span> <span>Gọi</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Địa chỉ -->
+        <div class="order-address-box">
+          📍 Giao đến: <b>104 Đường Hai Bà Trưng, P. Đa Kao, Q.1</b><br>
+          <span style="color:#64748B;">(Cự ly: 6.2 km • Cước ship liên quận: 25.000 đ)</span>
+        </div>
+
+        <!-- Ghi chú -->
+        <div class="note-pill-box">
+          <span>💬</span>
+          <div><b>Ghi chú của khách:</b> <i>"Cho mình xin thêm 2 ống hút to nha quán"</i></div>
+        </div>
+
+        <!-- Món gọi -->
+        <div class="dishes-list-title">
+          <span>Danh sách món cần pha chế:</span>
+          <span style="color:var(--blue); font-weight:700;">2 món</span>
+        </div>
+
+        <div>
+          <div class="dish-item">
+            <div class="dish-info-left">
+              <div class="dish-name">1x Trà Xí Muội Ô Long</div>
+              <div class="dish-options">• Size M • 100% đường • Ít đá</div>
+            </div>
+            <div class="dish-price">28.000 đ</div>
+          </div>
+
+          <div class="dish-item">
+            <div class="dish-info-left">
+              <div class="dish-name">1x Trà Xí Muội Ngô Gia</div>
+              <div class="dish-options">• Size M • 70% đường • Đá riêng</div>
+            </div>
+            <div class="dish-price">25.000 đ</div>
+          </div>
+        </div>
+
+        <!-- Bill -->
+        <div class="bill-summary-wrap">
+          <div class="bill-row"><span>Tiền món ăn:</span><span>53.000 đ</span></div>
+          <div class="bill-row"><span>Phí ship:</span><span>25.000 đ</span></div>
+          <div class="bill-row total"><span>Tổng thanh toán:</span><span>78.000 đ</span></div>
+        </div>
+      </div>
+
+      <!-- Thông Tin Tài Xế Của Quán Phụ Trách -->
+      <div class="dispatch-section" style="display:block; margin-top:12px;">
+        <div class="dispatch-title">🛵 Tài xế của quán phụ trách đơn:</div>
+
+        <div class="driver-handoff-card">
+          <div class="driver-handoff-left">
+            <div class="driver-handoff-avatar">🛵</div>
+            <div>
+              <div class="driver-handoff-name"><b>Trần Văn Nam (TX-14)</b></div>
+              <div class="driver-handoff-sub" id="driverSubText">Yamaha Sirius 59-T1 882.91 • Đã nhận đơn</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="openChatModal('driver')" style="padding:6px 10px; background:#FFF; border:1px solid #BFDBFE; border-radius:8px; font-size:11px; font-weight:700; color:var(--blue); cursor:pointer; display:flex; align-items:center; gap:4px;">
+              <span>💬</span> <span>Nhắn TX</span>
+            </button>
+            <a href="tel:0903882910" style="padding:6px 10px; background:#FFF; border:1px solid #BFDBFE; border-radius:8px; text-decoration:none; font-size:11px; font-weight:700; color:var(--blue); display:flex; align-items:center; gap:4px;">
+              <span>📞</span> <span>Gọi</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Nút Xác Nhận Giao Cho Tài Xế Trong Chi Tiết Đơn -->
+        <div id="boxDetailHandoverAction" style="margin-top:12px;">
+          <button id="btnDetailHandover" onclick="handleDetailHandover()" style="width:100%; height:46px; background:linear-gradient(135deg, #10B981, #059669); color:#FFF; border:none; border-radius:10px; font-size:13px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 3px 12px rgba(16,185,129,0.3); transition:all 0.2s;">
+            <span>🛵</span> <span id="txtDetailHandover">XÁC NHẬN GIAO CHO TÀI XẾ ➔</span>
+          </button>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin-top:14px; margin-bottom:10px;">
+        <a href="5.html" style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; height:44px; background:#475569; color:#FFF; border-radius:10px; font-size:12.5px; font-weight:800; text-decoration:none; box-shadow:0 3px 10px rgba(71,85,105,0.25);">
+          <span>←</span> <span>Quay Lại Kênh Đơn Hàng Quán</span>
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Modal Nhắn Tin Trực Tiếp (Khách Hàng / Tài Xế) -->
+    <div class="chat-modal-overlay" id="chatModalOverlay" style="display:none;" onclick="handleOverlayClick(event)">
+      <div class="chat-modal-box" id="chatModalBox" onclick="event.stopPropagation()">
+        <!-- Header Chat -->
+        <div class="chat-modal-header">
+          <div class="chat-target-info">
+            <div class="chat-avatar" id="chatAvatar">👤</div>
+            <div>
+              <div class="chat-name" id="chatName">An Nguyễn (Khách Hàng)</div>
+              <div class="chat-sub" id="chatSub">🟢 Đang trực tuyến • #ORD_OISHI_88291</div>
+            </div>
+          </div>
+          <button class="chat-close-btn" onclick="closeChatModal()">✕</button>
+        </div>
+
+        <!-- Danh sách tin nhắn -->
+        <div class="chat-messages-wrap" id="chatMessagesWrap">
+          <div class="msg-bubble incoming">
+            <div class="msg-text">Cho mình xin thêm 2 ống hút to nha quán ơi!</div>
+            <div class="msg-time">10:15</div>
+          </div>
+          <div class="msg-bubble outgoing">
+            <div class="msg-text">Dạ quán đã nhận đơn và kèm thêm 2 ống hút to trong túi niêm phong rồi bạn nhé!</div>
+            <div class="msg-time">10:16 ✓✓</div>
+          </div>
+        </div>
+
+        <!-- Quick Reply Chips -->
+        <div class="chat-quick-chips" id="chatQuickChips">
+          <button class="quick-chip" onclick="sendQuickReply('Dạ quán đã kèm 2 ống hút to cho bạn rồi ạ! 🥤')">🥤 Đã kèm 2 ống hút</button>
+          <button class="quick-chip" onclick="sendQuickReply('Dạ quán đang chuẩn bị món chu đáo cho bạn nhé! ⏳')">⏳ Đang pha chế</button>
+          <button class="quick-chip" onclick="sendQuickReply('Tài xế quán đang đến quầy nhận món đi giao ạ! 🛵')">🛵 Tài xế đang đến</button>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="chat-input-row">
+          <input type="text" id="chatInputText" placeholder="Nhập tin nhắn..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+          <button class="btn-chat-send" onclick="sendChatMessage()">
+            <span>Gửi</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+      <a href="5.html" class="nav-item active"><span class="nav-icon">📋</span><span>Đơn hàng</span></a>
+      <a href="2.html" class="nav-item"><span class="nav-icon">🍽️</span><span>Thực đơn</span></a>
+      <a href="1.html" class="nav-item"><span class="nav-icon">🛵</span><span>Tài xế</span></a>
+      <a href="7.html" class="nav-item"><span class="nav-icon">📊</span><span>Báo cáo</span></a>
+    </nav>
+  </div>
+
+  <script>
+    let currentChatTarget = 'customer';
+
+    function openChatModal(target) {
+      currentChatTarget = target;
+      const overlay = document.getElementById('chatModalOverlay');
+      const avatar = document.getElementById('chatAvatar');
+      const name = document.getElementById('chatName');
+      const sub = document.getElementById('chatSub');
+      const messagesWrap = document.getElementById('chatMessagesWrap');
+      const input = document.getElementById('chatInputText');
+      const chips = document.getElementById('chatQuickChips');
+
+      if (target === 'customer') {
+        avatar.innerText = '👤';
+        name.innerText = 'An Nguyễn (Khách Hàng)';
+        sub.innerText = '🟢 Đang trực tuyến • #ORD_OISHI_88291';
+        input.placeholder = 'Nhập tin nhắn cho khách...';
+        messagesWrap.innerHTML = `
+          <div class="msg-bubble incoming">
+            <div class="msg-text">Cho mình xin thêm 2 ống hút to nha quán ơi!</div>
+            <div class="msg-time">10:15</div>
+          </div>
+          <div class="msg-bubble outgoing">
+            <div class="msg-text">Dạ quán đã nhận đơn và kèm thêm 2 ống hút to trong túi niêm phong rồi bạn nhé!</div>
+            <div class="msg-time">10:16 ✓✓</div>
+          </div>
+        `;
+        chips.innerHTML = `
+          <button class="quick-chip" onclick="sendQuickReply('Dạ quán đã kèm 2 ống hút to cho bạn rồi ạ! 🥤')">🥤 Đã kèm 2 ống hút</button>
+          <button class="quick-chip" onclick="sendQuickReply('Dạ quán đang chuẩn bị món chu đáo cho bạn nhé! ⏳')">⏳ Đang pha chế</button>
+          <button class="quick-chip" onclick="sendQuickReply('Tài xế quán đang đến quầy nhận món đi giao ạ! 🛵')">🛵 Tài xế đang đến</button>
+        `;
+      } else {
+        avatar.innerText = '🛵';
+        name.innerText = 'Trần Văn Nam (TX-14)';
+        sub.innerText = '🟢 Đang ở quầy quán • Sirius 59-T1 882.91';
+        input.placeholder = 'Nhập tin nhắn cho tài xế...';
+        messagesWrap.innerHTML = `
+          <div class="msg-bubble incoming">
+            <div class="msg-text">Em đang đứng ở trước quầy quán rồi ạ!</div>
+            <div class="msg-time">10:17</div>
+          </div>
+          <div class="msg-bubble outgoing">
+            <div class="msg-text">Ok Nam, đơn 2 ly trà xí muội dán tem xong rồi nhé!</div>
+            <div class="msg-time">10:17 ✓✓</div>
+          </div>
+        `;
+        chips.innerHTML = `
+          <button class="quick-chip" onclick="sendQuickReply('Đơn đã làm xong ở quầy rồi bạn nhé! 🥤')">🥤 Đơn đã xong ở quầy</button>
+          <button class="quick-chip" onclick="sendQuickReply('Nhớ kiểm tra túi niêm phong 2 ống hút to nhé! 📦')">📦 Kiểm tra túi niêm phong</button>
+          <button class="quick-chip" onclick="sendQuickReply('Đi cẩn thận nhé Nam! 🛵')">🛵 Đi cẩn thận nhé</button>
+        `;
+      }
+
+      overlay.style.display = 'flex';
+      setTimeout(() => {
+        messagesWrap.scrollTop = messagesWrap.scrollHeight;
+        input.focus();
+      }, 100);
+    }
+
+    function closeChatModal() {
+      document.getElementById('chatModalOverlay').style.display = 'none';
+    }
+
+    function handleOverlayClick(event) {
+      if (event.target.id === 'chatModalOverlay') {
+        closeChatModal();
+      }
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('chatInputText');
+      const text = input.value.trim();
+      if (!text) return;
+      appendOutgoingMessage(text);
+      input.value = '';
+    }
+
+    function sendQuickReply(text) {
+      appendOutgoingMessage(text);
+    }
+
+    function appendOutgoingMessage(text) {
+      const messagesWrap = document.getElementById('chatMessagesWrap');
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+      const div = document.createElement('div');
+      div.className = 'msg-bubble outgoing';
+      div.innerHTML = `
+        <div class="msg-text">${text}</div>
+        <div class="msg-time">${timeStr} ✓✓</div>
+      `;
+      messagesWrap.appendChild(div);
+      messagesWrap.scrollTop = messagesWrap.scrollHeight;
+    }
+
+    function handleDetailHandover() {
+      const btn = document.getElementById('btnDetailHandover');
+      const txt = document.getElementById('txtDetailHandover');
+      const badge = document.getElementById('badgeStageTag');
+      const desc = document.getElementById('statusSubTitle');
+      const title = document.getElementById('statusMainTitle');
+      const sub = document.getElementById('driverSubText');
+
+      btn.style.background = "#ECFDF5";
+      btn.style.color = "#047857";
+      btn.style.border = "1.5px solid #A7F3D0";
+      btn.style.boxShadow = "none";
+      btn.disabled = true;
+      btn.style.cursor = "default";
+      txt.innerText = "✓ ĐÃ BÀN GIAO CHO TÀI XẾ";
+
+      if (badge) {
+        badge.innerText = "Đã Giao TX";
+        badge.style.background = "#DCFCE7";
+        badge.style.color = "#15803D";
+      }
+      if (title) title.innerText = "Đã Bàn Giao Cho Tài Xế";
+      if (desc) desc.innerText = "Tài xế Trần Văn Nam đã nhận túi niêm phong và đang trên đường giao đến 104 Hai Bà Trưng";
+      if (sub) sub.innerText = "Yamaha Sirius 59-T1 882.91 • Đang giao hàng";
+
+      let orders = JSON.parse(localStorage.getItem('oishi_orders') || '[]');
+      let targetOrder = orders.find(o => o.id === 'ORD_OISHI_88291');
+      if (targetOrder) {
+        targetOrder.status = 'HANDED_OVER';
+        targetOrder.driverAssigned = true;
+        targetOrder.handedOver = true;
+      } else {
+        orders.push({ id: 'ORD_OISHI_88291', storeName: 'Hồng Trà Ngô Gia', status: 'HANDED_OVER', driverAssigned: true, handedOver: true });
+      }
+      localStorage.setItem('oishi_orders', JSON.stringify(orders));
+
+      alert("✓ Quán đã XÁC NHẬN GIAO CHO TÀI XẾ thành công!\nTài xế Trần Văn Nam (TX-14) đã nhận túi món và bắt đầu di chuyển giao tới khách hàng An Nguyễn.");
+    }
+
+    function checkDetailHandoverState() {
+      const orders = JSON.parse(localStorage.getItem('oishi_orders') || '[]');
+      const order = orders.find(o => o.id === 'ORD_OISHI_88291');
+      if (order && order.status === 'HANDED_OVER') {
+        const btn = document.getElementById('btnDetailHandover');
+        const txt = document.getElementById('txtDetailHandover');
+        const badge = document.getElementById('badgeStageTag');
+        const desc = document.getElementById('statusSubTitle');
+        const title = document.getElementById('statusMainTitle');
+        const sub = document.getElementById('driverSubText');
+        if (btn && txt) {
+          btn.style.background = "#ECFDF5";
+          btn.style.color = "#047857";
+          btn.style.border = "1.5px solid #A7F3D0";
+          btn.style.boxShadow = "none";
+          btn.disabled = true;
+          btn.style.cursor = "default";
+          txt.innerText = "✓ ĐÃ BÀN GIAO CHO TÀI XẾ";
+        }
+        if (badge) {
+          badge.innerText = "Đã Giao TX";
+          badge.style.background = "#DCFCE7";
+          badge.style.color = "#15803D";
+        }
+        if (title) title.innerText = "Đã Bàn Giao Cho Tài Xế";
+        if (desc) desc.innerText = "Tài xế Trần Văn Nam đã nhận túi niêm phong và đang trên đường giao đến 104 Hai Bà Trưng";
+        if (sub) sub.innerText = "Yamaha Sirius 59-T1 882.91 • Đang giao hàng";
+      }
+    }
+    window.addEventListener('DOMContentLoaded', checkDetailHandoverState);
+  </script>
+</body>
+</html>

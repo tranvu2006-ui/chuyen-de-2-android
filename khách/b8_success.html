@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Đặt Đơn Thành Công</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F8FAFC;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --amber: #D97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    .success-content {
+      flex: 1; overflow-y: auto; padding: 24px 16px 90px 16px;
+      display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px;
+    }
+
+    /* Vòng tròn checkmark animated */
+    .success-icon-wrap {
+      width: 86px; height: 86px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 44px; margin-top: 10px; position: relative;
+      animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .icon-bg-green { background: #ECFDF5; border: 3px solid #10B981; box-shadow: 0 0 24px rgba(16,185,129,0.3); }
+    .icon-bg-amber { background: #FFFBEB; border: 3px solid #F59E0B; box-shadow: 0 0 24px rgba(245,158,11,0.3); }
+    .icon-bg-purple { background: #FAF5FF; border: 3px solid #8B5CF6; box-shadow: 0 0 24px rgba(139,92,246,0.3); }
+
+    @keyframes popIn {
+      0% { transform: scale(0.4); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .success-headline {
+      font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -0.3px;
+    }
+    .success-subtitle {
+      font-size: 12.5px; color: var(--text-muted); line-height: 1.45; max-width: 320px;
+    }
+
+    /* Thẻ thông báo trạng thái nổi bật */
+    .status-badge-card {
+      width: 100%; border-radius: 16px; padding: 14px 16px; text-align: left;
+      border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    }
+    .badge-cod-theme { background: #F0FDF4; border-color: #BBF7D0; }
+    .badge-deposit-theme { background: #FFFBEB; border-color: #FDE68A; }
+    .badge-full-theme { background: #EFF6FF; border-color: #BFDBFE; }
+
+    .status-badge-head {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    .status-badge-title {
+      font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .pill-trust-val {
+      font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 12px;
+      background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC;
+    }
+    .status-badge-desc {
+      font-size: 12px; color: #334155; line-height: 1.45;
+    }
+
+    /* Thẻ Dòng Tiền Minh Bạch */
+    .payment-summary-card {
+      width: 100%; background: #FFF; border-radius: 16px; padding: 16px;
+      border: 1px solid var(--border); text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    .summary-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 10px; }
+    .payment-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 0; font-size: 12.5px; border-bottom: 1px dashed #F1F5F9;
+    }
+    .payment-row:last-child { border-bottom: none; }
+    .payment-row.total-row {
+      font-size: 14px; font-weight: 800; color: var(--primary);
+      border-top: 1px solid #E2E8F0; margin-top: 4px; padding-top: 8px;
+    }
+
+    /* Thẻ Thông Tin Đơn Hàng & Giao Hàng */
+    .order-info-card {
+      width: 100%; background: #FFF; border-radius: 16px; padding: 16px;
+      border: 1px solid var(--border); text-align: left;
+    }
+    .order-info-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    .info-item {
+      display: flex; gap: 10px; font-size: 12px; color: #475569; margin-bottom: 8px; align-items: flex-start;
+    }
+    .info-icon { font-size: 15px; width: 18px; text-align: center; }
+
+    /* Bottom Fixed Actions */
+    .bottom-bar {
+      position: absolute; bottom: 0; left: 0; right: 0; background: #FFF;
+      border-top: 1px solid var(--border); padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+    }
+    .btn-track {
+      width: 100%; height: 46px; background: var(--primary); color: #FFF; border: none;
+      border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 12px rgba(238,77,45,0.3); transition: transform 0.1s, background 0.15s;
+    }
+    .btn-track:hover { background: var(--primary-hover); }
+    .btn-track:active { transform: scale(0.98); }
+
+    .btn-home {
+      width: 100%; height: 38px; background: #F1F5F9; color: #334155; border: none;
+      border-radius: 10px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+      text-decoration: none; display: flex; align-items: center; justify-content: center;
+    }
+    .btn-home:hover { background: #E2E8F0; }
+
+    /* Nút Nhắn Tin Cho Quán */
+    .btn-chat-shop {
+      width: 100%; height: 38px; background: #2563EB; color: #FFF; border: none;
+      border-radius: 10px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.25); transition: background 0.15s, transform 0.1s;
+    }
+    .btn-chat-shop:hover { background: #1D4ED8; }
+    .btn-chat-shop:active { transform: scale(0.98); }
+
+    /* Modal Chat Với Quán (Bottom Sheet) */
+    .chat-modal-backdrop {
+      position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55);
+      z-index: 100; display: none; align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(2px); animation: fadeIn 0.2s ease;
+    }
+    .chat-modal-backdrop.open { display: flex; }
+    .chat-modal-sheet {
+      width: 100%; height: 75%; background: #FFF; border-radius: 20px 20px 0 0;
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 -8px 24px rgba(0,0,0,0.15);
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .chat-header {
+      padding: 12px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .chat-shop-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: #FEF3C7;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .chat-shop-name { font-size: 13px; font-weight: 700; color: #0F172A; }
+    .chat-shop-status { font-size: 11px; color: #059669; display: flex; align-items: center; gap: 4px; font-weight: 600; margin-top: 1px; }
+    .dot-online { width: 7px; height: 7px; border-radius: 50%; background: #10B981; }
+    .btn-close-chat {
+      background: #E2E8F0; border: none; border-radius: 50%; width: 28px; height: 28px;
+      font-size: 13px; font-weight: 700; cursor: pointer; color: #475569;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-close-chat:hover { background: #CBD5E1; color: #0F172A; }
+    .chat-body {
+      flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #F8FAFC;
+    }
+    .chat-time-divider {
+      text-align: center; font-size: 10.5px; color: #94A3B8; font-weight: 600; margin: 4px 0;
+    }
+    .chat-msg {
+      max-width: 84%; display: flex; flex-direction: column;
+    }
+    .chat-msg.msg-shop {
+      align-self: flex-start;
+    }
+    .chat-msg.msg-shop .msg-bubble {
+      background: #FFFFFF; color: #1E293B; border-radius: 14px 14px 14px 2px;
+      padding: 10px 12px; font-size: 12px; line-height: 1.45; border: 1px solid #E2E8F0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .chat-msg.msg-user {
+      align-self: flex-end; align-items: flex-end;
+    }
+    .chat-msg.msg-user .msg-bubble {
+      background: #2563EB; color: #FFFFFF; border-radius: 14px 14px 2px 14px;
+      padding: 10px 12px; font-size: 12px; line-height: 1.45;
+      box-shadow: 0 2px 6px rgba(37,99,235,0.25);
+    }
+    .msg-time { font-size: 10px; color: #94A3B8; margin-top: 3px; padding: 0 4px; }
+    .chat-quick-replies {
+      padding: 8px 12px; background: #FFF; border-top: 1px solid #F1F5F9;
+      display: flex; gap: 6px; overflow-x: auto; white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chat-quick-replies::-webkit-scrollbar { display: none; }
+    .chip-reply {
+      flex-shrink: 0; background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE;
+      padding: 5px 10px; border-radius: 14px; font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .chip-reply:hover { background: #DBEAFE; }
+    .chat-input-bar {
+      padding: 10px 12px; background: #FFF; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; align-items: center;
+    }
+    .chat-input-field {
+      flex: 1; height: 38px; background: #F1F5F9; border: 1px solid #E2E8F0;
+      border-radius: 19px; padding: 0 14px; font-size: 12px; outline: none;
+    }
+    .chat-input-field:focus { border-color: #2563EB; background: #FFF; }
+    .btn-send-chat {
+      width: 38px; height: 38px; border-radius: 50%; background: #2563EB;
+      color: #FFF; border: none; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+    }
+    .btn-send-chat:hover { background: #1D4ED8; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span>09:46</span>
+      <span>📶 5G 🔋 100%</span>
+    </div>
+
+    <div class="success-content">
+      <!-- Icon Thành Công -->
+      <div class="success-icon-wrap" id="iconWrap">
+        <span id="iconEmoji">✅</span>
+      </div>
+
+      <!-- Tiêu đề lớn -->
+      <h1 class="success-headline" id="txtMainHeadline">ĐÃ ĐẶT HÀNG THÀNH CÔNG!</h1>
+      <p class="success-subtitle" id="txtSubHeadline">
+        Đơn hàng của bạn đã được chuyển tới nhà hàng Ngô Gia và đang chờ xác nhận của quán.
+      </p>
+
+      <!-- Thẻ Trạng Thái & Đặc Quyền Uy Tín -->
+      <div class="status-badge-card" id="cardStatusBadge">
+        <div class="status-badge-head">
+          <span class="status-badge-title" id="lblBadgeTitle">TRẠNG THÁI ĐƠN HÀNG</span>
+          <span class="pill-trust-val" id="pillBadgeRight">⏳ Chờ xác nhận của quán</span>
+        </div>
+        <p class="status-badge-desc" id="txtBadgeDesc">
+          Đơn hàng đã được chuyển tới hệ thống của quán. Đang chờ xác nhận của quán...
+        </p>
+      </div>
+
+      <!-- Chi Tiết Dòng Tiền -->
+      <div class="payment-summary-card">
+        <div class="summary-title">🧾 Chi Tiết Thanh Toán</div>
+        <div class="payment-row">
+          <span>Tổng giá trị đơn hàng:</span>
+          <span id="txtSummaryOrderTotal" style="font-weight:700;">105.000 đ</span>
+        </div>
+        <div class="payment-row" id="rowPaidAmount">
+          <span id="lblPaidTitle">Số tiền đã thanh toán:</span>
+          <span id="txtPaidVal" style="color:var(--green); font-weight:800;">105.000 đ</span>
+        </div>
+        <div class="payment-row" id="rowRemainAmount" style="display:none;">
+          <span id="lblRemainTitle">🛵 Thu tiền mặt khi nhận hàng:</span>
+          <span id="txtRemainVal" style="color:#D97706; font-weight:800;">84.000 đ</span>
+        </div>
+        <div class="payment-row total-row">
+          <span>Hình thức thanh toán:</span>
+          <span id="txtSummaryMode">Trả thẳng 100%</span>
+        </div>
+      </div>
+
+      <!-- Thông tin quán & giao nhận -->
+      <div class="order-info-card">
+        <div class="order-info-title">📍 Thông Tin Đơn Hàng #ORD_88291</div>
+        <div class="info-item">
+          <span class="info-icon">🏪</span>
+          <div>
+            <b>Trà Sữa Ngô Gia</b> • Quận 1
+            <div id="txtShopStatus" style="font-size:11.5px; color:#D97706; font-weight:700; margin-top:2px;">⏳ Chờ xác nhận của quán (2 món Size M)</div>
+          </div>
+        </div>
+        <div class="info-item">
+          <span class="info-icon">🛵</span>
+          <div>
+            <b>Dự kiến giao: 10:15</b> (Khoảng 20 - 30 phút)
+            <div style="font-size:11px; color:#64748B;">Tài xế của quán sẽ giao tận cửa</div>
+          </div>
+        </div>
+        <div class="info-item">
+          <span class="info-icon">📍</span>
+          <div>
+            <b>Số 104 Đường Hai Bà Trưng</b>, P. Đa Kao, Q.1
+          </div>
+        </div>
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 8px;">
+          <a href="tel:02838229999" style="width: 100%; height: 38px; background: #059669; color: #FFF; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-size: 12.5px; font-weight: 700; box-shadow: 0 2px 8px rgba(5,150,105,0.25);">
+            📞 Gọi Cho Quán (028.3822.9999)
+          </a>
+          <button type="button" class="btn-chat-shop" onclick="openChatShopModal()">
+            💬 Nhắn Tin Cho Quán
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Actions -->
+    <div class="bottom-bar">
+      <button class="btn-track" onclick="goToTracking()">
+        <span>🛵 Theo Dõi Trạng Thái Đơn Hàng ➔</span>
+      </button>
+      <a href="b1.html" class="btn-home">
+        🏠 Về Trang Chủ
+      </a>
+    </div>
+
+    <!-- BOTTOM SHEET MODAL: NHẮN TIN VỚI QUÁN NGÔ GIA -->
+    <div class="chat-modal-backdrop" id="chatModalBackdrop" onclick="closeChatShopModal(event)">
+      <div class="chat-modal-sheet" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="chat-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="chat-shop-avatar">🧋</div>
+            <div>
+              <div class="chat-shop-name">Trà Sữa Ngô Gia • Q.1</div>
+              <div class="chat-shop-status"><span class="dot-online"></span> Đang trực tuyến • Phản hồi ngay</div>
+            </div>
+          </div>
+          <button type="button" class="btn-close-chat" onclick="closeChatShopModal()">✕</button>
+        </div>
+
+        <!-- Nội dung tin nhắn -->
+        <div class="chat-body" id="chatMessagesList">
+          <div class="chat-time-divider">Hôm nay 10:15</div>
+          <div class="chat-msg msg-shop">
+            <div class="msg-bubble">
+              Dạ Quán Ngô Gia xin chào bạn! Đơn <b>#ORD_88291</b> của bạn đang được quán tiếp nhận. Bạn cần dặn dò thêm về món (đá, đường, ống hút...) cứ nhắn cho quán nhé! ❤️
+            </div>
+            <div class="msg-time">10:15</div>
+          </div>
+        </div>
+
+        <!-- Gợi ý tin nhắn nhanh (Quick chips) -->
+        <div class="chat-quick-replies">
+          <button type="button" class="chip-reply" onclick="sendQuickReply('🥤 Làm ít đá, ít ngọt giúp mình nhé')">🥤 Ít đá, ít đường</button>
+          <button type="button" class="chip-reply" onclick="sendQuickReply('🥢 Cho mình xin thêm 2 ống hút to')">🥢 Xin thêm 2 ống hút</button>
+          <button type="button" class="chip-reply" onclick="sendQuickReply('⚡ Quán làm nhanh giúp mình nhé')">⚡ Làm nhanh giúp mình</button>
+          <button type="button" class="chip-reply" onclick="sendQuickReply('🧊 Để đá riêng giúp mình được không?')">🧊 Để đá riêng</button>
+        </div>
+
+        <!-- Khung nhập tin nhắn -->
+        <div class="chat-input-bar">
+          <input type="text" id="inputChatMessage" class="chat-input-field" placeholder="Nhập tin nhắn gửi quán..." onkeypress="handleChatEnter(event)">
+          <button type="button" class="btn-send-chat" onclick="sendChatMessage()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode') || 'FULL'; // 'FULL', 'DEPOSIT', 'COD', 'FULL_CASH'
+    const channel = urlParams.get('channel') || 'momo';
+    const total = parseInt(urlParams.get('total')) || 105000;
+    const deposit = parseInt(urlParams.get('deposit')) || 21000;
+    const remain = parseInt(urlParams.get('remain')) || (total - deposit);
+
+    const channelNames = {
+      momo: 'Ví MoMo',
+      bank: 'Ngân Hàng',
+      cash: 'Tiền Mặt'
+    };
+
+    // Các phần tử DOM
+    const iconWrap = document.getElementById('iconWrap');
+    const iconEmoji = document.getElementById('iconEmoji');
+    const txtMainHeadline = document.getElementById('txtMainHeadline');
+    const txtSubHeadline = document.getElementById('txtSubHeadline');
+
+    const cardStatusBadge = document.getElementById('cardStatusBadge');
+    const lblBadgeTitle = document.getElementById('lblBadgeTitle');
+    const pillBadgeRight = document.getElementById('pillBadgeRight');
+    const txtBadgeDesc = document.getElementById('txtBadgeDesc');
+
+    const txtSummaryOrderTotal = document.getElementById('txtSummaryOrderTotal');
+    const lblPaidTitle = document.getElementById('lblPaidTitle');
+    const txtPaidVal = document.getElementById('txtPaidVal');
+    const rowRemainAmount = document.getElementById('rowRemainAmount');
+    const txtRemainVal = document.getElementById('txtRemainVal');
+    const txtSummaryMode = document.getElementById('txtSummaryMode');
+
+    txtSummaryOrderTotal.innerText = total.toLocaleString('vi-VN') + ' đ';
+
+    // Phân luồng hiển thị: COD vs CỌC vs TRẢ THẲNG
+    if (mode === 'COD') {
+      // 1. THANH TOÁN KHI NHẬN HÀNG (COD - CHỈ ÁP DỤNG UY TÍN CAO)
+      iconWrap.className = 'success-icon-wrap icon-bg-green';
+      iconEmoji.innerText = '👑';
+      txtMainHeadline.innerText = 'ĐÃ ĐẶT HÀNG THÀNH CÔNG!';
+      txtSubHeadline.innerText = 'Đơn hàng COD đã gửi tới quán Ngô Gia và đang chờ xác nhận của quán.';
+
+      cardStatusBadge.className = 'status-badge-card badge-cod-theme';
+      lblBadgeTitle.style.color = '#15803D';
+      lblBadgeTitle.innerText = '👑 ĐẶC QUYỀN KHÁCH HÀNG UY TÍN CAO';
+      pillBadgeRight.innerText = '⏳ Chờ xác nhận của quán';
+      pillBadgeRight.style.background = '#FEF3C7';
+      pillBadgeRight.style.color = '#B45309';
+      pillBadgeRight.style.borderColor = '#FDE68A';
+      txtBadgeDesc.innerHTML = 'Đơn hàng COD đã gửi tới quán. <b>Đang chờ xác nhận của quán</b> trước khi làm món. Miễn 100% tiền cọc và trả trước.';
+
+      lblPaidTitle.innerText = 'Số tiền trả trước:';
+      txtPaidVal.innerText = '0 đ (Miễn trả trước)';
+      txtPaidVal.style.color = '#15803D';
+
+      rowRemainAmount.style.display = 'flex';
+      txtRemainVal.innerText = total.toLocaleString('vi-VN') + ' đ (' + (channelNames[channel] || 'Tiền Mặt') + ')';
+      txtSummaryMode.innerText = 'COD - Uy tín cao';
+      txtSummaryMode.style.color = '#059669';
+
+    } else if (mode === 'DEPOSIT') {
+      // 2. CỌC THÀNH CÔNG (CỌC 20%)
+      iconWrap.className = 'success-icon-wrap icon-bg-amber';
+      iconEmoji.innerText = '⚡';
+      txtMainHeadline.innerText = 'ĐÃ CỌC THÀNH CÔNG!';
+      txtSubHeadline.innerText = `Quán đã nhận ${deposit.toLocaleString('vi-VN')} đ tiền cọc giữ đơn. Đơn hàng đang chờ xác nhận của quán.`;
+
+      cardStatusBadge.className = 'status-badge-card badge-deposit-theme';
+      lblBadgeTitle.style.color = '#B45309';
+      lblBadgeTitle.innerText = '⚡ ĐÃ XÁC NHẬN CỌC 20%';
+      pillBadgeRight.innerText = '⏳ Chờ xác nhận của quán';
+      pillBadgeRight.style.background = '#FEF3C7';
+      pillBadgeRight.style.color = '#B45309';
+      pillBadgeRight.style.borderColor = '#FDE68A';
+      txtBadgeDesc.innerHTML = `Đã thanh toán cọc 20%. <b>Đang chờ xác nhận của quán</b>. Số tiền còn lại <b>${remain.toLocaleString('vi-VN')} đ</b> trả cho shipper khi nhận hàng.`;
+
+      lblPaidTitle.innerText = `Tiền cọc đã trả (${channelNames[channel] || 'Online'}):`;
+      txtPaidVal.innerText = deposit.toLocaleString('vi-VN') + ' đ';
+      txtPaidVal.style.color = '#D97706';
+
+      rowRemainAmount.style.display = 'flex';
+      txtRemainVal.innerText = remain.toLocaleString('vi-VN') + ' đ (Thu tiền mặt)';
+      txtSummaryMode.innerText = 'Đặt cọc 20%';
+      txtSummaryMode.style.color = '#D97706';
+
+    } else if (mode === 'FULL_CASH') {
+      // 3. TRẢ THẲNG TIỀN MẶT KHI NHẬN
+      iconWrap.className = 'success-icon-wrap icon-bg-green';
+      iconEmoji.innerText = '💵';
+      txtMainHeadline.innerText = 'ĐÃ ĐẶT HÀNG THÀNH CÔNG!';
+      txtSubHeadline.innerText = 'Đơn hàng đã được chuyển tới quán và đang chờ xác nhận của quán.';
+
+      cardStatusBadge.className = 'status-badge-card badge-cod-theme';
+      lblBadgeTitle.style.color = '#15803D';
+      lblBadgeTitle.innerText = '💵 THANH TOÁN TIỀN MẶT KHI NHẬN';
+      pillBadgeRight.innerText = '⏳ Chờ xác nhận của quán';
+      pillBadgeRight.style.background = '#FEF3C7';
+      pillBadgeRight.style.color = '#B45309';
+      pillBadgeRight.style.borderColor = '#FDE68A';
+      txtBadgeDesc.innerHTML = `Đơn hàng đang chờ quán duyệt. Tài xế sẽ thu <b>${total.toLocaleString('vi-VN')} đ</b> khi giao đồ ăn đến tay bạn.`;
+
+      lblPaidTitle.innerText = 'Số tiền trả trước:';
+      txtPaidVal.innerText = '0 đ';
+      rowRemainAmount.style.display = 'flex';
+      txtRemainVal.innerText = total.toLocaleString('vi-VN') + ' đ';
+      txtSummaryMode.innerText = 'Tiền mặt khi nhận';
+
+    } else {
+      // 4. TRẢ THẲNG 100% ONLINE (MOMO / NGÂN HÀNG)
+      iconWrap.className = 'success-icon-wrap icon-bg-green';
+      iconEmoji.innerText = '💰';
+      txtMainHeadline.innerText = 'THANH TOÁN THÀNH CÔNG!';
+      txtSubHeadline.innerText = `Bạn đã thanh toán đủ 100% qua ${channelNames[channel] || 'Ví MoMo'}. Đơn hàng đang chờ xác nhận của quán.`;
+
+      cardStatusBadge.className = 'status-badge-card badge-full-theme';
+      lblBadgeTitle.style.color = '#1D4ED8';
+      lblBadgeTitle.innerText = '✓ ĐÃ THANH TOÁN 100%';
+      pillBadgeRight.innerText = '⏳ Chờ xác nhận của quán';
+      pillBadgeRight.style.background = '#FEF3C7';
+      pillBadgeRight.style.color = '#B45309';
+      pillBadgeRight.style.borderColor = '#FDE68A';
+      txtBadgeDesc.innerHTML = 'Đơn hàng đã được chuyển tới quán Ngô Gia. <b>Đang chờ xác nhận của quán</b> trước khi bếp chuẩn bị món.';
+
+      lblPaidTitle.innerText = `Đã thanh toán đủ (${channelNames[channel] || 'Ví MoMo'}):`;
+      txtPaidVal.innerText = total.toLocaleString('vi-VN') + ' đ';
+      txtPaidVal.style.color = '#10B981';
+
+      rowRemainAmount.style.display = 'flex';
+      txtRemainVal.innerText = '0 đ (Không cần trả thêm)';
+      txtRemainVal.style.color = '#10B981';
+      txtSummaryMode.innerText = `Trả thẳng 100% (${channelNames[channel] || 'Online'})`;
+      txtSummaryMode.style.color = '#2563EB';
+    }
+
+    // Điều hướng sang theo dõi đơn hàng b9.html (bắt đầu ở bước 1: Đã gửi đơn, chờ quán xác nhận)
+    function goToTracking() {
+      if (mode === 'COD') {
+        window.location.href = `b9.html?mode=COD&channel=${channel}&total=${total}&deposit=0&remain=${total}&step=1`;
+      } else if (mode === 'DEPOSIT') {
+        window.location.href = `b9.html?mode=DEPOSIT&channel=${channel}&total=${total}&deposit=${deposit}&remain=${remain}&step=1`;
+      } else if (mode === 'FULL_CASH') {
+        window.location.href = `b9.html?mode=FULL&channel=cash&total=${total}&deposit=0&remain=${total}&step=1`;
+      } else {
+        window.location.href = `b9.html?mode=FULL&channel=${channel}&total=${total}&deposit=${total}&remain=0&step=1`;
+      }
+    }
+
+    // --- ĐIỀU KHIỂN CHAT / NHẮN TIN VỚI QUÁN NGÔ GIA ---
+    function openChatShopModal() {
+      const modal = document.getElementById('chatModalBackdrop');
+      if (modal) {
+        modal.classList.add('open');
+        setTimeout(() => {
+          const input = document.getElementById('inputChatMessage');
+          if (input) input.focus();
+        }, 200);
+      }
+    }
+
+    function closeChatShopModal(e) {
+      if (!e || e.target === document.getElementById('chatModalBackdrop') || e.target.classList.contains('btn-close-chat')) {
+        const modal = document.getElementById('chatModalBackdrop');
+        if (modal) modal.classList.remove('open');
+      }
+    }
+
+    function sendQuickReply(text) {
+      const input = document.getElementById('inputChatMessage');
+      if (input) {
+        input.value = text;
+        sendChatMessage();
+      }
+    }
+
+    function handleChatEnter(e) {
+      if (e.key === 'Enter') {
+        sendChatMessage();
+      }
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('inputChatMessage');
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+
+      const list = document.getElementById('chatMessagesList');
+      if (!list) return;
+
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+      // 1. Thêm tin nhắn của khách
+      const userMsg = document.createElement('div');
+      userMsg.className = 'chat-msg msg-user';
+      userMsg.innerHTML = `
+        <div class="msg-bubble">${escapeHtml(text)}</div>
+        <div class="msg-time">${timeStr} · Đã gửi</div>
+      `;
+      list.appendChild(userMsg);
+      input.value = '';
+      list.scrollTop = list.scrollHeight;
+
+      // 2. Quán phản hồi tự động sau 800ms
+      setTimeout(() => {
+        const shopReply = document.createElement('div');
+        shopReply.className = 'chat-msg msg-shop';
+        shopReply.innerHTML = `
+          <div class="msg-bubble">Dạ quán Ngô Gia đã nhận được lời nhắn: <i>"${escapeHtml(text)}"</i> và lưu ý cho nhân viên pha chế ngay ạ! 🥰</div>
+          <div class="msg-time">${timeStr}</div>
+        `;
+        list.appendChild(shopReply);
+        list.scrollTop = list.scrollHeight;
+      }, 800);
+    }
+
+    function escapeHtml(string) {
+      return String(string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

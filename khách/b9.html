@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Trạng Thái Đơn Hàng</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --amber: #D97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    /* Khung Smartphone chuẩn */
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: #FFF; color: #222;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 20px; font-size: 11px; font-weight: 600; border-bottom: 1px solid var(--border);
+    }
+
+    /* Top Header */
+    .top-header {
+      background: #FFF; padding: 10px 16px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid var(--border);
+    }
+    .brand-left {
+      display: flex; align-items: center; gap: 8px; text-decoration: none;
+    }
+    .brand-logo {
+      width: 32px; height: 32px; background: var(--primary); color: #FFF;
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px;
+    }
+    .brand-name {
+      font-size: 17px; font-weight: 800; color: var(--primary); letter-spacing: -0.3px;
+    }
+
+
+    /* Nội dung cuộn */
+    .content {
+      flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px;
+      padding-bottom: 75px;
+    }
+
+    .card-block {
+      background: #FFF; border-radius: 14px; padding: 16px; border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+
+    /* 1. Trạng thái & Timeline Tracker */
+    .status-summary {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+    }
+    .status-icon {
+      width: 46px; height: 46px; background: #FFF0ED; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+    .status-text h2 {
+      font-size: 15px; font-weight: 800; color: var(--primary); line-height: 1.3;
+    }
+    .status-text p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Timeline Stepper 4 bước */
+    .timeline-stepper {
+      display: flex; justify-content: space-between; position: relative; margin: 12px 6px 4px 6px;
+    }
+    .timeline-stepper::before {
+      content: ''; position: absolute; top: 12px; left: 16px; right: 16px; height: 3px;
+      background: #E2E8F0; z-index: 1;
+    }
+    .timeline-progress {
+      position: absolute; top: 12px; left: 16px; height: 3px;
+      background: var(--primary); z-index: 2; transition: width 0.3s ease;
+    }
+    .step-node {
+      display: flex; flex-direction: column; align-items: center; position: relative; z-index: 3;
+      cursor: pointer; width: 68px; text-align: center;
+    }
+    .node-dot {
+      width: 24px; height: 24px; border-radius: 50%; background: #E2E8F0;
+      color: #64748B; font-size: 11px; font-weight: 800; display: flex;
+      align-items: center; justify-content: center; transition: all 0.2s ease;
+    }
+    .step-node.done .node-dot {
+      background: var(--primary); color: #FFF;
+    }
+    .step-node.active .node-dot {
+      background: var(--primary); color: #FFF; box-shadow: 0 0 0 4px rgba(238, 77, 45, 0.25);
+      transform: scale(1.1);
+    }
+    .step-node.completed .node-dot {
+      background: var(--green); color: #FFF;
+    }
+    .node-label {
+      font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 6px; line-height: 1.25;
+      transition: color 0.15s;
+    }
+    .step-node.active .node-label { color: var(--primary); font-weight: 800; }
+    .step-node.done .node-label { color: var(--text); font-weight: 700; }
+
+    /* Thẻ Mô Tả Trạng Thái Chi Tiết */
+    .step-detail-card {
+      background: #F8FAFC; border-radius: 12px; padding: 12px 14px;
+      border: 1px solid var(--border); font-size: 12px; color: #334155; line-height: 1.45;
+    }
+    .step-detail-title {
+      font-weight: 800; color: #0F172A; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+    }
+
+    /* 2. Mã QR Gộp (Delivery Token) */
+    .qr-card-section {
+      text-align: center; background: #FFF; border-radius: 14px; padding: 18px 16px;
+      border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    .qr-title { font-size: 14px; font-weight: 800; color: var(--text); }
+    .qr-desc { font-size: 11px; color: var(--text-muted); margin: 4px 0 12px 0; }
+
+    .qr-code-wrapper {
+      width: 170px; height: 170px; margin: 0 auto; background: #000;
+      border-radius: 14px; padding: 10px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; color: #FFF; box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      position: relative; overflow: hidden;
+    }
+    .qr-pattern {
+      font-family: monospace; font-size: 11px; letter-spacing: 2px; line-height: 1.3;
+    }
+    .token-pill {
+      font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700;
+      background: #F1F5F9; color: var(--text); padding: 6px 14px; border-radius: 6px;
+      display: inline-block; margin-top: 12px; border: 1px dashed #CBD5E1;
+    }
+
+    /* Box hoàn thành ở bước 4 */
+    .qr-completed-box {
+      display: none; background: #ECFDF5; border: 1.5px solid #A7F3D0;
+      border-radius: 12px; padding: 16px; color: #065F46;
+    }
+    .qr-completed-icon { font-size: 36px; margin-bottom: 6px; }
+
+    /* 3. Shipper Info */
+    .shipper-card {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .shipper-left {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .shipper-avatar {
+      width: 42px; height: 42px; border-radius: 50%; background: #EFF6FF;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+      border: 1.5px solid #BFDBFE;
+    }
+    .shipper-name { font-size: 13px; font-weight: 700; }
+    .shipper-role { font-size: 11px; color: var(--blue); font-weight: 600; margin-top: 2px; }
+    .btn-call {
+      width: 38px; height: 38px; border-radius: 50%; background: #E8F7EE;
+      color: var(--green); display: flex; align-items: center; justify-content: center;
+      text-decoration: none; font-size: 17px; border: none; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(16,185,129,0.2);
+    }
+
+    /* 4. Khung Đánh Giá 5 Sao (Bước 4) */
+    .rating-card {
+      display: none; background: #FFF; border-radius: 14px; padding: 16px;
+      border: 1px solid var(--border); text-align: center;
+    }
+    .rating-title { font-size: 13.5px; font-weight: 800; color: #0F172A; }
+    .rating-stars {
+      display: flex; justify-content: center; gap: 10px; font-size: 28px; margin: 10px 0; cursor: pointer;
+    }
+    .star-item { color: #E2E8F0; transition: color 0.15s, transform 0.1s; }
+    .star-item.active { color: #F59E0B; }
+    .star-item:hover { transform: scale(1.15); }
+    .rating-hint { font-size: 11px; color: var(--text-muted); }
+
+    /* 5. Tóm tắt món và tiền */
+    .summary-row {
+      display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;
+    }
+    .summary-row.total {
+      font-size: 14px; font-weight: 800; color: var(--primary);
+      border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px;
+    }
+
+    /* Nút Gọi Cho Quán */
+    .btn-call-shop {
+      width: 100%; height: 44px; background: #059669; color: #FFF; border: none;
+      border-radius: 12px; font-size: 13.5px; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      text-decoration: none; box-shadow: 0 4px 12px rgba(5,150,105,0.25);
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-call-shop:hover { background: #047857; }
+    .btn-call-shop:active { transform: scale(0.98); }
+
+    /* Nút Nhắn Tin Cho Quán (Ô Mass) */
+    .btn-chat-shop {
+      width: 100%; height: 44px; background: #2563EB; color: #FFF; border: none;
+      border-radius: 12px; font-size: 13.5px; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.25); transition: background 0.15s, transform 0.1s;
+    }
+    .btn-chat-shop:hover { background: #1D4ED8; }
+    .btn-chat-shop:active { transform: scale(0.98); }
+
+    /* Modal Chat Với Quán (Bottom Sheet) */
+    .chat-modal-backdrop {
+      position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55);
+      z-index: 100; display: none; align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(2px); animation: fadeIn 0.2s ease;
+    }
+    .chat-modal-backdrop.open { display: flex; }
+    .chat-modal-sheet {
+      width: 100%; height: 75%; background: #FFF; border-radius: 20px 20px 0 0;
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 -8px 24px rgba(0,0,0,0.15);
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .chat-header {
+      padding: 12px 16px; background: #F8FAFC; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .chat-shop-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: #FEF3C7;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .chat-shop-name { font-size: 13px; font-weight: 700; color: #0F172A; }
+    .chat-shop-status { font-size: 11px; color: #059669; display: flex; align-items: center; gap: 4px; font-weight: 600; margin-top: 1px; }
+    .dot-online { width: 7px; height: 7px; border-radius: 50%; background: #10B981; }
+    .btn-close-chat {
+      background: #E2E8F0; border: none; border-radius: 50%; width: 28px; height: 28px;
+      font-size: 13px; font-weight: 700; cursor: pointer; color: #475569;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-close-chat:hover { background: #CBD5E1; color: #0F172A; }
+    .chat-body {
+      flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #F8FAFC;
+    }
+    .chat-time-divider {
+      text-align: center; font-size: 10.5px; color: #94A3B8; font-weight: 600; margin: 4px 0;
+    }
+    .chat-msg {
+      max-width: 84%; display: flex; flex-direction: column;
+    }
+    .chat-msg.msg-shop {
+      align-self: flex-start;
+    }
+    .chat-msg.msg-shop .msg-bubble {
+      background: #FFFFFF; color: #1E293B; border-radius: 14px 14px 14px 2px;
+      padding: 10px 12px; font-size: 12px; line-height: 1.45; border: 1px solid #E2E8F0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .chat-msg.msg-user {
+      align-self: flex-end; align-items: flex-end;
+    }
+    .chat-msg.msg-user .msg-bubble {
+      background: #2563EB; color: #FFFFFF; border-radius: 14px 14px 2px 14px;
+      padding: 10px 12px; font-size: 12px; line-height: 1.45;
+      box-shadow: 0 2px 6px rgba(37,99,235,0.25);
+    }
+    .msg-time { font-size: 10px; color: #94A3B8; margin-top: 3px; padding: 0 4px; }
+    .chat-quick-replies {
+      padding: 8px 12px; background: #FFF; border-top: 1px solid #F1F5F9;
+      display: flex; gap: 6px; overflow-x: auto; white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chat-quick-replies::-webkit-scrollbar { display: none; }
+    .chip-reply {
+      flex-shrink: 0; background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE;
+      padding: 5px 10px; border-radius: 14px; font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .chip-reply:hover { background: #DBEAFE; }
+    .chat-input-bar {
+      padding: 10px 12px; background: #FFF; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; align-items: center;
+    }
+    .chat-input-field {
+      flex: 1; height: 38px; background: #F1F5F9; border: 1px solid #E2E8F0;
+      border-radius: 19px; padding: 0 14px; font-size: 12px; outline: none;
+    }
+    .chat-input-field:focus { border-color: #2563EB; background: #FFF; }
+    .btn-send-chat {
+      width: 38px; height: 38px; border-radius: 50%; background: #2563EB;
+      color: #FFF; border: none; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+    }
+    .btn-send-chat:hover { background: #1D4ED8; }
+
+    /* Bottom Nav Bar */
+    .bottom-nav {
+      height: 58px; background: #FFFFFF; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around; align-items: center;
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600;
+      gap: 3px; width: 25%;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 18px; line-height: 1; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>10:15</span>
+      <span>📶 5G 🔋 98%</span>
+    </div>
+
+    <!-- Header Oishi Food -->
+    <div class="top-header">
+      <a href="b4.html" class="brand-left">
+        <div class="brand-logo">🍲</div>
+        <span class="brand-name">Oishi Food</span>
+      </a>
+      <span style="font-size: 11.5px; font-weight: 700; color: #64748B; background: #F1F5F9; padding: 4px 10px; border-radius: 20px;">#ORD_88291</span>
+    </div>
+
+    <div class="content">
+      <!-- 1. Trạng thái & Timeline đơn hàng -->
+      <div class="card-block">
+        <div class="status-summary">
+          <div class="status-icon" id="lblStatusIcon">⏳</div>
+          <div class="status-text">
+            <h2 id="lblStatusHeadline">Đã gửi đơn, chờ quán xác nhận</h2>
+            <p id="lblStatusSub">Mã đơn: #ORD_88291 • Quán đang kiểm tra món ăn</p>
+          </div>
+        </div>
+
+        <!-- 4 BƯỚC: 1. Đã gửi đơn, chờ quán xác nhận -> 2. Quán đang làm -> 3. Đang giao -> 4. Đã nhận -->
+        <div class="timeline-stepper">
+          <div class="timeline-progress" id="timelineProgress" style="width: 0%;"></div>
+
+          <div class="step-node active" id="nodeStep1" onclick="setOrderStep(1)">
+            <div class="node-dot" id="dotStep1">1</div>
+            <div class="node-label">Chờ xác nhận</div>
+          </div>
+          <div class="step-node" id="nodeStep2" onclick="setOrderStep(2)">
+            <div class="node-dot" id="dotStep2">2</div>
+            <div class="node-label">Quán đang làm</div>
+          </div>
+          <div class="step-node" id="nodeStep3" onclick="setOrderStep(3)">
+            <div class="node-dot" id="dotStep3">3</div>
+            <div class="node-label">Đang giao</div>
+          </div>
+          <div class="step-node" id="nodeStep4" onclick="setOrderStep(4)">
+            <div class="node-dot" id="dotStep4">4</div>
+            <div class="node-label">Đã nhận</div>
+          </div>
+        </div>
+
+        <!-- Thẻ mô tả chi tiết trạng thái hiện tại -->
+        <div class="step-detail-card" style="margin-top: 14px;">
+          <div class="step-detail-title" id="lblDetailTitle">
+            <span>⏳</span> <span>Thông tin trạng thái:</span>
+          </div>
+          <div id="lblDetailDesc">
+            Hệ thống đã gửi thông báo đơn tới nhà hàng Ngô Gia. Quán sẽ kiểm tra và xác nhận trong vòng 1 - 3 phút.
+          </div>
+        </div>
+
+        <!-- Nút Gọi Cho Quán & Ô Nhắn Tin Cho Quán ở trạng thái Chờ Xác Nhận -->
+        <div id="wrapCallShop" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <a href="tel:02838229999" class="btn-call-shop" id="btnCallShop">
+            <span>📞 Gọi Cho Quán (028.3822.9999)</span>
+          </a>
+          <button type="button" class="btn-chat-shop" id="btnChatShop" onclick="openChatShopModal()">
+            <span>💬 Nhắn Tin Cho Quán</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Mã QR Gộp (Delivery Token) cho Shipper Quán Quét -->
+      <div class="qr-card-section" id="qrCardSection">
+        <div class="qr-title" id="lblQrTitle">Mã QR Xác Nhận Nhận Hàng</div>
+        <p class="qr-desc" id="lblQrDesc">Đưa mã QR này cho tài xế của quán quét khi giao đồ ăn đến tay bạn</p>
+
+        <div class="qr-code-wrapper" id="qrCodeWrapper">
+          <div class="qr-pattern">
+            ■■■■■■■ ■ ■■■■■■■<br>
+            ■   ■ ■ ■ ■ ■   ■<br>
+            ■■■■■■■ ■ ■■■■■■■<br>
+            ■ ■■■ ■■■ ■■■ ■ ■<br>
+            ■■■■■■■ ■ ■■■■■■■<br>
+            DELIVERY TOKEN
+          </div>
+        </div>
+
+        <div class="token-pill" id="tokenPill">TOKEN_OISHI_88291</div>
+
+        <!-- Khung hoàn thành xuất hiện ở Bước 4 -->
+        <div class="qr-completed-box" id="qrCompletedBox">
+          <div class="qr-completed-icon">🎉</div>
+          <h3 style="font-size: 15px; font-weight: 800; margin-bottom: 4px;">Giao Hàng Thành Công!</h3>
+          <p style="font-size: 12px; line-height: 1.4;">
+            Mã Token đã được tài xế quét đối soát xác nhận hoàn tất lúc 10:35. Cảm ơn bạn đã tin dùng Oishi Food!
+          </p>
+        </div>
+      </div>
+
+      <!-- 3. Thông tin Shipper của Quán -->
+      <div class="card-block shipper-card" id="shipperCard">
+        <div class="shipper-left">
+          <div class="shipper-avatar" id="shipperAvatar">👨🏻‍🍳</div>
+          <div>
+            <div class="shipper-name" id="shipperName">Trần Văn Nam</div>
+            <div class="shipper-role" id="shipperRole">Nhân viên giao hàng • Quán Ngô Gia</div>
+          </div>
+        </div>
+        <a href="tel:0901234567" class="btn-call" id="btnCallShipper">📞</a>
+      </div>
+
+      <!-- 4. Khung Đánh Giá Món Ăn 5 Sao (Kích hoạt khi bước 4 Đã Nhận) -->
+      <div class="rating-card" id="ratingCard">
+        <div class="rating-title">⭐ Đánh Giá Món Ăn & Dịch Vụ</div>
+        <div class="rating-stars" id="starGroup">
+          <span class="star-item active" onclick="setRating(1)">★</span>
+          <span class="star-item active" onclick="setRating(2)">★</span>
+          <span class="star-item active" onclick="setRating(3)">★</span>
+          <span class="star-item active" onclick="setRating(4)">★</span>
+          <span class="star-item active" onclick="setRating(5)">★</span>
+        </div>
+        <div class="rating-hint" id="ratingHintText">Cực kỳ hài lòng! Món ngon, giao nhanh đúng giờ.</div>
+        <button class="btn-next-step" style="background:#10B981; margin-top:10px;" onclick="submitReview()">
+          ✓ Gửi Đánh Giá & Nhận 50 Điểm
+        </button>
+      </div>
+
+      <!-- 5. Chi tiết đơn hàng & Phí ship TP.HCM -->
+      <div class="card-block">
+        <div style="font-size: 13px; font-weight: 700; margin-bottom: 8px;">Chi tiết đơn hàng</div>
+        
+        <div class="summary-row">
+          <span>1x Trà Xí Muội Ô Long (Size M)</span>
+          <span>28.000 đ</span>
+        </div>
+        <div class="summary-row">
+          <span>1x Trà Xí Muội Ngô Gia (Size M)</span>
+          <span>25.000 đ</span>
+        </div>
+        <div class="summary-row">
+          <span>Phí giao hàng (Nội quận TP.HCM):</span>
+          <span style="color: var(--blue); font-weight: 600;">15.000 đ</span>
+        </div>
+        
+        <div class="summary-row total">
+          <span>Tổng thanh toán:</span>
+          <span id="txtB9Total">68.000 đ</span>
+        </div>
+
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;" id="txtB9PayMode">
+          💳 Hình thức: <b>Ví MoMo (Đã thanh toán)</b>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thanh Navigation Bottom Bar Oishi Food -->
+    <nav class="bottom-nav">
+      <a href="b4.html" class="nav-item">
+        <span class="nav-icon">🏠</span>
+        <span>Trang chủ</span>
+      </a>
+      <a href="order_status.html" class="nav-item active">
+        <span class="nav-icon">🧾</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="b10.html" class="nav-item">
+        <span class="nav-icon">🔔</span>
+        <span>Thông báo</span>
+      </a>
+      <a href="b11.html" class="nav-item">
+        <span class="nav-icon">👤</span>
+        <span>Tôi</span>
+      </a>
+    </nav>
+
+    <!-- BOTTOM SHEET MODAL: NHẮN TIN VỚI QUÁN NGÔ GIA -->
+    <div class="chat-modal-backdrop" id="chatModalBackdrop" onclick="closeChatShopModal(event)">
+      <div class="chat-modal-sheet" onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="chat-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="chat-shop-avatar">🧋</div>
+            <div>
+              <div class="chat-shop-name">Trà Sữa Ngô Gia • Q.1</div>
+              <div class="chat-shop-status"><span class="dot-online"></span> Đang trực tuyến • Phản hồi ngay</div>
+            </div>
+          </div>
+          <button type="button" class="btn-close-chat" onclick="closeChatShopModal()">✕</button>
+        </div>
+
+        <!-- Nội dung tin nhắn -->
+        <div class="chat-body" id="chatMessagesList">
+          <div class="chat-time-divider">Hôm nay 10:15</div>
+          <div class="chat-msg msg-shop">
+            <div class="msg-bubble">
+              Dạ Quán Ngô Gia xin chào bạn! Đơn <b>#ORD_88291</b> của bạn đang được quán tiếp nhận. Bạn cần dặn dò thêm về món (đá, đường, ống hút...) cứ nhắn cho quán nhé! ❤️
+            </div>
+            <div class="msg-time">10:15</div>
+          </div>
+        </div>
+
+        <!-- Gợi ý tin nhắn nhanh (Quick chips) -->
+        <div class="chat-quick-replies">
+          <button type="button" class="chip-reply" onclick="sendQuickReply('🥤 Làm ít đá, ít ngọt giúp mình nhé')">🥤 Ít đá, ít đường</button>
+          <button type="button" class="chip-reply" onclick="sendQuickReply('🥢 Cho mình xin thêm 2 ống hút to')">🥢 Xin thêm 2 ống hút</button>
+          <button type="button" class="chip-reply" onclick="sendQuickReply('⚡ Quán làm nhanh giúp mình nhé')">⚡ Làm nhanh giúp mình</button>
+          <button type="button" class="chip-reply" onclick="sendQuickReply('🧊 Để đá riêng giúp mình được không?')">🧊 Để đá riêng</button>
+        </div>
+
+        <!-- Khung nhập tin nhắn -->
+        <div class="chat-input-bar">
+          <input type="text" id="inputChatMessage" class="chat-input-field" placeholder="Nhập tin nhắn gửi quán..." onkeypress="handleChatEnter(event)">
+          <button type="button" class="btn-send-chat" onclick="sendChatMessage()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Nhận params từ trang trước
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode');
+    const channel = urlParams.get('channel') || 'momo';
+    const total = parseInt(urlParams.get('total'));
+    const remain = parseInt(urlParams.get('remain'));
+    const stepParam = parseInt(urlParams.get('step')) || 1;
+
+    const channelNames = {
+      momo: 'Ví MoMo',
+      bank: 'Ngân Hàng',
+      cash: 'Tiền Mặt'
+    };
+
+    if (total) {
+      const elTotal = document.getElementById('txtB9Total');
+      if (elTotal) elTotal.innerText = total.toLocaleString('vi-VN') + ' đ';
+    }
+
+    const elPayMode = document.getElementById('txtB9PayMode');
+    if (elPayMode && mode) {
+      if (mode === 'COD') {
+        elPayMode.innerHTML = `💳 Hình thức: <b style="color:#059669;">👑 COD (Thanh toán khi nhận)</b><br><span style="color:#64748B;">• Shipper thu khi giao: ${(remain || total || 105000).toLocaleString('vi-VN')} đ</span>`;
+      } else if (mode === 'DEPOSIT') {
+        elPayMode.innerHTML = `💳 Hình thức: <b style="color:#D97706;">⚡ Đặt cọc 20% (${channelNames[channel] || 'Ví MoMo'})</b><br><span style="color:#64748B;">• Còn lại thu khi giao: ${(remain || 84000).toLocaleString('vi-VN')} đ</span>`;
+      } else {
+        elPayMode.innerHTML = `💳 Hình thức: <b>${channelNames[channel] || 'Ví MoMo'} (Đã trả thẳng 100%)</b>`;
+      }
+    }
+
+    // --- QUẢN LÝ 4 BƯỚC TRẠNG THÁI ---
+    // Bước 1: Đã gửi đơn, chờ quán xác nhận
+    // Bước 2: Quán đang làm
+    // Bước 3: Đang giao
+    // Bước 4: Đã nhận
+
+    let currentStep = 1;
+
+    function setOrderStep(step) {
+      currentStep = step;
+
+
+
+      // 2. Cập nhật Timeline Stepper
+      const progress = document.getElementById('timelineProgress');
+      const progressWidths = { 1: '0%', 2: '33%', 3: '66%', 4: '100%' };
+      if (progress) progress.style.width = progressWidths[step];
+
+      for (let i = 1; i <= 4; i++) {
+        const node = document.getElementById(`nodeStep${i}`);
+        const dot = document.getElementById(`dotStep${i}`);
+        if (!node || !dot) continue;
+
+        node.classList.remove('active', 'done', 'completed');
+
+        if (i < step) {
+          node.classList.add('done');
+          dot.innerText = '✓';
+        } else if (i === step) {
+          node.classList.add('active');
+          if (step === 1) dot.innerText = '⏳';
+          else if (step === 2) dot.innerText = '🍳';
+          else if (step === 3) dot.innerText = '🛵';
+          else if (step === 4) {
+            dot.innerText = '🎉';
+            node.classList.add('completed');
+          }
+        } else {
+          dot.innerText = i;
+        }
+      }
+
+      // 3. Cập nhật nội dung tiêu đề, mô tả và thành phần chi tiết
+      const lblStatusIcon = document.getElementById('lblStatusIcon');
+      const lblStatusHeadline = document.getElementById('lblStatusHeadline');
+      const lblStatusSub = document.getElementById('lblStatusSub');
+      const lblDetailTitle = document.getElementById('lblDetailTitle');
+      const lblDetailDesc = document.getElementById('lblDetailDesc');
+      const wrapCallShop = document.getElementById('wrapCallShop');
+
+      const qrCodeWrapper = document.getElementById('qrCodeWrapper');
+      const tokenPill = document.getElementById('tokenPill');
+      const qrCompletedBox = document.getElementById('qrCompletedBox');
+      const lblQrTitle = document.getElementById('lblQrTitle');
+      const lblQrDesc = document.getElementById('lblQrDesc');
+
+      const shipperCard = document.getElementById('shipperCard');
+      const shipperName = document.getElementById('shipperName');
+      const shipperRole = document.getElementById('shipperRole');
+      const shipperAvatar = document.getElementById('shipperAvatar');
+      const ratingCard = document.getElementById('ratingCard');
+
+      if (step === 1) {
+        // BƯỚC 1: Đã gửi đơn, chờ quán xác nhận
+        lblStatusIcon.innerText = '⏳';
+        lblStatusHeadline.innerText = 'Đã gửi đơn, chờ quán xác nhận';
+        lblStatusSub.innerText = 'Mã đơn: #ORD_88291 • Quán đang kiểm tra món ăn';
+        lblDetailTitle.innerHTML = '<span>⏳</span> <span>Thông tin xác nhận:</span>';
+        lblDetailDesc.innerHTML = 'Hệ thống đã gửi thông báo đơn tới nhà hàng Ngô Gia. Quán sẽ kiểm tra và xác nhận trong vòng <b>1 - 3 phút</b>.';
+        if (wrapCallShop) wrapCallShop.style.display = 'flex';
+
+        lblQrTitle.innerText = 'Mã QR Nhận Hàng (Chờ Kích Hoạt)';
+        lblQrDesc.innerText = 'Mã QR sẽ kích hoạt sẵn sàng khi tài xế bắt đầu giao hàng tới bạn';
+        qrCodeWrapper.style.opacity = '0.35';
+        qrCodeWrapper.style.display = 'flex';
+        tokenPill.style.display = 'inline-block';
+        qrCompletedBox.style.display = 'none';
+
+        shipperCard.style.opacity = '0.6';
+        shipperName.innerText = 'Đang tìm tài xế giao hàng...';
+        shipperRole.innerText = 'Hệ thống sẽ chỉ định tài xế khi quán chuẩn bị món';
+        shipperAvatar.innerText = '🛵';
+        ratingCard.style.display = 'none';
+
+      } else if (step === 2) {
+        // BƯỚC 2: Quán đang làm
+        lblStatusIcon.innerText = '🍳';
+        lblStatusHeadline.innerText = 'Quán đã nhận & đang làm món!';
+        lblStatusSub.innerText = 'Mã đơn: #ORD_88291 • Dự kiến làm xong lúc 10:25';
+        lblDetailTitle.innerHTML = '<span>🍳</span> <span>Trạng thái bếp nấu:</span>';
+        lblDetailDesc.innerHTML = 'Bếp quán Ngô Gia đang pha chế <b>2 ly Trà Xí Muội (Size M)</b> theo ghi chú của bạn. Món được làm mới nóng hổi!';
+        if (wrapCallShop) wrapCallShop.style.display = 'flex';
+
+        lblQrTitle.innerText = 'Mã QR Nhận Hàng (Chuẩn Bị Sẵn)';
+        lblQrDesc.innerText = 'Chuẩn bị mở mã này cho tài xế quét khi giao đến cửa';
+        qrCodeWrapper.style.opacity = '0.7';
+        qrCodeWrapper.style.display = 'flex';
+        tokenPill.style.display = 'inline-block';
+        qrCompletedBox.style.display = 'none';
+
+        shipperCard.style.opacity = '1';
+        shipperName.innerText = 'Trần Văn Nam';
+        shipperRole.innerText = 'Tài xế đã nhận đơn • Đang đến quán lấy món';
+        shipperAvatar.innerText = '👨🏻‍🍳';
+        ratingCard.style.display = 'none';
+
+      } else if (step === 3) {
+        // BƯỚC 3: Đang giao
+        lblStatusIcon.innerText = '🛵';
+        lblStatusHeadline.innerText = 'Tài xế đang giao đồ ăn!';
+        lblStatusSub.innerText = 'Mã đơn: #ORD_88291 • Dự kiến giao đến bạn lúc 10:35';
+        lblDetailTitle.innerHTML = '<span>🛵</span> <span>Hành trình tài xế:</span>';
+        lblDetailDesc.innerHTML = 'Tài xế Trần Văn Nam đã lấy món từ quán và đang trên đường di chuyển đến <b>Số 104 Đường Hai Bà Trưng, P. Đa Kao, Q.1</b>.';
+        if (wrapCallShop) wrapCallShop.style.display = 'none';
+
+        lblQrTitle.innerText = 'Mã QR Xác Nhận Nhận Hàng';
+        lblQrDesc.innerText = 'Đưa mã QR này cho tài xế của quán quét bằng camera khi giao đồ ăn đến tay bạn';
+        qrCodeWrapper.style.opacity = '1';
+        qrCodeWrapper.style.display = 'flex';
+        tokenPill.style.display = 'inline-block';
+        qrCompletedBox.style.display = 'none';
+
+        shipperCard.style.opacity = '1';
+        shipperName.innerText = 'Trần Văn Nam';
+        shipperRole.innerText = 'Nhân viên giao hàng • Quán Ngô Gia (Đang đến)';
+        shipperAvatar.innerText = '👨🏻‍🍳';
+        ratingCard.style.display = 'none';
+
+      } else if (step === 4) {
+        // BƯỚC 4: Đã nhận
+        lblStatusIcon.innerText = '🎉';
+        lblStatusHeadline.innerText = 'Đã giao hàng thành công!';
+        lblStatusSub.innerText = 'Mã đơn: #ORD_88291 • Khách đã nhận đủ món lúc 10:35';
+        lblDetailTitle.innerHTML = '<span>✅</span> <span>Hoàn tất đơn hàng:</span>';
+        lblDetailDesc.innerHTML = 'Đơn hàng đã được bàn giao trọn vẹn. Chúc bạn có một bữa ăn ngon miệng cùng <b>Oishi Food</b>!';
+        if (wrapCallShop) wrapCallShop.style.display = 'none';
+
+        lblQrTitle.innerText = 'Xác Nhận Đối Soát Hoàn Tất';
+        lblQrDesc.innerText = 'Mã Token đã được tài xế quét thành công';
+        qrCodeWrapper.style.display = 'none';
+        tokenPill.style.display = 'none';
+        qrCompletedBox.style.display = 'block';
+
+        shipperCard.style.opacity = '1';
+        shipperName.innerText = 'Trần Văn Nam';
+        shipperRole.innerText = 'Đã hoàn tất giao hàng xuất sắc';
+        shipperAvatar.innerText = '⭐';
+        ratingCard.style.display = 'block';
+      }
+    }
+
+    // Đánh giá sao tại bước 4
+    function setRating(stars) {
+      const allStars = document.querySelectorAll('.star-item');
+      allStars.forEach((s, idx) => {
+        s.classList.toggle('active', idx < stars);
+      });
+      const hint = document.getElementById('ratingHintText');
+      const messages = [
+        'Rất không hài lòng',
+        'Tạm được',
+        'Món ổn, giao đúng giờ',
+        'Rất ngon, phục vụ chu đáo!',
+        'Cực kỳ hài lòng! Món ngon, giao nhanh đúng giờ.'
+      ];
+      if (hint) hint.innerText = messages[stars - 1] || '';
+    }
+
+    function submitReview() {
+      alert('Cảm ơn bạn đã gửi đánh giá! Bạn đã nhận được +50 Điểm Thưởng Oishi Food.');
+    }
+
+    // --- ĐIỀU KHIỂN CHAT / NHẮN TIN VỚI QUÁN NGÔ GIA ---
+    function openChatShopModal() {
+      const modal = document.getElementById('chatModalBackdrop');
+      if (modal) {
+        modal.classList.add('open');
+        setTimeout(() => {
+          const input = document.getElementById('inputChatMessage');
+          if (input) input.focus();
+        }, 200);
+      }
+    }
+
+    function closeChatShopModal(e) {
+      if (!e || e.target === document.getElementById('chatModalBackdrop') || e.target.classList.contains('btn-close-chat')) {
+        const modal = document.getElementById('chatModalBackdrop');
+        if (modal) modal.classList.remove('open');
+      }
+    }
+
+    function sendQuickReply(text) {
+      const input = document.getElementById('inputChatMessage');
+      if (input) {
+        input.value = text;
+        sendChatMessage();
+      }
+    }
+
+    function handleChatEnter(e) {
+      if (e.key === 'Enter') {
+        sendChatMessage();
+      }
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('inputChatMessage');
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+
+      const list = document.getElementById('chatMessagesList');
+      if (!list) return;
+
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+      // 1. Thêm tin nhắn của khách
+      const userMsg = document.createElement('div');
+      userMsg.className = 'chat-msg msg-user';
+      userMsg.innerHTML = `
+        <div class="msg-bubble">${escapeHtml(text)}</div>
+        <div class="msg-time">${timeStr} · Đã gửi</div>
+      `;
+      list.appendChild(userMsg);
+      input.value = '';
+      list.scrollTop = list.scrollHeight;
+
+      // 2. Quán phản hồi tự động sau 800ms
+      setTimeout(() => {
+        const shopReply = document.createElement('div');
+        shopReply.className = 'chat-msg msg-shop';
+        shopReply.innerHTML = `
+          <div class="msg-bubble">Dạ quán Ngô Gia đã nhận được lời nhắn: <i>"${escapeHtml(text)}"</i> và lưu ý cho nhân viên pha chế ngay ạ! 🥰</div>
+          <div class="msg-time">${timeStr}</div>
+        `;
+        list.appendChild(shopReply);
+        list.scrollTop = list.scrollHeight;
+      }, 800);
+    }
+
+    function escapeHtml(string) {
+      return String(string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Khởi chạy theo bước ban đầu (Mặc định bước 1: Đã gửi đơn, chờ quán xác nhận)
+    setOrderStep(stepParam);
+  </script>
+</body>
+</html>

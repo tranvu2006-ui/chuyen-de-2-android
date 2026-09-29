@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food Ecosystem - Demo Hub & Báo Cáo Chuyên Đề 2</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-dark: #C93415;
+      --primary-light: #FFF0ED;
+      --bg: #0B0F19;
+      --surface: #151C2C;
+      --surface-card: #1E293B;
+      --border: #334155;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --green: #10B981;
+      --blue: #38BDF8;
+      --yellow: #FBBF24;
+      --purple: #A855F7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+    /* Top Navigation Bar */
+    header {
+      background: rgba(21, 28, 44, 0.85); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+      padding: 14px 28px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .brand-group { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 40px; height: 40px; background: linear-gradient(135deg, #FF6933, #EE4D2D);
+      border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 20px; box-shadow: 0 4px 14px rgba(238, 77, 45, 0.4);
+    }
+    .brand-title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    .brand-subtitle { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+
+    .header-links { display: flex; gap: 10px; align-items: center; }
+    .btn-nav {
+      background: var(--surface-card); color: #FFF; border: 1px solid var(--border);
+      padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 700;
+      text-decoration: none; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+    }
+    .btn-nav:hover { background: #334155; border-color: #64748B; }
+    .btn-nav.primary {
+      background: linear-gradient(135deg, #EE4D2D, #C93415); border: none;
+      box-shadow: 0 2px 10px rgba(238, 77, 45, 0.35);
+    }
+    .btn-nav.primary:hover { opacity: 0.95; transform: translateY(-1px); }
+
+    /* Hero Section */
+    .hero {
+      padding: 40px 24px 24px 24px; text-align: center; max-width: 1100px; margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px; background: rgba(56, 189, 248, 0.12);
+      color: var(--blue); border: 1px solid rgba(56, 189, 248, 0.3); padding: 5px 14px;
+      border-radius: 99px; font-size: 12px; font-weight: 700; margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-size: 34px; font-weight: 800; line-height: 1.25; margin-bottom: 14px;
+      background: linear-gradient(135deg, #FFFFFF 30%, #CBD5E1 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 14.5px; color: var(--text-muted); max-width: 800px; margin: 0 auto 28px auto; line-height: 1.6;
+    }
+
+    /* Tabs Chế Độ Xem */
+    .view-tabs {
+      display: flex; justify-content: center; gap: 12px; margin-bottom: 32px; flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);
+      padding: 10px 22px; border-radius: 12px; font-size: 13.5px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.25s;
+    }
+    .tab-btn:hover { background: var(--surface-card); color: #FFF; }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #EE4D2D, #C93415); color: #FFF;
+      border-color: #EE4D2D; box-shadow: 0 4px 16px rgba(238, 77, 45, 0.3);
+    }
+
+    /* Container chung */
+    .container { max-width: 1440px; margin: 0 auto; padding: 0 24px 60px 24px; }
+
+    /* Thanh Giả Lập Tương Tác Real-time (Live Production Simulator) */
+    .sim-bar-card {
+      background: linear-gradient(135deg, #1E293B, #0F172A); border: 1.5px solid var(--border);
+      border-radius: 20px; padding: 20px; margin-bottom: 32px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    }
+    .sim-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+    .sim-title h3 { font-size: 18px; font-weight: 800; color: #FFF; display: flex; align-items: center; gap: 8px; }
+    .sim-title p { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+    .sim-btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .sim-btn {
+      background: var(--surface); color: #CBD5E1; border: 1px solid var(--border);
+      padding: 9px 14px; border-radius: 10px; font-size: 12px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+    }
+    .sim-btn:hover { background: #334155; color: #FFF; }
+    .sim-btn.active {
+      background: linear-gradient(135deg, #EE4D2D, #C93415); color: #FFF; border-color: #EE4D2D;
+      box-shadow: 0 3px 10px rgba(238, 77, 45, 0.35);
+    }
+    .sim-btn.btn-cancel-demo {
+      background: #451A03; color: #FDBA74; border-color: #9A3412;
+    }
+    .sim-btn.btn-cancel-demo.active {
+      background: #DC2626; color: #FFF; border-color: #EF4444; box-shadow: 0 3px 10px rgba(220,38,38,0.4);
+    }
+    .sim-btn.btn-autoplay {
+      background: linear-gradient(135deg, #10B981, #059669); color: #FFF; border: none;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    }
+    .sim-btn.btn-autoplay:hover { opacity: 0.95; transform: translateY(-1px); }
+
+    .sim-status-banner {
+      background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 12px;
+      padding: 10px 16px; font-size: 12.5px; color: var(--blue); font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sim-status-banner b { color: #FFF; }
+
+    /* 1. KỊCH BẢN VẬN HÀNH */
+    .workflow-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+      padding: 24px; margin-bottom: 36px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+    .workflow-title {
+      font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+    }
+    .workflow-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+
+    .steps-timeline {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; position: relative;
+    }
+    @media (max-width: 992px) {
+      .steps-timeline { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .steps-timeline { grid-template-columns: 1fr; }
+    }
+
+    .step-item {
+      background: var(--surface-card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px 16px; position: relative; cursor: pointer; transition: all 0.2s;
+    }
+    .step-item:hover { border-color: var(--blue); transform: translateY(-3px); }
+    .step-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 8px; font-weight: 800; font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .step-1 .step-badge { background: #EE4D2D; color: #FFF; }
+    .step-2 .step-badge { background: #38BDF8; color: #000; }
+    .step-3 .step-badge { background: #10B981; color: #FFF; }
+    .step-4 .step-badge { background: #A855F7; color: #FFF; }
+
+    .step-role { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+    .step-heading { font-size: 14px; font-weight: 800; color: #FFF; margin-bottom: 8px; }
+    .step-text { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
+    .step-link-btn {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px;
+      font-weight: 700; color: var(--blue); text-decoration: none;
+    }
+    .step-link-btn:hover { text-decoration: underline; }
+
+    /* 2. KHUNG TRÌNH DIỄN 3 ĐIỆN THOẠI (Interactive Emulator) */
+    .devices-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 1200px) {
+      .devices-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 800px) {
+      .devices-grid { grid-template-columns: 1fr; }
+    }
+
+    .device-column {
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .device-meta-card {
+      width: 100%; max-width: 412px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 14px 18px;
+    }
+    .device-meta-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    .device-title { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    .device-tag {
+      font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+    }
+    .tag-customer { background: rgba(238, 77, 45, 0.15); color: #FF7A59; border: 1px solid rgba(238, 77, 45, 0.3); }
+    .tag-merchant { background: rgba(56, 189, 248, 0.15); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .tag-driver { background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .screen-selector-row {
+      display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 2px 0;
+    }
+    .screen-pill {
+      background: var(--surface-card); color: var(--text-muted); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+      cursor: pointer; white-space: nowrap; transition: all 0.2s;
+    }
+    .screen-pill:hover { color: #FFF; border-color: #64748B; }
+    .screen-pill.active {
+      background: var(--blue); color: #0F172A; border-color: var(--blue);
+    }
+
+    .phone-mockup {
+      width: 390px; height: 750px; background: #000; border-radius: 36px;
+      border: 8px solid #334155; overflow: hidden; position: relative;
+      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.7);
+    }
+    .phone-mockup iframe {
+      width: 100%; height: 100%; border: none; background: #FFF;
+    }
+    .phone-actions {
+      display: flex; gap: 10px; width: 100%; max-width: 390px; justify-content: space-between;
+    }
+    .btn-phone-action {
+      flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border);
+      padding: 8px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+      text-align: center; text-decoration: none; display: flex; align-items: center;
+      justify-content: center; gap: 6px; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-phone-action:hover { background: var(--surface-card); border-color: #64748B; }
+
+    /* 3. BẢNG MA TRẬN CHỨC NĂNG CHÍNH & PHỤ */
+    .matrix-section {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+      padding: 28px; margin-top: 40px;
+    }
+    .matrix-header { margin-bottom: 24px; text-align: center; }
+    .matrix-header h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+    .matrix-header p { font-size: 13.5px; color: var(--text-muted); }
+
+    .app-cards-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+    }
+    @media (max-width: 1200px) {
+      .app-cards-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 650px) {
+      .app-cards-grid { grid-template-columns: 1fr; }
+    }
+
+    .app-card {
+      background: var(--surface-card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 20px; display: flex; flex-direction: column;
+    }
+    .app-card-head {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    }
+    .app-card-icon {
+      width: 36px; height: 36px; border-radius: 10px; display: flex;
+      align-items: center; justify-content: center; font-size: 18px;
+    }
+    .app-card-title { font-size: 15px; font-weight: 800; }
+    .app-card-files { font-size: 11px; font-family: monospace; color: var(--text-muted); margin-top: 2px; }
+
+    .feature-group { margin-bottom: 16px; }
+    .feature-group-label {
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+    }
+    .label-main { color: #10B981; }
+    .label-sub { color: #38BDF8; }
+
+    .feature-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .feature-list li {
+      font-size: 12px; line-height: 1.5; color: #CBD5E1; display: flex; align-items: flex-start; gap: 6px;
+    }
+    .feature-list li::before {
+      content: "•"; color: var(--primary); font-size: 16px; line-height: 1; flex-shrink: 0;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border); padding: 24px; text-align: center;
+      font-size: 12.5px; color: var(--text-muted); background: var(--surface);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header>
+    <div class="brand-group">
+      <div class="brand-logo">🍲</div>
+      <div>
+        <div class="brand-title">Oishi Food Platform</div>
+        <div class="brand-subtitle">Đồ Án Chuyên Đề 2 • Hệ Sinh Thái Đặt Món Trực Tuyến TP.HCM</div>
+      </div>
+    </div>
+
+    <div class="header-links">
+      <a href="admin.html" target="_blank" class="btn-nav primary">
+        <span>🛡️ Mở Admin Portal</span>
+        <span>↗</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-badge">✨ DEMO TOÀN BỘ CHỨC NĂNG CHÍNH VÀ PHỤ (4-IN-1 ECOSYSTEM)</div>
+    <h1>Trung Tâm Trình Diễn Hệ Thống Đặt Món Oishi Food</h1>
+    <p>
+      Hệ thống hoàn chỉnh kết nối tương tác liên tục giữa <b>Khách Hàng đặt món</b>, <b>Cửa Hàng chế biến & phát nổ đơn</b>, <b>Tài Xế giao hàng</b> và <b>Quản Trị Viên giám sát</b>.
+    </p>
+
+    <!-- View Mode Switches -->
+    <div class="view-tabs">
+      <button class="tab-btn active" onclick="switchViewSection('workflow')">
+        <span>🔄 1. Luồng Vận Hành Khép Kín (Simulation)</span>
+      </button>
+      <button class="tab-btn" onclick="switchViewSection('devices')">
+        <span>📱 2. Khung Giả Lập 3 Ứng Dụng (Live Devices)</span>
+      </button>
+      <button class="tab-btn" onclick="switchViewSection('matrix')">
+        <span>📋 3. Bảng Ma Trận Chức Năng Chính & Phụ</span>
+      </button>
+    </div>
+  </section>
+
+  <main class="container">
+
+    <!-- THANH GIẢ LẬP TƯƠNG TÁC THỜI GIAN THỰC (LIVE SIMULATION CONTROL BAR) -->
+    <section class="sim-bar-card">
+      <div class="sim-header">
+        <div class="sim-title">
+          <h3>
+            <span>🎬</span>
+            <span>Trình Giả Lập Vận Hành Khép Kín Live (Production-grade Simulator)</span>
+          </h3>
+          <p>Bấm chọn từng bước bên dưới để giả lập tương tác real-time thực tế giữa 3 màn hình ứng dụng:</p>
+        </div>
+      </div>
+
+      <div class="sim-btn-group">
+        <button class="sim-btn active" id="simStep1" onclick="runSimStep(1)">
+          <span>1. 👤 Khách đặt đơn</span>
+        </button>
+        <button class="sim-btn" id="simStep2" onclick="runSimStep(2)">
+          <span>2. 🏪 Quán duyệt & Nổ đơn</span>
+        </button>
+        <button class="sim-btn" id="simStep31" onclick="runSimStep('3.1')">
+          <span>3.1. 🛵 Shipper nổ & nhận đơn</span>
+        </button>
+        <button class="sim-btn btn-cancel-demo" id="simStep32" onclick="runSimStep('3.2')">
+          <span>3.2. 🔴 Thử Hủy đơn (Trả Quán)</span>
+        </button>
+        <button class="sim-btn" id="simStep33" onclick="runSimStep('3.3')">
+          <span>3.3. 📦 Đến quán & lấy món</span>
+        </button>
+        <button class="sim-btn" id="simStep34" onclick="runSimStep('3.4')">
+          <span>3.4. 📍 Giao khách & Quét QR</span>
+        </button>
+        <button class="sim-btn btn-autoplay" onclick="runAutoPlaySim()">
+          <span>▶ TỰ ĐỘNG CHẠY THỰC TẾ (AUTO PLAY)</span>
+        </button>
+      </div>
+
+      <div class="sim-status-banner" id="simStatusBanner">
+        <span>📍 Trạng Thái Hệ Thống:</span>
+        <b id="txtSimStatus">Khách An Nguyễn chọn 2 ly Trà Xí Muội tại Ngô Gia và thanh toán đơn #ORD_OISHI_88291...</b>
+      </div>
+    </section>
+
+    <!-- 1. LUỒNG VẬN HÀNH KHÉP KÍN (WORKFLOW SECTION) -->
+    <section id="section-workflow" class="workflow-card">
+      <div class="workflow-title">
+        <span>🔄 Kịch Bản Demo: Đơn Hàng #ORD_OISHI_88291 Đi Xuyên Suốt Hệ Thống</span>
+      </div>
+      <div class="workflow-desc">
+        Click vào từng bước bên dưới để điều hướng iframe điện thoại hoặc mở trang thực tế tương ứng:
+      </div>
+
+      <div class="steps-timeline">
+        <!-- Bước 1 -->
+        <div class="step-item step-1" onclick="runSimStep(1)">
+          <div class="step-badge">1</div>
+          <div class="step-role">👤 Khách Hàng (An Nguyễn)</div>
+          <div class="step-heading">Tìm Món & Đặt Hàng</div>
+          <div class="step-text">
+            Khám phá quán <b>Hồng Trà Ngô Gia</b>, chọn 2 ly Trà Xí Muội (tùy biến size/đá/đường), tính cước ship liên quận TP.HCM (25.000đ), thanh toán MoMo và nhận mã <b>QR Delivery Token</b>.
+          </div>
+          <a href="khách/b4.html" target="_blank" class="step-link-btn" onclick="event.stopPropagation()">
+            <span>Mở app Khách</span> <span>↗</span>
+          </a>
+        </div>
+
+        <!-- Bước 2 -->
+        <div class="step-item step-2" onclick="runSimStep(2)">
+          <div class="step-badge">2</div>
+          <div class="step-role">🏪 Cửa Hàng (Hồng Trà Ngô Gia)</div>
+          <div class="step-heading">Duyệt Đơn & Phát Nổ ShopeeFood</div>
+          <div class="step-text">
+            Quán nhận thông báo đơn #ORD_OISHI_88291, bấm <b>Xác Nhận Đơn</b>, hệ thống tự động phát nổ đơn cho các Shipper rảnh gần quán theo mô hình ShopeeFood & Grab.
+          </div>
+          <a href="Quán/4.html" target="_blank" class="step-link-btn" onclick="event.stopPropagation()">
+            <span>Mở app Quán</span> <span>↗</span>
+          </a>
+        </div>
+
+        <!-- Bước 3 -->
+        <div class="step-item step-3" onclick="runSimStep('3.1')">
+          <div class="step-badge">3</div>
+          <div class="step-role">🛵 Tài Xế (Trần Văn Nam)</div>
+          <div class="step-heading">Nổ Đơn, Nhận Ghép Đơn & Giao GPS</div>
+          <div class="step-text">
+            Chuông app reo <i>"Nổ đơn mới"</i>, tài xế bấm nhận đơn (ghép tối đa 3 đơn). Có quyền <b>Hủy đơn trước khi lấy món</b> để hoàn đơn về pool hệ thống. Mở Leaflet GPS đến quán, đối soát bill món và quét QR khách giao đồ.
+          </div>
+          <a href="ship/3.html" target="_blank" class="step-link-btn" onclick="event.stopPropagation()">
+            <span>Mở app Shipper</span> <span>↗</span>
+          </a>
+        </div>
+
+        <!-- Bước 4 -->
+        <div class="step-item step-4" onclick="window.open('admin.html', '_blank')">
+          <div class="step-badge">4</div>
+          <div class="step-role">🛡️ Quản Trị Viên (Admin)</div>
+          <div class="step-heading">Giám Sát & Điều Hành Toàn Bộ</div>
+          <div class="step-text">
+            Xem <b>Danh sách đơn đặt món toàn bộ tại quán</b>, quản lý tài xế thuộc quán, kiểm tra 4 ảnh xác minh CCCD quán, theo dõi Điểm Uy Tín khách hàng và xử lý khiếu nại với 3 mức phạt (Cảnh báo, Ẩn, Khóa).
+          </div>
+          <a href="admin.html" target="_blank" class="step-link-btn" onclick="event.stopPropagation()">
+            <span>Mở trang Admin</span> <span>↗</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. KHUNG GIẢ LẬP 3 ỨNG DỤNG SONG SONG (DEVICES SECTION) -->
+    <section id="section-devices">
+      <div class="devices-grid">
+
+        <!-- CỘT 1: KHÁCH HÀNG -->
+        <div class="device-column">
+          <div class="device-meta-card">
+            <div class="device-meta-header">
+              <div class="device-title">
+                <span>👤</span>
+                <span>App Khách Hàng</span>
+              </div>
+              <span class="device-tag tag-customer">Customer App</span>
+            </div>
+            <div class="screen-selector-row">
+              <button class="screen-pill active" onclick="selectScreenPill(this, 'customer', 'khách/b1.html')">🏠 Trang chủ</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b4.html')">🔍 Khám phá quán</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b5.html')">📋 Menu Ngô Gia</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b6.html')">🧋 Chọn size/đá</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b7.html')">🛒 Giỏ hàng</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b8.html')">💳 Thanh toán TP.HCM</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b9.html')">🛵 Trạng thái & QR</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b3.html')">🧾 Lịch sử đơn</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b10.html')">🔔 Thông báo</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b11.html')">👤 Điểm Uy Tín</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/b12.html')">⚖️ Khiếu nại</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'customer', 'khách/a1.html')">✨ All-in-One</button>
+            </div>
+          </div>
+
+          <div class="phone-mockup">
+            <iframe id="iframe-customer" src="khách/b8.html"></iframe>
+          </div>
+
+          <div class="phone-actions">
+            <a href="khách/b8.html" target="_blank" class="btn-phone-action">
+              <span>↗ Mở Tab Mới</span>
+            </a>
+            <button class="btn-phone-action" onclick="document.getElementById('iframe-customer').src = document.getElementById('iframe-customer').src">
+              <span>🔄 Tải Lại</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- CỘT 2: CỬA HÀNG -->
+        <div class="device-column">
+          <div class="device-meta-card">
+            <div class="device-meta-header">
+              <div class="device-title">
+                <span>🏪</span>
+                <span>App Cửa Hàng (Quán)</span>
+              </div>
+              <span class="device-tag tag-merchant">Merchant App</span>
+            </div>
+            <div class="screen-selector-row">
+              <button class="screen-pill active" onclick="selectScreenPill(this, 'merchant', 'Quán/5.html')">📊 Kênh Quán / Đơn Hàng</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'merchant', 'Quán/4.html')">🛎️ Duyệt & Xử lý đơn</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'merchant', 'Quán/1.html')">🛵 Đội ngũ tài xế</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'merchant', 'Quán/2.html')">🍽️ Quản lý thực đơn</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'merchant', 'Quán/3.html')">🎁 Tạo combo món</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'merchant', 'Quán/6.html')">📦 Lịch sử đơn quán</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'merchant', 'Quán/7.html')">📈 Báo cáo doanh số</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'merchant', 'Quán/8.html')">⚙️ Hồ sơ & CCCD quán</button>
+            </div>
+          </div>
+
+          <div class="phone-mockup">
+            <iframe id="iframe-merchant" src="Quán/5.html"></iframe>
+          </div>
+
+          <div class="phone-actions">
+            <a href="Quán/5.html" target="_blank" class="btn-phone-action">
+              <span>↗ Mở Tab Mới</span>
+            </a>
+            <button class="btn-phone-action" onclick="document.getElementById('iframe-merchant').src = document.getElementById('iframe-merchant').src">
+              <span>🔄 Tải Lại</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- CỘT 3: TÀI XẾ GIAO HÀNG -->
+        <div class="device-column">
+          <div class="device-meta-card">
+            <div class="device-meta-header">
+              <div class="device-title">
+                <span>🛵</span>
+                <span>App Tài Xế (Shipper)</span>
+              </div>
+              <span class="device-tag tag-driver">Driver App</span>
+            </div>
+            <div class="screen-selector-row">
+              <button class="screen-pill active" onclick="selectScreenPill(this, 'driver', 'ship/2.html')">🟢 Vào ca trực</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'driver', 'ship/3.html')">🛎️ Nổ đơn ShopeeFood</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'driver', 'ship/4.html')">📍 Đến quán & Hủy đơn</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'driver', 'ship/5.html')">📦 Đối soát bill lấy món</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'driver', 'ship/6.html')">🛵 Giao cho khách</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'driver', 'ship/8.html')">📷 Quét QR hoàn tất</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'driver', 'ship/1.html')">🧾 Thu nhập & Lịch sử</button>
+              <button class="screen-pill" onclick="selectScreenPill(this, 'driver', 'ship/7.html')">👤 Hồ sơ tài xế</button>
+            </div>
+          </div>
+
+          <div class="phone-mockup">
+            <iframe id="iframe-driver" src="ship/2.html"></iframe>
+          </div>
+
+          <div class="phone-actions">
+            <a href="ship/2.html" target="_blank" class="btn-phone-action">
+              <span>↗ Mở Tab Mới</span>
+            </a>
+            <button class="btn-phone-action" onclick="document.getElementById('iframe-driver').src = document.getElementById('iframe-driver').src">
+              <span>🔄 Tải Lại</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. BẢNG MA TRẬN CHỨC NĂNG CHÍNH & PHỤ (MATRIX SECTION) -->
+    <section id="section-matrix" class="matrix-section">
+      <div class="matrix-header">
+        <h2>📋 Ma Trận Tổng Hợp Chức Năng Chính & Phụ Toàn Bộ 4 Ứng Dụng</h2>
+        <p>Bảng phân loại chi tiết phục vụ báo cáo và kiểm tra tính năng đồ án Chuyên Đề 2</p>
+      </div>
+
+      <div class="app-cards-grid">
+
+        <!-- CARD 1: KHÁCH HÀNG -->
+        <div class="app-card">
+          <div class="app-card-head">
+            <div class="app-card-icon" style="background: rgba(238, 77, 45, 0.15); color: #EE4D2D;">👤</div>
+            <div>
+              <div class="app-card-title">1. App Khách Hàng</div>
+              <div class="app-card-files">khách/b4, b5, b6, b7, b8, b9, a1</div>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-main">⭐ Chức năng chính (Core)</div>
+            <ul class="feature-list">
+              <li><b>Tìm kiếm & Khám phá quán ăn:</b> Lọc theo khu vực TP.HCM, thể loại món (cơm, trà sữa, bún phở).</li>
+              <li><b>Xem thực đơn & Tùy biến món:</b> Chọn Size (M/L), độ ngọt (% đường), lượng đá, ghi chú riêng từng món.</li>
+              <li><b>Giỏ hàng quán độc lập:</b> Quản lý giỏ hàng riêng biệt theo từng quán ăn, tăng giảm số lượng, xóa món.</li>
+              <li><b>Thanh toán & Tính cước ship TP.HCM:</b> Phân vùng tính phí ship (Nội quận 15k, Liên quận 25k, Ngoại thành 45k).</li>
+              <li><b>Phương thức thanh toán đa dạng:</b> Hỗ trợ ví MoMo, Cổng VNPAY và Tiền mặt COD.</li>
+              <li><b>Theo dõi tiến trình thời gian thực:</b> Timeline 4 chặng từ Quán nhận ➔ Nấu món ➔ Shipper giao ➔ Hoàn tất.</li>
+              <li><b>Mã QR Delivery Token:</b> Mã token QR an toàn đưa tài xế quét xác thực khi nhận đồ ăn.</li>
+            </ul>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-sub">💡 Chức năng phụ (Supporting)</div>
+            <ul class="feature-list">
+              <li>Áp dụng voucher ưu đãi (Freeship, giảm giá đơn).</li>
+              <li>Xem số sao đánh giá ⭐ & số lượt đã bán của món.</li>
+              <li>Nút gọi điện thoại nhanh 📞 liên hệ tài xế đang giao.</li>
+              <li>Giỏ hàng đa quán tích hợp All-in-One (a1.html).</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- CARD 2: CỬA HÀNG -->
+        <div class="app-card">
+          <div class="app-card-head">
+            <div class="app-card-icon" style="background: rgba(56, 189, 248, 0.15); color: #38BDF8;">🏪</div>
+            <div>
+              <div class="app-card-title">2. App Cửa Hàng (Quán)</div>
+              <div class="app-card-files">Quán/5, 4, 2, 3</div>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-main">⭐ Chức năng chính (Core)</div>
+            <ul class="feature-list">
+              <li><b>Mở cửa / Tạm đóng quán:</b> Nút toggle trạng thái kinh doanh tức thì.</li>
+              <li><b>Duyệt & Nổ đơn ShopeeFood / Grab:</b> Quán bấm xác nhận đơn ➔ Hệ thống tự nổ đơn cho Shipper rảnh.</li>
+              <li><b>Tự động cập nhật Shipper:</b> Nhận sự kiện Shipper chốt nhận đơn hoặc Shipper hủy đơn (chuyển sang tìm lại tài xế).</li>
+              <li><b>Quản lý thực đơn món ăn (CRUD):</b> Thêm món mới, sửa tên món/danh mục/giá bán, xóa món khỏi menu.</li>
+            </ul>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-sub">💡 Chức năng phụ (Supporting)</div>
+            <ul class="feature-list">
+              <li>Thống kê nhanh doanh thu và số đơn hoàn tất trong ngày.</li>
+              <li><b>Tạo combo món ăn khuyến mãi:</b> Ghép món chính + thức uống và thiết lập giá giảm ưu đãi (3.html).</li>
+              <li>In phiếu báo chế biến bếp nhiệt.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- CARD 3: TÀI XẾ -->
+        <div class="app-card">
+          <div class="app-card-head">
+            <div class="app-card-icon" style="background: rgba(16, 185, 129, 0.15); color: #10B981;">🛵</div>
+            <div>
+              <div class="app-card-title">3. App Tài Xế (Shipper)</div>
+              <div class="app-card-files">ship/2, 3, 4, 5, 6, 8</div>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-main">⭐ Chức năng chính (Core)</div>
+            <ul class="feature-list">
+              <li><b>Vào ca trực tuyến:</b> Thanh toggle trạng thái neon nhận đơn tự do ShopeeFood & Grab.</li>
+              <li><b>Nhận ghép nhiều đơn (Multi-order):</b> Cho phép chốt nhận tới 3 đơn cùng lúc kèm thanh chuyển đổi đơn mượt mà.</li>
+              <li><b>Hủy đơn trước khi lấy món:</b> Nút 🔴 Hủy nhận đơn trả đơn về hệ thống khi gặp sự cố xe/quán quá đông.</li>
+              <li><b>Khóa hủy đơn khi nhận món:</b> Đã đối soát bill tại quán (`ship/5.html`) ➔ Khóa quyền hủy để bảo vệ an toàn đồ ăn.</li>
+              <li><b>Bản đồ GPS Leaflet 2 Chặng:</b> Dẫn đường Google Maps đến Quán & đến điểm giao nhà khách.</li>
+              <li><b>Camera quét mã QR Delivery Token:</b> Quét camera QR Code xác thực giao hàng và nhận tiền thu nhập.</li>
+            </ul>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-sub">💡 Chức năng phụ (Supporting)</div>
+            <ul class="feature-list">
+              <li>Gọi điện thoại 📞 & nhắn tin 💬 trực tiếp với khách/chủ quán.</li>
+              <li>Nút mở Google Maps ứng dụng ngoài.</li>
+              <li>Thẻ hạng uy tín Kim Cương ⭐ 4.9/5.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- CARD 4: QUẢN TRỊ VIÊN -->
+        <div class="app-card">
+          <div class="app-card-head">
+            <div class="app-card-icon" style="background: rgba(168, 85, 247, 0.15); color: #A855F7;">🛡️</div>
+            <div>
+              <div class="app-card-title">4. Admin Portal Quản Trị</div>
+              <div class="app-card-files">admin.html</div>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-main">⭐ Chức năng chính (Core)</div>
+            <ul class="feature-list">
+              <li><b>Quản lý cửa hàng chuẩn 4 trạng thái:</b> Chờ duyệt (PENDING), Đang hoạt động (OPEN), Bị khóa (LOCKED), Tạm nghỉ (CLOSED).</li>
+              <li><b>Xác minh hồ sơ pháp lý đối tác:</b> Xem Số CCCD, Ảnh mặt trước, Ảnh mặt sau, Ảnh chụp chân dung lúc đăng ký.</li>
+              <li><b>Danh sách đơn đặt món toàn bộ tại quán:</b> Xem tất cả đơn quá khứ và hiện tại kèm bộ lọc tìm kiếm & trạng thái.</li>
+              <li><b>Quản lý khách hàng với Điểm Uy Tín:</b> Điểm uy tín (⭐ 98/100, ⚠️ 32/100) để phát hiện và ngăn chặn khách bùng đơn.</li>
+              <li><b>Xử lý khiếu nại với 3 mức phạt:</b> Cảnh báo, Ẩn gian hàng trên ứng dụng, Khóa tài khoản vĩnh viễn.</li>
+            </ul>
+          </div>
+
+          <div class="feature-group">
+            <div class="feature-group-label label-sub">💡 Chức năng phụ (Supporting)</div>
+            <ul class="feature-list">
+              <li>Quản lý danh mục ẩm thực hệ thống.</li>
+              <li>Tìm kiếm & lọc tức thì theo tên, SĐT, mã đơn không cần tải lại trang.</li>
+              <li>Lưu trữ trạng thái bền vững với LocalStorage.</li>
+              <li>Tuân thủ nguyên tắc không theo dõi doanh thu/bồi thường nền tảng.</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <b>Oishi Food Platform</b> • Hệ Thống Phục Vụ Đồ Án Chuyên Đề 2 • Phát triển với HTML5, CSS3, JavaScript & Leaflet Maps
+  </footer>
+
+  <script>
+    function setDeviceScreen(type, url) {
+      if (type === 'customer') {
+        document.getElementById('iframe-customer').src = url;
+      } else if (type === 'merchant') {
+        document.getElementById('iframe-merchant').src = url;
+      } else if (type === 'driver') {
+        document.getElementById('iframe-driver').src = url;
+      }
+      document.getElementById('section-devices').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function selectScreenPill(button, type, url) {
+      const parent = button.parentElement;
+      parent.querySelectorAll('.screen-pill').forEach(p => p.classList.remove('active'));
+      button.classList.add('active');
+
+      if (type === 'customer') {
+        document.getElementById('iframe-customer').src = url;
+      } else if (type === 'merchant') {
+        document.getElementById('iframe-merchant').src = url;
+      } else if (type === 'driver') {
+        document.getElementById('iframe-driver').src = url;
+      }
+    }
+
+    function switchViewSection(section) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      if (section === 'workflow') {
+        document.getElementById('section-workflow').scrollIntoView({ behavior: 'smooth' });
+      } else if (section === 'devices') {
+        document.getElementById('section-devices').scrollIntoView({ behavior: 'smooth' });
+      } else if (section === 'matrix') {
+        document.getElementById('section-matrix').scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    // LIVE INTERACTIVE SIMULATOR LOGIC
+    let autoPlayTimer = null;
+
+    function runSimStep(step) {
+      document.querySelectorAll('.sim-btn').forEach(b => b.classList.remove('active'));
+      const txtSimStatus = document.getElementById('txtSimStatus');
+
+      if (step === 1) {
+        document.getElementById('simStep1').classList.add('active');
+        document.getElementById('iframe-customer').src = 'khách/b8.html';
+        document.getElementById('iframe-merchant').src = 'Quán/5.html';
+        document.getElementById('iframe-driver').src = 'ship/2.html';
+        txtSimStatus.innerText = "BƯỚC 1: Khách An Nguyễn chọn 2 ly Trà Xí Muội tại Ngô Gia, tính ship 25k & bấm Đặt Đơn qua Ví MoMo...";
+      }
+      else if (step === 2) {
+        document.getElementById('simStep2').classList.add('active');
+        document.getElementById('iframe-customer').src = 'khách/b9.html';
+        document.getElementById('iframe-merchant').src = 'Quán/4.html';
+        document.getElementById('iframe-driver').src = 'ship/2.html';
+        txtSimStatus.innerText = "BƯỚC 2: Quán Ngô Gia nhận chuông báo đơn mới #ORD_88291, bấm '✓ Xác Nhận Đơn'. Hệ thống tự phát nổ đơn cho Shipper...";
+      }
+      else if (step === '3.1') {
+        document.getElementById('simStep31').classList.add('active');
+        document.getElementById('iframe-customer').src = 'khách/b9.html';
+        document.getElementById('iframe-merchant').src = 'Quán/5.html';
+        document.getElementById('iframe-driver').src = 'ship/3.html';
+        txtSimStatus.innerText = "BƯỚC 3.1: Chuông app reo nổ đơn trên máy Tài Xế Trần Văn Nam! Shipper bấm '🛵 NHẬN ĐƠN NGAY' và di chuyển đến quán...";
+      }
+      else if (step === '3.2') {
+        document.getElementById('simStep32').classList.add('active');
+        document.getElementById('iframe-customer').src = 'khách/b9.html';
+        document.getElementById('iframe-merchant').src = 'Quán/5.html';
+        document.getElementById('iframe-driver').src = 'ship/4.html';
+        txtSimStatus.innerText = "BƯỚC 3.2 THỬ NGHIỆM HỦY ĐƠN: Shipper gặp sự cố xe hỏng bấm '🔴 Hủy nhận đơn'. Đơn lập tức tự chuyển 'Đang tìm tài xế khác...' cho Shipper khác nhận!";
+      }
+      else if (step === '3.3') {
+        document.getElementById('simStep33').classList.add('active');
+        document.getElementById('iframe-customer').src = 'khách/b9.html';
+        document.getElementById('iframe-merchant').src = 'Quán/4.html';
+        document.getElementById('iframe-driver').src = 'ship/5.html';
+        txtSimStatus.innerText = "BƯỚC 3.3: Shipper đến quán Ngô Gia đối soát đủ 2 ly trà, gạt 'Đã lấy hàng & Đi giao'. Quyền hủy đơn chính thức bị khóa!";
+      }
+      else if (step === '3.4') {
+        document.getElementById('simStep34').classList.add('active');
+        document.getElementById('iframe-customer').src = 'khách/b9.html';
+        document.getElementById('iframe-merchant').src = 'Quán/5.html';
+        document.getElementById('iframe-driver').src = 'ship/8.html';
+        txtSimStatus.innerText = "BƯỚC 3.4: Shipper đến nhà khách An Nguyễn Q.1, bật camera quét mã Delivery Token QR Code ➔ Giao đơn thành công & cộng +25.000đ!";
+      }
+
+      document.getElementById('section-devices').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function runAutoPlaySim() {
+      if (autoPlayTimer) clearInterval(autoPlayTimer);
+      const steps = [1, 2, '3.1', '3.3', '3.4'];
+      let currentIdx = 0;
+      runSimStep(steps[currentIdx]);
+
+      autoPlayTimer = setInterval(() => {
+        currentIdx++;
+        if (currentIdx >= steps.length) {
+          clearInterval(autoPlayTimer);
+          document.getElementById('txtSimStatus').innerHTML = "<span style='color:#10B981;'>🎉 HOÀN THÀNH SIMULATION TỰ ĐỘNG TOÀN BỘ LUỒNG ĐƠN HÀNG OISHI FOOD KHÉP KÍN!</span>";
+          return;
+        }
+        runSimStep(steps[currentIdx]);
+      }, 3500);
+    }
+  </script>
+
+</body>
+</html>

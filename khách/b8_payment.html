@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Quét Mã Thanh Toán</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F8FAFC;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --momo: #A50064;
+      --amber: #D97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    .top-header {
+      background: #FFF; padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .btn-back {
+      font-size: 18px; text-decoration: none; color: var(--text); font-weight: 700;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; background: #F1F5F9; transition: background 0.15s;
+    }
+    .btn-back:hover { background: #E2E8F0; }
+    .btn-home-nav {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700;
+      color: #0F172A; background: #F1F5F9; padding: 5px 10px; border-radius: 12px;
+      border: 1px solid #CBD5E1; text-decoration: none; transition: all 0.15s;
+    }
+    .btn-home-nav:hover {
+      background: #E2E8F0; color: var(--primary); border-color: var(--primary);
+    }
+    .security-badge {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
+      color: var(--green); background: #ECFDF5; padding: 4px 8px; border-radius: 12px;
+      border: 1px solid #A7F3D0;
+    }
+
+    .content-scroll {
+      flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+      padding-bottom: 90px;
+    }
+
+    /* Thẻ Số Tiền Cần Quét */
+    .amount-card {
+      background: #FFF; border-radius: 16px; padding: 16px; border: 1px solid var(--border);
+      text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+    .pay-type-pill {
+      display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800;
+      padding: 4px 10px; border-radius: 20px; margin-bottom: 8px;
+    }
+    .pay-type-full { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+    .pay-type-deposit { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
+
+    .amount-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .amount-value {
+      font-size: 30px; font-weight: 800; color: var(--primary); margin: 4px 0 6px 0;
+      letter-spacing: -0.5px;
+    }
+    .amount-subnotice {
+      font-size: 11.5px; color: var(--text-muted); line-height: 1.4;
+      background: #F8FAFC; padding: 6px 10px; border-radius: 8px; display: inline-block;
+    }
+
+    /* Thẻ Khung Quét QR Code */
+    .qr-container {
+      background: #FFF; border-radius: 20px; padding: 20px 16px; border: 1px solid var(--border);
+      text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,0.04); position: relative;
+    }
+    .channel-header {
+      display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px;
+    }
+    .channel-logo-tag {
+      font-size: 12.5px; font-weight: 800; padding: 4px 12px; border-radius: 8px;
+    }
+    .logo-momo { background: #FFF0F6; color: var(--momo); border: 1px solid #FFD6E7; }
+    .logo-bank { background: #EFF6FF; color: var(--blue); border: 1px solid #BFDBFE; }
+
+    .qr-frame {
+      width: 220px; height: 220px; margin: 0 auto; background: #FFF;
+      border: 2px dashed #CBD5E1; border-radius: 16px; padding: 12px;
+      position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.03);
+    }
+    .qr-code-svg {
+      width: 100%; height: 100%; display: block;
+    }
+
+    /* Hiệu ứng quét vệt laser */
+    .scan-laser {
+      position: absolute; left: 8px; right: 8px; height: 2.5px;
+      background: linear-gradient(90deg, transparent, #EE4D2D, transparent);
+      box-shadow: 0 0 8px #EE4D2D;
+      animation: laserMove 2.5s ease-in-out infinite alternate;
+    }
+    @keyframes laserMove {
+      0% { top: 12px; opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { top: 200px; opacity: 0.3; }
+    }
+
+    .countdown-wrap {
+      margin-top: 14px; font-size: 12px; font-weight: 700; color: #64748B;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .countdown-timer {
+      font-family: 'JetBrains Mono', monospace; color: #DC2626; font-weight: 800; font-size: 13px;
+      background: #FEF2F2; padding: 2px 8px; border-radius: 6px; border: 1px solid #FECACA;
+    }
+
+    /* Bảng thông tin chuyển khoản */
+    .transfer-info-card {
+      background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border);
+    }
+    .transfer-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 7px 0; border-bottom: 1px dashed #F1F5F9; font-size: 12px;
+    }
+    .transfer-row:last-child { border-bottom: none; }
+    .transfer-lbl { color: var(--text-muted); font-weight: 500; }
+    .transfer-val { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .btn-copy {
+      background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 4px;
+      font-size: 10px; font-weight: 700; color: var(--blue); padding: 2px 6px; cursor: pointer;
+    }
+    .btn-copy:active { background: #E2E8F0; }
+
+    /* Hướng dẫn 3 bước */
+    .guide-card {
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
+    }
+    .guide-title { font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 6px; }
+    .guide-step {
+      display: flex; gap: 8px; font-size: 11.5px; color: #475569; margin-bottom: 5px; line-height: 1.35;
+    }
+    .guide-num {
+      width: 18px; height: 18px; border-radius: 50%; background: #E2E8F0; color: #1E293B;
+      font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+
+    /* Fixed Bottom Bar */
+    .bottom-bar {
+      position: absolute; bottom: 0; left: 0; right: 0; background: #FFF;
+      border-top: 1px solid var(--border); padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+    }
+    .btn-confirm-paid {
+      width: 100%; height: 46px; background: var(--green); color: #FFF; border: none;
+      border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      box-shadow: 0 4px 12px rgba(16,185,129,0.3); transition: transform 0.1s, background 0.15s;
+    }
+    .btn-confirm-paid:hover { background: #059669; }
+    .btn-confirm-paid:active { transform: scale(0.98); }
+
+    .btn-cancel-pay {
+      background: none; border: none; font-size: 11.5px; font-weight: 700; color: var(--text-muted);
+      cursor: pointer; text-align: center;
+    }
+    .btn-cancel-pay:hover { color: var(--text); }
+
+    /* Toast sao chép */
+    .toast {
+      position: absolute; top: 75px; left: 50%; transform: translateX(-50%);
+      background: rgba(15,23,42,0.9); color: #FFF; font-size: 11.5px; font-weight: 700;
+      padding: 7px 14px; border-radius: 20px; z-index: 100; display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span>09:45</span>
+      <span>📶 5G 🔋 100%</span>
+    </div>
+
+    <!-- Header -->
+    <div class="top-header">
+      <a href="b8.html" class="btn-back" title="Quay lại">←</a>
+      <div class="header-title" id="pageHeaderTitle">Quét Mã Thanh Toán</div>
+      <a href="b1.html" class="btn-home-nav" title="Về màn hình chính">
+        <span>🏠</span>
+        <span>Màn hình chính</span>
+      </a>
+    </div>
+
+    <div class="content-scroll">
+      <!-- 1. Thẻ Số Tiền -->
+      <div class="amount-card">
+        <div class="pay-type-pill" id="badgePayType">
+          <!-- Injected via JS -->
+        </div>
+        <div class="amount-label" id="lblAmountTitle">Số tiền cần thanh toán ngay:</div>
+        <div class="amount-value" id="txtAmountValue">0 đ</div>
+        <div class="amount-subnotice" id="txtAmountNotice">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+
+      <!-- 2. Thẻ Quét QR Code -->
+      <div class="qr-container">
+        <div class="channel-header">
+          <div class="channel-logo-tag" id="tagChannelLogo">
+            <!-- MoMo / VietQR -->
+          </div>
+        </div>
+
+        <div class="qr-frame">
+          <div class="scan-laser"></div>
+          <!-- SVG QR Code động minh họa sắc nét -->
+          <svg class="qr-code-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="200" height="200" fill="white"/>
+            <!-- 3 Góc định vị chuẩn QR -->
+            <rect x="15" y="15" width="45" height="45" rx="6" stroke="#0F172A" stroke-width="6" fill="white"/>
+            <rect x="25" y="25" width="25" height="25" rx="3" fill="#0F172A"/>
+
+            <rect x="140" y="15" width="45" height="45" rx="6" stroke="#0F172A" stroke-width="6" fill="white"/>
+            <rect x="150" y="25" width="25" height="25" rx="3" fill="#0F172A"/>
+
+            <rect x="15" y="140" width="45" height="45" rx="6" stroke="#0F172A" stroke-width="6" fill="white"/>
+            <rect x="25" y="150" width="25" height="25" rx="3" fill="#0F172A"/>
+
+            <!-- Các chấm dữ liệu ma trận QR -->
+            <rect x="75" y="20" width="8" height="8" fill="#0F172A"/>
+            <rect x="95" y="20" width="8" height="8" fill="#0F172A"/>
+            <rect x="115" y="20" width="8" height="8" fill="#0F172A"/>
+
+            <rect x="70" y="35" width="8" height="8" fill="#0F172A"/>
+            <rect x="90" y="35" width="12" height="8" fill="#0F172A"/>
+            <rect x="110" y="35" width="8" height="8" fill="#0F172A"/>
+
+            <rect x="20" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="35" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="50" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="70" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="90" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="110" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="130" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="150" y="75" width="8" height="8" fill="#0F172A"/>
+            <rect x="170" y="75" width="8" height="8" fill="#0F172A"/>
+
+            <!-- Khối trung tâm với logo Oishi -->
+            <rect x="75" y="75" width="50" height="50" rx="8" fill="#FFF" stroke="#E2E8F0" stroke-width="2"/>
+            <text x="100" y="105" font-family="'Plus Jakarta Sans', sans-serif" font-weight="800" font-size="22" text-anchor="middle" fill="#EE4D2D">🍜</text>
+
+            <rect x="20" y="95" width="8" height="8" fill="#0F172A"/>
+            <rect x="40" y="95" width="8" height="8" fill="#0F172A"/>
+            <rect x="150" y="95" width="8" height="8" fill="#0F172A"/>
+            <rect x="170" y="95" width="8" height="8" fill="#0F172A"/>
+
+            <rect x="20" y="115" width="8" height="8" fill="#0F172A"/>
+            <rect x="40" y="115" width="8" height="8" fill="#0F172A"/>
+            <rect x="140" y="115" width="8" height="8" fill="#0F172A"/>
+            <rect x="165" y="115" width="8" height="8" fill="#0F172A"/>
+
+            <rect x="70" y="135" width="8" height="8" fill="#0F172A"/>
+            <rect x="90" y="135" width="12" height="8" fill="#0F172A"/>
+            <rect x="110" y="135" width="8" height="8" fill="#0F172A"/>
+            <rect x="130" y="135" width="8" height="8" fill="#0F172A"/>
+            <rect x="150" y="135" width="8" height="8" fill="#0F172A"/>
+            <rect x="170" y="135" width="8" height="8" fill="#0F172A"/>
+
+            <rect x="75" y="155" width="8" height="8" fill="#0F172A"/>
+            <rect x="95" y="155" width="8" height="8" fill="#0F172A"/>
+            <rect x="115" y="155" width="8" height="8" fill="#0F172A"/>
+            <rect x="140" y="155" width="8" height="8" fill="#0F172A"/>
+            <rect x="160" y="155" width="8" height="8" fill="#0F172A"/>
+          </svg>
+        </div>
+
+        <div class="countdown-wrap">
+          <span>Giao dịch hết hạn trong:</span>
+          <span class="countdown-timer" id="timerCount">30:00</span>
+        </div>
+      </div>
+
+      <!-- 3. Chi Tiết Thông Tin Chuyển Khoản -->
+      <div class="transfer-info-card">
+        <div class="transfer-row">
+          <span class="transfer-lbl">Đơn vị nhận:</span>
+          <span class="transfer-val" id="valBeneficiary">HỆ THỐNG OISHI FOOD VN</span>
+        </div>
+        <div class="transfer-row">
+          <span class="transfer-lbl">Tài khoản nhận:</span>
+          <span class="transfer-val">
+            <span id="valAccountNum">0901234888</span>
+            <button class="btn-copy" onclick="copyText('0901234888')">Sao chép</button>
+          </span>
+        </div>
+        <div class="transfer-row">
+          <span class="transfer-lbl">Nội dung chuyển:</span>
+          <span class="transfer-val">
+            <span id="valTransferCode" style="color:var(--primary); font-family:monospace;">OISHI 88291</span>
+            <button class="btn-copy" onclick="copyText('OISHI 88291')">Sao chép</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- 4. Hướng dẫn quét mã -->
+      <div class="guide-card">
+        <div class="guide-title">📌 Cách thanh toán nhanh:</div>
+        <div class="guide-step">
+          <span class="guide-num">1</span>
+          <span>Mở ứng dụng <b>Ngân hàng</b> hoặc <b>Ví MoMo</b> trên điện thoại.</span>
+        </div>
+        <div class="guide-step">
+          <span class="guide-num">2</span>
+          <span>Chọn tính năng <b>Quét Mã QR</b> và hướng camera vào mã phía trên.</span>
+        </div>
+        <div class="guide-step">
+          <span class="guide-num">3</span>
+          <span>Kiểm tra số tiền và bấm xác nhận chuyển tiền.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fixed Bottom Bar -->
+    <div class="bottom-bar">
+      <button class="btn-confirm-paid" id="btnConfirmPaid" onclick="confirmPaymentSuccess()">
+        <span>✓ Tôi Đã Thanh Toán Thành Công ➔</span>
+      </button>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 2px 4px;">
+        <button class="btn-cancel-pay" onclick="window.location.href='b8.html'">
+          ← Đổi hình thức thanh toán
+        </button>
+        <a href="b1.html" class="btn-cancel-pay" style="text-decoration: none; display: flex; align-items: center; gap: 3px;">
+          <span>🏠</span> Về màn hình chính
+        </a>
+      </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toastMsg">Đã sao chép!</div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode') || 'FULL'; // 'FULL' hoặc 'DEPOSIT'
+    const channel = urlParams.get('channel') || 'momo';
+    const total = parseInt(urlParams.get('total')) || 105000;
+    const deposit = parseInt(urlParams.get('deposit')) || 21000;
+    const remain = parseInt(urlParams.get('remain')) || 84000;
+
+    // Render thông tin kênh thanh toán (MoMo vs Ngân Hàng)
+    const tagLogo = document.getElementById('tagChannelLogo');
+    const valBeneficiary = document.getElementById('valBeneficiary');
+    const valAccountNum = document.getElementById('valAccountNum');
+
+    if (channel === 'momo') {
+      tagLogo.className = 'channel-logo-tag logo-momo';
+      tagLogo.innerHTML = '👛 VÍ ĐIỆN TỬ MOMO QR';
+      valBeneficiary.innerText = 'VÍ MOMO OISHI FOOD';
+      valAccountNum.innerText = '0901234888';
+    } else {
+      tagLogo.className = 'channel-logo-tag logo-bank';
+      tagLogo.innerHTML = '🏦 VIETQR LIÊN NGÂN HÀNG 24/7';
+      valBeneficiary.innerText = 'CTY CP OISHI FOOD VN (MB BANK)';
+      valAccountNum.innerText = '99988899812';
+    }
+
+    // Render loại thanh toán: Trả thẳng 100% vs Cọc 20%
+    const badgePayType = document.getElementById('badgePayType');
+    const lblAmountTitle = document.getElementById('lblAmountTitle');
+    const txtAmountValue = document.getElementById('txtAmountValue');
+    const txtAmountNotice = document.getElementById('txtAmountNotice');
+    const pageHeaderTitle = document.getElementById('pageHeaderTitle');
+
+    let currentPayAmount = total;
+
+    if (mode === 'DEPOSIT') {
+      currentPayAmount = deposit;
+      pageHeaderTitle.innerText = 'Quét Mã Đặt Cọc 20%';
+      badgePayType.className = 'pay-type-pill pay-type-deposit';
+      badgePayType.innerHTML = '⚡ THANH TOÁN TIỀN CỌC GIỮ ĐƠN (20%)';
+      lblAmountTitle.innerText = 'Số tiền cọc cần quét ngay:';
+      txtAmountValue.innerText = deposit.toLocaleString('vi-VN') + ' đ';
+      txtAmountNotice.innerHTML = `🛵 Số tiền còn lại: <b>${remain.toLocaleString('vi-VN')} đ</b> sẽ trả cho shipper khi nhận món`;
+    } else {
+      currentPayAmount = total;
+      pageHeaderTitle.innerText = 'Quét Mã Thanh Toán 100%';
+      badgePayType.className = 'pay-type-pill pay-type-full';
+      badgePayType.innerHTML = '💰 THANH TOÁN 100% ĐƠN HÀNG';
+      lblAmountTitle.innerText = 'Tổng tiền thanh toán đủ:';
+      txtAmountValue.innerText = total.toLocaleString('vi-VN') + ' đ';
+      txtAmountNotice.innerHTML = '✓ Đã thanh toán 100%, khi nhận hàng bạn không cần chuẩn bị tiền mặt';
+    }
+
+    // Đếm ngược 30 phút (1800 giây)
+    let timeLeft = 1800;
+    const timerEl = document.getElementById('timerCount');
+    const timerInterval = setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        timerEl.innerText = '00:00';
+      } else {
+        const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+        const s = (timeLeft % 60).toString().padStart(2, '0');
+        timerEl.innerText = `${m}:${s}`;
+      }
+    }, 1000);
+
+    // Sao chép nội dung
+    function copyText(text) {
+      navigator.clipboard.writeText(text).catch(() => {});
+      const toast = document.getElementById('toastMsg');
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 1500);
+    }
+
+    // Xác nhận đã thanh toán xong -> Sang trang b8_success.html
+    function confirmPaymentSuccess() {
+      window.location.href = `b8_success.html?mode=${mode}&channel=${channel}&total=${total}&deposit=${deposit}&remain=${remain}`;
+    }
+  </script>
+</body>
+</html>

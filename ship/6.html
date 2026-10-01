@@ -90,10 +90,22 @@
     .step-active span { color: var(--primary) !important; font-weight: 800; }
     .step-pending .step-badge { background: #CBD5E1; color: #64748B; }
     .step-pending span { color: var(--text-muted); }
-    .step-pending:hover span { color: var(--text); }
     
     .step-divider { flex: 1; height: 1.5px; background: #E2E8F0; margin: 0 4px; }
     .step-divider.done { background: #10B981; }
+    .step-divider.bom { background: #F87171; }
+
+    .step-bom {
+      background: #FEF2F2 !important;
+      border-color: #FECACA !important;
+    }
+    .step-bom .step-badge {
+      background: #EF4444 !important;
+      color: #FFF !important;
+    }
+    .step-bom span {
+      color: #DC2626 !important;
+    }
 
     /* Helper tip bar dưới Stepper */
     .stepper-tip-bar {
@@ -164,7 +176,7 @@
 
     /* Bản đồ GPS */
     .map-wrapper {
-      flex: 1; position: relative; width: 100%;
+      flex: 1; position: relative; width: 100%; min-height: 250px;
     }
     #realMap { width: 100%; height: 100%; z-index: 1; }
 
@@ -180,23 +192,21 @@
       width: 32px; height: 32px; background: rgba(255,255,255,0.2); border-radius: 8px;
       display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800;
     }
-    .gmap-instruction { font-size: 12.5px; font-weight: 800; line-height: 1.2; }
-    .gmap-subtext { font-size: 10.5px; opacity: 0.9; margin-top: 2px; }
+    .gmap-instruction { font-size: 13px; font-weight: 800; line-height: 1.25; }
+    .gmap-subtext { font-size: 11px; opacity: 0.9; margin-top: 1px; }
 
-    /* Marker */
+    /* Marker Leaflet */
     .driver-marker-box {
-      width: 40px; height: 40px; background: #FFF; border-radius: 50%;
+      width: 40px; height: 40px; border-radius: 50%; background: #059669;
+      border: 3px solid #FFF; box-shadow: 0 4px 14px rgba(0,0,0,0.3);
       display: flex; align-items: center; justify-content: center; font-size: 20px;
-      border: 3px solid var(--primary); box-shadow: 0 4px 12px rgba(238, 77, 45, 0.4);
     }
     .cus-marker-box {
-      width: 38px; height: 38px; background: #059669; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center; font-size: 18px;
-      color: #FFF; border: 3px solid #FFF; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-      cursor: pointer; transition: transform 0.2s;
+      padding: 4px 8px; border-radius: 12px; color: #FFF; font-weight: 800; font-size: 11px;
+      display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      border: 2px solid #FFF; white-space: nowrap; transition: all 0.25s ease;
     }
-    .cus-marker-box:hover { transform: scale(1.12); }
-    .cus-marker-box.active-marker {
+    .cus-marker-box.active-target {
       background: var(--primary);
       box-shadow: 0 0 0 4px rgba(238, 77, 45, 0.35), 0 4px 14px rgba(0,0,0,0.3);
     }
@@ -218,125 +228,124 @@
     .cust-info h3 { font-size: 15px; font-weight: 800; color: var(--text); }
     .cust-info p { font-size: 11.5px; color: #2563EB; font-weight: 700; margin-top: 2px; }
     
-    /* Nút Báo Sự Cố Trên Navbar & Bottom Sheet */
-    .btn-top-incident {
-      background: #FFF1F2; color: #E11D48; border: 1.5px solid #FECDD3;
-      border-radius: 8px; padding: 4px 8px; font-size: 11px; font-weight: 800;
-      cursor: pointer; display: flex; align-items: center; gap: 4px;
-      transition: all 0.2s;
+    .cust-actions { display: flex; gap: 8px; }
+    .btn-action-round {
+      width: 36px; height: 36px; border-radius: 50%; background: #EFF6FF;
+      color: var(--blue); display: flex; align-items: center; justify-content: center;
+      text-decoration: none; font-size: 15px; border: none; cursor: pointer;
     }
-    .btn-top-incident:hover { background: #FFE4E6; border-color: #FDA4AF; }
-    .btn-action-round.incident {
-      background: #FFF1F2; color: #E11D48; border: 1px solid #FECDD3;
-    }
-    .btn-action-round.incident:hover { background: #FFE4E6; }
+    .btn-action-round.phone { background: #ECFDF5; color: var(--green); }
 
-    /* Modal Báo Cáo Sự Cố Cho Shipper */
+    .cust-address-card {
+      background: var(--bg-gray); border-radius: 12px; padding: 9px 12px;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .cust-pin-icon { color: var(--green); font-size: 16px; margin-top: 1px; }
+    .cust-addr-text h4 { font-size: 12.5px; font-weight: 700; color: var(--text); }
+    .cust-addr-text p { font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+
+    /* Thanh Trượt Gạt Xác Nhận Đến Nơi */
+    .swipe-container {
+      position: relative; width: 100%; height: 48px; background: #E8F7EE;
+      border-radius: 26px; overflow: hidden; display: flex; align-items: center;
+      justify-content: center; user-select: none; border: 1px solid #A7F3D0;
+    }
+    .swipe-label {
+      font-size: 12px; font-weight: 800; color: var(--green); pointer-events: none;
+    }
+    .swipe-thumb {
+      position: absolute; left: 3px; top: 3px; width: 42px; height: 42px;
+      background: var(--green); border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; color: #FFF; font-size: 18px;
+      cursor: grab; box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      touch-action: none; transition: background 0.2s;
+    }
+
+    /* Modal Overlay */
     .modal-overlay {
-      position: absolute; inset: 0; background: rgba(15, 23, 42, 0.75);
-      z-index: 100; display: none; align-items: center; justify-content: center; padding: 14px;
-      backdrop-filter: blur(2px);
+      position: absolute; inset: 0; background: rgba(0,0,0,0.72);
+      z-index: 100; display: none; align-items: center; justify-content: center; padding: 18px;
     }
     .modal-overlay.open { display: flex; }
-    .incident-modal-box {
-      background: #FFF; width: 100%; border-radius: 20px; padding: 16px;
-      display: flex; flex-direction: column; gap: 10px; max-height: 90%; overflow-y: auto;
+    .modal-card {
+      background: #FFF; width: 100%; border-radius: 22px; padding: 20px 16px;
+      text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: popModal 0.25s ease;
+      max-height: 85vh; overflow-y: auto;
     }
     @keyframes popModal {
-      from { transform: scale(0.88); opacity: 0; }
+      from { transform: scale(0.85); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
     }
-    .incident-modal-header {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      border-bottom: 1px solid var(--border); padding-bottom: 8px;
+
+    /* Chat Modal */
+    .chat-modal-box { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+    .chat-header-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--border); padding-bottom: 8px; width: 100%;
     }
-    .incident-title-wrap { display: flex; align-items: center; gap: 8px; }
-    .incident-title-wrap h3 { font-size: 14.5px; font-weight: 800; color: #E11D48; }
-    .incident-title-wrap p { font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
+    .chat-title-group { display: flex; align-items: center; gap: 8px; }
+    .chat-online-dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; }
     .btn-close-modal {
-      width: 28px; height: 28px; border-radius: 50%; background: #F1F5F9;
-      border: none; font-size: 13px; font-weight: 700; cursor: pointer; color: #64748B;
-      display: flex; align-items: center; justify-content: center;
+      background: #F1F5F9; border: none; border-radius: 50%; width: 28px; height: 28px;
+      cursor: pointer; font-size: 13px; font-weight: 800; color: #475569;
+    }
+    .chat-messages-area {
+      height: 180px; background: #F8FAFC; border-radius: 12px; padding: 10px;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border);
+    }
+    .chat-bubble {
+      max-width: 82%; padding: 8px 11px; border-radius: 12px; font-size: 11.5px;
+      line-height: 1.35; position: relative;
+    }
+    .chat-bubble.driver {
+      align-self: flex-end; background: #EE4D2D; color: #FFF; border-bottom-right-radius: 3px;
+    }
+    .chat-bubble.customer {
+      align-self: flex-start; background: #FFF; color: #1E293B; border: 1px solid var(--border); border-bottom-left-radius: 3px;
+    }
+    .chat-time { font-size: 9px; opacity: 0.75; margin-top: 3px; text-align: right; }
+    .quick-replies-row { display: flex; gap: 5px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; }
+    .quick-replies-row::-webkit-scrollbar { display: none; }
+    .chip-reply {
+      background: #EFF6FF; border: 1px solid #BFDBFE; color: #1D4ED8;
+      border-radius: 14px; padding: 4px 9px; font-size: 10.5px; font-weight: 700;
+      white-space: nowrap; cursor: pointer; flex-shrink: 0;
+    }
+    .chat-input-row { display: flex; gap: 6px; width: 100%; margin-top: 2px; }
+    .chat-input {
+      flex: 1; border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 12px; outline: none;
+    }
+    .btn-send-chat {
+      background: var(--primary); color: #FFF; border: none; border-radius: 10px; padding: 0 14px; font-size: 14px; font-weight: 800; cursor: pointer;
     }
 
-    .form-group { display: flex; flex-direction: column; gap: 4px; }
-    .form-label { font-size: 11px; font-weight: 700; color: #334155; }
-    .form-select, .form-textarea {
-      width: 100%; border: 1.5px solid var(--border); border-radius: 8px;
-      padding: 8px 10px; font-size: 11.5px; outline: none; background: #FAFAFA;
-      font-family: inherit; transition: border-color 0.2s;
+    /* Modal Báo Cáo Sự Cố */
+    .report-modal-box { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+    .report-policy-note {
+      background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 10px; padding: 8px 10px; font-size: 11px; color: #92400E; line-height: 1.4; display: flex; gap: 6px;
     }
-    .form-select:focus, .form-textarea:focus { border-color: #E11D48; background: #FFF; }
-    
-    .order-select-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    .report-field-group { display: flex; flex-direction: column; gap: 4px; }
+    .field-lbl { font-size: 11.5px; font-weight: 800; color: #1E293B; display: flex; justify-content: space-between; }
+    .reason-select {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 600; color: #1E293B; background: #FFF; outline: none;
     }
-    .order-radio-card {
-      border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 8px;
-      cursor: pointer; display: flex; gap: 6px; align-items: flex-start;
-      background: #F8FAFC; transition: all 0.2s;
-    }
-    .order-radio-card input { margin-top: 2px; accent-color: #E11D48; }
-    .order-radio-card.active {
-      border-color: #E11D48; background: #FFF1F2;
-    }
-    .radio-content b { font-size: 11px; color: var(--text); display: block; }
-    .radio-content span { font-size: 9.5px; color: var(--text-muted); }
-
-    .incident-guide-box {
-      background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px;
-      padding: 7px 9px; display: flex; gap: 6px; align-items: flex-start;
-      font-size: 10.5px; color: #92400E; line-height: 1.35;
-    }
-
     .proof-upload-box {
-      border: 1.5px dashed #93C5FD; border-radius: 10px; padding: 10px;
-      text-align: center; background: #EFF6FF; cursor: pointer; transition: all 0.2s;
-      position: relative;
+      border: 1.5px dashed #CBD5E1; border-radius: 12px; padding: 10px; background: #F8FAFC; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s;
     }
-    .proof-upload-box:hover { border-color: #3B82F6; background: #DBEAFE; }
-    .proof-preview {
-      position: relative; border-radius: 8px; overflow: hidden;
+    .proof-upload-box:hover { border-color: #EF4444; background: #FFF5F5; }
+    .proof-upload-box.attached { border-color: #059669; background: #F0FDF4; border-style: solid; }
+    .proof-preview-img { width: 100%; height: 95px; border-radius: 8px; object-fit: cover; display: none; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .proof-status-text { font-size: 11px; font-weight: 700; color: #64748B; }
+    .report-notes-textarea {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 11.5px; resize: none; height: 50px; outline: none;
     }
-    .proof-watermark {
-      position: absolute; bottom: 4px; left: 6px; right: 6px;
-      background: rgba(0,0,0,0.72); color: #FFF; font-size: 9px;
-      padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+    .btn-confirm-cancel-order {
+      width: 100%; height: 44px; background: linear-gradient(135deg, #EF4444, #DC2626); color: #FFF; border: none; border-radius: 12px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
     }
-
-    .solution-grid { display: flex; flex-direction: column; gap: 5px; }
-    .solution-item {
-      display: flex; align-items: center; gap: 6px; font-size: 11px;
-      color: #334155; cursor: pointer; padding: 5px 8px; border-radius: 6px;
-      background: #F8FAFC; border: 1px solid #EDF2F7;
+    .btn-cancel-dismiss {
+      width: 100%; height: 38px; background: #F1F5F9; color: #475569; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer;
     }
-    .solution-item input { accent-color: #E11D48; }
-
-    .incident-modal-footer {
-      display: flex; gap: 8px; margin-top: 4px; padding-top: 8px;
-      border-top: 1px solid var(--border);
-    }
-    .btn-incident-secondary {
-      flex: 1; padding: 9px; border-radius: 8px; border: 1px solid #BFDBFE;
-      background: #EFF6FF; color: var(--blue); font-size: 11px; font-weight: 700;
-      cursor: pointer; text-align: center;
-    }
-    .btn-incident-submit {
-      flex: 1.3; padding: 9px; border-radius: 8px; border: none;
-      background: #E11D48; color: #FFF; font-size: 11.5px; font-weight: 800;
-      cursor: pointer; box-shadow: 0 3px 8px rgba(225, 29, 72, 0.3);
-      transition: background 0.2s;
-    }
-    .btn-incident-submit:hover { background: #BE123C; }
-
-    /* Huy hiệu sự cố đang xử lý trên Bottom Sheet */
-    .incident-active-banner {
-      background: #FFF1F2; border: 1.5px solid #FECDD3; border-radius: 8px;
-      padding: 6px 10px; display: none; align-items: center; justify-content: space-between;
-      font-size: 11px; color: #BE123C; font-weight: 700;
-    }
-    .incident-active-banner.show { display: flex; }
   </style>
 </head>
 <body>
@@ -357,14 +366,12 @@
           <div style="font-size:10px; color:#2563EB; font-weight:700;" id="lblNavCustName">#ORD_88291 (An Nguyễn)</div>
         </div>
       </div>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <button class="btn-top-incident" onclick="openIncidentModal()" title="Báo cáo sự cố đơn hàng">
-          <span>⚠️</span> <span>Báo sự cố</span>
-        </button>
+      <div class="badge-locked-cancel">
+        ✓ Đã lấy 2 đơn gộp
       </div>
     </div>
 
-    <!-- Stepper 3 Chặng Chia Theo Tên Khách Hàng - TÀI XẾ NHẤN ĐỂ CHỌN GIAO AI TRƯỚC -->
+    <!-- Stepper 3 Chặng Chia Theo Tên Khách Hàng -->
     <div class="trip-stepper-wrap">
       <div class="trip-stepper">
         <div class="step-item step-done">
@@ -382,7 +389,6 @@
           <span id="txtCust2">Minh Khang</span>
         </div>
       </div>
-      <!-- Helper Tip Bar -->
       <div class="stepper-tip-bar" id="stepperTipBar">
         <span>👆 Nhấn trực tiếp vào tên khách để tự chọn ai giao trước</span>
         <span class="switch-tag">Tự do đổi thứ tự</span>
@@ -416,7 +422,7 @@
     <div class="spf-bottom-sheet">
       <div class="sheet-handle"></div>
 
-      <!-- THANH CHỌN NHANH KHÁCH HÀNG (TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC) -->
+      <!-- THANH CHỌN NHANH KHÁCH HÀNG -->
       <div class="customer-quick-switch" id="customerQuickSwitch">
         <div class="quick-switch-header">
           <span>🎯 TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC:</span>
@@ -443,12 +449,6 @@
         </div>
       </div>
 
-      <!-- Banner thông báo sự cố đang xử lý -->
-      <div class="incident-active-banner" id="incidentActiveBanner">
-        <span id="lblIncidentBannerText">⚠️ INC_88291: Đang chờ Tổng đài CSKH hỗ trợ</span>
-        <button type="button" onclick="openIncidentModal()" style="background:none; border:none; color:#BE123C; font-weight:800; text-decoration:underline; font-size:10.5px; cursor:pointer;">Chi tiết</button>
-      </div>
-
       <!-- Header Tên khách & Hotline -->
       <div class="cust-header-row">
         <div class="cust-info">
@@ -456,9 +456,9 @@
           <p id="lblPayment" style="color:#059669; font-weight:700;">Thu tiền mặt: 0 đ (Đã trả MoMo 100%)</p>
         </div>
         <div class="cust-actions">
-          <a href="tel:0901234567" class="btn-action-round phone" title="Gọi khách" id="btnPhoneCust">📞</a>
-          <button class="btn-action-round" onclick="alert('Đã gửi tin nhắn cho khách: Tài xế đang đến trước cửa nhà!')" title="Nhắn tin">💬</button>
-          <button class="btn-action-round incident" onclick="openIncidentModal()" title="Báo cáo sự cố đơn này">⚠️</button>
+          <a href="tel:0903882291" class="btn-action-round phone" title="Gọi khách ngay" id="btnPhoneCust" style="text-decoration:none;">📞</a>
+          <button type="button" class="btn-action-round chat" title="Nhắn tin với khách" onclick="openChatModal()" id="btnChatCust">💬</button>
+          <button type="button" class="btn-action-round report" title="Báo cáo sự cố để hủy hàng" onclick="openCancelReportModal()" style="background:#FEF2F2; color:#DC2626; border:1px solid #FECACA;">⚠️</button>
         </div>
       </div>
 
@@ -477,121 +477,210 @@
       </div>
     </div>
 
-    <!-- MODAL BÁO CÁO SỰ CỐ DÀNH CHO SHIPPER -->
-    <div class="modal-overlay" id="incidentModal">
-      <div class="modal-box incident-modal-box">
-        <div class="incident-modal-header">
-          <div class="incident-title-wrap">
-            <span style="font-size:20px;">⚠️</span>
-            <div>
-              <h3>BÁO CÁO SỰ CỐ GIAO HÀNG</h3>
-              <p>Tổng đài CSKH & Quán Ngô Gia sẽ hỗ trợ xử lý ngay</p>
+    <!-- MODAL NHẮN TIN VỚI KHÁCH -->
+    <div class="modal-overlay" id="chatModal">
+      <div class="modal-card">
+        <div class="chat-modal-box">
+          <div class="chat-header-bar">
+            <div class="chat-title-group">
+              <span class="chat-online-dot"></span>
+              <div>
+                <div style="font-size:13px; font-weight:800; color:var(--text);" id="chatCustName">Chat với An Nguyễn</div>
+                <div style="font-size:10px; color:var(--green); font-weight:700;">🟢 Khách đang trực tuyến</div>
+              </div>
+            </div>
+            <button class="btn-close-modal" onclick="closeChatModal()">✕</button>
+          </div>
+
+          <div class="chat-messages-area" id="chatMessagesBox">
+            <div style="text-align:center; font-size:10px; color:#94A3B8; margin-bottom:4px;">
+              🔒 Cuộc trò chuyện được mã hóa bảo mật
+            </div>
+            <div class="chat-bubble driver">
+              Chào bạn, tài xế Oishi Food đang trên đường giao hàng đến bạn!
+              <div class="chat-time">10:30</div>
+            </div>
+            <div class="chat-bubble customer">
+              Dạ vâng anh ơi, khoảng mấy phút nữa anh tới ạ?
+              <div class="chat-time">10:31</div>
+            </div>
+            <div class="chat-bubble driver">
+              Mình cách bạn khoảng 350m, khoảng 1-2 phút nữa tới nơi nhé!
+              <div class="chat-time">10:32</div>
             </div>
           </div>
-          <button class="btn-close-modal" onclick="closeIncidentModal()">✕</button>
+
+          <div class="quick-replies-row">
+            <span class="chip-reply" onclick="sendQuickReply('Em sắp đến nơi rồi ạ! 🛵')">Sắp đến nơi 🛵</span>
+            <span class="chip-reply" onclick="sendQuickReply('Em đang đợi trước cổng nhà anh/chị ạ! 🏠')">Đang đợi trước cổng 🏠</span>
+            <span class="chip-reply" onclick="sendQuickReply('Anh/chị mở sẵn mã QR Token giúp em nhé! 📱')">Mở sẵn mã QR Token 📱</span>
+          </div>
+
+          <div class="chat-input-row">
+            <input type="text" class="chat-input" id="chatInputText" placeholder="Nhập tin nhắn..." onkeypress="handleChatEnter(event)">
+            <button class="btn-send-chat" onclick="sendChatMessage()">➤</button>
+          </div>
         </div>
+      </div>
+    </div>
 
-        <div style="display:flex; flex-direction:column; gap:9px;">
-          <!-- 1. Chọn đơn bị sự cố -->
-          <div class="form-group">
-            <label class="form-label">Chọn đơn hàng gặp sự cố:</label>
-            <div class="order-select-grid">
-              <label class="order-radio-card active" id="optOrder1">
-                <input type="radio" name="incidentOrder" value="88291" checked onchange="updateIncidentScope()">
-                <div class="radio-content">
-                  <b>Đơn 1: An Nguyễn</b>
-                  <span>104 Hai Bà Trưng • MoMo 0đ</span>
-                </div>
-              </label>
-              <label class="order-radio-card" id="optOrder2">
-                <input type="radio" name="incidentOrder" value="88292" onchange="updateIncidentScope()">
-                <div class="radio-content">
-                  <b>Đơn 2: Minh Khang</b>
-                  <span>18 Lê Duẩn • COD 72k</span>
-                </div>
-              </label>
+    <!-- MODAL BÁO CÁO SỰ CỐ ĐỂ HỦY HÀNG -->
+    <div class="modal-overlay" id="cancelReportModal">
+      <div class="modal-card">
+        <div class="report-modal-box">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:18px;">⚠️</span>
+              <div>
+                <div style="font-size:13.5px; font-weight:800; color:#DC2626;">BÁO CÁO SỰ CỐ & HỦY HÀNG</div>
+                <div style="font-size:10px; color:var(--text-muted);" id="lblReportOrderSub">Đơn hàng hiện tại</div>
+              </div>
+            </div>
+            <button class="btn-close-modal" onclick="closeCancelReportModal()">✕</button>
+          </div>
+
+          <div class="report-policy-note">
+            <span>ℹ️</span>
+            <div>
+              <b>Chính sách Oishi Food:</b> Tài xế cung cấp bằng chứng sự cố (ảnh hiện trường / lịch sử 3 cuộc gọi) sẽ <b>không bị phạt</b> và được bảo vệ tỷ lệ nhận cuốc.
             </div>
           </div>
 
-          <!-- 2. Chọn loại sự cố -->
-          <div class="form-group">
-            <label class="form-label">Loại sự cố đang gặp phải:</label>
-            <select class="form-select" id="incidentTypeSelect" onchange="onIncidentTypeChange()">
-              <option value="khach_khong_nghe_may">📞 Khách không nghe máy (Đã gọi 3 lần)</option>
-              <option value="khach_bom_hang">🚫 Khách từ chối nhận món / Bom hàng</option>
-              <option value="sai_dia_chi">📍 Khách đổi địa chỉ / Sai định vị quá 3km</option>
-              <option value="xe_hong">🛵 Xe bị sự cố (Thủng lốp, hỏng xe, va quẹt)</option>
-              <option value="do_vo_mon">🥣 Món ăn bị đổ vỡ / Hư hỏng bao bì</option>
-              <option value="thoi_tiet_ngap">🌧️ Mưa bão, đường ngập không thể vào hẻm</option>
-              <option value="khac">❓ Lý do khẩn cấp khác</option>
+          <div class="report-field-group">
+            <label class="field-lbl">
+              <span>Lý do gặp sự cố:</span>
+              <span style="color:#DC2626; font-size:11px;">* Bắt buộc</span>
+            </label>
+            <select class="reason-select" id="selIncidentReason">
+              <option value="Khách không nghe máy (đã gọi 3 cuộc không liên lạc được)">📵 Khách không nghe máy (Đã gọi 3 cuộc)</option>
+              <option value="Khách từ chối nhận món / Bom hàng">🚫 Khách từ chối nhận hàng (Bom hàng)</option>
+              <option value="Sai địa chỉ giao hàng / Không liên hệ được">📍 Sai địa chỉ / Khách không có mặt</option>
+              <option value="Món ăn bị đổ vỡ hư hỏng do sự cố va chạm">💥 Món ăn đổ vỡ hư hỏng do sự cố giao thông</option>
+              <option value="Khách không đủ tiền mặt thanh toán COD">💸 Khách không đủ tiền mặt trả COD</option>
             </select>
           </div>
 
-          <!-- Hướng dẫn & Quy định ShopeeFood -->
-          <div class="incident-guide-box" id="incidentGuideBox">
-            <span style="font-size:16px;">⏳</span>
-            <div><b>Quy định gọi khách:</b> Bạn cần gọi tối thiểu <b>3 cuộc gọi</b>. Hệ thống tự động bảo lưu cước phí và hỗ trợ hoàn hàng sau 10 phút.</div>
-          </div>
-
-          <!-- 3. Chụp ảnh minh chứng -->
-          <div class="form-group">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <label class="form-label" style="margin:0;">Ảnh chụp minh chứng hiện trường:</label>
-              <span style="font-size:10px; color:#059669; font-weight:700;">✓ Bắt buộc để bồi hoàn cước</span>
-            </div>
-            <div class="proof-upload-box" onclick="simulateSnapProof()">
+          <div class="report-field-group">
+            <label class="field-lbl">
+              <span>Ảnh chụp bằng chứng sự cố:</span>
+              <span style="color:#059669; font-size:10.5px;" id="lblProofStatus">Chạm để chụp</span>
+            </label>
+            <div class="proof-upload-box" id="boxProofUpload" onclick="simulateAttachProof()">
+              <img id="imgProofPreview" class="proof-preview-img" src="" alt="Bằng chứng sự cố">
               <div id="proofPlaceholder">
-                <div style="font-size:22px;">📷</div>
-                <div style="font-size:11.5px; font-weight:700; color:#2563EB; margin-top:2px;">Nhấn vào đây để CHỤP ẢNH MINH CHỨNG</div>
-                <div style="font-size:10px; color:#64748B;">(Ảnh nhà khách / vỏ ly trà sữa đổ / lốp xe hỏng)</div>
-              </div>
-              <div class="proof-preview" id="proofPreview" style="display:none;">
-                <img id="proofImg" src="" alt="Proof" style="width:100%; height:90px; object-fit:cover; border-radius:6px; display:block;">
-                <div class="proof-watermark">📍 GPS: 10.7850, 106.6980 • Chụp bởi TX-14</div>
+                <div style="font-size:24px;">📸</div>
+                <div class="proof-status-text">Bấm vào đây để chụp ảnh hiện trường / lịch sử cuộc gọi</div>
               </div>
             </div>
           </div>
 
-          <!-- 4. Ghi chú mô tả -->
-          <div class="form-group">
-            <label class="form-label">Mô tả thêm tình huống:</label>
-            <textarea class="form-textarea" id="incidentDescription" rows="2" placeholder="Ví dụ: Gọi khách chuông reo nhưng không ai bắt máy, bảo vệ tòa nhà báo khách đã đi vắng..."></textarea>
+          <div class="report-field-group">
+            <label class="field-lbl">Ghi chú chi tiết sự cố:</label>
+            <textarea class="report-notes-textarea" id="txtIncidentNotes" placeholder="Ví dụ: Gọi khách 3 lần không liên lạc được..."></textarea>
           </div>
 
-          <!-- 5. Đề xuất phương án xử lý -->
-          <div class="form-group">
-            <label class="form-label">Đề xuất phương án xử lý:</label>
-            <div class="solution-grid">
-              <label class="solution-item">
-                <input type="radio" name="incidentSolution" value="hoan_quan" checked>
-                <span>📦 Hoàn món về Quán Ngô Gia (Bồi hoàn tiền món)</span>
-              </label>
-              <label class="solution-item">
-                <input type="radio" name="incidentSolution" value="cuu_tro">
-                <span>🛵 Chuyển đơn cho tài xế cứu trợ gần nhất</span>
-              </label>
-              <label class="solution-item">
-                <input type="radio" name="incidentSolution" value="gia_han">
-                <span>⏳ Xin thêm 15 phút thời gian giao hàng</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="incident-modal-footer">
-          <button type="button" class="btn-incident-secondary" onclick="callSupportHotline()">
-            📞 Hotline 1900.1234
+          <button type="button" class="btn-confirm-cancel-order" onclick="submitCancelIncidentReport()">
+            <span>🚫</span>
+            <span>XÁC NHẬN BÁO CÁO & HỦY ĐƠN HÀNG</span>
           </button>
-          <button type="button" class="btn-incident-submit" onclick="submitIncidentReport()">
-            🚀 GỬI BÁO CÁO NGAY
+          <button type="button" class="btn-cancel-dismiss" onclick="closeCancelReportModal()">
+            Quay lại (Tiếp tục giao món)
           </button>
         </div>
       </div>
     </div>
-  </div>
+
+    <!-- MODAL LUỒNG TRẢ MÓN VỀ QUÁN VÌ BỊ BOM HÀNG -->
+    <div class="modal-overlay" id="bomReturnFlowModal">
+      <div class="modal-card" style="padding: 16px 14px; text-align: left; gap: 10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1.5px solid var(--border); padding-bottom: 8px; width: 100%;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size: 20px;">🚨</span>
+            <div>
+              <div style="font-size: 13.5px; font-weight: 800; color: var(--danger);" id="lblBomFlowTitle6">ĐÃ HỦY ĐƠN BOM • TIẾP TỤC ĐƠN GHÉP</div>
+              <div style="font-size: 10px; color: var(--text-muted);" id="lblBomOrderSub6">Đơn #ORD-88291 • Bị khách bom hàng</div>
+            </div>
+          </div>
+          <span id="lblBomFlowTag6" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size:10px; font-weight:800; padding:2px 7px; border-radius:6px;">
+            Giữ Món Trên Xe
+          </span>
+        </div>
+
+        <!-- Cảnh báo hướng dẫn shipper -->
+        <div id="boxBomPolicyNote6" style="background:#FFFBEB; border:1px solid #FCD34D; border-radius:10px; padding:8px 10px; font-size:11px; color:#92400E; line-height:1.45;">
+          ⚠️ <b>Quy trình đơn ghép:</b> Món ăn được lưu giữ nguyên niêm phong trong thùng xe. Quý tài xế vui lòng <b>tiếp tục đi giao đơn ghép kế tiếp trước</b>. Sau khi hoàn thành xong toàn bộ đơn ghép, hệ thống sẽ điều hướng bạn quay về Quán để trả lại món và nhận tiền hoàn!
+        </div>
+
+        <!-- Điểm trả hàng & thông tin quán (hiển thị khi về quán) -->
+        <div id="boxBomStoreAddress6" style="display:none; background:#F8FAFC; border:1px solid var(--border); border-radius:12px; padding:10px; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:800; color:#1E293B;">🏪 QUÁN NHẬN LẠI MÓN:</span>
+            <span style="font-size:10.5px; color:#059669; font-weight:700;">📍 Cách 1.8 km (5 phút)</span>
+          </div>
+          <div style="font-size:12.5px; font-weight:800; color:var(--text);">Hồng Trà Ngô Gia - 28 Tô Vĩnh Diện, TP. Thủ Đức</div>
+          <div style="font-size:11px; color:var(--text-muted);">Món cần trả: <b id="lblBomDishes6">1x Trà Ô Long, 1x Trà Ngô Gia</b></div>
+        </div>
+
+        <!-- HỘP ĐƠN GHÉP KẾ TIẾP CẦN GIAO (hiển thị khi đang ở chặng 1) -->
+        <div id="boxBomNextOrderInfo6" style="display:flex; background:#FFF7ED; border:1.5px solid #FDBA74; border-radius:12px; padding:10px 12px; flex-direction:column; gap:4px;">
+          <div style="font-size:11px; font-weight:800; color:#C2410C; display:flex; align-items:center; gap:5px;">
+            <span>🛵</span> <span>ĐƠN GHÉP KẾ TIẾP CẦN GIAO NGAY (CHẶNG 2/2):</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:#334155;">
+            <span>Khách hàng:</span>
+            <b id="lblBomNextCustName6">#ORD_88292 • Minh Khang</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:#334155;">
+            <span>Điểm giao:</span>
+            <b id="lblBomNextAddr6">18 Lê Duẩn, P. Bến Nghé, Q.1</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:#334155;">
+            <span>Thu hộ COD:</span>
+            <b style="color:var(--amber);" id="lblBomNextCod6">72.000 đ (Tiền mặt)</b>
+          </div>
+        </div>
+
+        <!-- BẢNG KÊ QUÁN PHẢI TRẢ TIỀN LẠI CHO SHIPPER -->
+        <div style="background:#F0FDF4; border:1.5px solid #86EFAC; border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:5px;">
+          <div style="font-size:11.5px; font-weight:800; color:#15803D; display:flex; justify-content:space-between;">
+            <span id="lblBomRefundTitle6">💰 QUYỀN LỢI ĐƯỢC BẢO LƯU:</span>
+            <span style="background:#DCFCE7; padding:1px 6px; border-radius:4px; font-size:10px;">Bắt buộc</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:#334155;">
+            <span>Tiền món ăn quán nhận lại:</span>
+            <b id="lblBomFoodRefund6">53.000 đ</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px; color:#334155;">
+            <span>Phí hoàn hàng 2 chiều hỗ trợ ship:</span>
+            <b style="color:#059669;">+25.000 đ</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13.5px; font-weight:800; color:#DC2626; border-top:1px dashed #86EFAC; padding-top:6px; margin-top:3px;">
+            <span id="lblBomRefundTotalLabel6">QUÁN SẼ TRẢ KHI HOÀN TẤT CHUYẾN:</span>
+            <span id="lblBomTotalRefund6">78.000 đ</span>
+          </div>
+        </div>
+
+        <!-- Trạng thái xác nhận từ quán -->
+        <div id="bomStoreStatusBox6" style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:8px 10px; font-size:11px; color:#B45309; display:flex; align-items:center; gap:6px;">
+          <span style="font-size:16px;">🛵</span>
+          <span id="txtBomStoreStatus6">Đơn ghép kế tiếp đang chờ: Cách đây 1.2 km (3 phút)</span>
+        </div>
+
+        <!-- Nút hành động của Shipper -->
+        <div style="display:flex; flex-direction:column; gap:7px; width:100%; margin-top:2px;">
+          <button type="button" class="btn-confirm-return-store" id="btnConfirmReturnedStore6" onclick="shipperConfirmReturnedStore6()" style="width:100%; height:44px; background:linear-gradient(135deg, #FF6933, #EE4D2D); color:#FFF; border:none; border-radius:12px; font-size:12.5px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 3px 12px rgba(238,77,45,0.3);">
+            <span>🛵</span>
+            <span id="btnReturnedText6">TIẾP TỤC GIAO ĐƠN THỨ 2 (#88292) ➔</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- /mobile-frame -->
 
   <!-- Thư viện Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script>
     // Đọc URL parameters
     const urlParams = new URLSearchParams(window.location.search);
@@ -636,172 +725,245 @@
     });
 
     // Tuyến đường nối Leaflet Polyline
-    let routePolyline = L.polyline([], {
-      color: '#059669', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
-    }).addTo(map);
-
-    function panToActiveTarget() {
-      const target = (activeOrder === '88292') ? coordsCust2 : coordsCust1;
-      map.flyTo(target, 17, { animate: true, duration: 0.6 });
+    let routeLine = null;
+    function drawRouteToTarget(targetCoords) {
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = L.polyline([driverCoords, targetCoords], {
+        color: '#EE4D2D',
+        weight: 5,
+        opacity: 0.85,
+        dashArray: '8, 8'
+      }).addTo(map);
+      map.fitBounds([driverCoords, targetCoords], { padding: [40, 40] });
     }
 
-    // Toast hiển thị thông báo chuyển tuyến
-    let toastTimeout = null;
-    function showRouteToast(msg) {
-      const toast = document.getElementById('routeToast');
-      const toastText = document.getElementById('routeToastText');
-      toastText.innerText = msg;
-      toast.classList.add('show');
-      if (toastTimeout) clearTimeout(toastTimeout);
-      toastTimeout = setTimeout(() => {
-        toast.classList.remove('show');
-      }, 2200);
+    // Dữ liệu khách hàng
+    const CUSTOMER_DELIVERY_DATA = {
+      '88291': {
+        name: 'An Nguyễn',
+        phone: '0903882291',
+        stars: '⭐ 98/100',
+        payment: 'Thu tiền mặt: 0 đ (Đã trả MoMo 100%)',
+        address: '104 Đường Hai Bà Trưng, P. Đa Kao, Q.1',
+        note: 'Ghi chú: "Cho mình xin thêm 2 ống hút to nha quán"',
+        coords: coordsCust1,
+        instruction: 'Đi thẳng vào Đường Hai Bà Trưng',
+        subtext: '350 m • 1 phút nữa đến điểm giao An Nguyễn'
+      },
+      '88292': {
+        name: 'Minh Khang',
+        phone: '0918882292',
+        stars: '⭐ 99/100',
+        payment: 'Thu tiền mặt (COD): 72.000 đ',
+        address: '18 Đường Lê Duẩn, P. Bến Nghé, Q.1',
+        note: 'Ghi chú: "Giao sảnh tòa nhà giúp em, tới gọi em xuống lấy"',
+        coords: coordsCust2,
+        instruction: 'Rẽ phải vào Đường Lê Duẩn',
+        subtext: '1.2 km • 3 phút nữa đến điểm giao Minh Khang'
+      }
+    };
+
+    function selectDeliveryTarget(orderCode) {
+      activeOrder = orderCode;
+      updateActiveDeliveryUI(orderCode);
+      showRouteToast(orderCode);
     }
 
-    // HÀM CHỌN MỤC TIÊU GIAO HÀNG (TÀI XẾ TỰ DO NHẤN VÀO TÊN KHÁCH ĐỂ CHỌN)
-    function selectDeliveryTarget(targetId, isInitial = false) {
-      if (isLastParam && completedParam) {
-        if (targetId === completedParam) {
-          showRouteToast('Đơn này bạn đã giao thành công rồi!');
-          return;
-        }
-      }
+    function updateActiveDeliveryUI(orderCode) {
+      const info = CUSTOMER_DELIVERY_DATA[orderCode] || CUSTOMER_DELIVERY_DATA['88291'];
 
-      activeOrder = targetId;
-      const isCust2 = (activeOrder === '88292');
+      // Cập nhật Header
+      document.getElementById('lblNavCustName').innerText = `#ORD_${orderCode} (${info.name})`;
 
-      // 1. Cập nhật Icon Marker trên Leaflet
-      const iconActive = L.divIcon({
-        className: 'cus-marker-box active-marker',
-        html: isCust2 ? '📍2' : '📍1',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
-      });
-      const iconPending = L.divIcon({
-        className: 'cus-marker-box pending-marker',
-        html: isCust2 ? '📍1' : '📍2',
-        iconSize: [34, 34],
-        iconAnchor: [17, 17]
-      });
-
-      if (isCust2) {
-        marker2.setIcon(iconActive);
-        marker1.setIcon(iconPending);
-        routePolyline.setLatLngs([driverCoords, [10.7835, 106.7000], coordsCust2]);
-        routePolyline.setStyle({ color: '#EE4D2D' });
-        if (!isInitial) map.flyTo(coordsCust2, 16.5, { animate: true, duration: 0.6 });
-      } else {
-        marker1.setIcon(iconActive);
-        marker2.setIcon(iconPending);
-        routePolyline.setLatLngs([driverCoords, [10.7868, 106.6992], coordsCust1]);
-        routePolyline.setStyle({ color: '#059669' });
-        if (!isInitial) map.flyTo(coordsCust1, 16.5, { animate: true, duration: 0.6 });
-      }
-
-      // 2. Cập nhật Stepper 3 chặng trên đỉnh
+      // Cập nhật Stepper & Thanh trạng thái
       const step1 = document.getElementById('stepCust1');
-      const badge1 = document.getElementById('badgeCust1');
-      const txt1 = document.getElementById('txtCust1');
       const step2 = document.getElementById('stepCust2');
+      const badge1 = document.getElementById('badgeCust1');
       const badge2 = document.getElementById('badgeCust2');
+      const txt1 = document.getElementById('txtCust1');
       const txt2 = document.getElementById('txtCust2');
-
-      if (isLastParam) {
-        // Đã hoàn thành 1 đơn trước đó
-        if (completedParam === '88291' || (!completedParam && activeOrder === '88292')) {
-          step1.className = "step-item step-done";
-          badge1.innerText = "✓";
-          txt1.innerText = "An Nguyễn (Xong)";
-          step2.className = "step-item step-clickable step-active";
-          badge2.innerText = "2";
-          txt2.innerText = "Giao Minh Khang";
-        } else {
-          step2.className = "step-item step-done";
-          badge2.innerText = "✓";
-          txt2.innerText = "Minh Khang (Xong)";
-          step1.className = "step-item step-clickable step-active";
-          badge1.innerText = "2";
-          txt1.innerText = "Giao An Nguyễn";
-        }
-        document.getElementById('divider2').className = "step-divider done";
-        document.getElementById('stepperTipBar').innerHTML = '<span>🏁 Đang giao chặng cuối cùng của chuyến đơn gộp</span><span class="switch-tag" style="background:#2563EB;">Chặng cuối</span>';
-      } else {
-        // Chưa giao đơn nào - Tài xế tự do chọn thứ tự
-        if (isCust2) {
-          step2.className = "step-item step-clickable step-active";
-          badge2.innerText = "1";
-          txt2.innerText = "Giao Minh Khang";
-
-          step1.className = "step-item step-clickable step-pending";
-          badge1.innerText = "2";
-          txt1.innerText = "Giao An Nguyễn";
-        } else {
-          step1.className = "step-item step-clickable step-active";
-          badge1.innerText = "1";
-          txt1.innerText = "Giao An Nguyễn";
-
-          step2.className = "step-item step-clickable step-pending";
-          badge2.innerText = "2";
-          txt2.innerText = "Giao Minh Khang";
-        }
-      }
-
-      // 3. Cập nhật thanh lựa chọn nhanh ở Bottom Sheet
-      const btnChoice1 = document.getElementById('btnChoiceCust1');
-      const btnChoice2 = document.getElementById('btnChoiceCust2');
+      const div1 = document.getElementById('divider1');
+      const div2 = document.getElementById('divider2');
+      const btn1 = document.getElementById('btnChoiceCust1');
+      const btn2 = document.getElementById('btnChoiceCust2');
       const choiceBadge1 = document.getElementById('choiceBadge1');
       const choiceBadge2 = document.getElementById('choiceBadge2');
+      const tipBar = document.getElementById('stepperTipBar');
 
-      if (isCust2) {
-        btnChoice2.classList.add('active');
-        btnChoice1.classList.remove('active');
-        choiceBadge2.innerText = isLastParam ? "Chặng cuối" : "⚡ Giao trước (1)";
-        choiceBadge1.innerText = isLastParam ? "✓ Đã giao xong" : "Giao sau (2)";
-      } else {
-        btnChoice1.classList.add('active');
-        btnChoice2.classList.remove('active');
-        choiceBadge1.innerText = isLastParam ? "Chặng cuối" : "⚡ Giao trước (1)";
-        choiceBadge2.innerText = isLastParam ? "✓ Đã giao xong" : "Giao sau (2)";
+      const bomParam = urlParams.get('bom');
+      // Trạng thái đơn bom CHỈ ĐƯỢC PHÉP hiển thị khi có tham số &bom= trên URL (được chuyển hướng từ bước hủy đơn)
+      // VÀ đơn bị bom KHÔNG THỂ là đơn đang chọn đi giao (orderCode)
+      const isBomOrder1 = (bomParam === '88291' && orderCode !== '88291');
+      const isBomOrder2 = (bomParam === '88292' && orderCode !== '88292');
+
+      // Nếu không có tham số &bom trên URL, xóa sạch dữ liệu bom cũ lưu trong localStorage
+      if (!bomParam) {
+        localStorage.removeItem('oishi_bom_return_order');
+        localStorage.removeItem('oishi_lost_order_warning_88291');
+        localStorage.removeItem('oishi_lost_order_warning_88292');
       }
 
-      // 4. Cập nhật Google Navigation Box
-      if (isCust2) {
-        document.getElementById('lblNavOrderCode').innerText = isLastParam ? "Đơn Gộp • Chặng 2/2 (Điểm cuối)" : "Đơn Gộp • Đã đổi sang giao Khách 2 trước";
-        document.getElementById('lblNavCustName').innerText = "#ORD_88292 (Minh Khang)";
-        document.getElementById('lblNavArrow').innerText = "↗";
-        document.getElementById('lblNavInstruction').innerText = "Rẽ phải vào Đường Lê Duẩn";
-        document.getElementById('lblNavSubtext').innerText = "450 m • 2 phút nữa đến điểm giao Minh Khang";
+      if (isBomOrder1) {
+        // ĐƠN 1 (#88291) BỊ BOM HÀNG - GIỮ MÓN TRÊN XE
+        step1.className = 'step-item step-bom';
+        badge1.innerHTML = '❌';
+        txt1.innerHTML = 'An Nguyễn <span style="font-size:9px; color:#DC2626; display:block; font-weight:800;">(Bom - Giữ món)</span>';
+        step1.onclick = function() {
+          alert('Đơn #88291 đã bị hủy do bom hàng. 2 ly trà đang được giữ niêm phong trên xe. Quý tài xế hoàn tất giao đơn Minh Khang trước rồi mới về Quán trả món nhận 78.000đ!');
+        };
+        div1.className = 'step-divider done';
+        div2.className = 'step-divider done';
 
-        // Bottom sheet
-        document.getElementById('lblCustName').innerText = "Khách: Minh Khang (⭐ 99/100)";
-        document.getElementById('lblPayment').innerHTML = "<span style='color:var(--primary); font-weight:800;'>💵 Cần thu tiền mặt COD: 72.000 đ</span>";
-        document.getElementById('lblCustAddress').innerText = "18 Lê Duẩn, P. Bến Nghé, Q.1";
-        document.getElementById('lblCustNote').innerText = "Ghi chú: 'Giao lên sảnh lầu 2 gọi mình nhé'";
-        document.getElementById('btnPhoneCust').href = "tel:0918456789";
+        step2.className = 'step-item step-clickable step-active';
+        badge2.innerHTML = '2';
+        txt2.innerText = 'Minh Khang';
+        step2.onclick = function() { selectDeliveryTarget('88292'); };
 
-        if (!isInitial) showRouteToast('🛵 Đã chọn giao trước cho: Minh Khang (18 Lê Duẩn)!');
+        btn1.classList.remove('active');
+        btn1.style.opacity = '0.55';
+        btn1.style.pointerEvents = 'none';
+        choiceBadge1.innerText = '❌ Bị bom • Giữ trên xe';
+        choiceBadge1.style.background = '#FEE2E2';
+        choiceBadge1.style.color = '#DC2626';
+
+        btn2.classList.add('active');
+        choiceBadge2.innerText = '⚡ Đang giao • Đơn cuối';
+
+        tipBar.style.background = '#FFF7ED';
+        tipBar.style.borderColor = '#FED7AA';
+        tipBar.innerHTML = `
+          <span style="color:#C2410C;">📦 <b>Món đơn #88291 giữ trên xe</b> • Giao xong Minh Khang sẽ về Quán trả món nhận 78.000 đ</span>
+          <span class="switch-tag" style="background:#EA580C; color:#FFF;">Trả Quán sau cùng</span>
+        `;
+      } else if (isBomOrder2) {
+        // ĐƠN 2 (#88292) BỊ BOM HÀNG - GIỮ MÓN TRÊN XE
+        step2.className = 'step-item step-bom';
+        badge2.innerHTML = '❌';
+        txt2.innerHTML = 'Minh Khang <span style="font-size:9px; color:#DC2626; display:block; font-weight:800;">(Bom - Giữ món)</span>';
+        step2.onclick = function() {
+          alert('Đơn #88292 đã bị hủy do bom hàng. Món ăn đang được giữ niêm phong trên xe. Quý tài xế hoàn tất giao đơn An Nguyễn trước rồi mới về Quán trả món!');
+        };
+        div1.className = 'step-divider done';
+        div2.className = 'step-divider done';
+
+        step1.className = 'step-item step-clickable step-active';
+        badge1.innerHTML = '1';
+        txt1.innerText = 'An Nguyễn';
+        step1.onclick = function() { selectDeliveryTarget('88291'); };
+
+        btn2.classList.remove('active');
+        btn2.style.opacity = '0.55';
+        btn2.style.pointerEvents = 'none';
+        choiceBadge2.innerText = '❌ Bị bom • Giữ trên xe';
+        choiceBadge2.style.background = '#FEE2E2';
+        choiceBadge2.style.color = '#DC2626';
+
+        btn1.classList.add('active');
+        choiceBadge1.innerText = '⚡ Đang giao • Đơn cuối';
+
+        tipBar.style.background = '#FFF7ED';
+        tipBar.style.borderColor = '#FED7AA';
+        tipBar.innerHTML = `
+          <span style="color:#C2410C;">📦 <b>Món đơn #88292 giữ trên xe</b> • Giao xong An Nguyễn sẽ về Quán trả món!</span>
+          <span class="switch-tag" style="background:#EA580C; color:#FFF;">Trả Quán sau cùng</span>
+        `;
+      } else if (completedParam === '88291') {
+        // ĐƠN 1 ĐÃ GIAO XONG BÌNH THƯỜNG
+        step1.className = 'step-item step-done';
+        badge1.innerHTML = '✓';
+        txt1.innerText = 'An Nguyễn';
+        step1.onclick = function() { alert('Đơn #88291 đã giao thành công!'); };
+        div1.className = 'step-divider done';
+        div2.className = 'step-divider done';
+
+        step2.className = 'step-item step-clickable step-active';
+        badge2.innerHTML = '2';
+        txt2.innerText = 'Minh Khang';
+
+        btn1.classList.remove('active');
+        btn1.style.opacity = '0.55';
+        btn1.style.pointerEvents = 'none';
+        choiceBadge1.innerText = '✓ Đã giao';
+
+        btn2.classList.add('active');
+        choiceBadge2.innerText = '⚡ Đang giao • Đơn cuối';
+
+        tipBar.innerHTML = `
+          <span>✓ Đã giao xong An Nguyễn • Đang giao đơn cuối: Minh Khang</span>
+          <span class="switch-tag">Đơn cuối</span>
+        `;
+      } else if (completedParam === '88292') {
+        // ĐƠN 2 ĐÃ GIAO XONG BÌNH THƯỜNG
+        step2.className = 'step-item step-done';
+        badge2.innerHTML = '✓';
+        txt2.innerText = 'Minh Khang';
+        step2.onclick = function() { alert('Đơn #88292 đã giao thành công!'); };
+        div1.className = 'step-divider done';
+        div2.className = 'step-divider done';
+
+        step1.className = 'step-item step-clickable step-active';
+        badge1.innerHTML = '1';
+        txt1.innerText = 'An Nguyễn';
+
+        btn2.classList.remove('active');
+        btn2.style.opacity = '0.55';
+        btn2.style.pointerEvents = 'none';
+        choiceBadge2.innerText = '✓ Đã giao';
+
+        btn1.classList.add('active');
+        choiceBadge1.innerText = '⚡ Đang giao • Đơn cuối';
+
+        tipBar.innerHTML = `
+          <span>✓ Đã giao xong Minh Khang • Đang giao đơn cuối: An Nguyễn</span>
+          <span class="switch-tag">Đơn cuối</span>
+        `;
       } else {
-        document.getElementById('lblNavOrderCode').innerText = isLastParam ? "Đơn Gộp • Chặng 2/2 (Điểm cuối)" : "Đơn Gộp • Chặng 1/2";
-        document.getElementById('lblNavCustName').innerText = "#ORD_88291 (An Nguyễn)";
-        document.getElementById('lblNavArrow').innerText = "↑";
-        document.getElementById('lblNavInstruction').innerText = "Đi thẳng vào Đường Hai Bà Trưng";
-        document.getElementById('lblNavSubtext').innerText = "350 m • 1 phút nữa đến điểm giao An Nguyễn";
-
-        // Bottom sheet
-        document.getElementById('lblCustName').innerText = "Khách: An Nguyễn (⭐ 98/100)";
-        document.getElementById('lblPayment').innerHTML = "<span style='color:#059669; font-weight:700;'>Thu tiền mặt: 0 đ (Đã trả MoMo 100%)</span>";
-        document.getElementById('lblCustAddress').innerText = "104 Đường Hai Bà Trưng, P. Đa Kao, Q.1";
-        document.getElementById('lblCustNote').innerText = "Ghi chú: 'Cho mình xin thêm 2 ống hút to nha quán'";
-        document.getElementById('btnPhoneCust').href = "tel:0901234567";
-
-        if (!isInitial) showRouteToast('🛵 Đã chọn giao trước cho: An Nguyễn (104 Hai Bà Trưng)!');
+        // CHƯA GIAO ĐƠN NÀO -> TÀI XẾ TỰ DO ĐỔI THỨ TỰ
+        if (orderCode === '88291') {
+          step1.className = 'step-item step-clickable step-active';
+          step2.className = 'step-item step-clickable step-pending';
+        } else {
+          step1.className = 'step-item step-clickable step-pending';
+          step2.className = 'step-item step-clickable step-active';
+        }
+        btn1.classList.toggle('active', orderCode === '88291');
+        btn2.classList.toggle('active', orderCode === '88292');
       }
+
+      // Cập nhật Navigation Bar
+      document.getElementById('lblNavInstruction').innerText = info.instruction;
+      document.getElementById('lblNavSubtext').innerText = info.subtext;
+
+      // Cập nhật Bottom Sheet
+      document.getElementById('lblCustName').innerText = `Khách: ${info.name} (${info.stars})`;
+      document.getElementById('lblPayment').innerText = info.payment;
+      document.getElementById('lblPayment').style.color = (orderCode === '88292') ? 'var(--primary)' : '#059669';
+      document.getElementById('lblCustAddress').innerText = info.address;
+      document.getElementById('lblCustNote').innerText = info.note;
+
+      // Cập nhật số điện thoại gọi trực tiếp
+      if (document.getElementById('btnPhoneCust')) {
+        document.getElementById('btnPhoneCust').href = `tel:${info.phone}`;
+      }
+
+      // Vẽ tuyến đường
+      drawRouteToTarget(info.coords);
     }
 
-    // Khởi chạy với mục tiêu từ URL hoặc mặc định
-    selectDeliveryTarget(activeOrder, true);
+    function showRouteToast(orderCode) {
+      const name = (orderCode === '88291') ? 'An Nguyễn' : 'Minh Khang';
+      const toast = document.getElementById('routeToast');
+      document.getElementById('routeToastText').innerText = `Đã chọn giao cho ${name} trước!`;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
 
-    // Kéo gạt xác nhận đã đến nơi
+    function panToActiveTarget() {
+      const info = CUSTOMER_DELIVERY_DATA[activeOrder] || CUSTOMER_DELIVERY_DATA['88291'];
+      map.setView(info.coords, 17, { animate: true });
+    }
+
+    // Logic Swipe Slider đến nơi
     const track = document.getElementById('swipeTrack');
     const handle = document.getElementById('swipeHandle');
     let isDragging = false;
@@ -839,7 +1001,6 @@
         handle.style.background = '#047857';
 
         setTimeout(() => {
-          // Xác định đơn tiếp theo nếu đây là chặng đầu
           const nextOrder = (activeOrder === '88291') ? '88292' : '88291';
           if (isLastParam) {
             window.location.href = `8.html?order=${activeOrder}&is_last=1`;
@@ -860,116 +1021,223 @@
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onEnd);
 
-    // XỬ LÝ BÁO CÁO SỰ CỐ DÀNH CHO SHIPPER
-    function openIncidentModal() {
-      const r1 = document.querySelector('input[name="incidentOrder"][value="88291"]');
-      const r2 = document.querySelector('input[name="incidentOrder"][value="88292"]');
+    // ===================================================
+    // LOGIC MODAL: NHẮN TIN, BÁO CÁO SỰ CỐ & LUỒNG BOM HÀNG
+    // ===================================================
+    function getActiveCustomerInfo() {
       if (activeOrder === '88292') {
-        if (r2) r2.checked = true;
-      } else {
-        if (r1) r1.checked = true;
+        return { name: 'Minh Khang', phone: '0918882292' };
       }
-      updateIncidentScope();
-      document.getElementById('incidentModal').classList.add('open');
+      return { name: 'An Nguyễn', phone: '0903882291' };
     }
 
-    function closeIncidentModal() {
-      document.getElementById('incidentModal').classList.remove('open');
+    function openChatModal() {
+      const cust = getActiveCustomerInfo();
+      document.getElementById('chatCustName').innerText = `Chat với ${cust.name}`;
+      document.getElementById('chatModal').classList.add('open');
+      const box = document.getElementById('chatMessagesBox');
+      box.scrollTop = box.scrollHeight;
     }
 
-    function updateIncidentScope() {
-      const selected = document.querySelector('input[name="incidentOrder"]:checked').value;
-      const opt1 = document.getElementById('optOrder1');
-      const opt2 = document.getElementById('optOrder2');
-      if (selected === '88291') {
-        opt1.classList.add('active');
-        opt2.classList.remove('active');
-      } else {
-        opt2.classList.add('active');
-        opt1.classList.remove('active');
-      }
+    function closeChatModal() {
+      document.getElementById('chatModal').classList.remove('open');
     }
 
-    function onIncidentTypeChange() {
-      const type = document.getElementById('incidentTypeSelect').value;
-      const guide = document.getElementById('incidentGuideBox');
-      if (type === 'khach_khong_nghe_may') {
-        guide.innerHTML = '<span style="font-size:16px;">⏳</span><div><b>Quy định gọi khách:</b> Bạn cần gọi tối thiểu <b>3 cuộc gọi</b>. Hệ thống tự động bảo lưu cước phí và hỗ trợ hoàn hàng sau 10 phút.</div>';
-      } else if (type === 'khach_bom_hang') {
-        guide.innerHTML = '<span style="font-size:16px;">🛡️</span><div><b>Bảo hiểm bom hàng:</b> Oishi Food bồi hoàn 100% tiền cước + tiền món cho tài xế/quán khi có xác nhận.</div>';
-      } else if (type === 'xe_hong') {
-        guide.innerHTML = '<span style="font-size:16px;">🆘</span><div><b>Cứu trợ xe:</b> Điều phối viên sẽ chuyển đơn sang tài xế lân cận nhận lại món tại vị trí hiện tại của bạn.</div>';
-      } else if (type === 'do_vo_mon') {
-        guide.innerHTML = '<span style="font-size:16px;">🥣</span><div><b>Hư hỏng bao bì/đổ vỡ:</b> Chụp ảnh góc rộng toàn bộ túi niêm phong để được Quán Ngô Gia làm lại hoặc bồi hoàn.</div>';
-      } else {
-        guide.innerHTML = '<span style="font-size:16px;">ℹ️</span><div><b>Hỗ trợ khẩn cấp:</b> Báo cáo sẽ gửi trực tiếp đến Trực ban Điều phối Oishi Food và Quán Ngô Gia.</div>';
-      }
+    function sendQuickReply(text) {
+      addDriverMessage(text);
+      simulateCustomerReply();
     }
 
-    function simulateSnapProof() {
-      document.getElementById('proofPlaceholder').style.display = 'none';
-      const preview = document.getElementById('proofPreview');
-      preview.style.display = 'block';
-      const img = document.getElementById('proofImg');
-      const canvas = document.createElement('canvas');
-      canvas.width = 400; canvas.height = 180;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#0F172A';
-      ctx.fillRect(0, 0, 400, 180);
-      ctx.fillStyle = '#38BDF8';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.fillText('📷 ẢNH CHỤP MINH CHỨNG HIỆN TRƯỜNG', 20, 40);
-      ctx.fillStyle = '#E2E8F0';
-      ctx.font = '12px sans-serif';
-      ctx.fillText(`Điểm giao: ${activeOrder === '88292' ? '18 Lê Duẩn, Q.1' : '104 Hai Bà Trưng, Q.1'}`, 20, 75);
-      ctx.fillText('Vị trí GPS: [10.7850, 106.6980] • Sai lệch: 0 mét', 20, 105);
-      ctx.fillStyle = '#F59E0B';
-      ctx.fillText(`Thời gian: ${new Date().toLocaleTimeString('vi-VN')} • Shipper: TX-14 (Trần Văn Nam)`, 20, 140);
-      img.src = canvas.toDataURL('image/png');
+    function sendChatMessage() {
+      const input = document.getElementById('chatInputText');
+      const val = input.value.trim();
+      if (!val) return;
+      addDriverMessage(val);
+      input.value = '';
+      simulateCustomerReply();
     }
 
-    function callSupportHotline() {
-      alert('Đang kết nối Tổng Đài Hỗ Trợ Shipper Oishi Food 24/7 (Hotline 1900.1234 - Miễn phí)...');
-      window.location.href = 'tel:19001234';
+    function handleChatEnter(e) {
+      if (e.key === 'Enter') sendChatMessage();
     }
 
-    function submitIncidentReport() {
-      const targetOrder = document.querySelector('input[name="incidentOrder"]:checked').value;
-      const typeSelect = document.getElementById('incidentTypeSelect');
-      const typeText = typeSelect.options[typeSelect.selectedIndex].text;
-      const desc = document.getElementById('incidentDescription').value || 'Không có ghi chú thêm';
-      const solution = document.querySelector('input[name="incidentSolution"]:checked').value;
+    function addDriverMessage(text) {
+      const box = document.getElementById('chatMessagesBox');
+      const now = new Date();
+      const timeStr = `${now.getHours()}:${now.getMinutes() < 10 ? '0' : ''}${now.getMinutes()}`;
+      const div = document.createElement('div');
+      div.className = 'chat-bubble driver';
+      div.innerHTML = `${text}<div class="chat-time">${timeStr}</div>`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
 
-      const incId = 'INC_' + Math.floor(100000 + Math.random() * 900000);
-      const incObj = {
-        id: incId,
-        orderId: targetOrder,
-        custName: (targetOrder === '88292') ? 'Minh Khang' : 'An Nguyễn',
-        type: typeText,
-        desc: desc,
-        solution: solution,
-        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        date: new Date().toLocaleDateString('vi-VN'),
-        status: 'Đang xử lý khẩn cấp',
-        driverId: 'TX-14'
+    function simulateCustomerReply() {
+      setTimeout(() => {
+        const box = document.getElementById('chatMessagesBox');
+        const now = new Date();
+        const timeStr = `${now.getHours()}:${now.getMinutes() < 10 ? '0' : ''}${now.getMinutes()}`;
+        const div = document.createElement('div');
+        div.className = 'chat-bubble customer';
+        div.innerHTML = `Dạ em đã nhận tin nhắn, em đang chuẩn bị ra đây ạ!<div class="chat-time">${timeStr}</div>`;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+      }, 1200);
+    }
+
+    function openCancelReportModal() {
+      const cust = getActiveCustomerInfo();
+      document.getElementById('lblReportOrderSub').innerText = `Đơn #ORD-${activeOrder} • Khách: ${cust.name}`;
+      document.getElementById('cancelReportModal').classList.add('open');
+    }
+
+    function closeCancelReportModal() {
+      document.getElementById('cancelReportModal').classList.remove('open');
+    }
+
+    function simulateAttachProof() {
+      const img = document.getElementById('imgProofPreview');
+      const placeholder = document.getElementById('proofPlaceholder');
+      const status = document.getElementById('lblProofStatus');
+      const box = document.getElementById('boxProofUpload');
+
+      img.src = "https://images.unsplash.com/photo-1596524430615-b46475ddff6e?w=500&auto=format&fit=crop&q=80";
+      img.style.display = 'block';
+      placeholder.style.display = 'none';
+      box.classList.add('attached');
+      status.innerText = "✓ Đã đính kèm ảnh";
+      status.style.color = "#059669";
+      status.style.fontWeight = "800";
+    }
+
+    function submitCancelIncidentReport() {
+      const reason = document.getElementById('selIncidentReason').value;
+      closeCancelReportModal();
+
+      const cust = getActiveCustomerInfo();
+      const foodAmount = (activeOrder === '88292') ? 72000 : 53000;
+      const returnFee = 25000;
+      const totalRefund = foodAmount + returnFee;
+
+      // 1. Lưu thông tin đơn bom hàng vào localStorage
+      const bomData = {
+        orderId: activeOrder,
+        customerName: cust.name,
+        dishes: (activeOrder === '88292') ? '2x Hồng Trà Sữa Trân Châu (Size L)' : '1x Trà Ô Long, 1x Trà Ngô Gia (Size M)',
+        foodAmount: foodAmount,
+        returnFee: returnFee,
+        totalRefundToShip: totalRefund,
+        reason: reason,
+        status: 'RETURNING_TO_STORE',
+        shipperName: 'Lê Văn Tùng',
+        shipperPhone: '0909 555 888',
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+        merchantRefunded: false
       };
+      localStorage.setItem('oishi_bom_return_order', JSON.stringify(bomData));
 
-      let list = JSON.parse(localStorage.getItem('shipper_incidents') || '[]');
-      list.unshift(incObj);
-      localStorage.setItem('shipper_incidents', JSON.stringify(list));
+      // Điền thông tin giá trị tiền
+      document.getElementById('lblBomOrderSub6').innerText = `Đơn #ORD-${activeOrder} • Khách: ${cust.name}`;
+      document.getElementById('lblBomDishes6').innerText = bomData.dishes;
+      document.getElementById('lblBomFoodRefund6').innerText = foodAmount.toLocaleString('vi-VN') + ' đ';
+      document.getElementById('lblBomTotalRefund6').innerText = totalRefund.toLocaleString('vi-VN') + ' đ';
 
-      closeIncidentModal();
+      const btn = document.getElementById('btnConfirmReturnedStore6');
 
-      const banner = document.getElementById('incidentActiveBanner');
-      if (banner) {
-        banner.classList.add('show');
-        document.getElementById('lblIncidentBannerText').innerText = `⚠️ ${incId}: ${typeText} (Đang chờ xử lý)`;
+      if (!isLastParam) {
+        // CHẠY XONG ĐƠN GHÉP MỚI VỀ QUÁN TRẢ MÓN!
+        // Đang ở chặng 1 -> Giữ món trên xe, tiếp tục đi giao đơn 2 trước!
+        const nextTarget = (activeOrder === '88291') ? '88292' : '88291';
+        const nextCust = CUSTOMER_DELIVERY_DATA[nextTarget];
+
+        document.getElementById('lblBomFlowTitle6').innerText = "ĐÃ HỦY ĐƠN BOM • TIẾP TỤC ĐƠN GHÉP";
+        document.getElementById('lblBomFlowTag6').innerText = "Giữ Món Trên Xe";
+        document.getElementById('lblBomFlowTag6').style.background = "#EFF6FF";
+        document.getElementById('lblBomFlowTag6').style.color = "#1D4ED8";
+        document.getElementById('lblBomFlowTag6').style.borderColor = "#BFDBFE";
+
+        document.getElementById('boxBomPolicyNote6').innerHTML = `
+          ⚠️ <b>Quy trình đơn ghép:</b> Món ăn đơn <b>#ORD-${activeOrder}</b> được giữ nguyên niêm phong trong thùng xe.<br>
+          Vì trên xe vẫn còn đơn ghép <b>#${nextTarget} (${nextCust.name})</b>, quý tài xế vui lòng <b>TIẾP TỤC ĐI GIAO ĐƠN THỨ 2 TRƯỚC</b>.<br>
+          Sau khi hoàn thành giao xong toàn bộ chuyến ghép, hệ thống sẽ tự động điều hướng bạn quay về Quán để trả món và nhận đủ <b>${totalRefund.toLocaleString('vi-VN')} đ</b>!
+        `;
+
+        document.getElementById('boxBomStoreAddress6').style.display = 'none';
+        document.getElementById('boxBomNextOrderInfo6').style.display = 'flex';
+        document.getElementById('lblBomNextCustName6').innerText = `#ORD_${nextTarget} • ${nextCust.name}`;
+        document.getElementById('lblBomNextAddr6').innerText = nextCust.address;
+        document.getElementById('lblBomNextCod6').innerText = `${nextCust.payment}`;
+
+        document.getElementById('lblBomRefundTitle6').innerText = "💰 QUYỀN LỢI ĐƯỢC BẢO LƯU:";
+        document.getElementById('lblBomRefundTotalLabel6').innerText = "QUÁN SẼ TRẢ KHI HOÀN TẤT CHUYẾN:";
+
+        const statusBox = document.getElementById('bomStoreStatusBox6');
+        statusBox.style.background = '#FFFBEB';
+        statusBox.style.borderColor = '#FDE68A';
+        statusBox.style.color = '#B45309';
+        statusBox.innerHTML = `<span>🛵</span> <b>Đơn ghép kế tiếp đang chờ: Tiếp tục giao đơn thứ 2</b>`;
+
+        btn.style.background = "linear-gradient(135deg, #FF6933, #EE4D2D)";
+        document.getElementById('btnReturnedText6').innerText = `🛵 TIẾP TỤC GIAO ĐƠN THỨ 2 (#${nextTarget}) ➔`;
+        btn.onclick = function() {
+          window.location.href = `6.html?order=${nextTarget}&completed=${activeOrder}&bom=${activeOrder}&is_last=1`;
+        };
+      } else {
+        // ĐƠN CUỐI CÙNG -> VỀ QUÁN TRẢ MÓN
+        document.getElementById('lblBomFlowTitle6').innerText = "LUỒNG TRẢ MÓN VỀ QUÁN";
+        document.getElementById('lblBomFlowTag6').innerText = "Quay Về Quán";
+        document.getElementById('lblBomFlowTag6').style.background = "#FEF2F2";
+        document.getElementById('lblBomFlowTag6').style.color = "#DC2626";
+        document.getElementById('lblBomFlowTag6').style.borderColor = "#FECACA";
+
+        document.getElementById('boxBomPolicyNote6').innerHTML = `
+          ⚠️ <b>Toàn bộ đơn ghép đã hoàn tất!</b> Quý tài xế vui lòng di chuyển về lại <b>Quán Hồng Trà Ngô Gia</b> để bàn giao lại món. Quán có trách nhiệm <b>hoàn trả tiền món + thanh toán cước hoàn hàng (${totalRefund.toLocaleString('vi-VN')} đ)</b> cho bạn.
+        `;
+
+        document.getElementById('boxBomStoreAddress6').style.display = 'flex';
+        document.getElementById('boxBomNextOrderInfo6').style.display = 'none';
+
+        document.getElementById('lblBomRefundTitle6').innerText = "💰 QUÁN PHẢI HOÀN TIỀN CHO SHIPPER:";
+        document.getElementById('lblBomRefundTotalLabel6').innerText = "TỔNG TIỀN QUÁN PHẢI TRẢ LẠI:";
+
+        const statusBox = document.getElementById('bomStoreStatusBox6');
+        statusBox.style.background = '#EFF6FF';
+        statusBox.style.borderColor = '#BFDBFE';
+        statusBox.style.color = '#1D4ED8';
+        statusBox.innerHTML = `<span>⏳</span> <span>Tài xế đang quay lại quán. Vui lòng bàn giao món và nhận tiền hoàn từ Quán.</span>`;
+
+        btn.style.background = "linear-gradient(135deg, #10B981, #059669)";
+        document.getElementById('btnReturnedText6').innerText = `ĐÃ TỚI QUÁN • TRẢ MÓN & NHẬN ${totalRefund.toLocaleString('vi-VN')}đ TỪ QUÁN`;
+        btn.onclick = shipperConfirmReturnedStore6;
       }
 
-      alert(`✓ ĐÃ GỬI BÁO CÁO SỰ CỐ THÀNH CÔNG!\n\n• Mã phiếu sự cố: ${incId}\n• Đơn hàng: #ORD_${targetOrder} (${incObj.custName})\n• Loại sự cố: ${typeText}\n\nTổng đài Oishi Food và Quán Ngô Gia đã nhận được cảnh báo. Shipper được bảo lưu cước phí và miễn trừ điểm phạt hoàn toàn!`);
+      document.getElementById('bomReturnFlowModal').classList.add('open');
     }
-  </script>
 
+    function shipperConfirmReturnedStore6() {
+      const bomData = JSON.parse(localStorage.getItem('oishi_bom_return_order') || '{}');
+      bomData.status = 'COMPLETED_REFUNDED';
+      localStorage.setItem('oishi_bom_return_order', JSON.stringify(bomData));
+
+      const totalRefund = bomData.totalRefundToShip || 78000;
+      const statusBox = document.getElementById('bomStoreStatusBox6');
+      statusBox.style.background = '#ECFDF5';
+      statusBox.style.borderColor = '#A7F3D0';
+      statusBox.style.color = '#065F46';
+      statusBox.innerHTML = `<span>✓</span> <b>ĐÃ TRẢ MÓN & NHẬN ĐỦ ${totalRefund.toLocaleString('vi-VN')}đ TỪ QUÁN HỒNG TRÀ NGÔ GIA!</b>`;
+
+      const btn = document.getElementById('btnConfirmReturnedStore6');
+      btn.style.background = 'linear-gradient(135deg, #FF6933, #EE4D2D)';
+      document.getElementById('btnReturnedText6').innerText = `🏠 HOÀN TẤT CHUYẾN • VỀ TRANG CHỦ TÀI XẾ ➔`;
+      btn.onclick = function() {
+        window.location.href = '2.html';
+      };
+    }
+
+    // Khởi tạo giao diện theo order param ban đầu
+    document.addEventListener('DOMContentLoaded', () => {
+      updateActiveDeliveryUI(activeOrder);
+    });
+  </script>
 </body>
 </html>
-

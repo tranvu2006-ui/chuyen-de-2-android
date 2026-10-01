@@ -673,6 +673,9 @@
           ord1.status = 'IN_TRANSIT';
         }
         localStorage.setItem('oishi_orders', JSON.stringify(orders));
+        localStorage.removeItem('oishi_bom_return_order');
+        localStorage.removeItem('oishi_lost_order_warning_88291');
+        localStorage.removeItem('oishi_lost_order_warning_88292');
 
         setTimeout(() => {
           const custName = (selectedFirstDelivery === '88292') ? 'Khách hàng Minh Khang (18 Lê Duẩn, Q.1)' : 'Khách hàng An Nguyễn (104 Hai Bà Trưng, Q.1)';

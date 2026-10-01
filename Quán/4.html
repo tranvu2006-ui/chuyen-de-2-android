@@ -304,6 +304,90 @@
     .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600; gap: 3px; width: 25%; }
     .nav-item.active { color: var(--primary); }
     .nav-icon { font-size: 18px; line-height: 1; }
+  
+    /* ===================================================
+       THẺ CẢNH BÁO BOM HÀNG & QUÁN HOÀN TIỀN CHO SHIPPER
+       =================================================== */
+    .bom-merchant-card {
+      background: #FFF; border: 2px solid #EF4444; border-radius: 16px;
+      padding: 14px; display: flex; flex-direction: column; gap: 10px;
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.15); animation: alertGlow 2.5s infinite;
+    }
+    @keyframes alertGlow {
+      0%, 100% { border-color: #EF4444; }
+      50% { border-color: #F87171; box-shadow: 0 6px 20px rgba(239, 68, 68, 0.25); }
+    }
+    .bom-merchant-header {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .bom-alert-title {
+      font-size: 13px; font-weight: 800; color: #DC2626; display: flex; align-items: center; gap: 6px;
+    }
+    .bom-status-tag {
+      font-size: 10.5px; font-weight: 800; background: #FEF2F2; color: #DC2626;
+      border: 1px solid #FECACA; padding: 2px 8px; border-radius: 6px;
+    }
+    .bom-order-desc {
+      font-size: 11.5px; color: #334155; line-height: 1.4; background: #FFF5F5;
+      padding: 8px 10px; border-radius: 8px; border-left: 3px solid #EF4444;
+    }
+
+    /* Shipper Return Info */
+    .shipper-return-info {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+    }
+    .ship-left { display: flex; align-items: center; gap: 8px; }
+    .btn-call-shipper {
+      background: #ECFDF5; border: 1px solid #A7F3D0; color: #047857;
+      font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 6px;
+      text-decoration: none;
+    }
+
+    /* Refund calculation table */
+    .merchant-refund-calc-box {
+      background: #FEF2F2; border: 1.5px dashed #F87171; border-radius: 12px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;
+    }
+    .m-calc-row {
+      display: flex; justify-content: space-between; font-size: 11.5px; color: #475569;
+    }
+    .m-calc-row b { color: #1E293B; }
+    .m-calc-row.total {
+      font-size: 13px; font-weight: 800; color: #DC2626; border-top: 1px dashed #FCA5A5;
+      padding-top: 6px; margin-top: 3px;
+    }
+    .total-refund-highlight { font-size: 15px; font-weight: 800; color: #DC2626; }
+
+    .btn-merchant-refund {
+      width: 100%; height: 46px; background: linear-gradient(135deg, #EF4444, #DC2626);
+      color: #FFF; border: none; border-radius: 12px; font-size: 12.5px; font-weight: 800;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35); transition: all 0.2s;
+    }
+    .btn-merchant-refund:hover { opacity: 0.95; transform: translateY(-1px); }
+
+    .merchant-refund-done-box {
+      background: #ECFDF5; border: 1.5px solid #A7F3D0; border-radius: 12px;
+      padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px;
+    }
+    .btn-penalize-cust {
+      width: 100%; height: 38px; background: #FFF; color: #DC2626; border: 1.5px solid #DC2626;
+      border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer;
+    }
+    .btn-penalize-cust:hover { background: #FEF2F2; }
+
+    /* Modal Quán Hoàn Tiền */
+    .btn-confirm-refund {
+      width: 100%; height: 44px; background: linear-gradient(135deg, #10B981, #059669);
+      color: #FFF; border: none; border-radius: 12px; font-size: 13px; font-weight: 800;
+      cursor: pointer; box-shadow: 0 3px 12px rgba(5,150,105,0.3); margin-top: 4px;
+    }
+    .btn-dismiss-refund {
+      width: 100%; height: 36px; background: #F1F5F9; color: #475569; border: 1px solid var(--border);
+      border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
   </style>
 </head>
 <body>
@@ -335,6 +419,72 @@
 
     <!-- Nội dung chính -->
     <div class="main-body">
+      <!-- ===================================================
+           THẺ XỬ LÝ BOM HÀNG: SHIPPER TRẢ LẠI MÓN & QUÁN HOÀN TIỀN CHO SHIP
+           =================================================== -->
+      <div class="bom-merchant-card" id="bomMerchantCard">
+        <div class="bom-merchant-header">
+          <div class="bom-alert-title">
+            <span style="font-size:18px;">🚨</span>
+            <span>CẢNH BÁO BOM HÀNG • SHIPPER ĐANG TRẢ MÓN VỀ QUÁN</span>
+          </div>
+          <span class="bom-status-tag" id="lblMerchantBomStatus">Chờ Ship Tới</span>
+        </div>
+
+        <div class="bom-order-desc" id="lblMerchantBomDesc">
+          Đơn <b>#ORD_OISHI_88291 (Khách An Nguyễn)</b> bị khách từ chối nhận món (bom hàng). Shipper <b>Lê Văn Tùng</b> đang quay lại quán để bàn giao lại 2 ly trà và nhận tiền hoàn trả.
+        </div>
+
+        <!-- Thông tin Shipper mang trả -->
+        <div class="shipper-return-info">
+          <div class="ship-left">
+            <span style="font-size:22px;">🛵</span>
+            <div>
+              <div style="font-weight:800; font-size:12.5px; color:#1E293B;">Shipper: Lê Văn Tùng</div>
+              <div style="font-size:11px; color:#64748B;">0909 555 888 • Winner X (59-X1 889.21)</div>
+            </div>
+          </div>
+          <a href="tel:0909555888" class="btn-call-shipper">📞 Gọi Ship</a>
+        </div>
+
+        <!-- BẢNG KÊ QUÁN PHẢI TRẢ TIỀN LẠI CHO SHIPPER -->
+        <div class="merchant-refund-calc-box">
+          <div style="font-size:12px; font-weight:800; color:#991B1B; margin-bottom:2px;">
+            💵 BẢNG KÊ QUÁN PHẢI TRẢ TIỀN LẠI CHO SHIPPER:
+          </div>
+          <div class="m-calc-row">
+            <span>1. Hoàn tiền 2 ly trà quán nhận lại:</span>
+            <b>53.000 đ</b>
+          </div>
+          <div class="m-calc-row">
+            <span>2. Cước phí hoàn hàng 2 chiều hỗ trợ tài xế:</span>
+            <b>+25.000 đ</b>
+          </div>
+          <div class="m-calc-row total">
+            <span>👉 TỔNG TIỀN QUÁN PHẢI TRẢ LẠI CHO SHIP:</span>
+            <span class="total-refund-highlight">78.000 đ</span>
+          </div>
+        </div>
+
+        <!-- Nút hành động của Quán -->
+        <div id="merchantRefundActions">
+          <button type="button" class="btn-merchant-refund" onclick="openMerchantRefundModal()">
+            <span>💸</span>
+            <span>XÁC NHẬN NHẬN LẠI MÓN & HOÀN 78.000 đ CHO SHIPPER</span>
+          </button>
+        </div>
+
+        <!-- Trạng thái sau khi hoàn tiền -->
+        <div class="merchant-refund-done-box" id="merchantRefundDoneBox" style="display:none;">
+          <div style="font-size:12.5px; font-weight:800; color:#065F46;">
+            ✓ QUÁN ĐÃ NHẬN LẠI MÓN & HOÀN TIỀN THÀNH CÔNG CHO SHIPPER!
+          </div>
+          <div style="font-size:11px; color:#047857; margin-top:2px;">
+            Đã hoàn trả đủ 78.000 đ (Tiền mặt/Chuyển khoản) cho shipper Lê Văn Tùng. Đơn hàng kết thúc xử lý hoàn trả.
+          </div>
+        </div>
+      </div>
+
 
       <!-- Trạng Thái Đơn Hàng Hiện Tại -->
       <div class="status-badge-card" id="statusBadgeCard">
@@ -680,6 +830,39 @@
       }
     }
     window.addEventListener('DOMContentLoaded', checkDetailHandoverState);
+  
+    // ===================================================
+    // QUY TRÌNH QUÁN NHẬN LẠI MÓN & HOÀN TIỀN CHO SHIPPER
+    // ===================================================
+    function openMerchantRefundModal() {
+      document.getElementById('merchantRefundModal').style.display = 'flex';
+    }
+
+    function closeMerchantRefundModal() {
+      document.getElementById('merchantRefundModal').style.display = 'none';
+    }
+
+    function confirmMerchantRefund() {
+      closeMerchantRefundModal();
+
+      // Cập nhật trạng thái trong localStorage
+      const bomData = JSON.parse(localStorage.getItem('oishi_bom_return_order') || '{}');
+      bomData.status = 'COMPLETED_REFUNDED';
+      bomData.merchantRefunded = true;
+      localStorage.setItem('oishi_bom_return_order', JSON.stringify(bomData));
+
+      // Hiển thị trạng thái đã hoàn tiền
+      document.getElementById('merchantRefundActions').style.display = 'none';
+      document.getElementById('merchantRefundDoneBox').style.display = 'flex';
+      document.getElementById('lblMerchantBomStatus').innerText = '✓ Đã Tất Toán';
+      document.getElementById('lblMerchantBomStatus').style.background = '#ECFDF5';
+      document.getElementById('lblMerchantBomStatus').style.borderColor = '#A7F3D0';
+      document.getElementById('lblMerchantBomStatus').style.color = '#065F46';
+
+      alert("✓ XÁC NHẬN THÀNH CÔNG:\nQuán đã nhận lại đủ 2 ly trà nguyên seal và đã hoàn trả đủ 78.000 đ cho shipper Lê Văn Tùng!");
+    }
+
+
   </script>
 </body>
 </html>

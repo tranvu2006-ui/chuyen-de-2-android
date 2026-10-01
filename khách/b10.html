@@ -166,6 +166,29 @@
       document.querySelectorAll('.noti-item.unread').forEach(el => el.classList.remove('unread'));
       alert('Đã đánh dấu tất cả thông báo là đã đọc!');
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const custNotifs = JSON.parse(localStorage.getItem('oishi_cust_notifications') || '[]');
+      const container = document.querySelector('.noti-content');
+      if (container && custNotifs.length > 0) {
+        custNotifs.forEach(n => {
+          const item = document.createElement('a');
+          item.href = 'b9.html';
+          item.className = 'noti-item unread';
+          item.style.borderColor = '#FCA5A5';
+          item.style.background = '#FEF2F2';
+          item.innerHTML = `
+            <div class="noti-icon" style="background:#FEE2E2; color:#DC2626; font-size:20px;">⏱️</div>
+            <div class="noti-body">
+              <div class="noti-title" style="color:#DC2626; font-weight:800;">${n.title}</div>
+              <div class="noti-desc" style="color:#991B1B; line-height:1.45;">${n.desc}</div>
+              <div class="noti-time" style="color:#DC2626; font-weight:700;">${n.time}</div>
+            </div>
+          `;
+          container.prepend(item);
+        });
+      }
+    });
   </script>
 
 </body>

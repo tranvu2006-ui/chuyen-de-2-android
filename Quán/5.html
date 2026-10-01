@@ -119,6 +119,7 @@
       font-weight: 700; margin-top: 4px; animation: pulseSearching 1.5s infinite alternate;
     }
     @keyframes pulseSearching { 0% { opacity: 0.8; } 100% { opacity: 1; } }
+    @keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.96); } }
 
     /* Bottom Nav */
     .bottom-nav {
@@ -200,7 +201,7 @@
           <span>Đã Xác Nhận Đơn</span> <span id="countTabCooking">(2)</span>
         </div>
         <div class="order-tab" id="tabDelivering" onclick="switchOrderTab('delivering')">
-          <span>Đang Giao</span> <span id="countTabDelivering">(1)</span>
+          <span>Đang Giao</span> <span id="countTabDelivering">(2)</span>
         </div>
         <div class="order-tab" id="tabHistory" onclick="window.location.href='6.html'">Lịch Sử ➔</div>
       </div>
@@ -237,12 +238,16 @@
           <!-- Các nút hành động chính của Quán -->
           <div id="btnConfirmRow" style="display:flex; gap:8px; margin-top:10px;">
             <a href="4.html"
-              style="flex:0.28; height:42px; background:#F1F5F9; color:var(--text); border:1px solid var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size:12px; font-weight:700; gap:4px;">
+              style="flex:0.25; height:42px; background:#F1F5F9; color:var(--text); border:1px solid var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size:12px; font-weight:700; gap:4px;">
               <span>📋</span> <span>Chi Tiết</span>
             </a>
             <button id="btnActionMain" onclick="handleStoreAction()"
-              style="flex:0.72; height:42px; background:linear-gradient(135deg, #FF6933, #EE4D2D); color:#FFF; border:none; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(238,77,45,0.25); white-space:nowrap; padding: 0 10px;">
+              style="flex:0.75; height:42px; background:linear-gradient(135deg, #FF6933, #EE4D2D); color:#FFF; border:none; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(238,77,45,0.25); white-space:nowrap; padding: 0 10px;">
               <span id="btnActionTxt">✓ XÁC NHẬN ĐƠN CỦA KHÁCH ➔</span>
+            </button>
+            <button type="button" id="btnDemoWarn88291" onclick="triggerDemoWarn88291()"
+              style="display:none; height:42px; background:#FEF2F2; color:#DC2626; border:1.5px solid #FECACA; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; padding:0 10px; white-space:nowrap;">
+              🚨 Demo Báo Sự Cố
             </button>
           </div>
         </div>
@@ -287,6 +292,73 @@
 
       <!-- 3. Danh Sách Đơn Đang Giao -->
       <div id="viewOrdersDelivering" style="display:none; flex-direction:column; gap:10px;">
+        <!-- Banner cảnh báo ở tab Đang Giao -->
+        <div style="background:linear-gradient(135deg, #FEF2F2, #FFF1F2); border:1.5px solid #FECACA; border-radius:12px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:20px; animation:pulseDot 1s infinite;">🚨</span>
+            <div>
+              <div style="font-size:12px; font-weight:800; color:#DC2626;">Có 1 đơn hàng chuyển sang trạng thái cảnh báo!</div>
+              <div style="font-size:10px; color:#7F1D1D;">Đơn #ORD_OISHI_88292 • Đang đếm ngược 15 phút chờ hủy đơn nếu không nhận</div>
+            </div>
+          </div>
+          <span style="font-size:10.5px; font-weight:800; background:#DC2626; color:#FFF; padding:4px 8px; border-radius:6px; animation:pulseDot 1.5s infinite; white-space:nowrap;">
+            CẢNH BÁO
+          </span>
+        </div>
+
+        <!-- ĐƠN HÀNG ĐANG BỊ CẢNH BÁO MẤT ĐƠN (15 PHÚT) -->
+        <div class="order-item-card" id="cardOrderWarning" style="border: 2px solid #EF4444; background: #FFFDFD; box-shadow: 0 4px 16px rgba(239,68,68,0.12); position:relative;">
+          <div class="order-row-top">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="order-code" style="color:#DC2626; font-size:13.5px; font-weight:800;">#ORD_OISHI_88292</span>
+              <span style="font-size:9.5px; font-weight:800; background:#FEE2E2; color:#DC2626; padding:2px 6px; border-radius:4px;">🚨 NGUY CƠ BOM</span>
+            </div>
+            <span style="font-size:11px; font-weight:800; background:#FEF2F2; color:#DC2626; border:1.5px solid #EF4444; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; animation:pulseDot 1.2s infinite;">
+              <span>🚨</span> <span>CẢNH BÁO MẤT ĐƠN</span>
+            </span>
+          </div>
+
+          <div class="order-dishes">
+            • 2x Hồng Trà Sữa Nướng (Size L, 50% Đá)<br>
+            • 1x Bánh Tráng Phơi Sương Cuộn Bò<br>
+            <b style="color:#DC2626;">Tổng bill: 92.000 đ (Khách chọn COD • Đã cọc 25.000 đ)</b>
+          </div>
+
+          <div class="order-address">
+            📍 Giao đến: <b>Trần Thị Mai (⭐ 65/100)</b> - 88 Nguyễn Đình Chiểu, Q.1
+          </div>
+
+          <!-- Khung Cảnh Báo Khẩn Cấp Shipper Báo Sự Cố -->
+          <div style="background:#FEF2F2; border:1.5px solid #FCA5A5; border-radius:12px; padding:10px 12px; margin-top:4px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:16px;">📢</span>
+                <span style="font-size:11.5px; font-weight:800; color:#DC2626;">Tài xế TX-09 báo: Không liên lạc được khách!</span>
+              </div>
+              <span style="font-size:10px; font-weight:800; background:#DC2626; color:#FFF; padding:2px 6px; border-radius:4px;">Đã gọi 3 lần</span>
+            </div>
+            
+            <div style="font-size:11.5px; color:#7F1D1D; line-height:1.45;">
+              Tài xế <b>Nguyễn Văn Hùng (TX-09)</b> báo không liên lạc được khách (đã gọi 3 lần). Đơn hàng đã chuyển sang trạng thái <b>Cảnh báo mất đơn</b> và đang đếm ngược 15 phút.
+            </div>
+
+            <!-- Đồng hồ đếm ngược trực tiếp -->
+            <div style="display:flex; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed #FECACA;">
+              <div style="font-size:11.5px; color:#991B1B;">
+                ⏳ Thời gian còn lại: <b id="storeWarnTimer" style="font-family:'JetBrains Mono', monospace; font-size:14px; color:#DC2626; font-weight:800;">14:28</b>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nút xem chi tiết trạng thái đơn -->
+          <div style="margin-top:6px;">
+            <button type="button" onclick="showWarningDetailModal()" style="width:100%; height:38px; background:#F8FAFC; color:var(--text); border:1px solid var(--border); border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <span>📋</span> <span>Xem Chi Tiết Đơn Hàng</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Đơn bình thường trên đường giao -->
         <div class="order-item-card">
           <div class="order-row-top">
             <span class="order-code">#ORD_88288</span>
@@ -454,12 +526,17 @@
             btn.style.color = "#FFF";
             document.getElementById('btnActionTxt').innerText = "🛵 XÁC NHẬN GIAO CHO TÀI XẾ ➔";
           }
-          viewDelivering.prepend(card);
+          const warnCard = document.getElementById('cardOrderWarning');
+          if (warnCard) {
+            warnCard.after(card);
+          } else {
+            viewDelivering.prepend(card);
+          }
         }
 
         // Cập nhật số lượng tab
         document.getElementById('countTabCooking').innerText = "(2)";
-        document.getElementById('countTabDelivering').innerText = "(2)";
+        document.getElementById('countTabDelivering').innerText = "(3)";
 
         let orders = JSON.parse(localStorage.getItem('oishi_orders') || '[]');
         let targetOrder = orders.find(o => o.id === 'ORD_OISHI_88291');
@@ -485,6 +562,9 @@
         btn.disabled = true;
         btn.style.cursor = "default";
         document.getElementById('btnActionTxt').innerText = "✓ ĐÃ GIAO CHO TÀI XẾ";
+
+        const btnDemo = document.getElementById('btnDemoWarn88291');
+        if (btnDemo) btnDemo.style.display = 'inline-flex';
 
         const inner = document.getElementById('innerDriverStatus');
         inner.innerHTML = `
@@ -524,7 +604,10 @@
 
       document.getElementById('countTabNew').innerText = "(1)";
       document.getElementById('countTabCooking').innerText = "(2)";
-      document.getElementById('countTabDelivering').innerText = "(1)";
+      document.getElementById('countTabDelivering').innerText = "(2)";
+
+      const btnDemo = document.getElementById('btnDemoWarn88291');
+      if (btnDemo) btnDemo.style.display = 'none';
 
       document.getElementById('txtOrderBadge').innerText = "⏳ Chờ Quán Xác Nhận Đơn";
       document.getElementById('txtOrderBadge').style.background = "#FFF0ED";
@@ -609,7 +692,107 @@
 
     // Xóa cache cũ khi khởi động trang để Quán LUÔN bắt đầu từ bước "Xác nhận đơn của khách"
     localStorage.removeItem('oishi_orders');
+
+    // Live countdown 15 phút cho đơn cảnh báo
+    let storeWarnSeconds = 14 * 60 + 28;
+    function initStoreWarningCountdown() {
+      const timerEl = document.getElementById('storeWarnTimer');
+      if (!timerEl) return;
+      setInterval(() => {
+        if (storeWarnSeconds > 0) {
+          storeWarnSeconds--;
+          const m = Math.floor(storeWarnSeconds / 60);
+          const s = storeWarnSeconds % 60;
+          timerEl.innerText = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        } else {
+          timerEl.innerText = "00:00 - Hết giờ";
+        }
+      }, 1000);
+    }
+    initStoreWarningCountdown();
+
+    function showWarningDetailModal() {
+      const modal = document.getElementById('modalWarningDetail');
+      if (modal) modal.style.display = 'flex';
+    }
+    function closeWarningDetailModal() {
+      const modal = document.getElementById('modalWarningDetail');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function triggerDemoWarn88291() {
+      const card = document.getElementById('cardOrder88291');
+      if (!card) return;
+      card.style.border = "2px solid #EF4444";
+      card.style.background = "#FFFDFD";
+      document.getElementById('txtOrderBadge').innerHTML = "<span>🚨 CẢNH BÁO MẤT ĐƠN</span>";
+      document.getElementById('txtOrderBadge').style.background = "#FEF2F2";
+      document.getElementById('txtOrderBadge').style.color = "#DC2626";
+      document.getElementById('txtOrderBadge').style.border = "1.5px solid #EF4444";
+
+      const inner = document.getElementById('innerDriverStatus');
+      if (inner) {
+        inner.className = "driver-assigned-status";
+        inner.style.background = "#FEF2F2";
+        inner.style.borderColor = "#FCA5A5";
+        inner.innerHTML = `
+          <div style="display:flex; flex-direction:column; gap:4px; width:100%;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#DC2626; font-weight:800;">🚨 Đơn hàng đã chuyển sang trạng thái Cảnh báo mất đơn</span>
+              <span style="font-size:10px; font-weight:800; background:#DC2626; color:#FFF; padding:2px 6px; border-radius:4px;">15 Phút</span>
+            </div>
+            <div style="font-size:11px; color:#7F1D1D;">Tài xế báo không liên lạc được khách (gọi 3 cuộc). Đang đếm ngược 15 phút trước khi hủy đơn.</div>
+          </div>
+        `;
+      }
+      alert("🚨 ĐÃ KÍCH HOẠT CẢNH BÁO MẤT ĐƠN CHO ĐƠN #ORD_OISHI_88291!\nTài xế Trần Văn Nam báo không gọi được khách. Đang đếm ngược 15 phút!");
+    }
+
+    // Tự động kích hoạt tab dựa trên query URL (vd: ?tab=delivering)
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam === 'delivering') {
+        switchOrderTab('delivering');
+      } else if (tabParam === 'cooking') {
+        switchOrderTab('cooking');
+      }
+    });
   </script>
+
+  <!-- Modal Chi Tiết Cảnh Báo Cho Quán -->
+  <div class="modal-overlay" id="modalWarningDetail" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:100; display:none; align-items:center; justify-content:center; padding:18px;">
+    <div style="background:#FFF; width:100%; max-width:370px; border-radius:20px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,0.3); display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:18px;">🚨</span>
+          <span style="font-size:13.5px; font-weight:800; color:#DC2626;">CHI TIẾT CẢNH BÁO MẤT ĐƠN</span>
+        </div>
+        <button type="button" onclick="closeWarningDetailModal()" style="border:none; background:#F1F5F9; width:26px; height:26px; border-radius:50%; font-size:13px; font-weight:700; cursor:pointer;">✕</button>
+      </div>
+
+      <div style="font-size:12px; color:#334155; line-height:1.5;">
+        <b>Mã đơn:</b> #ORD_OISHI_88292<br>
+        <b>Khách hàng:</b> Trần Thị Mai (0912.345.678)<br>
+        <b>Địa chỉ:</b> 88 Nguyễn Đình Chiểu, P. Đa Kao, Q.1<br>
+        <b>Tài xế giao:</b> Nguyễn Văn Hùng (TX-09 - 0988.776.655)<br>
+        <b>Thời gian báo sự cố:</b> 10:25 (Hệ thống ghi nhận 3 cuộc gọi nhỡ)
+      </div>
+
+      <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:10px; font-size:11.5px; color:#7F1D1D; line-height:1.45;">
+        <b>🛡️ Chính sách bảo vệ Quán khi có cảnh báo:</b><br>
+        • Quán và Tài xế có 15 phút để liên hệ khách nhận món.<br>
+        • Nếu khách nghe máy và nhận món: Đơn giao thành công.<br>
+        • Nếu hết 15 phút không liên lạc được: Hệ thống tự động hủy đơn do khách bom hàng. Quán được hoàn đủ <b>92.000 đ</b> từ tiền cọc của khách và quỹ bảo hiểm Oishi. Tài xế sẽ mang trả lại món cho quán.
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <button type="button" onclick="closeWarningDetailModal()" style="width:100%; height:38px; background:#F1F5F9; color:var(--text); border:1px solid var(--border); border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
 
 </body>
 

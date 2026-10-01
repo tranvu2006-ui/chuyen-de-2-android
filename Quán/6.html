@@ -17,6 +17,7 @@
       --green: #10B981;
       --blue: #2563EB;
       --danger: #EF4444;
+      --danger-light: #FEF2F2;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
     body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
@@ -30,20 +31,20 @@
     .status-bar {
       height: 28px; background: #FFF; padding: 0 18px;
       display: flex; justify-content: space-between; align-items: center;
-      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9; z-index: 10;
     }
 
     .top-navbar {
       height: 52px; background: #FFF; padding: 0 16px;
       display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); z-index: 10;
     }
     .nav-title { font-size: 15px; font-weight: 800; color: var(--text); }
 
     /* Filter Bar */
     .filter-bar {
       background: #FFF; padding: 8px 14px; border-bottom: 1px solid var(--border);
-      display: flex; gap: 8px; overflow-x: auto;
+      display: flex; gap: 8px; overflow-x: auto; z-index: 10;
     }
     .filter-chip {
       background: #F1F5F9; color: var(--text-muted); border: 1px solid var(--border);
@@ -59,9 +60,38 @@
       padding-bottom: 80px;
     }
 
+    /* Banner Cảnh Báo Bom Hàng Nổi Bật */
+    .bom-notice-banner {
+      background: linear-gradient(135deg, #FEF2F2, #FFF1F2);
+      border: 1.5px solid #FECACA; border-radius: 14px; padding: 10px 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      cursor: pointer; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);
+      animation: bannerPulse 2.5s infinite; transition: all 0.2s;
+    }
+    .bom-notice-banner:hover { transform: translateY(-1px); border-color: #F87171; }
+    @keyframes bannerPulse {
+      0%, 100% { border-color: #FECACA; }
+      50% { border-color: #EF4444; }
+    }
+    .notice-icon { font-size: 20px; flex-shrink: 0; }
+    .notice-info { flex: 1; text-align: left; }
+    .notice-title { font-size: 11.5px; font-weight: 800; color: #DC2626; }
+    .notice-sub { font-size: 10px; color: #7F1D1D; margin-top: 2px; }
+    .notice-action {
+      font-size: 11px; font-weight: 800; color: #DC2626; background: #FFF;
+      border: 1px solid #FECACA; padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+    }
+
     .order-card {
       background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 8px;
+      display: flex; flex-direction: column; gap: 8px; transition: all 0.2s;
+    }
+    .order-card.bom-clickable {
+      cursor: pointer; border-left: 4px solid var(--danger);
+    }
+    .order-card.bom-clickable:hover {
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15);
+      border-color: #FCA5A5;
     }
     .order-header-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -80,6 +110,94 @@
       display: flex; justify-content: space-between; align-items: center; font-size: 11px;
       color: var(--text-muted); padding-top: 6px; border-top: 1px solid #F8FAFC;
     }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: absolute; inset: 0; background: rgba(15, 23, 42, 0.75);
+      z-index: 100; display: none; align-items: center; justify-content: center; padding: 14px;
+      backdrop-filter: blur(2px);
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: #FFF; width: 100%; border-radius: 20px; padding: 16px;
+      max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      animation: popModal 0.25s ease; display: flex; flex-direction: column; gap: 10px;
+    }
+    @keyframes popModal {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .btn-close-modal {
+      width: 28px; height: 28px; border-radius: 50%; background: #F1F5F9;
+      border: none; font-size: 13px; font-weight: 800; color: #64748B; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Component Bồi Hoàn Bom Hàng Của Quán */
+    .bom-merchant-card {
+      background: #FFF; border: 2px solid #EF4444; border-radius: 16px;
+      padding: 12px; display: flex; flex-direction: column; gap: 9px;
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.12);
+    }
+    .bom-merchant-header {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .bom-alert-title {
+      font-size: 12.5px; font-weight: 800; color: #DC2626; display: flex; align-items: center; gap: 6px;
+    }
+    .bom-status-tag {
+      font-size: 10.5px; font-weight: 800; background: #FEF2F2; color: #DC2626;
+      border: 1px solid #FECACA; padding: 2px 8px; border-radius: 6px;
+    }
+    .bom-order-desc {
+      font-size: 11.5px; color: #334155; line-height: 1.45; background: #FFF5F5;
+      padding: 8px 10px; border-radius: 8px; border-left: 3px solid #EF4444;
+    }
+
+    /* Shipper Return Info */
+    .shipper-return-info {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+    }
+    .ship-left { display: flex; align-items: center; gap: 8px; }
+    .btn-call-shipper {
+      background: #ECFDF5; border: 1px solid #A7F3D0; color: #047857;
+      font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 6px;
+      text-decoration: none;
+    }
+
+    /* Refund calculation table */
+    .merchant-refund-calc-box {
+      background: #FEF2F2; border: 1.5px dashed #F87171; border-radius: 12px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;
+    }
+    .m-calc-row {
+      display: flex; justify-content: space-between; font-size: 11.5px; color: #475569;
+    }
+    .m-calc-row b { color: #1E293B; }
+    .m-calc-row.total {
+      font-size: 12.5px; font-weight: 800; color: #DC2626; border-top: 1px dashed #FCA5A5;
+      padding-top: 6px; margin-top: 2px;
+    }
+    .total-refund-highlight { font-size: 14.5px; font-weight: 800; color: #DC2626; }
+
+    .btn-merchant-refund {
+      width: 100%; height: 44px; background: linear-gradient(135deg, #EF4444, #DC2626);
+      color: #FFF; border: none; border-radius: 12px; font-size: 12px; font-weight: 800;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3); transition: all 0.2s;
+    }
+    .btn-merchant-refund:hover { opacity: 0.95; transform: translateY(-1px); }
+
+    .merchant-refund-done-box {
+      background: #ECFDF5; border: 1.5px solid #A7F3D0; border-radius: 12px;
+      padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 6px;
+    }
+    .btn-penalize-cust {
+      width: 100%; height: 36px; background: #FFF; color: #DC2626; border: 1.5px solid #DC2626;
+      border-radius: 10px; font-size: 10.5px; font-weight: 800; cursor: pointer;
+    }
+    .btn-penalize-cust:hover { background: #FEF2F2; }
 
     /* Bottom Nav Quán */
     .bottom-nav {
@@ -112,27 +230,60 @@
 
     <!-- Filter chips -->
     <div class="filter-bar">
-      <div class="filter-chip active" onclick="filterOrders(this, 'ALL')">Tất cả (8)</div>
-      <div class="filter-chip" onclick="filterOrders(this, 'DELIVERING')">Đang giao (1)</div>
-      <div class="filter-chip" onclick="filterOrders(this, 'SUCCESS')">Thành công (6)</div>
-      <div class="filter-chip" onclick="filterOrders(this, 'CANCEL')">Đã hủy (1)</div>
+      <div class="filter-chip active" id="chipAll" onclick="filterOrders(this, 'ALL')">Tất cả (9)</div>
+      <div class="filter-chip" id="chipDelivering" onclick="filterOrders(this, 'DELIVERING')">Đang giao (1)</div>
+      <div class="filter-chip" id="chipSuccess" onclick="filterOrders(this, 'SUCCESS')">Thành công (6)</div>
+      <div class="filter-chip" id="chipCancel" onclick="filterOrders(this, 'CANCEL')">Đã hủy (2)</div>
     </div>
 
     <div class="content">
-      <!-- Đơn 1 -->
-      <div class="order-card item-delivering">
+      <!-- Banner Cảnh Báo Bom Hàng Nổi Bật -->
+      <div class="bom-notice-banner" id="bomNoticeBanner" onclick="openBomDetailModal()">
+        <div class="notice-icon">🚨</div>
+        <div class="notice-info">
+          <div class="notice-title" id="lblBannerTitle">CẢNH BÁO BOM HÀNG • SHIP ĐANG TRẢ MÓN</div>
+          <div class="notice-sub" id="lblBannerSub">Đơn #ORD_OISHI_88291 • Chờ quán hoàn 78.000 đ cho Shipper</div>
+        </div>
+        <div class="notice-action">Xem ➔</div>
+      </div>
+
+      <!-- Đơn Cảnh Báo Mất Đơn (Đang Giao) -->
+      <div class="order-card item-delivering" id="cardOrder88292" style="border-left: 4px solid #EF4444; background: #FFFDFD;">
         <div class="order-header-row">
-          <span class="order-code">#ORD_OISHI_88291</span>
-          <span class="order-status-badge status-delivering">🚚 Đang giao hàng</span>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="order-code" style="color:#DC2626;">#ORD_OISHI_88292</span>
+            <span style="font-size: 10px; background: #FEE2E2; color: #DC2626; font-weight: 800; padding: 2px 6px; border-radius: 4px;">🚨 CẢNH BÁO MẤT ĐƠN</span>
+          </div>
+          <span class="order-status-badge" style="background:#FEF2F2; color:#DC2626; border:1px solid #FECACA; font-weight:800;">⏳ Đếm ngược 15P</span>
         </div>
         <div class="order-body">
-          <b>Khách:</b> An Nguyễn (0901.234.567) - 104 Hai Bà Trưng, Q.1<br>
-          <b>Món:</b> 1x Trà Xí Muội Ô Long, 1x Trà Xí Muội Ngô Gia<br>
-          <b>Shipper quán:</b> Phạm Phúc M... (TX-19)
+          <b>Khách:</b> Trần Thị Mai (0912.345.678) - 88 Nguyễn Đình Chiểu, Q.1<br>
+          <b>Món:</b> 2x Hồng Trà Sữa Nướng, 1x Bánh Tráng Cuộn Bò (92.000 đ)<br>
+          <b>Tài xế giao:</b> Nguyễn Văn Hùng (TX-09 - 0988.776.655) • Đã gọi 3 cuộc không nghe máy
         </div>
         <div class="order-footer">
-          <span>🕒 25 phút trước</span>
-          <b style="color: var(--primary); font-size: 12.5px;">53.000 đ</b>
+          <span style="color:#DC2626; font-weight:700;">🕒 Đang đếm ngược 14:28</span>
+          <a href="5.html?tab=delivering" style="color: var(--primary); font-weight: 700; text-decoration:none;">Xem tại Đang Giao ➔</a>
+        </div>
+      </div>
+
+      <!-- Đơn 1: Đơn Bom Hàng / Khách Hủy Đơn (Giống thẻ đơn hủy #ORD-8802) -->
+      <div class="order-card item-cancel bom-clickable" id="cardOrder88291" onclick="openBomDetailModal()" title="Bấm để xem bảng kê hoàn 78.000đ cho shipper">
+        <div class="order-header-row">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="order-code">#ORD_OISHI_88291</span>
+            <span style="font-size: 10px; background: #FEE2E2; color: #DC2626; font-weight: 800; padding: 2px 6px; border-radius: 4px;">🚨 BOM HÀNG</span>
+          </div>
+          <span class="order-status-badge status-cancel" id="lblCardStatusBadge">❌ Khách hủy đơn</span>
+        </div>
+        <div class="order-body">
+          <b>Khách:</b> An Nguyễn (0903.882.291) - 104 Hai Bà Trưng, Q.1<br>
+          <b>Món:</b> 1x Trà Ô Long, 1x Trà Ngô Gia (Khách từ chối nhận món)<br>
+          <b>Shipper trả món:</b> Lê Văn Tùng (0909 555 888) • Winner X (59-X1 889.21)
+        </div>
+        <div class="order-footer">
+          <span>🕒 Vừa xong 10:15</span>
+          <span id="lblCardFooterRefund" style="color: var(--danger); font-weight: 700;">Quán hoàn 78.000 đ cho Ship (Bấm xem ➔)</span>
         </div>
       </div>
 
@@ -187,6 +338,89 @@
       </div>
     </div>
 
+    <!-- ===================================================
+         MODAL CHI TIẾT CẢNH BÁO BOM HÀNG & BỒI HOÀN TIỀN CHO SHIPPER
+         =================================================== -->
+    <div class="modal-overlay" id="bomDetailModal" onclick="closeBomDetailModal(event)">
+      <div class="modal-card" onclick="event.stopPropagation()">
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; border-bottom:1px solid var(--border); padding-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:18px;">🚨</span>
+            <div style="text-align:left;">
+              <div style="font-size:13.5px; font-weight:800; color:var(--danger);">CẢNH BÁO BOM HÀNG • ĐƠN #88291</div>
+              <div style="font-size:10px; color:var(--text-muted);">Shipper đang quay lại quán để trả món</div>
+            </div>
+          </div>
+          <button type="button" class="btn-close-modal" onclick="closeBomModalDirect()">✕</button>
+        </div>
+
+        <!-- Thẻ Nội dung chi tiết Bom hàng như ở Quán/4.html -->
+        <div class="bom-merchant-card" style="width:100%; text-align:left;">
+          <div class="bom-merchant-header">
+            <div class="bom-alert-title">
+              <span>🚨</span>
+              <span>SHIPPER ĐANG TRẢ MÓN VỀ QUÁN</span>
+            </div>
+            <span class="bom-status-tag" id="lblModalBomStatus">Chờ Ship Tới</span>
+          </div>
+
+          <div class="bom-order-desc" id="lblModalBomDesc">
+            Đơn <b>#ORD_OISHI_88291 (Khách An Nguyễn)</b> bị khách từ chối nhận món (bom hàng). Shipper <b>Lê Văn Tùng</b> đang quay lại quán để bàn giao lại 2 ly trà và nhận tiền hoàn trả.
+          </div>
+
+          <!-- Thông tin Shipper mang trả -->
+          <div class="shipper-return-info">
+            <div class="ship-left">
+              <span style="font-size:22px;">🛵</span>
+              <div>
+                <div style="font-weight:800; font-size:12px; color:#1E293B;">Shipper: Lê Văn Tùng</div>
+                <div style="font-size:10.5px; color:#64748B;">0909 555 888 • Winner X (59-X1 889.21)</div>
+              </div>
+            </div>
+            <a href="tel:0909555888" class="btn-call-shipper">📞 Gọi Ship</a>
+          </div>
+
+          <!-- BẢNG KÊ QUÁN PHẢI TRẢ TIỀN LẠI CHO SHIPPER -->
+          <div class="merchant-refund-calc-box">
+            <div style="font-size:11.5px; font-weight:800; color:#991B1B; margin-bottom:2px;">
+              💵 BẢNG KÊ QUÁN PHẢI TRẢ TIỀN LẠI CHO SHIPPER:
+            </div>
+            <div class="m-calc-row">
+              <span>1. Hoàn tiền 2 ly trà quán nhận lại:</span>
+              <b>53.000 đ</b>
+            </div>
+            <div class="m-calc-row">
+              <span>2. Cước phí hoàn hàng 2 chiều hỗ trợ tài xế:</span>
+              <b>+25.000 đ</b>
+            </div>
+            <div class="m-calc-row total">
+              <span>👉 TỔNG TIỀN QUÁN PHẢI TRẢ LẠI CHO SHIP:</span>
+              <span class="total-refund-highlight">78.000 đ</span>
+            </div>
+          </div>
+
+          <!-- Nút hành động của Quán -->
+          <div id="modalRefundActions">
+            <button type="button" class="btn-merchant-refund" onclick="confirmModalRefund()">
+              <span>💸</span>
+              <span>XÁC NHẬN NHẬN LẠI MÓN & HOÀN 78.000 đ CHO SHIPPER</span>
+            </button>
+          </div>
+
+          <!-- Trạng thái sau khi hoàn tiền -->
+          <div class="merchant-refund-done-box" id="modalRefundDoneBox" style="display:none;">
+            <div style="font-size:12px; font-weight:800; color:#065F46;">
+              ✓ QUÁN ĐÃ NHẬN LẠI MÓN & HOÀN TIỀN THÀNH CÔNG CHO SHIPPER!
+            </div>
+            <div style="font-size:10.5px; color:#047857; margin-top:2px;">
+              Đã hoàn trả đủ 78.000 đ cho shipper Lê Văn Tùng. Đơn hàng kết thúc xử lý hoàn trả.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom Nav Quán -->
     <nav class="bottom-nav">
       <a href="5.html" class="nav-item active">
@@ -209,32 +443,136 @@
   </div>
 
   <script>
+    // Luôn ưu tiên hiển thị nút xác nhận để người dùng dễ dàng thao tác bấm xác nhận
+    function checkBomOrderState() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isFromParam = urlParams.get('bom_order') === '88291' || urlParams.get('open_bom') === '1';
+
+      // Mặc định luôn sẵn sàng ở trạng thái có nút xác nhận hoàn tiền
+      resetToPendingUI();
+
+      // Tự động mở modal nếu có tham số trên URL
+      if (isFromParam) {
+        openBomDetailModal();
+      }
+    }
+
+    function resetToPendingUI() {
+      // Đặt lại dữ liệu hoàn tiền trong localStorage để người dùng có thể test bấm nút xác nhận
+      const bomData = JSON.parse(localStorage.getItem('oishi_bom_return_order') || '{}');
+      bomData.merchantRefunded = false;
+      bomData.status = 'RETURNING_TO_STORE';
+      localStorage.setItem('oishi_bom_return_order', JSON.stringify(bomData));
+
+      // Hiển thị lại nút xác nhận màu đỏ
+      document.getElementById('modalRefundActions').style.display = 'block';
+      document.getElementById('modalRefundDoneBox').style.display = 'none';
+
+      const statusTag = document.getElementById('lblModalBomStatus');
+      if (statusTag) {
+        statusTag.innerText = 'Chờ Ship Tới';
+        statusTag.style.background = '#FEF2F2';
+        statusTag.style.borderColor = '#FECACA';
+        statusTag.style.color = '#DC2626';
+      }
+
+      const footerRefund = document.getElementById('lblCardFooterRefund');
+      if (footerRefund) {
+        footerRefund.innerText = 'Quán hoàn 78.000 đ cho Ship (Bấm xem ➔)';
+        footerRefund.style.color = 'var(--danger)';
+      }
+
+      const banner = document.getElementById('bomNoticeBanner');
+      if (banner) {
+        banner.style.background = 'linear-gradient(135deg, #FEF2F2, #FFF1F2)';
+        banner.style.borderColor = '#FECACA';
+        document.getElementById('lblBannerTitle').innerText = 'CẢNH BÁO BOM HÀNG • SHIP ĐANG TRẢ MÓN';
+        document.getElementById('lblBannerSub').innerText = 'Đơn #ORD_OISHI_88291 • Chờ quán hoàn 78.000 đ cho Shipper';
+      }
+    }
+
+    function openBomDetailModal() {
+      document.getElementById('bomDetailModal').classList.add('open');
+    }
+
+    function closeBomDetailModal(e) {
+      if (e.target.id === 'bomDetailModal') {
+        document.getElementById('bomDetailModal').classList.remove('open');
+      }
+    }
+
+    function closeBomModalDirect() {
+      document.getElementById('bomDetailModal').classList.remove('open');
+    }
+
+    function confirmModalRefund() {
+      // Cập nhật localStorage
+      const bomData = JSON.parse(localStorage.getItem('oishi_bom_return_order') || '{}');
+      bomData.status = 'COMPLETED_REFUNDED';
+      bomData.merchantRefunded = true;
+      localStorage.setItem('oishi_bom_return_order', JSON.stringify(bomData));
+
+      applyRefundedUI();
+
+      alert("✓ XÁC NHẬN THÀNH CÔNG:\nQuán đã nhận lại đủ 2 ly trà nguyên seal và đã hoàn trả đủ 78.000 đ cho shipper Lê Văn Tùng!");
+    }
+
+    function applyRefundedUI() {
+      document.getElementById('modalRefundActions').style.display = 'none';
+      document.getElementById('modalRefundDoneBox').style.display = 'flex';
+      
+      const statusTag = document.getElementById('lblModalBomStatus');
+      statusTag.innerText = '✓ Đã Tất Toán';
+      statusTag.style.background = '#ECFDF5';
+      statusTag.style.borderColor = '#A7F3D0';
+      statusTag.style.color = '#065F46';
+
+      // Cập nhật trên thẻ đơn hàng ở danh sách
+      const footerRefund = document.getElementById('lblCardFooterRefund');
+      footerRefund.innerText = '✓ Đã nhận lại món & hoàn 78.000 đ cho Ship';
+      footerRefund.style.color = '#059669';
+
+      // Cập nhật banner
+      document.getElementById('lblBannerTitle').innerText = '✓ ĐƠN BOM HÀNG #88291 ĐÃ TẤT TOÁN XONG';
+      document.getElementById('lblBannerSub').innerText = 'Quán đã nhận lại đủ món và đã hoàn trả 78.000 đ cho Shipper';
+      document.getElementById('bomNoticeBanner').style.background = '#ECFDF5';
+      document.getElementById('bomNoticeBanner').style.borderColor = '#A7F3D0';
+    }
+
+
     function filterOrders(btn, type) {
       document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
 
+      const banner = document.getElementById('bomNoticeBanner');
       const delivering = document.querySelectorAll('.item-delivering');
       const success = document.querySelectorAll('.item-success');
       const cancel = document.querySelectorAll('.item-cancel');
 
       if (type === 'ALL') {
+        if (banner) banner.style.display = 'flex';
         delivering.forEach(e => e.style.display = 'flex');
         success.forEach(e => e.style.display = 'flex');
         cancel.forEach(e => e.style.display = 'flex');
       } else if (type === 'DELIVERING') {
+        if (banner) banner.style.display = 'none';
         delivering.forEach(e => e.style.display = 'flex');
         success.forEach(e => e.style.display = 'none');
         cancel.forEach(e => e.style.display = 'none');
       } else if (type === 'SUCCESS') {
+        if (banner) banner.style.display = 'none';
         delivering.forEach(e => e.style.display = 'none');
         success.forEach(e => e.style.display = 'flex');
         cancel.forEach(e => e.style.display = 'none');
       } else if (type === 'CANCEL') {
+        if (banner) banner.style.display = 'flex';
         delivering.forEach(e => e.style.display = 'none');
         success.forEach(e => e.style.display = 'none');
         cancel.forEach(e => e.style.display = 'flex');
       }
     }
+
+    window.addEventListener('DOMContentLoaded', checkBomOrderState);
   </script>
 
 </body>

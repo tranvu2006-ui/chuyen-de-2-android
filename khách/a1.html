@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giao Diện Tĩnh Web - Food Delivery App (Customer)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #FF5722;
+      --primary-hover: #E64A19;
+      --bg: #F1F5F9;
+      --surface: #FFFFFF;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --blue: #2563EB;
+      --green: #10B981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: #0F172A;
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* Khung giả lập Smartphone Android */
+    .mobile-wrapper {
+      width: 412px;
+      height: 840px;
+      background: var(--bg);
+      border-radius: 40px;
+      border: 10px solid #1E293B;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Thanh trạng thái đỉnh điện thoại */
+    .status-bar {
+      height: 30px;
+      background: #FFFFFF;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+      z-index: 10;
+    }
+
+    /* Thanh Header App */
+    .app-header {
+      background: var(--surface);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .app-header h1 {
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .btn-back {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    /* Nội dung màn hình cuộn */
+    .screen-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Ẩn màn hình khi chưa active */
+    .screen {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .screen.active {
+      display: flex;
+    }
+
+    /* Card Giỏ hàng của từng quán */
+    .shop-cart-card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .shop-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed var(--border);
+    }
+
+    .shop-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .shop-tag {
+      font-size: 11px;
+      color: var(--blue);
+      background: #EFF6FF;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-top: 4px;
+      display: inline-block;
+      font-weight: 600;
+    }
+
+    /* Món ăn trong giỏ */
+    .dish-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .dish-info {
+      flex: 1;
+    }
+
+    .dish-name {
+      font-weight: 600;
+      color: #1E293B;
+    }
+
+    .dish-note {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .dish-price {
+      font-weight: 600;
+      color: var(--text);
+      margin-left: 10px;
+    }
+
+    .cart-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn-checkout {
+      background: var(--primary);
+      color: #FFF;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-checkout:hover {
+      background: var(--primary-hover);
+    }
+
+    /* Form thanh toán Checkout */
+    .section-card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    select, input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      outline: none;
+      background: #FAFAFA;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--primary);
+      background: #FFF;
+    }
+
+    /* Radio Phương thức thanh toán */
+    .payment-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .payment-option input {
+      accent-color: var(--primary);
+    }
+
+    /* Chi tiết tiền */
+    .bill-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .bill-row.total {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary);
+      border-top: 1px dashed var(--border);
+      padding-top: 8px;
+      margin-top: 8px;
+    }
+
+    /* Màn hình hoàn tất & Mã QR */
+    .qr-box {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .qr-code-img {
+      width: 170px;
+      height: 170px;
+      margin: 16px auto;
+      background: #000;
+      padding: 10px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFF;
+      font-size: 12px;
+      font-family: monospace;
+      letter-spacing: 1px;
+    }
+
+    .token-text {
+      font-family: monospace;
+      font-size: 14px;
+      font-weight: 700;
+      background: #F1F5F9;
+      padding: 6px 12px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- KHUNG ĐIỆN THOẠI MÔ PHỎNG -->
+  <div class="mobile-wrapper">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>09:41</span>
+      <span>📶 5G 🔋 100%</span>
+    </div>
+
+    <!-- MÀN HÌNH 1: GIỎ HÀNG ĐA QUÁN -->
+    <div id="screen-cart" class="screen active">
+      <div class="app-header">
+        <h1>Giỏ Hàng Của Bạn</h1>
+        <span style="font-size: 12px; color: var(--primary); font-weight: 600;">2 Quán Ăn</span>
+      </div>
+
+      <div class="screen-content">
+        <p style="font-size: 12px; color: var(--text-muted);">Mỗi quán có giỏ hàng riêng biệt. Chọn quán bạn muốn đặt trước:</p>
+
+        <!-- Giỏ Quán 1 -->
+        <div class="shop-cart-card">
+          <div class="shop-header">
+            <div>
+              <div class="shop-title">🏪 Phúc Long - Huỳnh Thúc Kháng</div>
+              <span class="shop-tag">Vị trí: Quận 1, TP.HCM</span>
+            </div>
+            <button style="border:none;background:none;color:#EF4444;cursor:pointer;">🗑️</button>
+          </div>
+
+          <div class="dish-item">
+            <div class="dish-info">
+              <div class="dish-name">Trà Ô Long Sữa (L) x1</div>
+              <div class="dish-note">50% đường, ít đá</div>
+            </div>
+            <div class="dish-price">55.000 đ</div>
+          </div>
+
+          <div class="dish-item">
+            <div class="dish-info">
+              <div class="dish-name">Bánh Croissant Bơ Tỏi x1</div>
+            </div>
+            <div class="dish-price">35.000 đ</div>
+          </div>
+
+          <div class="cart-footer">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted);">Tạm tính:</div>
+              <div style="font-size: 15px; font-weight: 700; color: var(--primary);">90.000 đ</div>
+            </div>
+            <button class="btn-checkout" onclick="openCheckout('Phúc Long - Huỳnh Thúc Kháng', 'Quận 1', 90000)">
+              Đặt Quán Này 👉
+            </button>
+          </div>
+        </div>
+
+        <!-- Giỏ Quán 2 -->
+        <div class="shop-cart-card">
+          <div class="shop-header">
+            <div>
+              <div class="shop-title">🏪 Cơm Tấm Ba Ghiền</div>
+              <span class="shop-tag">Vị trí: Phú Nhuận, TP.HCM</span>
+            </div>
+            <button style="border:none;background:none;color:#EF4444;cursor:pointer;">🗑️</button>
+          </div>
+
+          <div class="dish-item">
+            <div class="dish-info">
+              <div class="dish-name">Cơm Tấm Sườn Bì Chả x1</div>
+              <div class="dish-note">Thêm mỡ hành, nước mắm ngọt</div>
+            </div>
+            <div class="dish-price">85.000 đ</div>
+          </div>
+
+          <div class="cart-footer">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted);">Tạm tính:</div>
+              <div style="font-size: 15px; font-weight: 700; color: var(--primary);">85.000 đ</div>
+            </div>
+            <button class="btn-checkout" onclick="openCheckout('Cơm Tấm Ba Ghiền', 'Quận Phú Nhuận', 85000)">
+              Đặt Quán Này 👉
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MÀN HÌNH 2: THANH TOÁN (CHECKOUT) -->
+    <div id="screen-checkout" class="screen">
+      <div class="app-header">
+        <button class="btn-back" onclick="switchScreen('screen-cart')">←</button>
+        <h1 id="checkout-shop-name">Xác Nhận Đơn Hàng</h1>
+        <div style="width: 20px;"></div>
+      </div>
+
+      <div class="screen-content">
+        <!-- Địa chỉ & Quận Huyện TP.HCM -->
+        <div class="section-card">
+          <div class="section-title">📍 Địa Chỉ Nhận Hàng (TP.HCM)</div>
+
+          <div class="form-group">
+            <label class="form-label">Chọn Quận / Huyện nhận hàng:</label>
+            <select id="district-select" onchange="updateShippingFee()">
+              <option value="Quận 1">Quận 1 (Cùng quận quán)</option>
+              <option value="Quận 3">Quận 3 (Nội thành liên quận)</option>
+              <option value="Quận Bình Thạnh">Bình Thạnh (Nội thành)</option>
+              <option value="TP. Thủ Đức">TP. Thủ Đức (Cận trung tâm)</option>
+              <option value="Huyện Hóc Môn">Huyện Hóc Môn (Ngoại thành)</option>
+              <option value="Huyện Củ Chi">Huyện Củ Chi (Ngoại thành)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Địa chỉ cụ thể:</label>
+            <input type="text" value="Số 12 Đường Lê Lợi, Phường Bến Nghé" placeholder="Số nhà, tên đường...">
+          </div>
+        </div>
+
+        <!-- Phương thức thanh toán -->
+        <div class="section-card">
+          <div class="section-title">💳 Phương Thức Thanh Toán</div>
+
+          <label class="payment-option">
+            <input type="radio" name="payment" checked>
+            <span>Ví MoMo (Trực tuyến / Sandbox)</span>
+          </label>
+
+          <label class="payment-option">
+            <input type="radio" name="payment">
+            <span>Cổng VNPAY (QR / Thẻ ATM)</span>
+          </label>
+
+          <label class="payment-option">
+            <input type="radio" name="payment">
+            <span>Tiền mặt COD (Shipper quán thu)</span>
+          </label>
+        </div>
+
+        <!-- Tóm tắt chi phí -->
+        <div class="section-card">
+          <div class="section-title">🧾 Chi Tiết Thanh Toán</div>
+
+          <div class="bill-row">
+            <span>Tiền món:</span>
+            <span id="bill-subtotal">90.000 đ</span>
+          </div>
+
+          <div class="bill-row">
+            <span>Phí giao hàng (<span id="shipping-rule-text">Cùng quận</span>):</span>
+            <span id="bill-shipping" style="color: var(--blue); font-weight: 600;">15.000 đ</span>
+          </div>
+
+          <div class="bill-row total">
+            <span>Tổng thanh toán:</span>
+            <span id="bill-total">105.000 đ</span>
+          </div>
+
+          <button class="btn-checkout" style="width: 100%; margin-top: 14px; padding: 12px; font-size: 15px;" onclick="placeOrder()">
+            Xác Nhận Đặt Hàng
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MÀN HÌNH 3: TIẾN TRÌNH & MÃ QR GỘP -->
+    <div id="screen-success" class="screen">
+      <div class="app-header">
+        <h1>Tiến Trình Đơn Hàng</h1>
+        <button class="btn-back" onclick="switchScreen('screen-cart')">✕</button>
+      </div>
+
+      <div class="screen-content">
+        <div class="qr-box">
+          <span style="font-size: 28px;">🛵</span>
+          <h2 style="font-size: 16px; margin: 8px 0 4px 0;">Tài xế của quán đang giao!</h2>
+          <p style="font-size: 12px; color: var(--text-muted);">Vui lòng đưa mã QR bên dưới cho tài xế quét bằng camera khi nhận món ăn.</p>
+
+          <!-- Giả lập Mã QR Gộp -->
+          <div class="qr-code-img">
+            [ ■■■ QR CODE ■■■ ]<br>
+            DELIVERY TOKEN
+          </div>
+
+          <div class="token-text" id="display-token">TOKEN_HCM_99812</div>
+
+          <div style="text-align: left; background: #F8FAFC; padding: 12px; border-radius: 10px; font-size: 12px; margin-top: 12px;">
+            <div>📦 <b>Trạng thái:</b> Đang di chuyển</div>
+            <div>👤 <b>Shipper:</b> Nhân viên quán Phúc Long</div>
+            <div>📍 <b>Khu vực:</b> Giao tới Quận 1</div>
+          </div>
+
+          <button class="btn-checkout" style="width: 100%; margin-top: 16px;" onclick="alert('Đã giả lập shipper quét mã thành công! Đơn hàng chuyển trạng thái DELIVERED.'); switchScreen('screen-cart');">
+            Giả Lập: Shipper Đã Quét Xong
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let currentShopDistrict = "Quận 1";
+    let currentSubtotal = 90000;
+    let currentShippingFee = 15000;
+
+    function switchScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    function openCheckout(shopName, shopDistrict, subtotal) {
+      currentShopDistrict = shopDistrict;
+      currentSubtotal = subtotal;
+      
+      document.getElementById('checkout-shop-name').innerText = shopName;
+      document.getElementById('bill-subtotal').innerText = subtotal.toLocaleString('vi-VN') + ' đ';
+      
+      updateShippingFee();
+      switchScreen('screen-checkout');
+    }
+
+    // Logic tính phí ship Quận/Huyện TP.HCM
+    function updateShippingFee() {
+      const selectedDistrict = document.getElementById('district-select').value;
+      const ruleText = document.getElementById('shipping-rule-text');
+
+      // Danh sách ngoại thành
+      const suburban = ["Huyện Hóc Môn", "Huyện Củ Chi"];
+
+      if (selectedDistrict === currentShopDistrict) {
+        currentShippingFee = 15000; // Cùng quận
+        ruleText.innerText = "Nội quận";
+      } else if (suburban.includes(selectedDistrict)) {
+        currentShippingFee = 45000; // Ngoại thành
+        ruleText.innerText = "Ngoại thành";
+      } else {
+        currentShippingFee = 25000; // Liên quận nội thành
+        ruleText.innerText = "Liên quận";
+      }
+
+      const total = currentSubtotal + currentShippingFee;
+      document.getElementById('bill-shipping').innerText = currentShippingFee.toLocaleString('vi-VN') + ' đ';
+      document.getElementById('bill-total').innerText = total.toLocaleString('vi-VN') + ' đ';
+    }
+
+    function placeOrder() {
+      const randomToken = "TOKEN_HCM_" + Math.floor(10000 + Math.random() * 90000);
+      document.getElementById('display-token').innerText = randomToken;
+      switchScreen('screen-success');
+    }
+  </script>
+</body>
+</html>

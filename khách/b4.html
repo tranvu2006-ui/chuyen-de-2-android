@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Đặt Món Trực Tuyến TP.HCM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F5F5F5;
+      --card-bg: #FFFFFF;
+      --text: #222222;
+      --text-muted: #757575;
+      --border: #ECECEC;
+      --tag-green: #00B14F;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    /* Khung giả lập Smartphone */
+    .mobile-frame {
+      width: 412px; height: 840px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: var(--primary); color: #FFF;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 20px; font-size: 11px; font-weight: 600;
+    }
+
+    /* Header Bar Oishi Food */
+    .header-bar {
+      background: var(--primary); padding: 10px 16px 14px 16px; color: #FFF;
+    }
+    .brand-row {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .brand-left {
+      display: flex; align-items: center; gap: 8px; text-decoration: none; color: #FFF;
+    }
+    .brand-logo {
+      width: 32px; height: 32px; background: #FFF; color: var(--primary);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .brand-name {
+      font-size: 18px; font-weight: 800; letter-spacing: -0.3px;
+    }
+    .location-select {
+      display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
+      background: rgba(255, 255, 255, 0.18); padding: 4px 10px; border-radius: 99px;
+    }
+    .search-box {
+      background: #FFF; border-radius: 10px; display: flex; align-items: center;
+      padding: 8px 12px; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-top: 4px;
+    }
+    .search-box input {
+      border: none; outline: none; width: 100%; font-size: 13px; color: var(--text);
+    }
+
+    /* Nội dung cuộn chính */
+    .main-content {
+      flex: 1; overflow-y: auto; padding: 14px 14px 110px 14px;
+    }
+
+    /* Banner Carousel */
+    .banner {
+      background: linear-gradient(135deg, #FF6933, #EE4D2D);
+      border-radius: 14px; padding: 16px; color: #FFF; margin-bottom: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .banner h2 { font-size: 16px; font-weight: 800; }
+    .banner p { font-size: 11px; opacity: 0.9; margin-top: 4px; }
+    .banner-badge { background: #FFD21E; color: #000; font-weight: 700; font-size: 10px; padding: 3px 8px; border-radius: 4px; }
+
+    /* Danh mục icon món ăn */
+    .categories {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;
+      background: #FFF; padding: 14px; border-radius: 14px;
+    }
+    .cat-item { text-align: center; cursor: pointer; }
+    .cat-icon {
+      width: 44px; height: 44px; background: #FFF5F1; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 6px auto; font-size: 20px;
+    }
+    .cat-name { font-size: 11px; font-weight: 600; color: #333; }
+
+    /* Danh sách quán ăn */
+    .section-title { font-size: 15px; font-weight: 800; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .shop-list { display: flex; flex-direction: column; gap: 12px; }
+    .shop-card {
+      background: #FFF; border-radius: 12px; padding: 12px; display: flex; gap: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.15s;
+    }
+    .shop-card:active { transform: scale(0.98); }
+    .shop-img {
+      width: 76px; height: 76px; border-radius: 8px; background: #EEE;
+      display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;
+    }
+    .shop-info { flex: 1; }
+    .shop-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    .shop-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .shop-tags { display: flex; gap: 6px; margin-top: 8px; }
+    .tag-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .tag-green { background: #E8F7EE; color: var(--tag-green); }
+    .tag-orange { background: #FFF0ED; color: var(--primary); }
+
+    /* Nút giỏ hàng nổi góc dưới - Đặt trên Bottom Nav */
+    .floating-cart-btn {
+      position: absolute; bottom: 68px; left: 16px; right: 16px;
+      background: var(--primary); color: #FFF; border-radius: 12px;
+      padding: 10px 16px; display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 8px 18px rgba(238, 77, 45, 0.4); text-decoration: none; font-weight: 700; font-size: 13px;
+      z-index: 10;
+    }
+    .cart-badge {
+      background: #FFF; color: var(--primary); font-size: 11px;
+      border-radius: 99px; padding: 2px 8px; margin-left: 6px; font-weight: 800;
+    }
+
+    /* Thanh Bottom Navigation chuẩn Mobile App */
+    .bottom-nav {
+      height: 58px; background: #FFFFFF; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around; align-items: center; z-index: 20;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600;
+      gap: 3px; position: relative; width: 25%;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 18px; line-height: 1; }
+    .nav-badge {
+      position: absolute; top: -2px; right: 26px; background: var(--primary); color: #FFF;
+      font-size: 9px; font-weight: 700; border-radius: 99px; padding: 1px 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>09:42</span>
+      <span>📶 5G 🔋 100%</span>
+    </div>
+
+    <!-- Header Oishi Food -->
+    <div class="header-bar">
+      <div class="brand-row">
+        <!-- Tên App nằm trên bên trái -->
+        <a href="b4.html" class="brand-left">
+          <div class="brand-logo">🍲</div>
+          <span class="brand-name">Oishi Food</span>
+        </a>
+        <div class="location-select">
+          <span>📍 Q.1, TP.HCM ▾</span>
+        </div>
+      </div>
+
+      <div class="search-box">
+        <span>🔍</span>
+        <input type="text" placeholder="Tìm món ngon, quán ăn tại TP.HCM...">
+      </div>
+    </div>
+
+    <!-- Scroll Content -->
+    <div class="main-content">
+      <!-- Banner -->
+      <div class="banner">
+        <div>
+          <span class="banner-badge">Freeship Extra</span>
+          <h2>ĐẠI TIỆC 0 ĐỒNG</h2>
+          <p>Mỗi quán 1 giỏ riêng • Giao nhanh nội thành</p>
+        </div>
+        <div style="font-size: 34px;">🍔</div>
+      </div>
+
+      <!-- Categories -->
+      <div class="categories">
+        <div class="cat-item">
+          <div class="cat-icon">🍚</div>
+          <span class="cat-name">Cơm Trưa</span>
+        </div>
+        <div class="cat-item">
+          <div class="cat-icon">🧋</div>
+          <span class="cat-name">Trà Sữa</span>
+        </div>
+        <div class="cat-item">
+          <div class="cat-icon">🍜</div>
+          <span class="cat-name">Bún/Phở</span>
+        </div>
+        <div class="cat-item">
+          <div class="cat-icon">🍗</div>
+          <span class="cat-name">Gà Rán</span>
+        </div>
+      </div>
+
+      <!-- Danh Sách Quán Ăn -->
+      <div class="section-title">
+        <span>Quán ngon gần bạn</span>
+        <span style="font-size: 12px; color: var(--primary); font-weight: 600;">Xem tất cả</span>
+      </div>
+
+      <div class="shop-list">
+        <!-- Quán 1 -->
+        <div class="shop-card" onclick="window.location.href='b5.html'">
+          <div class="shop-img">🧋</div>
+          <div class="shop-info">
+            <h3 class="shop-name">Phúc Long Tea & Coffee - Huỳnh Thúc Kháng</h3>
+            <p class="shop-meta">⭐ 4.9 (500+) • Quận 1, TP.HCM</p>
+            <div class="shop-tags">
+              <span class="tag-badge tag-green">Đang Mở Cửa</span>
+              <span class="tag-badge tag-orange">Shipper Quán Giao</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quán 2 -->
+        <div class="shop-card" onclick="window.location.href='b5.html'">
+          <div class="shop-img">🍛</div>
+          <div class="shop-info">
+            <h3 class="shop-name">Cơm Tấm Sườn Ba Ghiền</h3>
+            <p class="shop-meta">⭐ 4.8 (1.2k) • Phú Nhuận, TP.HCM</p>
+            <div class="shop-tags">
+              <span class="tag-badge tag-green">Đang Mở Cửa</span>
+              <span class="tag-badge tag-orange">Món Nóng Hổi</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quán 3 -->
+        <div class="shop-card" onclick="window.location.href='b5.html'">
+          <div class="shop-img">🥖</div>
+          <div class="shop-info">
+            <h3 class="shop-name">Bánh Mì Huỳnh Hoa</h3>
+            <p class="shop-meta">⭐ 4.7 (800+) • Quận 1, TP.HCM</p>
+            <div class="shop-tags">
+              <span class="tag-badge tag-green">Freeship 15k</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nút Giỏ Hàng Nổi (Nằm ngay trên thanh Nav) -->
+    <a href="b7.html" class="floating-cart-btn">
+      <div style="display: flex; align-items: center;">
+        <span>🛒 Giỏ Hàng Của Bạn</span>
+        <span class="cart-badge">2 quán</span>
+      </div>
+      <div>175.000 đ ➔</div>
+    </a>
+
+    <!-- Thanh Bottom Navigation -->
+    <nav class="bottom-nav">
+      <a href="b4.html" class="nav-item active">
+        <span class="nav-icon">🏠</span>
+        <span>Trang chủ</span>
+      </a>
+      <a href="b9.html" class="nav-item">
+        <span class="nav-icon">🧾</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">🔔</span>
+        <span class="nav-badge">2</span>
+        <span>Thông báo</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">👤</span>
+        <span>Tôi</span>
+      </a>
+    </nav>
+  </div>
+
+</body>
+</html>

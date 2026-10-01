@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thanh Toán ShopeeFood</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --bg: #F5F5F5;
+      --text: #222222;
+      --text-muted: #757575;
+      --border: #ECECEC;
+      --blue: #2563EB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 840px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: #FFF; color: #222;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 20px; font-size: 11px; font-weight: 600; border-bottom: 1px solid var(--border);
+    }
+    .top-header {
+      background: #FFF; padding: 12px 16px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid var(--border);
+    }
+    .top-header h1 { font-size: 16px; font-weight: 800; color: var(--text); }
+    .btn-back { text-decoration: none; font-size: 18px; color: var(--text); font-weight: 700; }
+
+    .checkout-content { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+
+    .card-section {
+      background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border);
+    }
+    .section-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+
+    /* Dropdown Quận/Huyện */
+    select, input[type="text"] {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 13px; outline: none; background: #FAFAFA; margin-bottom: 8px;
+    }
+    select:focus, input[type="text"]:focus { border-color: var(--primary); background: #FFF; }
+
+    .ship-rule-info {
+      font-size: 11px; color: var(--blue); background: #EFF6FF; padding: 6px 10px; border-radius: 6px; font-weight: 500;
+    }
+
+    /* Phương thức thanh toán */
+    .pay-method {
+      display: flex; align-items: center; gap: 10px; padding: 10px;
+      border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 13px;
+    }
+    .pay-method input { accent-color: var(--primary); }
+
+    /* Tóm tắt tiền */
+    .bill-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; }
+    .bill-row.total {
+      font-size: 15px; font-weight: 800; color: var(--primary);
+      border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px;
+    }
+
+    /* Danh sách đơn giá các món & Bộ tăng giảm số lượng */
+    .dish-items-box {
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 12px;
+      padding: 10px 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .dish-item-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 10px; border-bottom: 1px dashed #E2E8F0; transition: opacity 0.2s;
+    }
+    .dish-item-row:last-child {
+      border-bottom: none; padding-bottom: 0;
+    }
+    .dish-item-info { flex: 1; min-width: 0; padding-right: 10px; }
+    .dish-item-name { font-size: 13px; font-weight: 700; color: #1E293B; }
+    .dish-item-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .dish-item-unit-price { font-size: 11px; color: #047857; font-weight: 600; margin-top: 2px; }
+
+    .dish-item-action-col {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    }
+    .dish-item-price { font-size: 13px; font-weight: 800; color: #1E293B; white-space: nowrap; }
+
+    .qty-control {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-qty {
+      width: 24px; height: 24px; border: 1px solid #CBD5E1; border-radius: 6px;
+      background: #FFF; font-weight: 800; cursor: pointer; display: flex;
+      align-items: center; justify-content: center; font-size: 12px; color: #334155;
+      transition: all 0.15s;
+    }
+    .btn-qty:hover { background: #F1F5F9; border-color: #94A3B8; }
+    .btn-qty.plus {
+      background: var(--primary); color: #FFF; border-color: var(--primary);
+    }
+    .btn-qty.plus:hover { background: #D73211; }
+    .qty-val {
+      font-size: 13px; font-weight: 800; min-width: 16px; text-align: center; color: #1E293B;
+    }
+
+    /* Chân màn hình cố định */
+    .bottom-bar {
+      background: #FFF; border-top: 1px solid var(--border); padding: 12px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .btn-submit {
+      background: var(--primary); color: #FFF; border: none; border-radius: 10px;
+      padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+
+    /* Modal hiển thị Mã QR sau khi chốt đơn */
+    .modal-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 100;
+    }
+    .qr-card {
+      background: #FFF; width: 100%; border-radius: 20px; padding: 24px; text-align: center;
+    }
+    .qr-code-box {
+      width: 160px; height: 160px; background: #000; color: #FFF;
+      display: flex; align-items: center; justify-content: center; margin: 14px auto;
+      border-radius: 12px; font-family: monospace; font-size: 12px;
+    }
+
+    /* --- PHƯƠNG THỨC THANH TOÁN: TRẢ THẲNG HOẶC CỌC 20% --- */
+    .payment-option-card {
+      background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px;
+      padding: 12px; display: flex; gap: 10px; cursor: pointer; transition: all 0.2s ease;
+      margin-bottom: 10px; align-items: flex-start;
+    }
+    .payment-option-card:hover {
+      border-color: #94A3B8; background: #FFF;
+    }
+    .payment-option-card.active {
+      background: #FFF9F7; border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+    .payment-option-card input[type="radio"] {
+      margin-top: 3px; accent-color: var(--primary); width: 16px; height: 16px; cursor: pointer;
+    }
+
+    .payment-option-info { flex: 1; min-width: 0; }
+    .payment-option-head {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
+    }
+    .payment-option-name {
+      font-size: 13.5px; font-weight: 800; color: #0F172A;
+    }
+    .badge-discount {
+      background: #ECFDF5; color: #059669; font-size: 10px; font-weight: 800;
+      padding: 2px 7px; border-radius: 4px; border: 1px solid #A7F3D0;
+    }
+    .badge-deposit {
+      background: #FEF3C7; color: #B45309; font-size: 10px; font-weight: 800;
+      padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;
+    }
+    .badge-trust {
+      background: #ECFDF5; color: #047857; font-size: 10px; font-weight: 800;
+      padding: 2px 7px; border-radius: 4px; border: 1px solid #A7F3D0;
+      display: inline-flex; align-items: center; gap: 3px;
+    }
+    .trust-eligible-pill {
+      margin-top: 6px; display: inline-flex; align-items: center; gap: 5px;
+      background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px;
+      padding: 3px 8px; font-size: 11px; color: #15803D; font-weight: 600;
+    }
+    .trust-eligible-pill b { color: #166534; font-weight: 800; }
+    .payment-option-desc {
+      font-size: 11.5px; color: #64748B; line-height: 1.4;
+    }
+    .payment-amount-highlight {
+      margin-top: 6px; font-size: 12px; font-weight: 800; color: var(--primary);
+    }
+
+    .deposit-breakdown {
+      display: flex; gap: 12px; margin-top: 6px; font-size: 11px;
+      background: #FFF; padding: 6px 10px; border-radius: 8px; border: 1px solid #F1F5F9;
+    }
+    .deposit-now { color: var(--primary); font-weight: 700; }
+    .deposit-remain { color: #475569; font-weight: 700; }
+
+    /* Kênh thanh toán online */
+    .channel-select-wrap {
+      margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border);
+    }
+    .channel-title {
+      font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 6px;
+    }
+    .channel-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    }
+    .channel-card {
+      border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 10px 6px;
+      text-align: center; cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; gap: 4px; transition: all 0.15s; background: #FFF;
+    }
+    .channel-card:hover { border-color: #94A3B8; }
+    .channel-card.active {
+      border-color: var(--primary); background: #FFF5F2;
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+    .channel-icon { font-size: 16px; }
+    .channel-name { font-size: 11px; font-weight: 700; color: #1E293B; }
+    .channel-card.active .channel-name { color: var(--primary); }
+
+    /* Dòng tiền chi tiết */
+    .bill-row-highlight {
+      display: flex; justify-content: space-between; font-size: 13.5px;
+      font-weight: 800; color: var(--primary); padding: 4px 0;
+    }
+    .bill-row-remain {
+      display: flex; justify-content: space-between; font-size: 12px;
+      font-weight: 700; color: #475569; padding: 2px 0;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <div class="status-bar">
+      <span>09:42</span>
+      <span>📶 5G 🔋 100%</span>
+    </div>
+
+    <div class="top-header">
+      <a href="b7.html" class="btn-back">←</a>
+      <h1>Xác Nhận & Thanh Toán</h1>
+      <a href="b1.html" class="btn-home-nav" title="Về màn hình chính" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #0F172A; background: #F1F5F9; padding: 4px 8px; border-radius: 10px; border: 1px solid #CBD5E1; text-decoration: none;">
+        <span>🏠</span>
+        <span>Chính</span>
+      </a>
+    </div>
+
+    <div class="checkout-content">
+      <!-- 1. Địa Chỉ Nhận Hàng (Đổi Vùng: TP.HCM, Vũng Tàu, Bình Dương, Đồng Nai & Phường) -->
+      <div class="card-section">
+        <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>📍 Địa Chỉ Nhận Hàng</span>
+          <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: #FFF0ED; padding: 2px 8px; border-radius: 6px;" id="lblCurrentRegionTitle">TP. Hồ Chí Minh</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+          <div>
+            <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">
+              Vùng / Tỉnh Thành:
+            </label>
+            <select id="regionSelect" onchange="onRegionChange()" style="margin-bottom: 0;">
+              <option value="TP. Hồ Chí Minh" selected>TP. Hồ Chí Minh</option>
+              <option value="TP. Vũng Tàu">TP. Vũng Tàu</option>
+              <option value="Bình Dương">Bình Dương</option>
+              <option value="Đồng Nai">Đồng Nai</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">
+              Chọn Phường / Xã:
+            </label>
+            <select id="wardSelect" onchange="calculateShippingFee()" style="margin-bottom: 0;">
+              <!-- Điền tự động theo Vùng -->
+            </select>
+          </div>
+        </div>
+
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 4px;">
+          Số nhà, tên đường chi tiết:
+        </label>
+        <input type="text" id="streetInput" value="Số 104 Đường Hai Bà Trưng, Phường Đa Kao" placeholder="Số nhà, tên đường...">
+        
+        <div class="ship-rule-info" id="shipRuleTag">
+          🛵 Cùng phường: 15.000đ | Liên phường: 25.000đ | Ngoại thành: 45.000đ
+        </div>
+      </div>
+
+      <!-- 2. HÌNH THỨC THANH TOÁN: TRẢ THẲNG HOẶC CỌC 20% -->
+      <div class="card-section">
+        <div class="section-title">💳 Hình Thức Thanh Toán</div>
+
+        <!-- Phương thức 1: Trả Thẳng 100% -->
+        <label class="payment-option-card active" id="card-pay-full" onclick="selectPaymentMode('FULL')">
+          <input type="radio" name="pay_mode" id="radio-full" value="FULL" checked>
+          <div class="payment-option-info">
+            <div class="payment-option-head">
+              <span class="payment-option-name">💰 Trả Thẳng (100% Đơn Hàng)</span>
+              <span style="background:#EFF6FF; color:#1D4ED8; font-size:10px; font-weight:800; padding:2px 7px; border-radius:6px; border:1px solid #BFDBFE;">🛡️ Giữ Nguyên Uy Tín</span>
+            </div>
+            <div class="payment-option-desc">
+              Thanh toán toàn bộ 100% đơn hàng. Khi shipper giao tới, bạn chỉ cần quét mã QR nhận hàng, không cần chuẩn bị tiền mặt.
+            </div>
+            <div class="payment-amount-highlight" id="lbl-pay-full-amt">
+              Thanh toán ngay: 105.000 đ
+            </div>
+            <!-- Điều khoản bảo vệ điểm uy tín khi trả hết -->
+            <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:8px; padding:6px 10px; margin-top:6px; font-size:11px; color:#1D4ED8; line-height:1.4;">
+              🛡️ <b>Chính sách bảo lưu uy tín:</b> Nếu không nhận hàng, bạn sẽ <b>mất 100% tiền đơn</b> nhưng <b>KHÔNG BỊ TRỪ ĐIỂM UY TÍN</b> (vì quán và tài xế đã được thanh toán đầy đủ).
+            </div>
+          </div>
+        </label>
+
+        <!-- Phương thức 2: Đặt Cọc 20% -->
+        <label class="payment-option-card" id="card-pay-deposit" onclick="selectPaymentMode('DEPOSIT')">
+          <input type="radio" name="pay_mode" id="radio-deposit" value="DEPOSIT">
+          <div class="payment-option-info">
+            <div class="payment-option-head">
+              <span class="payment-option-name">⚡ Đặt Cọc 20% Giữ Đơn</span>
+              <span class="badge-deposit">Cọc 20%</span>
+            </div>
+            <div class="payment-option-desc">
+              Chỉ cần thanh toán cọc 20% ngay bây giờ để quán bắt đầu làm món. Số tiền còn lại (80% + phí ship) bạn thanh toán trực tiếp cho shipper khi nhận món.
+            </div>
+            <div class="deposit-breakdown">
+              <span class="deposit-now">Cọc ngay (20%): <b id="lbl-deposit-now">21.000 đ</b></span>
+              <span class="deposit-remain">Thu khi nhận: <b id="lbl-deposit-remain">84.000 đ</b></span>
+            </div>
+            <!-- Chế tài khi không nhận hàng đối với đơn cọc -->
+            <div style="background:#FFFBEB; border:1px solid #FCD34D; border-radius:8px; padding:6px 10px; margin-top:6px; font-size:11px; color:#92400E; line-height:1.4;">
+              ⚠️ <b>Chế tài bùng hàng:</b> Nếu không nhận hàng, bạn sẽ <b>MẤT TOÀN BỘ TIỀN CỌC</b> và <b>BỊ TRỪ 20 ĐIỂM UY TÍN</b> theo quy định hệ thống.
+            </div>
+          </div>
+        </label>
+
+        <!-- Phương thức 3: Thanh Toán Khi Nhận Hàng (COD - Chỉ Áp Dụng Uy Tín Cao) -->
+        <label class="payment-option-card" id="card-pay-cod" onclick="selectPaymentMode('COD')">
+          <input type="radio" name="pay_mode" id="radio-cod" value="COD">
+          <div class="payment-option-info">
+            <div class="payment-option-head">
+              <span class="payment-option-name">💵 Thanh Toán Khi Nhận Hàng (COD)</span>
+              <span class="badge-trust">👑 Chỉ áp dụng uy tín cao</span>
+            </div>
+            <div class="payment-option-desc">
+              Nhận hàng, kiểm tra đồ ăn rồi mới thanh toán tiền cho tài xế. Không cần thanh toán trước hay đặt cọc.
+            </div>
+            <div class="trust-eligible-pill">
+              <span>⭐ Điểm uy tín của bạn: <b>98/100</b> (Đủ điều kiện nhận hàng trả sau)</span>
+            </div>
+            <div class="payment-amount-highlight" id="lbl-pay-cod-amt" style="color: #059669;">
+              Thanh toán khi nhận: 105.000 đ (Trả trước: 0 đ)
+            </div>
+            <!-- Chế tài khi bùng hàng COD -->
+            <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:6px 10px; margin-top:6px; font-size:11px; color:#DC2626; line-height:1.4;">
+              🚨 <b>Chế tài bùng hàng COD:</b> Nếu không nhận hàng, bạn sẽ <b>BỊ TRỪ 30 ĐIỂM UY TÍN</b> và bị tước đặc quyền đặt COD.
+            </div>
+          </div>
+        </label>
+
+        <!-- Kênh thanh toán (Chỉ áp dụng cho Trả Thẳng & Cọc, ẩn khi chọn COD) -->
+        <div class="channel-select-wrap" id="channelSelectWrap">
+          <div class="channel-title" id="channelSelectTitle">Chọn kênh thanh toán trực tuyến:</div>
+          <div class="channel-grid">
+            <div class="channel-card active" onclick="selectChannel('momo', this)">
+              <span class="channel-icon">👛</span>
+              <span class="channel-name">Ví MoMo</span>
+            </div>
+            <div class="channel-card" onclick="selectChannel('bank', this)">
+              <span class="channel-icon">🏦</span>
+              <span class="channel-name">Ngân Hàng</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Chi tiết đơn hàng & Thanh toán -->
+      <div class="card-section">
+        <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span>🧾 Chi Tiết Đơn Hàng</span>
+          <span style="font-size: 11px; font-weight: 700; color: var(--primary); background: #FFF0ED; padding: 2px 8px; border-radius: 6px;" id="lblDishCount">2 món</span>
+        </div>
+
+        <!-- Thông tin Quán & Mã Đơn Hàng -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #1E293B;">
+            <span>🏪</span> <span>Hồng Trà Ngô Gia (Thủ Đức)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 10.5px; color: var(--text-muted); font-weight: 600;">Mã đơn:</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 800; color: var(--primary); background: #FFF0ED; border: 1px solid #FFD8D0; padding: 2px 7px; border-radius: 6px;" id="lblOrderCodeBadge">#ORD_OISHI_88291</span>
+          </div>
+        </div>
+
+        <!-- Danh sách đơn giá các món & Bộ tăng giảm số lượng -->
+        <div class="dish-items-box" id="dishItemsList">
+          <div class="dish-item-row">
+            <div class="dish-item-info">
+              <div class="dish-item-name">1x Trà Xí Muội Ô Long</div>
+              <div class="dish-item-sub">• Size M • 100% đường • Ít đá</div>
+              <div class="dish-item-unit-price">Đơn giá: 28.000 đ</div>
+            </div>
+            <div class="dish-item-action-col">
+              <div class="dish-item-price">28.000 đ</div>
+              <div class="qty-control">
+                <button class="btn-qty" onclick="changeDishQty(1, -1)">—</button>
+                <span class="qty-val">1</span>
+                <button class="btn-qty plus" onclick="changeDishQty(1, 1)">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="dish-item-row">
+            <div class="dish-item-info">
+              <div class="dish-item-name">1x Trà Xí Muội Ngô Gia</div>
+              <div class="dish-item-sub">• Size M • 70% đường • Đá riêng</div>
+              <div class="dish-item-unit-price">Đơn giá: 25.000 đ</div>
+            </div>
+            <div class="dish-item-action-col">
+              <div class="dish-item-price">25.000 đ</div>
+              <div class="qty-control">
+                <button class="btn-qty" onclick="changeDishQty(2, -1)">—</button>
+                <span class="qty-val">1</span>
+                <button class="btn-qty plus" onclick="changeDishQty(2, 1)">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bill-row">
+          <span>Mã đơn hàng:</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 800; color: #1E293B;">#ORD_OISHI_88291</span>
+        </div>
+
+        <div class="bill-row">
+          <span>Tổng tiền món ăn:</span>
+          <span id="txtSubtotal">53.000 đ</span>
+        </div>
+
+        <div class="bill-row">
+          <span>Phí giao hàng <span id="txtRegionBill">TP.HCM</span> (<span id="txtZone">Cùng phường</span>):</span>
+          <span id="txtShippingFee" style="color: var(--blue); font-weight: 700;">15.000 đ</span>
+        </div>
+
+        <div class="bill-row" style="border-top: 1px dashed var(--border); padding-top: 6px;">
+          <span>Tổng giá trị đơn hàng:</span>
+          <span id="txtOrderTotal" style="font-weight: 800;">68.000 đ</span>
+        </div>
+
+        <div class="bill-row">
+          <span>Hình thức đã chọn:</span>
+          <span id="txtSelectedMode" style="font-weight: 800; color: var(--primary);">Trả thẳng 100% (Ví MoMo)</span>
+        </div>
+
+        <div class="bill-row-highlight" style="border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px;">
+          <span id="lblPayNowTitle">👉 Cần thanh toán ngay (100%):</span>
+          <span id="txtPayNowAmount">68.000 đ</span>
+        </div>
+
+        <div class="bill-row-remain" id="rowRemainNotice" style="display: none;">
+          <span>🛵 Thanh toán cho shipper khi nhận:</span>
+          <span id="txtPayRemainAmount" style="color: #D97706;">54.000 đ</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+      <div>
+        <div id="lblBottomTitle" style="font-size: 11px; color: var(--text-muted);">Thanh toán ngay (100%):</div>
+        <div id="txtBottomTotal" style="font-size: 17px; font-weight: 800; color: var(--primary);">68.000 đ</div>
+        <div id="lblBottomSubNotice" style="font-size: 10px; color: #D97706; display: none;">Còn lại 54.000đ khi nhận</div>
+      </div>
+      <button class="btn-submit" id="btnSubmitOrder" onclick="submitOrder()">
+        <span>Thanh Toán Ngay ➔</span>
+      </button>
+    </div>
+
+
+
+  </div>
+
+  <script>
+    // Nhận thông tin quán từ giỏ hàng qua Query Params
+    const urlParams = new URLSearchParams(window.location.search);
+    const shopDistrict = urlParams.get('district') || 'Quan1';
+    let subtotal = parseInt(urlParams.get('amount')) || 53000;
+    const countParam = parseInt(urlParams.get('count')) || 2;
+
+    let shippingFee = 15000;
+    let selectedMode = 'FULL'; // 'FULL' (Trả thẳng 100%) hoặc 'DEPOSIT' (Cọc 20%)
+    let selectedChannel = 'momo';
+
+    let cartDishes = [
+      {
+        id: 1,
+        name: "Trà Xí Muội Ô Long",
+        options: "Size M • 100% đường • Ít đá",
+        unitPrice: 28000,
+        qty: 1
+      },
+      {
+        id: 2,
+        name: "Trà Xí Muội Ngô Gia",
+        options: "Size M • 70% đường • Đá riêng",
+        unitPrice: 25000,
+        qty: 1
+      }
+    ];
+
+    document.getElementById('txtSubtotal').innerText = subtotal.toLocaleString('vi-VN') + ' đ';
+
+    function changeDishQty(id, delta) {
+      const dish = cartDishes.find(d => d.id === id);
+      if (!dish) return;
+
+      const newQty = dish.qty + delta;
+      if (newQty < 0) return;
+
+      const nextTotalQty = cartDishes.reduce((sum, d) => sum + (d.id === id ? newQty : d.qty), 0);
+      if (nextTotalQty < 1) {
+        alert("Đơn hàng phải có ít nhất 1 món!");
+        return;
+      }
+
+      dish.qty = newQty;
+      renderDishItems();
+      recalculateCart();
+    }
+
+    function recalculateCart() {
+      subtotal = cartDishes.reduce((sum, d) => sum + (d.qty * d.unitPrice), 0);
+      const totalCount = cartDishes.reduce((sum, d) => sum + d.qty, 0);
+
+      document.getElementById('txtSubtotal').innerText = subtotal.toLocaleString('vi-VN') + ' đ';
+      const badge = document.getElementById('lblDishCount');
+      if (badge) badge.innerText = `${totalCount} món`;
+
+      calculateAmounts();
+    }
+
+    function renderDishItems() {
+      const container = document.getElementById('dishItemsList');
+      if (!container) return;
+
+      container.innerHTML = cartDishes.map(dish => {
+        const itemTotal = dish.qty * dish.unitPrice;
+        const isZero = dish.qty === 0;
+        return `
+          <div class="dish-item-row" style="${isZero ? 'opacity: 0.45;' : ''}">
+            <div class="dish-item-info">
+              <div class="dish-item-name">${dish.qty}x ${dish.name}</div>
+              <div class="dish-item-sub">• ${dish.options}</div>
+              <div class="dish-item-unit-price">Đơn giá: ${dish.unitPrice.toLocaleString('vi-VN')} đ</div>
+            </div>
+            <div class="dish-item-action-col">
+              <div class="dish-item-price">${itemTotal.toLocaleString('vi-VN')} đ</div>
+              <div class="qty-control">
+                <button class="btn-qty" onclick="changeDishQty(${dish.id}, -1)">—</button>
+                <span class="qty-val">${dish.qty}</span>
+                <button class="btn-qty plus" onclick="changeDishQty(${dish.id}, 1)">+</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    renderDishItems();
+
+    // Chọn phương thức thanh toán: FULL (Trả thẳng 100%), DEPOSIT (Cọc 20%) hoặc COD (Chỉ uy tín cao)
+    function selectPaymentMode(mode) {
+      selectedMode = mode;
+      
+      const cardFull = document.getElementById('card-pay-full');
+      const cardDeposit = document.getElementById('card-pay-deposit');
+      const cardCod = document.getElementById('card-pay-cod');
+      const radioFull = document.getElementById('radio-full');
+      const radioDeposit = document.getElementById('radio-deposit');
+      const radioCod = document.getElementById('radio-cod');
+      const channelWrap = document.getElementById('channelSelectWrap');
+
+      cardFull.classList.remove('active');
+      cardDeposit.classList.remove('active');
+      if (cardCod) cardCod.classList.remove('active');
+
+      if (mode === 'FULL') {
+        cardFull.classList.add('active');
+        radioFull.checked = true;
+        if (channelWrap) channelWrap.style.display = 'block';
+      } else if (mode === 'DEPOSIT') {
+        cardDeposit.classList.add('active');
+        radioDeposit.checked = true;
+        if (channelWrap) channelWrap.style.display = 'block';
+      } else if (mode === 'COD') {
+        if (cardCod) cardCod.classList.add('active');
+        if (radioCod) radioCod.checked = true;
+        if (channelWrap) channelWrap.style.display = 'none'; // COD thì bỏ hết kênh thanh toán
+      }
+
+      calculateAmounts();
+    }
+
+    // Nhận diện tên kênh thanh toán (Chỉ Ví MoMo hoặc Ngân Hàng)
+    function getChannelLabel(ch) {
+      if (ch === 'bank') return 'Ngân Hàng';
+      return 'Ví MoMo';
+    }
+
+    // Chọn kênh thanh toán
+    function selectChannel(channel, el) {
+      selectedChannel = channel;
+      document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      calculateAmounts();
+    }
+
+    // Dữ liệu Vùng và Phường/Xã (Hỗ trợ TP.HCM, Vũng Tàu, Bình Dương, Đồng Nai)
+    const regionData = {
+      "TP. Hồ Chí Minh": {
+        shortName: "TP.HCM",
+        ruleText: "🛵 Cùng phường: 15.000đ | Liên phường: 25.000đ | Ngoại thành: 45.000đ",
+        defaultAddress: "Số 104 Đường Hai Bà Trưng, Phường Đa Kao",
+        wards: [
+          { name: "Phường Đa Kao (Trung tâm)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Bến Nghé (Trung tâm)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Bến Thành (Trung tâm)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Linh Chiểu (TP. Thủ Đức)", type: "Liên phường", fee: 20000 },
+          { name: "Phường Hiệp Bình Chánh (TP. Thủ Đức)", type: "Liên phường", fee: 25000 },
+          { name: "Phường 25 (Bình Thạnh)", type: "Liên phường", fee: 20000 },
+          { name: "Phường Phú Nhuận", type: "Liên phường", fee: 20000 },
+          { name: "Xã Tân Thới Nhì (Hóc Môn)", type: "Ngoại thành", fee: 45000 },
+          { name: "Xã Tân An Hội (Củ Chi)", type: "Ngoại thành", fee: 45000 }
+        ]
+      },
+      "TP. Vũng Tàu": {
+        shortName: "Vũng Tàu",
+        ruleText: "🛵 Cùng phường: 15.000đ | Liên phường: 20.000đ | Xã đảo: 40.000đ",
+        defaultAddress: "Số 28 Đường Trần Phú, Phường 1",
+        wards: [
+          { name: "Phường 1 (Bãi Trước)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường 2 (Bãi Sau)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Thắng Tam (Bãi Sau)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Thắng Nhì", type: "Liên phường", fee: 20000 },
+          { name: "Phường Nguyễn An Ninh", type: "Liên phường", fee: 20000 },
+          { name: "Phường Rạch Dừa", type: "Liên phường", fee: 25000 },
+          { name: "Phường 11", type: "Liên phường", fee: 25000 },
+          { name: "Xã Long Sơn (Ngoại ô)", type: "Ngoại ô", fee: 40000 }
+        ]
+      },
+      "Bình Dương": {
+        shortName: "Bình Dương",
+        ruleText: "🛵 Cùng phường: 15.000đ | Liên phường: 25.000đ | Ngoại ô: 40.000đ",
+        defaultAddress: "Số 45 Đường DT743, Phường Dĩ An",
+        wards: [
+          { name: "Phường Dĩ An (TP. Dĩ An)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Đông Hòa (TP. Dĩ An)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường An Phú (TP. Thuận An)", type: "Liên phường", fee: 25000 },
+          { name: "Phường Phú Cường (Thủ Dầu Một)", type: "Ngoại ô", fee: 40000 }
+        ]
+      },
+      "Đồng Nai": {
+        shortName: "Đồng Nai",
+        ruleText: "🛵 Cùng phường: 15.000đ | Liên phường: 25.000đ | Ngoại ô: 40.000đ",
+        defaultAddress: "Số 12 Đường Phạm Văn Thuận, Phường Tân Mai",
+        wards: [
+          { name: "Phường Tân Mai (TP. Biên Hòa)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Quyết Thắng (TP. Biên Hòa)", type: "Cùng phường", fee: 15000 },
+          { name: "Phường Trảng Dài (TP. Biên Hòa)", type: "Liên phường", fee: 25000 },
+          { name: "Phường Long Bình (TP. Biên Hòa)", type: "Liên phường", fee: 25000 }
+        ]
+      }
+    };
+
+    function onRegionChange() {
+      const regSelect = document.getElementById('regionSelect');
+      const wardSelect = document.getElementById('wardSelect');
+      const ruleTag = document.getElementById('shipRuleTag');
+      const streetInput = document.getElementById('streetInput');
+      const regTitle = document.getElementById('lblCurrentRegionTitle');
+      const regBill = document.getElementById('txtRegionBill');
+
+      const selectedReg = regSelect.value;
+      const data = regionData[selectedReg] || regionData["TP. Hồ Chí Minh"];
+
+      if (regTitle) regTitle.innerText = selectedReg;
+      if (regBill) regBill.innerText = data.shortName;
+      if (ruleTag) ruleTag.innerText = data.ruleText;
+      if (streetInput) streetInput.value = data.defaultAddress;
+
+      wardSelect.innerHTML = data.wards.map((w, idx) => `
+        <option value="${idx}">${w.name}</option>
+      `).join('');
+
+      calculateShippingFee();
+    }
+
+    // Tính toán cước ship theo Phường/Xã và Vùng đã chọn
+    function calculateShippingFee() {
+      const regSelect = document.getElementById('regionSelect');
+      const wardSelect = document.getElementById('wardSelect');
+      const zoneTag = document.getElementById('txtZone');
+
+      const selectedReg = regSelect.value;
+      const data = regionData[selectedReg] || regionData["TP. Hồ Chí Minh"];
+      const wardIdx = parseInt(wardSelect.value) || 0;
+      const ward = data.wards[wardIdx] || data.wards[0];
+
+      shippingFee = ward.fee;
+      if (zoneTag) zoneTag.innerText = ward.type;
+
+      calculateAmounts();
+    }
+
+    // Tính toán tiền trả thẳng vs cọc 20% vs COD
+    function calculateAmounts() {
+      const totalOrder = subtotal + shippingFee;
+      
+      // 20% tiền cọc (tính trên tổng đơn hàng)
+      const depositAmount = Math.round((totalOrder * 0.2) / 1000) * 1000;
+      const remainAmount = totalOrder - depositAmount;
+
+      // Cập nhật nhãn thông tin
+      document.getElementById('txtShippingFee').innerText = shippingFee.toLocaleString('vi-VN') + ' đ';
+      document.getElementById('txtOrderTotal').innerText = totalOrder.toLocaleString('vi-VN') + ' đ';
+      document.getElementById('lbl-pay-full-amt').innerText = `Thanh toán ngay: ${totalOrder.toLocaleString('vi-VN')} đ`;
+      document.getElementById('lbl-deposit-now').innerText = `${depositAmount.toLocaleString('vi-VN')} đ`;
+      document.getElementById('lbl-deposit-remain').innerText = `${remainAmount.toLocaleString('vi-VN')} đ`;
+      const lblPayCod = document.getElementById('lbl-pay-cod-amt');
+      if (lblPayCod) {
+        lblPayCod.innerText = `Thanh toán khi nhận: ${totalOrder.toLocaleString('vi-VN')} đ (Trả trước: 0 đ)`;
+      }
+
+      const channelWrap = document.getElementById('channelSelectWrap');
+      const channelTitle = document.getElementById('channelSelectTitle');
+
+      if (selectedMode === 'FULL') {
+        if (channelWrap) channelWrap.style.display = 'block';
+        if (channelTitle) channelTitle.innerText = 'Kênh quét mã thanh toán 100%:';
+
+        document.getElementById('txtSelectedMode').innerText = `Trả thẳng 100% (${getChannelLabel(selectedChannel)})`;
+        document.getElementById('lblPayNowTitle').innerText = '👉 Cần thanh toán ngay (100%):';
+        document.getElementById('lblBottomTitle').innerText = 'Thanh toán ngay (100%):';
+        document.getElementById('btnSubmitOrder').innerHTML = '<span>Thanh Toán Đủ (Quét Mã QR) ➔</span>';
+
+        document.getElementById('txtPayNowAmount').innerText = totalOrder.toLocaleString('vi-VN') + ' đ';
+        document.getElementById('rowRemainNotice').style.display = 'none';
+
+        document.getElementById('txtBottomTotal').innerText = totalOrder.toLocaleString('vi-VN') + ' đ';
+        document.getElementById('lblBottomSubNotice').style.display = 'none';
+      } else if (selectedMode === 'DEPOSIT') {
+        if (channelWrap) channelWrap.style.display = 'block';
+        if (channelTitle) channelTitle.innerText = 'Kênh quét mã thanh toán cọc 20%:';
+
+        document.getElementById('txtSelectedMode').innerText = `Đặt cọc 20% (${getChannelLabel(selectedChannel)})`;
+        document.getElementById('lblPayNowTitle').innerText = '👉 Cần thanh toán cọc ngay (20%):';
+        document.getElementById('txtPayNowAmount').innerText = depositAmount.toLocaleString('vi-VN') + ' đ';
+        document.getElementById('rowRemainNotice').style.display = 'flex';
+        document.getElementById('txtPayRemainAmount').innerText = remainAmount.toLocaleString('vi-VN') + ' đ (Thu tiền mặt)';
+
+        document.getElementById('lblBottomTitle').innerText = 'Thanh toán cọc (20%):';
+        document.getElementById('txtBottomTotal').innerText = depositAmount.toLocaleString('vi-VN') + ' đ';
+        document.getElementById('lblBottomSubNotice').innerText = `Còn lại ${remainAmount.toLocaleString('vi-VN')}đ thu khi nhận`;
+        document.getElementById('lblBottomSubNotice').style.display = 'block';
+        document.getElementById('btnSubmitOrder').innerHTML = '<span>Thanh Toán Cọc (Quét Mã QR) ➔</span>';
+      } else if (selectedMode === 'COD') {
+        if (channelWrap) channelWrap.style.display = 'none'; // COD thì ẩn hoàn toàn phần chọn kênh thanh toán
+
+        document.getElementById('txtSelectedMode').innerText = 'Thanh toán khi nhận hàng (COD - Uy tín cao)';
+        document.getElementById('lblPayNowTitle').innerText = '👉 Cần thanh toán ngay:';
+        document.getElementById('txtPayNowAmount').innerText = '0 đ';
+        document.getElementById('rowRemainNotice').style.display = 'flex';
+        document.getElementById('txtPayRemainAmount').innerText = `${totalOrder.toLocaleString('vi-VN')} đ (Shipper thu khi giao món)`;
+
+        document.getElementById('lblBottomTitle').innerText = 'Cần thanh toán ngay:';
+        document.getElementById('txtBottomTotal').innerText = '0 đ';
+        document.getElementById('lblBottomSubNotice').innerText = `Thu ${totalOrder.toLocaleString('vi-VN')}đ khi nhận món`;
+        document.getElementById('lblBottomSubNotice').style.display = 'block';
+        document.getElementById('btnSubmitOrder').innerHTML = '<span>Đặt Đơn COD (0đ Trả Trước) ➔</span>';
+      }
+    }
+
+    function submitOrder() {
+      const totalOrder = subtotal + shippingFee;
+      const depositAmount = Math.round((totalOrder * 0.2) / 1000) * 1000;
+      const remainAmount = totalOrder - depositAmount;
+
+      // Lưu đơn hàng vào localStorage để đồng bộ sang b9.html, ship/8.html
+      const orderData = {
+        orderId: '88291',
+        customerName: 'An Nguyễn',
+        customerPhone: '0903 882 291',
+        mode: selectedMode, // 'FULL', 'DEPOSIT', 'COD'
+        channel: selectedChannel,
+        total: totalOrder,
+        deposit: (selectedMode === 'FULL') ? totalOrder : (selectedMode === 'DEPOSIT' ? depositAmount : 0),
+        remain: (selectedMode === 'FULL') ? 0 : (selectedMode === 'DEPOSIT' ? remainAmount : totalOrder),
+        policy: (selectedMode === 'FULL') 
+          ? 'TRẢ HẾT 100%: Khi không nhận hàng sẽ mất 100% tiền, KHÔNG bị trừ điểm uy tín.'
+          : 'ĐẶT CỌC / COD: Khi không nhận hàng sẽ mất cọc và BỊ TRỪ 20 ĐIỂM UY TÍN.',
+        createdAt: new Date().toLocaleTimeString('vi-VN')
+      };
+      localStorage.setItem('oishi_active_order', JSON.stringify(orderData));
+
+      if (selectedMode === 'COD') {
+        // 1. COD (Chỉ áp dụng uy tín cao): Sang THẲNG trang Đã Đặt Thành Công (0đ trả trước, bỏ hết kênh thanh toán)
+        window.location.href = `b8_success.html?mode=COD&total=${totalOrder}&deposit=0&remain=${totalOrder}`;
+      } else if (selectedMode === 'DEPOSIT') {
+        // 2. Đặt Cọc 20%: Chuyển sang trang Quét Mã QR Cọc (b8_payment.html)
+        window.location.href = `b8_payment.html?mode=DEPOSIT&channel=${selectedChannel}&total=${totalOrder}&deposit=${depositAmount}&remain=${remainAmount}`;
+      } else if (selectedMode === 'FULL') {
+        // 3. Trả thẳng 100% online (MoMo / Bank): Chuyển sang trang Quét Mã QR Trả Tiền 100% (b8_payment.html)
+        window.location.href = `b8_payment.html?mode=FULL&channel=${selectedChannel}&total=${totalOrder}&deposit=${totalOrder}&remain=0`;
+      }
+    }
+
+    function goToTracking() {
+      const totalOrder = subtotal + shippingFee;
+      const depositAmount = Math.round((totalOrder * 0.2) / 1000) * 1000;
+      const remainAmount = totalOrder - depositAmount;
+
+      if (selectedMode === 'COD') {
+        window.location.href = `b9.html?mode=COD&channel=${selectedChannel}&total=${totalOrder}&deposit=0&remain=${totalOrder}`;
+      } else {
+        window.location.href = `b9.html?mode=${selectedMode}&channel=${selectedChannel}&total=${totalOrder}&deposit=${depositAmount}&remain=${remainAmount}`;
+      }
+    }
+
+    // Khởi chạy nạp danh sách phường theo vùng và tính phí lần đầu
+    onRegionChange();
+  </script>
+
+</body>
+</html>

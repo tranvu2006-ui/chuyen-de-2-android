@@ -892,6 +892,68 @@
     .btn-confirm-return-store:active {
       transform: scale(0.99);
     }
+
+    /* Thanh trượt gạt vuốt qua xác nhận trả món & nhận tiền */
+    .swipe-return-box {
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .swipe-return-track {
+      position: relative;
+      width: 100%;
+      height: 48px;
+      background: linear-gradient(135deg, #ECFDF5, #D1FAE5);
+      border: 1.5px solid #10B981;
+      border-radius: 25px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.18);
+    }
+
+    .swipe-return-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #065F46;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.2px;
+      transition: opacity 0.2s;
+    }
+
+    .swipe-return-handle {
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, #10B981, #059669);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFF;
+      font-size: 18px;
+      cursor: grab;
+      box-shadow: 0 3px 10px rgba(5, 150, 105, 0.45);
+      touch-action: none;
+      z-index: 5;
+      transition: background 0.2s;
+    }
+
+    .swipe-return-handle:active {
+      cursor: grabbing;
+    }
+
+    @keyframes pulseArrows {
+      0%, 100% { transform: translateX(0); opacity: 0.8; }
+      50% { transform: translateX(5px); opacity: 1; }
+    }
   </style>
 </head>
 
@@ -1304,11 +1366,25 @@
           </div>
         </div>
 
-        <!-- Trạng thái xác nhận từ quán -->
-        <div id="bomStoreStatusBox"
-          style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:8px 10px; font-size:11px; color:#B45309; display:flex; align-items:center; gap:6px;">
-          <span style="font-size:16px;">🛵</span>
-          <span id="txtBomStoreStatus">Bạn có thể chọn về Quán trả món ngay hoặc giao tiếp đơn còn lại</span>
+        <!-- HỘP THÔNG BÁO XÁC NHẬN THÀNH CÔNG SAU KHI VUỐT -->
+        <div id="boxReturnSuccessNotice8" style="display:none; background:#ECFDF5; border:1.5px solid #86EFAC; border-radius:12px; padding:10px 12px; text-align:center; color:#065F46; font-size:12px; font-weight:800;">
+          ✓ ĐÃ TRẢ MÓN & NHẬN ĐỦ 78.000đ TỪ QUÁN!
+        </div>
+
+        <!-- THANH TRƯỢT GẠT VUỐT QUA ĐỂ XÁC NHẬN TRẢ MÓN VÀ NHẬN TIỀN (BỎ XÁC NHẬN Ở QUÁN) -->
+        <div class="swipe-return-box" id="swipeReturnStoreBox8" style="display:none;">
+          <div class="swipe-return-track" id="swipeReturnTrack8">
+            <div class="swipe-return-label" id="swipeReturnLabel8">
+              <span>Vuốt qua để xác nhận trả món & nhận 78.000đ</span>
+              <span style="font-size:13px; animation:pulseArrows 1.2s infinite;">›››</span>
+            </div>
+            <div class="swipe-return-handle" id="swipeReturnHandle8">
+              <span>➔</span>
+            </div>
+          </div>
+          <div style="text-align:center; font-size:10px; color:#64748B; margin-top:4px;">
+            👉 <i>Tài xế tự vuốt xác nhận sau khi bàn giao món (không cần quán duyệt)</i>
+          </div>
         </div>
 
         <!-- Nút hành động của Shipper -->
@@ -1327,11 +1403,11 @@
             <span id="lblDeliverRemainingText">ĐI GIAO ĐƠN CÒN LẠI TRƯỚC ➔</span>
           </button>
 
+          <!-- Nút điều hướng sau khi đã vuốt xác nhận trả món -->
           <button type="button" class="btn-confirm-return-store" id="btnConfirmReturnedStore"
-            onclick="shipperConfirmReturnedStore()"
-            style="display:none; width:100%; height:44px; background:linear-gradient(135deg, #10B981, #059669); color:#FFF; border:none; border-radius:12px; font-size:12.5px; font-weight:800; cursor:pointer; align-items:center; justify-content:center; gap:6px; box-shadow:0 3px 12px rgba(16,185,129,0.3);">
+            style="display:none; width:100%; height:44px; background:linear-gradient(135deg, #FF6933, #EE4D2D); color:#FFF; border:none; border-radius:12px; font-size:12.5px; font-weight:800; cursor:pointer; align-items:center; justify-content:center; gap:6px; box-shadow:0 3px 12px rgba(238,77,45,0.3);">
             <span>✓</span>
-            <span id="btnReturnedText">ĐÃ TỚI QUÁN • TRẢ MÓN & NHẬN TIỀN TỪ QUÁN</span>
+            <span id="btnReturnedText">HOÀN TẤT CHUYẾN • VỀ TRANG CHỦ TÀI XẾ ➔</span>
           </button>
         </div>
       </div>
@@ -1736,11 +1812,8 @@
         document.getElementById('lblBomRefundTitle').innerText = "💰 QUYỀN LỢI ĐƯỢC BẢO LƯU:";
         document.getElementById('lblBomRefundTotalLabel').innerText = "QUÁN SẼ TRẢ KHI HOÀN TẤT CHUYẾN:";
 
-        const statusBox = document.getElementById('bomStoreStatusBox');
-        statusBox.style.background = '#FFFBEB';
-        statusBox.style.borderColor = '#FDE68A';
-        statusBox.style.color = '#B45309';
-        statusBox.innerHTML = `<span>🛵</span> <b>Tự do chọn: Bạn có thể bấm về Quán trả món ngay hoặc giao tiếp đơn còn lại</b>`;
+        if (document.getElementById('swipeReturnStoreBox8')) document.getElementById('swipeReturnStoreBox8').style.display = 'none';
+        if (document.getElementById('boxReturnSuccessNotice8')) document.getElementById('boxReturnSuccessNotice8').style.display = 'none';
 
         if (document.getElementById('btnBomGoStore8')) document.getElementById('btnBomGoStore8').style.display = 'flex';
         if (document.getElementById('btnBomDeliverRemaining8')) {
@@ -1781,7 +1854,7 @@
       document.getElementById('lblBomOrderSub').innerText = `Đơn #ORD-${bomData.orderId || '88291'} • Bị khách bom hàng`;
       const isPrepaid = (bomData.orderId === '88291' || bomData.mode === 'FULL');
       document.getElementById('boxBomPolicyNote').innerHTML = `
-        🏪 <b>Bạn đã đến Quán Hồng Trà Ngô Gia!</b> Vui lòng bàn giao lại 2 ly trà nguyên niêm phong. Quán có trách nhiệm <b>hoàn trả tiền món + thanh toán cước hoàn hàng (${totalRefund.toLocaleString('vi-VN')} đ)</b> cho bạn.
+        🏪 <b>Bạn đã đến Quán Hồng Trà Ngô Gia!</b> Vui lòng bàn giao lại món ăn nguyên vẹn cho nhân viên quầy. Quán có trách nhiệm <b>hoàn trả tiền món + thanh toán cước hoàn hàng (${totalRefund.toLocaleString('vi-VN')} đ)</b> trực tiếp cho bạn.
         <div style="margin-top:6px; padding:6px 8px; background:#FFF; border-radius:6px; border:1px dashed #F59E0B; font-size:10.5px; color:#B45309;">
           <b>Quy định phạt khách hàng:</b> ${isPrepaid 
             ? '🛡️ <b style="color:#1D4ED8;">Đơn trả trước 100%:</b> Khách mất 100% tiền đơn, <b>KHÔNG bị trừ điểm uy tín</b> (Bảo lưu ⭐ 98/100).' 
@@ -1799,23 +1872,100 @@
       document.getElementById('lblBomRefundTitle').innerText = "💰 QUÁN PHẢI HOÀN TIỀN CHO SHIPPER:";
       document.getElementById('lblBomRefundTotalLabel').innerText = "TỔNG TIỀN QUÁN PHẢI TRẢ LẠI:";
 
-      const statusBox = document.getElementById('bomStoreStatusBox');
-      statusBox.style.background = '#EFF6FF';
-      statusBox.style.borderColor = '#BFDBFE';
-      statusBox.style.color = '#1D4ED8';
-      statusBox.innerHTML = `<span>⏳</span> <span>Vui lòng bàn giao món và nhận tiền hoàn từ Quán.</span>`;
-
       if (document.getElementById('btnBomGoStore8')) document.getElementById('btnBomGoStore8').style.display = 'none';
       if (document.getElementById('btnBomDeliverRemaining8')) document.getElementById('btnBomDeliverRemaining8').style.display = 'none';
+      if (document.getElementById('btnConfirmReturnedStore')) document.getElementById('btnConfirmReturnedStore').style.display = 'none';
+      if (document.getElementById('boxReturnSuccessNotice8')) document.getElementById('boxReturnSuccessNotice8').style.display = 'none';
 
-      const btn = document.getElementById('btnConfirmReturnedStore');
-      btn.style.display = 'flex';
-      btn.style.background = "linear-gradient(135deg, #10B981, #059669)";
-      document.getElementById('btnReturnedText').innerText = `ĐÃ TỚI QUÁN • TRẢ MÓN & NHẬN ${totalRefund.toLocaleString('vi-VN')}đ TỪ QUÁN`;
-      btn.onclick = shipperConfirmReturnedStore;
+      // Hiển thị thanh vuốt qua xác nhận
+      const swipeBox = document.getElementById('swipeReturnStoreBox8');
+      if (swipeBox) {
+        swipeBox.style.display = 'block';
+        const label = document.getElementById('swipeReturnLabel8');
+        if (label) {
+          label.innerHTML = `<span>Vuốt qua để xác nhận trả món & nhận ${totalRefund.toLocaleString('vi-VN')}đ</span> <span style="font-size:13px; animation:pulseArrows 1.2s infinite;">›››</span>`;
+          label.style.opacity = '1';
+        }
+        initSwipeReturnStore8();
+      }
     }
 
-    // Xử lý khi tài xế bấm xác nhận đã trả món và nhận đủ tiền từ Quán
+    let isSwipeReturnStore8Bound = false;
+    function initSwipeReturnStore8() {
+      const track = document.getElementById('swipeReturnTrack8');
+      const handle = document.getElementById('swipeReturnHandle8');
+      const label = document.getElementById('swipeReturnLabel8');
+      if (!track || !handle) return;
+
+      // Đặt lại vị trí ban đầu
+      handle.style.transition = 'none';
+      handle.style.left = '3px';
+      handle.innerHTML = '➔';
+      handle.style.background = 'linear-gradient(135deg, #10B981, #059669)';
+      if (label) label.style.opacity = '1';
+
+      if (isSwipeReturnStore8Bound) return;
+      isSwipeReturnStore8Bound = true;
+
+      let isDragging = false;
+      let startX = 0;
+
+      function onStart(e) {
+        isDragging = true;
+        startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        handle.style.transition = 'none';
+      }
+
+      function onMove(e) {
+        if (!isDragging) return;
+        const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const deltaX = currentX - startX;
+        const maxDrag = track.clientWidth - handle.clientWidth - 6;
+
+        if (deltaX > 0 && deltaX <= maxDrag) {
+          handle.style.left = `${deltaX + 3}px`;
+          if (label) label.style.opacity = Math.max(0, 1 - (deltaX / (maxDrag * 0.75)));
+        } else if (deltaX > maxDrag) {
+          handle.style.left = `${maxDrag + 3}px`;
+          if (label) label.style.opacity = 0;
+        }
+      }
+
+      function onEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        const maxDrag = track.clientWidth - handle.clientWidth - 6;
+        const currentLeft = parseInt(handle.style.left || '3');
+
+        if (currentLeft >= maxDrag * 0.65) {
+          // Vuốt thành công
+          handle.style.transition = 'left 0.2s ease';
+          handle.style.left = `${maxDrag + 3}px`;
+          handle.innerHTML = '✓';
+          handle.style.background = '#047857';
+          if (label) label.style.opacity = 0;
+
+          setTimeout(() => {
+            shipperConfirmReturnedStore();
+          }, 250);
+        } else {
+          // Chưa đủ quãng đường -> quay về
+          handle.style.transition = 'left 0.25s ease';
+          handle.style.left = '3px';
+          if (label) label.style.opacity = '1';
+        }
+      }
+
+      handle.addEventListener('mousedown', onStart);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onEnd);
+
+      handle.addEventListener('touchstart', onStart, { passive: true });
+      window.addEventListener('touchmove', onMove, { passive: true });
+      window.addEventListener('touchend', onEnd);
+    }
+
+    // Xử lý sau khi tài xế vuốt qua xác nhận đã trả món và nhận đủ tiền từ Quán
     function shipperConfirmReturnedStore() {
       const bomData = JSON.parse(localStorage.getItem('oishi_bom_return_order') || '{}');
       bomData.status = 'COMPLETED_REFUNDED';
@@ -1823,14 +1973,20 @@
 
       const totalRefund = bomData.totalRefundToShip || 78000;
 
-      // Đổi trạng thái hiển thị
-      const statusBox = document.getElementById('bomStoreStatusBox');
-      statusBox.style.background = '#ECFDF5';
-      statusBox.style.borderColor = '#A7F3D0';
-      statusBox.style.color = '#065F46';
-      statusBox.innerHTML = `<span>✓</span> <b>ĐÃ TRẢ MÓN & NHẬN ĐỦ ${totalRefund.toLocaleString('vi-VN')}đ TỪ QUÁN HỒNG TRÀ NGÔ GIA!</b>`;
+      // Ẩn thanh vuốt và hiện thông báo xác nhận thành công
+      const swipeBox = document.getElementById('swipeReturnStoreBox8');
+      if (swipeBox) swipeBox.style.display = 'none';
+
+      const successNotice = document.getElementById('boxReturnSuccessNotice8');
+      if (successNotice) {
+        successNotice.style.display = 'block';
+        successNotice.innerHTML = `✓ <b>ĐÃ TRẢ MÓN & NHẬN ĐỦ ${totalRefund.toLocaleString('vi-VN')}đ TỪ QUÁN HỒNG TRÀ NGÔ GIA!</b>`;
+      }
 
       const btn = document.getElementById('btnConfirmReturnedStore');
+      if (!btn) return;
+      btn.style.display = 'flex';
+
       const bomOrderId = bomData.orderId || '88291';
       const remainingTarget = (bomOrderId === '88291') ? '88292' : '88291';
       const remainingCust = CUSTOMER_INFO[remainingTarget];

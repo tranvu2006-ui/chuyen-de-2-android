@@ -242,7 +242,7 @@
         <div class="notice-icon">🚨</div>
         <div class="notice-info">
           <div class="notice-title" id="lblBannerTitle">CẢNH BÁO BOM HÀNG • SHIP ĐANG TRẢ MÓN</div>
-          <div class="notice-sub" id="lblBannerSub">Đơn #ORD_OISHI_88291 • Chờ quán hoàn 78.000 đ cho Shipper</div>
+          <div class="notice-sub" id="lblBannerSub">Đơn #ORD_OISHI_88291 • Trạng thái: Chờ xác nhận từ Shipper</div>
         </div>
         <div class="notice-action">Xem ➔</div>
       </div>
@@ -268,7 +268,7 @@
       </div>
 
       <!-- Đơn 1: Đơn Bom Hàng / Khách Hủy Đơn (Giống thẻ đơn hủy #ORD-8802) -->
-      <div class="order-card item-cancel bom-clickable" id="cardOrder88291" onclick="openBomDetailModal()" title="Bấm để xem bảng kê hoàn 78.000đ cho shipper">
+      <div class="order-card item-cancel bom-clickable" id="cardOrder88291" onclick="openBomDetailModal()" title="Bấm để xem chi tiết trạng thái trả món của shipper">
         <div class="order-header-row">
           <div style="display: flex; align-items: center; gap: 6px;">
             <span class="order-code">#ORD_OISHI_88291</span>
@@ -283,7 +283,7 @@
         </div>
         <div class="order-footer">
           <span>🕒 Vừa xong 10:15</span>
-          <span id="lblCardFooterRefund" style="color: var(--danger); font-weight: 700;">Quán hoàn 78.000 đ cho Ship (Bấm xem ➔)</span>
+          <span id="lblCardFooterRefund" style="color: #C2410C; font-weight: 700;">⏳ Trạng thái: Chờ xác nhận từ Shipper (Bấm xem ➔)</span>
         </div>
       </div>
 
@@ -399,21 +399,29 @@
             </div>
           </div>
 
-          <!-- Nút hành động của Quán -->
-          <div id="modalRefundActions">
-            <button type="button" class="btn-merchant-refund" onclick="confirmModalRefund()">
-              <span>💸</span>
-              <span>XÁC NHẬN NHẬN LẠI MÓN & HOÀN 78.000 đ CHO SHIPPER</span>
-            </button>
+          <!-- Trạng thái phía Quán: Không có nút hoàn tiền, chỉ chờ shipper xác nhận trả món -->
+          <div id="modalRefundActions" style="background:#FFF7ED; border:1.5px dashed #FDBA74; border-radius:10px; padding:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px;">
+            <div style="display:flex; align-items:flex-start; gap:8px;">
+              <span style="font-size:20px; line-height:1;">⏳</span>
+              <div>
+                <div style="font-size:12px; font-weight:800; color:#9A3412;">Trạng thái: Chờ xác nhận</div>
+                <div style="font-size:10.5px; color:#C2410C; margin-top:2px; line-height:1.4;">
+                  Tài xế đang quay về quán trả món. Sau khi tài xế xác nhận đã trả món trên ứng dụng shipper, hệ thống Oishi sẽ tự động hoàn tất. Cửa hàng không cần thao tác hoàn tiền.
+                </div>
+              </div>
+            </div>
+            <span style="background:#FDBA74; color:#7C2D12; font-size:10.5px; font-weight:800; padding:4px 8px; border-radius:6px; white-space:nowrap; align-self:center;">
+              Chờ xác nhận
+            </span>
           </div>
 
-          <!-- Trạng thái sau khi hoàn tiền -->
+          <!-- Trạng thái sau khi shipper đã xác nhận hoàn trả -->
           <div class="merchant-refund-done-box" id="modalRefundDoneBox" style="display:none;">
             <div style="font-size:12px; font-weight:800; color:#065F46;">
-              ✓ QUÁN ĐÃ NHẬN LẠI MÓN & HOÀN TIỀN THÀNH CÔNG CHO SHIPPER!
+              ✓ SHIPPER ĐÃ XÁC NHẬN TRẢ MÓN THÀNH CÔNG!
             </div>
             <div style="font-size:10.5px; color:#047857; margin-top:2px;">
-              Đã hoàn trả đủ 78.000 đ cho shipper Lê Văn Tùng. Đơn hàng kết thúc xử lý hoàn trả.
+              Hệ thống đã tự động quyết toán tiền bồi hoàn cho shipper. Đơn hàng kết thúc xử lý.
             </div>
           </div>
 
@@ -464,30 +472,30 @@
       bomData.status = 'RETURNING_TO_STORE';
       localStorage.setItem('oishi_bom_return_order', JSON.stringify(bomData));
 
-      // Hiển thị lại nút xác nhận màu đỏ
-      document.getElementById('modalRefundActions').style.display = 'block';
+      // Hiển thị lại khối trạng thái Chờ xác nhận
+      document.getElementById('modalRefundActions').style.display = 'flex';
       document.getElementById('modalRefundDoneBox').style.display = 'none';
 
       const statusTag = document.getElementById('lblModalBomStatus');
       if (statusTag) {
-        statusTag.innerText = 'Chờ Ship Tới';
-        statusTag.style.background = '#FEF2F2';
-        statusTag.style.borderColor = '#FECACA';
-        statusTag.style.color = '#DC2626';
+        statusTag.innerText = '⏳ Chờ xác nhận';
+        statusTag.style.background = '#FFF7ED';
+        statusTag.style.borderColor = '#FDBA74';
+        statusTag.style.color = '#C2410C';
       }
 
       const footerRefund = document.getElementById('lblCardFooterRefund');
       if (footerRefund) {
-        footerRefund.innerText = 'Quán hoàn 78.000 đ cho Ship (Bấm xem ➔)';
-        footerRefund.style.color = 'var(--danger)';
+        footerRefund.innerText = '⏳ Trạng thái: Chờ xác nhận từ Shipper (Bấm xem ➔)';
+        footerRefund.style.color = '#C2410C';
       }
 
       const banner = document.getElementById('bomNoticeBanner');
       if (banner) {
-        banner.style.background = 'linear-gradient(135deg, #FEF2F2, #FFF1F2)';
-        banner.style.borderColor = '#FECACA';
+        banner.style.background = 'linear-gradient(135deg, #FFF7ED, #FFEDD5)';
+        banner.style.borderColor = '#FDBA74';
         document.getElementById('lblBannerTitle').innerText = 'CẢNH BÁO BOM HÀNG • SHIP ĐANG TRẢ MÓN';
-        document.getElementById('lblBannerSub').innerText = 'Đơn #ORD_OISHI_88291 • Chờ quán hoàn 78.000 đ cho Shipper';
+        document.getElementById('lblBannerSub').innerText = 'Đơn #ORD_OISHI_88291 • Trạng thái: Chờ xác nhận từ Shipper';
       }
     }
 

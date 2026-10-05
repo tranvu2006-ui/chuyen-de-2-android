@@ -90,9 +90,9 @@
     /* Order Tabs */
     .order-tabs { display: flex; background: #FFF; border-radius: 12px; border: 1px solid var(--border); padding: 4px; gap: 4px; }
     .order-tab {
-      flex: 1; text-align: center; padding: 8px 2px; font-size: 11px; font-weight: 700;
+      flex: 1; text-align: center; padding: 7px 2px; font-size: 10.5px; font-weight: 700;
       color: var(--text-muted); border-radius: 8px; cursor: pointer; white-space: nowrap;
-      transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+      transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 2px;
     }
     .order-tab.active { background: var(--primary); color: #FFF; }
 
@@ -195,19 +195,24 @@
       <!-- Tabs Lọc Đơn Hàng -->
       <div class="order-tabs">
         <div class="order-tab active" id="tabNew" onclick="switchOrderTab('new')">
-          <span>Mới Nhận</span> <span id="countTabNew">(1)</span>
+          <span>Mới Nhận</span> <span id="countTabNew">(3)</span>
         </div>
         <div class="order-tab" id="tabCooking" onclick="switchOrderTab('cooking')">
-          <span>Đã Xác Nhận Đơn</span> <span id="countTabCooking">(2)</span>
+          <span>Đang Nấu / Chờ Lấy</span> <span id="countTabCooking">(3)</span>
         </div>
         <div class="order-tab" id="tabDelivering" onclick="switchOrderTab('delivering')">
-          <span>Đang Giao</span> <span id="countTabDelivering">(2)</span>
+          <span>Đang Giao</span> <span id="countTabDelivering">(4)</span>
         </div>
-        <div class="order-tab" id="tabHistory" onclick="window.location.href='6.html'">Lịch Sử ➔</div>
+        <div class="order-tab" id="tabHistory" onclick="switchOrderTab('history')">
+          <span>Đã Xong / Hủy</span> <span id="countTabHistory">(3)</span>
+        </div>
       </div>
 
-      <!-- 1. Danh Sách Đơn Mới Chờ Quán Xác Nhận Đơn Của Khách -->
+      <!-- ==========================================
+           1. TAB MỚI NHẬN: CHỜ QUÁN XÁC NHẬN ĐƠN
+           ========================================== -->
       <div id="viewOrdersNew">
+        <!-- Đơn 1: Đơn trả trước MoMo 100% -->
         <div class="order-item-card" id="cardOrder88291" style="border: 1.5px solid #FDBA74; box-shadow: 0 4px 12px rgba(238,77,45,0.08);">
           <div class="order-row-top">
             <span class="order-code">#ORD_OISHI_88291</span>
@@ -217,11 +222,11 @@
           <div class="order-dishes">
             • 1x Trà Xí Muội Ô Long (Size M, Ít đá)<br>
             • 1x Trà Xí Muội Ngô Gia (Size M, Đá riêng)<br>
-            <b>Tổng bill: 78.000 đ (Đã thanh toán Ví MoMo)</b>
+            <b>Tổng bill: 78.000 đ (<span style="color:#2563EB;">Đã thanh toán Ví MoMo 100%</span>)</b>
           </div>
 
           <div class="order-address" style="display:flex; justify-content:space-between; align-items:center;">
-            <div>📍 Giao đến: <b>An Nguyễn (⭐ 98/100)</b> - 104 Hai Bà Trưng</div>
+            <div>📍 Giao đến: <b>An Nguyễn (⭐ 98/100)</b> - 104 Hai Bà Trưng, Q.1</div>
             <a href="4.html" style="color:var(--blue); font-size:11px; font-weight:700; text-decoration:none; background:#EFF6FF; padding:4px 9px; border-radius:8px; border:1px solid #BFDBFE; display:flex; align-items:center; gap:4px; flex-shrink:0;">
               <span>💬</span> <span>Nhắn Khách</span>
             </a>
@@ -252,6 +257,50 @@
           </div>
         </div>
 
+        <!-- Đơn 2: Đơn cọc trước COD -->
+        <div class="order-item-card" id="cardOrder88295" style="border: 1px solid var(--border);">
+          <div class="order-row-top">
+            <span class="order-code">#ORD_OISHI_88295</span>
+            <span style="font-size:11px; font-weight:800; background:#FFF7ED; color:#C2410C; border:1px solid #FDBA74; padding:2px 8px; border-radius:4px;">⏳ Chờ Quán Xác Nhận • Đã Đặt Cọc</span>
+          </div>
+
+          <div class="order-dishes">
+            • 2x Trà Sữa Oolong Nướng (Size L, 50% Đường)<br>
+            • 1x Bánh Tráng Phơi Sương Cuộn Bò<br>
+            <b>Tổng bill: 95.000 đ (<span style="color:#C2410C;">Thu COD 70.000 đ • Đã cọc 25.000 đ</span>)</b>
+          </div>
+
+          <div class="order-address">📍 Giao đến: <b>Lê Thị Thảo (⭐ 92/100)</b> - 24 Nguyễn Thị Nghĩa, Q.1</div>
+
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button onclick="confirmOrderGeneral('88295', 'Lê Thị Thảo')" style="flex:1; height:40px; background:linear-gradient(135deg, #FF6933, #EE4D2D); color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer;">
+              ✓ XÁC NHẬN ĐƠN CỦA KHÁCH ➔
+            </button>
+          </div>
+        </div>
+
+        <!-- Đơn 3: Đơn số lượng lớn thanh toán VNPAY -->
+        <div class="order-item-card" id="cardOrder88296" style="border: 1px solid var(--border);">
+          <div class="order-row-top">
+            <span class="order-code">#ORD_OISHI_88296</span>
+            <span style="font-size:11px; font-weight:800; background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; padding:2px 8px; border-radius:4px;">⏳ Đơn Số Lượng Lớn • Chờ Xác Nhận</span>
+          </div>
+
+          <div class="order-dishes">
+            • 4x Trà Trái Cây Nhiệt Đới (Size L)<br>
+            • 2x Pudding Trứng Cao Cấp<br>
+            <b>Tổng bill: 165.000 đ (<span style="color:#059669;">Đã thanh toán VNPAY 100%</span>)</b>
+          </div>
+
+          <div class="order-address">📍 Giao đến: <b>Trần Quốc Bảo (⭐ 96/100)</b> - 88 CMT8, P.6, Q.3</div>
+
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button onclick="confirmOrderGeneral('88296', 'Trần Quốc Bảo')" style="flex:1; height:40px; background:linear-gradient(135deg, #FF6933, #EE4D2D); color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer;">
+              ✓ XÁC NHẬN ĐƠN CỦA KHÁCH ➔
+            </button>
+          </div>
+        </div>
+
         <!-- Thông báo khi hết đơn mới -->
         <div id="emptyNewOrders" style="display:none; text-align: center; padding: 36px 16px; color: var(--text-muted); font-size: 13px; background: #FFF; border-radius: 14px; border: 1px dashed var(--border);">
           <div style="font-size: 32px; margin-bottom: 6px;">🎉</div>
@@ -260,45 +309,88 @@
         </div>
       </div>
 
-      <!-- 2. Danh Sách Đơn Đã Xác Nhận Đơn -->
+      <!-- ==========================================
+           2. TAB ĐÃ XÁC NHẬN: BẾP ĐANG NẤU / CHỜ LẤY
+           ========================================== -->
       <div id="viewOrdersCooking" style="display:none; flex-direction:column; gap:10px;">
         <!-- Đơn #ORD_OISHI_88291 sẽ được chuyển vào đây khi Quán xác nhận đơn của khách -->
         <div id="confirmedOrdersList" style="display:flex; flex-direction:column; gap:10px;"></div>
 
-        <div class="order-item-card">
+        <!-- Trạng thái: Bếp đang pha chế (có tài xế đang đến) -->
+        <div class="order-item-card" id="cardOrderCooking88289" style="border-left: 4px solid #0284C7;">
           <div class="order-row-top">
             <span class="order-code">#ORD_88289</span>
-            <span style="font-size:11px; font-weight:700; background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px;">✓ Đã xác nhận • Đang pha chế</span>
+            <span style="font-size:11px; font-weight:700; background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px;">🍳 Đang pha chế • Còn 3 phút</span>
           </div>
           <div class="order-dishes">
-            • 2x Hồng Trà Sữa Trân Châu (Size L)<br>
-            <b>Tổng bill: 72.000 đ</b>
+            • 2x Hồng Trà Sữa Trân Châu (Size L, 70% Đường, Đá riêng)<br>
+            <b>Tổng bill: 72.000 đ (Ví ShopeePay)</b>
           </div>
-          <div class="order-address">📍 Giao đến: Minh Khang - 18 Lê Duẩn, Q.1</div>
+          <div class="order-address">📍 Giao đến: <b>Minh Khang</b> - 18 Lê Duẩn, Q.1</div>
+          
+          <div class="driver-assigned-status" style="margin-top:2px;">
+            <span>🛵 Tài xế Nguyễn Văn Hùng (TX-09) đang đến quán (còn 400m)</span>
+            <a href="tel:0903112233" style="color:#047857; text-decoration:none; font-weight:700;">📞 Gọi TX</a>
+          </div>
+
+          <button onclick="cookDoneOrderGeneral('88289')" style="width:100%; height:38px; background:#059669; color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer; margin-top:4px;">
+            🍳 XÁC NHẬN ĐÃ NẤU XONG ➔
+          </button>
         </div>
 
-        <div class="order-item-card">
+        <!-- Trạng thái: Bếp đang pha chế (chờ nấu xong mới phát đơn) -->
+        <div class="order-item-card" id="cardOrderCooking88287">
           <div class="order-row-top">
             <span class="order-code">#ORD_88287</span>
-            <span style="font-size:11px; font-weight:700; background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px;">✓ Đã xác nhận • Đang pha chế</span>
+            <span style="font-size:11px; font-weight:700; background:#FFFBEB; color:#B45309; padding:2px 8px; border-radius:4px;">🍳 Bếp đang pha chế</span>
           </div>
           <div class="order-dishes">
             • 1x Trà Đào Cam Sả (Size L), 1x Pudding Trứng<br>
             <b>Tổng bill: 55.000 đ</b>
           </div>
-          <div class="order-address">📍 Giao đến: Hoàng Yến - 45 Đinh Tiên Hoàng, Q.1</div>
+          <div class="order-address">📍 Giao đến: <b>Hoàng Yến</b> - 45 Đinh Tiên Hoàng, Q.1</div>
+          <div style="font-size:11px; color:#64748B; background:#F8FAFC; padding:6px 10px; border-radius:8px;">
+            ⏳ Nấu xong quán mới phát đơn cho tài xế nhận để giữ món nóng giòn
+          </div>
+          <button onclick="cookDoneOrderGeneral('88287')" style="width:100%; height:38px; background:#059669; color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer; margin-top:4px;">
+            🍳 XÁC NHẬN ĐÃ NẤU XONG ➔
+          </button>
+        </div>
+
+        <!-- Trạng thái: Đã nấu xong đóng gói • Chờ tài xế đến lấy -->
+        <div class="order-item-card" id="cardOrderReady88290" style="border:1.5px solid #86EFAC; background:#F0FDF4;">
+          <div class="order-row-top">
+            <span class="order-code" style="color:#15803D;">#ORD_88290</span>
+            <span style="font-size:11px; font-weight:800; background:#DCFCE7; color:#15803D; padding:2px 8px; border-radius:4px;">📦 ĐÃ NẤU XONG • CHỜ BÀN GIAO</span>
+          </div>
+          <div class="order-dishes">
+            • 3x Trà Sữa Thái Xanh (Size M, 50% Đường)<br>
+            <b>Tổng bill: 84.000 đ • Đã đóng túi niêm phong số #04</b>
+          </div>
+          <div class="order-address">📍 Giao đến: <b>Phạm Quốc Huy (⭐ 95/100)</b> - 120 Điện Biên Phủ, Bình Thạnh</div>
+
+          <div class="driver-assigned-status" style="background:#FFF; border-color:#86EFAC; margin-top:2px;">
+            <span>🛵 <b>Tài xế Trần Văn Nam (TX-14) ĐÃ ĐẾN QUẦY</b></span>
+            <span style="font-size:11px; font-weight:800; background:#10B981; color:#FFF; padding:2px 7px; border-radius:6px;">Mã: #88290</span>
+          </div>
+
+          <button onclick="handoverOrderToDriver('88290', 'Trần Văn Nam (TX-14)')" style="width:100%; height:40px; background:linear-gradient(135deg, #10B981, #059669); color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer; margin-top:4px; box-shadow:0 3px 10px rgba(16,185,129,0.3);">
+            🤝 XÁC NHẬN ĐÃ BÀN GIAO CHO TÀI XẾ ➔
+          </button>
         </div>
       </div>
 
-      <!-- 3. Danh Sách Đơn Đang Giao -->
+      <!-- ==========================================
+           3. TAB ĐANG GIAO: CÁC TRẠNG THÁI GIAO HÀNG
+           ========================================== -->
       <div id="viewOrdersDelivering" style="display:none; flex-direction:column; gap:10px;">
         <!-- Banner cảnh báo ở tab Đang Giao -->
         <div style="background:linear-gradient(135deg, #FEF2F2, #FFF1F2); border:1.5px solid #FECACA; border-radius:12px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:20px; animation:pulseDot 1s infinite;">🚨</span>
             <div>
-              <div style="font-size:12px; font-weight:800; color:#DC2626;">Có 1 đơn hàng chuyển sang trạng thái cảnh báo!</div>
-              <div style="font-size:10px; color:#7F1D1D;">Đơn #ORD_OISHI_88292 • Đang đếm ngược 15 phút chờ hủy đơn nếu không nhận</div>
+              <div style="font-size:12px; font-weight:800; color:#DC2626;">Có 1 đơn chuyển cảnh báo mất đơn & 1 đơn trả về!</div>
+              <div style="font-size:10px; color:#7F1D1D;">Theo dõi sát trạng thái shipper để bảo vệ doanh thu quán</div>
             </div>
           </div>
           <span style="font-size:10.5px; font-weight:800; background:#DC2626; color:#FFF; padding:4px 8px; border-radius:6px; animation:pulseDot 1.5s infinite; white-space:nowrap;">
@@ -306,7 +398,7 @@
           </span>
         </div>
 
-        <!-- ĐƠN HÀNG ĐANG BỊ CẢNH BÁO MẤT ĐƠN (15 PHÚT) -->
+        <!-- TRẠNG THÁI 1: ĐƠN HÀNG ĐANG BỊ CẢNH BÁO MẤT ĐƠN (15 PHÚT) -->
         <div class="order-item-card" id="cardOrderWarning" style="border: 2px solid #EF4444; background: #FFFDFD; box-shadow: 0 4px 16px rgba(239,68,68,0.12); position:relative;">
           <div class="order-row-top">
             <div style="display:flex; align-items:center; gap:6px;">
@@ -350,15 +442,46 @@
             </div>
           </div>
 
-          <!-- Nút xem chi tiết trạng thái đơn -->
           <div style="margin-top:6px;">
             <button type="button" onclick="showWarningDetailModal()" style="width:100%; height:38px; background:#F8FAFC; color:var(--text); border:1px solid var(--border); border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
-              <span>📋</span> <span>Xem Chi Tiết Đơn Hàng</span>
+              <span>📋</span> <span>Xem Chi Tiết Sự Cố</span>
             </button>
           </div>
         </div>
 
-        <!-- Đơn bình thường trên đường giao -->
+        <!-- TRẠNG THÁI 2: BOM HÀNG • SHIPPER ĐANG MANG MÓN VỀ QUÁN ĐỂ TRẢ LẠI -->
+        <div class="order-item-card" id="cardOrderBomReturn" style="border: 2px solid #F87171; background: #FFF5F5;">
+          <div class="order-row-top">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="order-code" style="color:#DC2626; font-size:13.5px; font-weight:800;">#ORD_OISHI_88294</span>
+              <span style="font-size:9.5px; font-weight:800; background:#FEE2E2; color:#DC2626; padding:2px 6px; border-radius:4px;">🚨 ĐÃ BỊ BOM</span>
+            </div>
+            <span style="font-size:11px; font-weight:800; background:#FEF2F2; color:#DC2626; border:1px solid #FCA5A5; padding:3px 8px; border-radius:6px;">
+              🏪 SHIPPER ĐANG QUAY VỀ TRẢ MÓN
+            </span>
+          </div>
+
+          <div class="order-dishes">
+            • 1x Trà Ô Long, 1x Trà Ngô Gia (Size M) • Còn nguyên tem niêm phong<br>
+            Khách: <b>Đặng Minh Tuấn (⭐ 70/100)</b> - 56 Nam Kỳ Khởi Nghĩa, Q.1
+          </div>
+
+          <div style="background:#FFF; border:1px solid #FECACA; border-radius:10px; padding:9px 11px; font-size:11px; color:#334155; line-height:1.45;">
+            🛵 Tài xế <b>Lê Văn Tùng (TX-08)</b> bị khách bom hàng (đã hết 15p gọi không nghe máy). Tài xế đang trên đường quay lại quán để bàn giao lại 2 ly trà.<br>
+            <div style="margin-top:6px; padding-top:6px; border-top:1px dashed #FECACA; display:flex; justify-content:space-between; font-weight:700;">
+              <span>Tiền món nhận lại: <b>53.000 đ</b></span>
+              <span>Cước hoàn: <b>+25.000 đ</b></span>
+              <span style="color:#DC2626;">Quán hoàn lại: <b>78.000 đ</b></span>
+            </div>
+          </div>
+
+          <button onclick="confirmMerchantReceiveBom('ORD_OISHI_88294', 'Lê Văn Tùng (TX-08)', '78.000')" style="width:100%; height:42px; background:linear-gradient(135deg, #10B981, #059669); color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 3px 10px rgba(16,185,129,0.3);">
+            <span>🏪</span>
+            <span>XÁC NHẬN NHẬN MÓN & HOÀN 78.000đ CHO SHIPPER ➔</span>
+          </button>
+        </div>
+
+        <!-- TRẠNG THÁI 3: ĐANG TRÊN ĐƯỜNG GIAO BÌNH THƯỜNG -->
         <div class="order-item-card">
           <div class="order-row-top">
             <span class="order-code">#ORD_88288</span>
@@ -368,8 +491,79 @@
             • 3x Trà Trái Cây Nhiệt Đới (Size L)<br>
             <b>Tài xế phụ trách: Trần Văn Nam (TX-14)</b>
           </div>
-          <div class="order-address">📍 Giao đến: Hoàng Long - 12 Nguyễn Thị Minh Khai, Q.3</div>
+          <div class="order-address">📍 Giao đến: <b>Hoàng Long (⭐ 99/100)</b> - 12 Nguyễn Thị Minh Khai, Q.3 (Còn 1.2 km - 5 phút tới)</div>
         </div>
+
+        <!-- TRẠNG THÁI 4: ĐƠN GHÉP • ĐANG GIAO CHẶNG 2/2 -->
+        <div class="order-item-card">
+          <div class="order-row-top">
+            <span class="order-code">#ORD_88286</span>
+            <span style="font-size:11px; font-weight:700; background:#F3E8FF; color:#7E22CE; padding:2px 8px; border-radius:4px;">🛵 Đơn Ghép • Đang Giao Chặng 2/2</span>
+          </div>
+          <div class="order-dishes">
+            • 2x Trà Ô Long Tứ Quý (Size M)<br>
+            <b>Tài xế phụ trách: Lê Tuấn Anh (TX-22)</b>
+          </div>
+          <div class="order-address">📍 Giao đến: <b>Vũ Hải Đăng (⭐ 97/100)</b> - 34 Pasteur, Q.1 (Đã giao xong đơn 1)</div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           4. TAB ĐÃ XONG / HỦY: LỊCH SỬ KẾT THÚC
+           ========================================== -->
+      <div id="viewOrdersHistory" style="display:none; flex-direction:column; gap:10px;">
+        <!-- Trạng thái 1: Giao Thành Công -->
+        <div class="order-item-card" style="border-left: 4px solid var(--green);">
+          <div class="order-row-top">
+            <span class="order-code">#ORD_88285</span>
+            <span style="font-size:11px; font-weight:800; background:#DCFCE7; color:#15803D; padding:2px 8px; border-radius:4px;">✓ Giao Thành Công Lúc 10:15</span>
+          </div>
+          <div class="order-dishes">
+            • 1x Trà Vải Hạt Sen, 1x Bánh Flan Trứng<br>
+            <b style="color:#059669;">Tổng bill: 68.000 đ (+68.000 đ vào ví doanh thu quán)</b>
+          </div>
+          <div class="order-address">📍 Giao đến: <b>Nguyễn Văn An</b> - 15 Lê Thánh Tôn, Q.1</div>
+          <div style="font-size:11px; color:#059669; font-weight:700;">
+            ⭐ Khách đánh giá 5/5 sao: "Trà sữa rất thơm ngon, giao nhanh!"
+          </div>
+        </div>
+
+        <!-- Trạng thái 2: Đã Hủy Bom Hàng • Quán Đã Nhận Lại Món & Hoàn Cước Cho Shipper -->
+        <div class="order-item-card" style="border-left: 4px solid #64748B;">
+          <div class="order-row-top">
+            <span class="order-code">#ORD_88280</span>
+            <span style="font-size:11px; font-weight:800; background:#F1F5F9; color:#475569; padding:2px 8px; border-radius:4px;">↩️ Đã Hoàn Trả Quán Lúc 09:40</span>
+          </div>
+          <div class="order-dishes">
+            • 2x Trà Sữa Trân Châu Đường Đen (Size L)<br>
+            <b>Khách bom hàng: Bùi Thảo Linh (Bị trừ 20 điểm uy tín)</b>
+          </div>
+          <div style="font-size:11px; color:#475569; background:#F8FAFC; border:1px solid #E2E8F0; padding:8px 10px; border-radius:8px;">
+            ✓ Quán đã nhận lại 2 ly trà nguyên vẹn từ Shipper và hoàn đủ <b>78.000 đ</b> cước hỗ trợ.<br>
+            ❄️ Món ăn đã được bảo quản lại tủ mát theo quy định.
+          </div>
+        </div>
+
+        <!-- Trạng thái 3: Khách Hủy Trước Khi Nấu -->
+        <div class="order-item-card" style="border-left: 4px solid #CBD5E1;">
+          <div class="order-row-top">
+            <span class="order-code">#ORD_88279</span>
+            <span style="font-size:11px; font-weight:700; background:#F8FAFC; color:#64748B; padding:2px 8px; border-radius:4px;">✕ Khách Hủy Trước Khi Nấu</span>
+          </div>
+          <div class="order-dishes">
+            • 1x Trà Dâu Tây (Size M) - 45.000 đ<br>
+            Khách: <b>Trần Minh Tâm</b>
+          </div>
+          <div style="font-size:11px; color:#64748B;">
+            Khách đổi ý hủy đơn trong 60 giây đầu. Bếp chưa chế biến món nên hoàn 100% tiền lại cho khách.
+          </div>
+        </div>
+
+        <!-- Nút sang xem trang chi tiết lịch sử -->
+        <a href="6.html" style="text-decoration:none; width:100%; height:42px; background:#EFF6FF; color:#1D4ED8; border:1.5px solid #BFDBFE; border-radius:12px; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:6px; margin-top:4px;">
+          <span>📦</span>
+          <span>Xem Toàn Bộ Lịch Sử & Báo Cáo Tại Kênh Lịch Sử ➔</span>
+        </a>
       </div>
 
     </div>
@@ -411,28 +605,161 @@
       const tabNew = document.getElementById('tabNew');
       const tabCooking = document.getElementById('tabCooking');
       const tabDelivering = document.getElementById('tabDelivering');
+      const tabHistory = document.getElementById('tabHistory');
 
       const vNew = document.getElementById('viewOrdersNew');
       const vCooking = document.getElementById('viewOrdersCooking');
       const vDelivering = document.getElementById('viewOrdersDelivering');
+      const vHistory = document.getElementById('viewOrdersHistory');
 
-      tabNew.classList.remove('active');
-      tabCooking.classList.remove('active');
-      tabDelivering.classList.remove('active');
+      if (tabNew) tabNew.classList.remove('active');
+      if (tabCooking) tabCooking.classList.remove('active');
+      if (tabDelivering) tabDelivering.classList.remove('active');
+      if (tabHistory) tabHistory.classList.remove('active');
 
-      vNew.style.display = 'none';
-      vCooking.style.display = 'none';
-      vDelivering.style.display = 'none';
+      if (vNew) vNew.style.display = 'none';
+      if (vCooking) vCooking.style.display = 'none';
+      if (vDelivering) vDelivering.style.display = 'none';
+      if (vHistory) vHistory.style.display = 'none';
 
       if (tab === 'new') {
-        tabNew.classList.add('active');
-        vNew.style.display = 'block';
+        if (tabNew) tabNew.classList.add('active');
+        if (vNew) vNew.style.display = 'block';
       } else if (tab === 'cooking') {
-        tabCooking.classList.add('active');
-        vCooking.style.display = 'flex';
+        if (tabCooking) tabCooking.classList.add('active');
+        if (vCooking) vCooking.style.display = 'flex';
       } else if (tab === 'delivering') {
-        tabDelivering.classList.add('active');
-        vDelivering.style.display = 'flex';
+        if (tabDelivering) tabDelivering.classList.add('active');
+        if (vDelivering) vDelivering.style.display = 'flex';
+      } else if (tab === 'history') {
+        if (tabHistory) tabHistory.classList.add('active');
+        if (vHistory) vHistory.style.display = 'flex';
+      }
+    }
+
+    // Xử lý xác nhận đơn hàng chung
+    function confirmOrderGeneral(orderCode, custName) {
+      const card = document.getElementById('cardOrder' + orderCode);
+      const confirmedList = document.getElementById('confirmedOrdersList');
+      if (card && confirmedList) {
+        // Cập nhật giao diện thẻ
+        card.style.border = "1.5px solid #93C5FD";
+        card.style.background = "#FFF";
+        const topRow = card.querySelector('.order-row-top');
+        if (topRow) {
+          topRow.innerHTML = `
+            <span class="order-code">#ORD_OISHI_${orderCode}</span>
+            <span style="font-size:11px; font-weight:700; background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px;">🍳 Bếp đang nấu • Chờ phát đơn</span>
+          `;
+        }
+        const actionArea = card.querySelector('div:last-child');
+        if (actionArea) {
+          actionArea.innerHTML = `
+            <button onclick="cookDoneOrderGeneral('${orderCode}')" style="width:100%; height:38px; background:#059669; color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer;">
+              🍳 XÁC NHẬN ĐÃ NẤU XONG ➔
+            </button>
+          `;
+        }
+        confirmedList.prepend(card);
+      }
+
+      // Cập nhật tab count
+      const cNew = document.getElementById('countTabNew');
+      const cCook = document.getElementById('countTabCooking');
+      if (cNew) {
+        let n = parseInt(cNew.innerText.replace(/\D/g, '')) || 1;
+        cNew.innerText = `(${Math.max(0, n - 1)})`;
+      }
+      if (cCook) {
+        let n = parseInt(cCook.innerText.replace(/\D/g, '')) || 0;
+        cCook.innerText = `(${n + 1})`;
+      }
+
+      switchOrderTab('cooking');
+      alert(`✓ Quán đã XÁC NHẬN đơn #ORD_OISHI_${orderCode} của khách ${custName}!\nBếp đang nấu món. Khi nấu xong quán bấm 'Xác nhận đã nấu xong'.`);
+    }
+
+    // Xử lý nấu xong đơn hàng chung
+    function cookDoneOrderGeneral(orderCode) {
+      const card = document.getElementById('cardOrder' + orderCode) || document.getElementById('cardOrderCooking' + orderCode);
+      if (card) {
+        card.style.border = "1.5px solid #86EFAC";
+        card.style.background = "#F0FDF4";
+        const topRow = card.querySelector('.order-row-top');
+        if (topRow) {
+          topRow.innerHTML = `
+            <span class="order-code" style="color:#15803D;">#ORD_${orderCode}</span>
+            <span style="font-size:11px; font-weight:800; background:#DCFCE7; color:#15803D; padding:2px 8px; border-radius:4px;">📦 ĐÃ NẤU XONG • CHỜ LẤY HÀNG</span>
+          `;
+        }
+        const actionBtn = card.querySelector('button');
+        if (actionBtn) {
+          actionBtn.outerHTML = `
+            <button onclick="handoverOrderToDriver('${orderCode}', 'Tài xế nhận đơn')" style="width:100%; height:40px; background:linear-gradient(135deg, #10B981, #059669); color:#FFF; border:none; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer; margin-top:4px; box-shadow:0 3px 10px rgba(16,185,129,0.3);">
+              🤝 XÁC NHẬN ĐÃ BÀN GIAO CHO TÀI XẾ ➔
+            </button>
+          `;
+        }
+      }
+      alert(`✓ Đơn #${orderCode} đã nấu xong!\nTài xế sẽ nhận đơn và đến lấy hàng tại quầy.`);
+    }
+
+    // Xử lý bàn giao đơn cho tài xế
+    function handoverOrderToDriver(orderCode, driverName) {
+      const card = document.getElementById('cardOrder' + orderCode) || 
+                   document.getElementById('cardOrderCooking' + orderCode) || 
+                   document.getElementById('cardOrderReady' + orderCode);
+      const viewDelivering = document.getElementById('viewOrdersDelivering');
+      if (card && viewDelivering) {
+        card.style.border = "1px solid var(--border)";
+        card.style.background = "#FFF";
+        const topRow = card.querySelector('.order-row-top');
+        if (topRow) {
+          topRow.innerHTML = `
+            <span class="order-code">#ORD_${orderCode}</span>
+            <span style="font-size:11px; font-weight:700; background:#DBEAFE; color:#1D4ED8; padding:2px 8px; border-radius:4px;">🛵 Đang trên đường giao</span>
+          `;
+        }
+        const actionBtn = card.querySelector('button');
+        if (actionBtn) actionBtn.remove();
+        viewDelivering.prepend(card);
+      }
+
+      // Cập nhật tab count
+      const cCook = document.getElementById('countTabCooking');
+      const cDeliv = document.getElementById('countTabDelivering');
+      if (cCook) {
+        let n = parseInt(cCook.innerText.replace(/\D/g, '')) || 1;
+        cCook.innerText = `(${Math.max(0, n - 1)})`;
+      }
+      if (cDeliv) {
+        let n = parseInt(cDeliv.innerText.replace(/\D/g, '')) || 0;
+        cDeliv.innerText = `(${n + 1})`;
+      }
+
+      switchOrderTab('delivering');
+      alert(`✓ Quán đã bàn giao đơn #${orderCode} cho ${driverName}!\nĐơn đã chuyển sang tab 'Đang Giao'.`);
+    }
+
+    // Quán xác nhận nhận lại món bom hàng & hoàn cước cho shipper
+    function confirmMerchantReceiveBom(orderCode, shipName, amount) {
+      if (confirm(`Quán xác nhận đã nhận lại đủ món và hoàn cước ${amount}đ cho tài xế ${shipName}?`)) {
+        const vDeliv = document.getElementById('viewOrdersDelivering');
+        const vHist = document.getElementById('viewOrdersHistory');
+        const cDeliv = document.getElementById('countTabDelivering');
+        const cHist = document.getElementById('countTabHistory');
+
+        if (cDeliv) {
+          let n = parseInt(cDeliv.innerText.replace(/\D/g, '')) || 1;
+          cDeliv.innerText = `(${Math.max(0, n - 1)})`;
+        }
+        if (cHist) {
+          let n = parseInt(cHist.innerText.replace(/\D/g, '')) || 0;
+          cHist.innerText = `(${n + 1})`;
+        }
+
+        switchOrderTab('history');
+        alert(`✓ QUÁN ĐÃ NHẬN LẠI MÓN THÀNH CÔNG!\nĐã hoàn ${amount}đ cho tài xế ${shipName}.\nĐơn ${orderCode} đã hoàn tất quy trình và lưu vào Lịch Sử.`);
       }
     }
 
@@ -756,6 +1083,8 @@
         switchOrderTab('delivering');
       } else if (tabParam === 'cooking') {
         switchOrderTab('cooking');
+      } else if (tabParam === 'history') {
+        switchOrderTab('history');
       }
     });
   </script>

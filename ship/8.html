@@ -972,17 +972,26 @@
         <a href="6.html" class="btn-back-round" id="btnBackNav">←</a>
         <div class="order-code-title" id="lblNavTitle">Đơn #ORD-88291</div>
       </div>
-      <span class="badge-arrived">● Đã tới điểm giao</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span class="badge-arrived">● Đã tới điểm giao</span>
+        <a href="2.html" title="Về trang chủ tài xế" style="text-decoration:none; background:#F1F5F9; border:1px solid #CBD5E1; color:#334155; padding:4px 8px; border-radius:8px; font-size:11px; font-weight:700; display:flex; align-items:center; gap:3px;">
+          <span>🏠</span> <span>Thoát</span>
+        </a>
+      </div>
     </div>
 
     <!-- Nội dung chính -->
     <div class="content">
       <!-- Banner nhắc nhở giữ món bom của đơn trước -->
       <div id="boxBomOnBikeReminder"
-        style="display:none; background:#FFF7ED; border:1.5px solid #FDBA74; border-radius:12px; padding:9px 12px; margin-bottom:10px; font-size:11px; color:#C2410C; line-height:1.45; box-shadow: 0 2px 8px rgba(234,88,12,0.1);">
-        <span>📦 <b>Lưu ý trên xe:</b> Đang giữ món ăn của đơn bom <b id="lblRemindBomOrderId">#ORD-88291</b>. Giao xong
-          đơn này bạn sẽ quay về Quán Hồng Trà Ngô Gia trả món và nhận hoàn <b id="lblRemindBomRefund">78.000
-            đ</b>!</span>
+        style="display:none; background:#FFF7ED; border:1.5px solid #FDBA74; border-radius:12px; padding:10px 12px; margin-bottom:10px; font-size:11.5px; color:#C2410C; line-height:1.45; box-shadow: 0 2px 8px rgba(234,88,12,0.1);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <span>📦 <b>Lưu ý trên xe:</b> Đang giữ món đơn bom <b id="lblRemindBomOrderId">#ORD-88291</b> (Hoàn <b id="lblRemindBomRefund">78.000 đ</b>).</span>
+          <button type="button" onclick="openStoreReturnModal(); document.getElementById('bomReturnFlowModal').classList.add('open');"
+            style="background:#EA580C; color:#FFF; border:none; border-radius:6px; padding:5px 9px; font-size:10.5px; font-weight:800; cursor:pointer; white-space:nowrap; box-shadow:0 2px 6px rgba(234,88,12,0.3);">
+            Trả Quán ➔
+          </button>
+        </div>
       </div>
 
       <!-- 1. Thẻ thông tin đối soát -->
@@ -1286,10 +1295,17 @@
     <!-- ===================================================
          F. MODAL LUỒNG TRẢ MÓN VỀ QUÁN VÌ BỊ BOM HÀNG
          =================================================== -->
-    <div class="modal-overlay" id="bomReturnFlowModal">
-      <div class="modal-card" style="padding: 16px 14px; text-align: left; gap: 10px;">
+    <div class="modal-overlay" id="bomReturnFlowModal" onclick="handleBomOverlayClick8(event)">
+      <div class="modal-card" style="padding: 16px 14px; text-align: left; gap: 10px; position: relative;">
+        <!-- NÚT ĐÓNG MODAL ĐỂ THOÁT RA TỰ DO -->
+        <button type="button" onclick="closeBomReturnModal8()"
+          style="position:absolute; top:12px; right:12px; width:28px; height:28px; border-radius:50%; background:#F1F5F9; border:1px solid #CBD5E1; color:#64748B; font-size:14px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:10;"
+          title="Đóng cửa sổ">
+          ✕
+        </button>
+
         <div
-          style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1.5px solid var(--border); padding-bottom: 8px; width: 100%;">
+          style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1.5px solid var(--border); padding-bottom: 8px; width: 100%; padding-right: 30px;">
           <div style="display:flex; align-items:center; gap:6px;">
             <span style="font-size: 20px;">🚨</span>
             <div>
@@ -1409,6 +1425,20 @@
             <span>✓</span>
             <span id="btnReturnedText">HOÀN TẤT CHUYẾN • VỀ TRANG CHỦ TÀI XẾ ➔</span>
           </button>
+
+          <!-- NÚT THOÁT RA NGOÀI TỰ DO -->
+          <div style="display:flex; gap:6px; width:100%; margin-top:2px;">
+            <button type="button" onclick="closeBomReturnModal8()"
+              style="flex:1; height:36px; background:#F8FAFC; color:#475569; border:1.5px solid #CBD5E1; border-radius:10px; font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+              <span>✕</span>
+              <span>Đóng lại</span>
+            </button>
+            <a href="2.html"
+              style="flex:1.2; text-decoration:none; height:36px; background:#EFF6FF; color:#1D4ED8; border:1.5px solid #BFDBFE; border-radius:10px; font-size:11.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:4px;">
+              <span>🏠</span>
+              <span>Về Trang Chủ</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -1567,7 +1597,14 @@
           openStoreReturnModal();
           document.getElementById('bomReturnFlowModal').classList.add('open');
         };
-        document.getElementById('btnSecondaryAction').style.display = 'none';
+        const secBtn = document.getElementById('btnSecondaryAction');
+        if (secBtn) {
+          secBtn.style.display = 'block';
+          secBtn.innerText = "🏠 Thoát Ra Ngoài Tự Chọn Đơn (Trang Chủ)";
+          secBtn.onclick = function() {
+            window.location.href = '2.html';
+          };
+        }
       } else {
         document.getElementById('modalTitle').innerText = "HOÀN TẤT TẤT CẢ ĐƠN HÀNG! 🎉";
         document.getElementById('modalEarningPill').innerText = "+45.000 đ Tổng thu nhập chuyến gộp";
@@ -1839,6 +1876,17 @@
       document.getElementById('bomReturnFlowModal').classList.remove('open');
       const nextTarget = (orderId === '88291') ? '88292' : '88291';
       window.location.href = `6.html?order=${nextTarget}&completed=${orderId}&bom=${orderId}&is_last=1`;
+    }
+
+    function closeBomReturnModal8() {
+      const modal = document.getElementById('bomReturnFlowModal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function handleBomOverlayClick8(e) {
+      if (e.target && e.target.id === 'bomReturnFlowModal') {
+        closeBomReturnModal8();
+      }
     }
 
     function openStoreReturnModal() {

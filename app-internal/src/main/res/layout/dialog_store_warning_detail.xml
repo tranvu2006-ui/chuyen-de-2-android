@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Header Dialog -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🚨"
+            android:textSize="20sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="CHI TIẾT CẢNH BÁO MẤT ĐƠN"
+            android:textColor="#DC2626"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnCloseModal"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Đóng"
+            android:src="@android:drawable/ic_menu_close_clear_cancel" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginVertical="12dp"
+        android:background="@color/divider" />
+
+    <!-- Thông tin đơn hàng & tài xế -->
+    <TextView
+        android:id="@+id/tvOrderIncidentInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:lineSpacingExtra="4dp"
+        android:text="Mã đơn: #ORD_OISHI_88292\nKhách hàng: Trần Thị Mai (0912.345.678)\nĐịa chỉ: 88 Nguyễn Đình Chiểu, P. Đa Kao, Q.1\nTài xế giao: Nguyễn Văn Hùng (TX-09)\nThời gian báo sự cố: Hệ thống ghi nhận 3 cuộc gọi nhỡ"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp" />
+
+    <!-- Box chính sách bảo vệ quán -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/bg_warning_inline"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🛡️ Chính sách bảo vệ Quán khi có cảnh báo:"
+            android:textColor="#7F1D1D"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:lineSpacingExtra="3dp"
+            android:text="• Quán và Tài xế có 15 phút để liên hệ khách nhận món.\n• Nếu khách nghe máy và nhận món: Đơn giao thành công.\n• Nếu hết 15 phút không liên lạc được: Hệ thống tự động hủy đơn do khách bom hàng. Quán được hoàn đủ 100% tiền món từ quỹ bảo hiểm Oishi. Tài xế sẽ mang trả lại món cho quán."
+            android:textColor="#7F1D1D"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Nút Đóng -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnDismissModal"
+        style="@style/Widget.Internal.Button"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="#F1F5F9"
+        android:text="Đóng"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+</LinearLayout>

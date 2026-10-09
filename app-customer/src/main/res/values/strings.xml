@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Oishi Food</string>
+
+    <!-- Auth -->
+    <string name="login_title">Đăng nhập</string>
+    <string name="register_title">Đăng ký</string>
+    <string name="email_hint">Email</string>
+    <string name="password_hint">Mật khẩu</string>
+    <string name="confirm_password_hint">Xác nhận mật khẩu</string>
+    <string name="name_hint">Họ và tên</string>
+    <string name="btn_login">Đăng Nhập</string>
+    <string name="btn_register">Đăng Ký Tài Khoản</string>
+    <string name="no_account">Chưa có tài khoản? Đăng ký ngay</string>
+    <string name="has_account">Đã có tài khoản? Đăng nhập ngay</string>
+
+    <!-- Home -->
+    <string name="home_title">Oishi Food</string>
+    <string name="empty_restaurants">Chưa có nhà hàng nào</string>
+    <string name="search_hint">Tìm món ngon, quán ăn tại TP.HCM...</string>
+    <string name="location_default">📍 Q.1, TP.HCM ▾</string>
+    <string name="section_popular_restaurants">Quán ngon gần bạn</string>
+    <string name="view_all">Xem tất cả</string>
+    <string name="banner_badge">Freeship Extra</string>
+    <string name="banner_title">ĐẠI TIỆC 0 ĐỒNG</string>
+    <string name="banner_subtitle">Mỗi quán 1 giỏ riêng • Giao nhanh nội thành</string>
+
+    <!-- Categories -->
+    <string name="cat_rice">Cơm Trưa</string>
+    <string name="cat_milktea">Trà Sữa</string>
+    <string name="cat_noodle">Bún/Phở</string>
+    <string name="cat_chicken">Gà Rán</string>
+
+    <!-- Menu -->
+    <string name="empty_menu">Chưa có món ăn nào</string>
+    <string name="add_to_cart">Thêm vào giỏ</string>
+
+    <!-- Cart -->
+    <string name="cart_title">Giỏ Hàng Quán</string>
+    <string name="empty_cart">Giỏ hàng của bạn đang trống</string>
+    <string name="btn_checkout">Giao Hàng</string>
+    <string name="total_label">Tổng thanh toán:</string>
+
+    <!-- Checkout -->
+    <string name="checkout_title">Xác Nhận &amp; Thanh Toán</string>
+    <string name="address_hint">Địa chỉ cụ thể (Số nhà, tên đường, phường/xã)</string>
+    <string name="note_hint">Ghi chú cho quán &amp; shipper (không ớt, gọi trước khi giao...)</string>
+    <string name="btn_place_order">Xác Nhận Đặt Đơn</string>
+    <string name="order_summary">Chi Tiết Đơn Hàng</string>
+
+    <!-- Tracking -->
+    <string name="tracking_title">Trạng Thái Đơn Hàng</string>
+</resources>

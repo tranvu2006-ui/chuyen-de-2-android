@@ -1,0 +1,762 @@
+{
+  "roles": {
+    "1": {
+      "roleId": 1,
+      "roleCode": "ADMIN",
+      "roleName": "Quản trị viên",
+      "description": "Toàn quyền quản trị hệ thống, kiểm duyệt quán và xử lý khiếu nại"
+    },
+    "2": {
+      "roleId": 2,
+      "roleCode": "CUSTOMER",
+      "roleName": "Khách hàng",
+      "description": "Người dùng mua đồ ăn, tạo giỏ hàng, đặt đơn và đánh giá món ăn"
+    },
+    "3": {
+      "roleId": 3,
+      "roleCode": "MERCHANT",
+      "roleName": "Chủ cửa hàng",
+      "description": "Quản lý thực đơn, duyệt đơn hàng và điều phối tài xế nội bộ"
+    },
+    "4": {
+      "roleId": 4,
+      "roleCode": "DRIVER",
+      "roleName": "Tài xế giao hàng",
+      "description": "Tài xế nội bộ của quán, nhận đơn, định vị GPS và xác thực QR"
+    }
+  },
+  "user_statuses": {
+    "1": {
+      "statusId": 1,
+      "statusCode": "ACTIVE",
+      "statusName": "Đang hoạt động",
+      "description": "Tài khoản đang trực tuyến và có thể tương tác bình thường"
+    },
+    "2": {
+      "statusId": 2,
+      "statusCode": "INACTIVE",
+      "statusName": "Ngưng hoạt động",
+      "description": "Tài khoản tạm ngừng hoạt động hoặc chưa kích hoạt"
+    },
+    "3": {
+      "statusId": 3,
+      "statusCode": "OFFLINE",
+      "statusName": "Ngoại tuyến",
+      "description": "Tài khoản đã đăng xuất hoặc ở trạng thái nghỉ ca"
+    }
+  },
+  "users": {
+    "y0PtqfaVTVQiv64X0pbWM5IIoVY2": {
+      "uid": "y0PtqfaVTVQiv64X0pbWM5IIoVY2",
+      "name": "Quản Lý Cửa Hàng (Oishi Merchant)",
+      "email": "manager@oishifood.vn",
+      "phone": "0908123456",
+      "avatarUrl": "https://images.unsplash.com/photo-1556157382-97eda2d62296?w=200",
+      "roleId": 3,
+      "role": "MERCHANT",
+      "roleCode": "MERCHANT",
+      "statusId": 1,
+      "status": "ACTIVE",
+      "isActive": true,
+      "fcmToken": ""
+    },
+    "eDyUVxVSGBd1EvE6MgnEajGKj0B3": {
+      "uid": "eDyUVxVSGBd1EvE6MgnEajGKj0B3",
+      "name": "Nguyễn Văn Hùng (Shipper Q1)",
+      "email": "shipper1@oishifood.vn",
+      "phone": "0912345678",
+      "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
+      "roleId": 4,
+      "role": "DRIVER",
+      "roleCode": "DRIVER",
+      "statusId": 1,
+      "status": "ACTIVE",
+      "isActive": true,
+      "fcmToken": ""
+    },
+    "o8tVxvcIk3QbCzeBKPPbZ497WxV2": {
+      "uid": "o8tVxvcIk3QbCzeBKPPbZ497WxV2",
+      "name": "Trần Minh Tâm (Shipper Q3)",
+      "email": "shipper2@oishifood.vn",
+      "phone": "0934567890",
+      "avatarUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+      "roleId": 4,
+      "role": "DRIVER",
+      "roleCode": "DRIVER",
+      "statusId": 1,
+      "status": "ACTIVE",
+      "isActive": true,
+      "fcmToken": ""
+    },
+    "AbzG4WfmSpOQMlKVaHEiBnDcEig1": {
+      "uid": "AbzG4WfmSpOQMlKVaHEiBnDcEig1",
+      "name": "Lê Hoàng Nam (Khách Hàng)",
+      "email": "customer@oishifood.vn",
+      "phone": "0976543210",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+      "roleId": 2,
+      "role": "CUSTOMER",
+      "roleCode": "CUSTOMER",
+      "statusId": 1,
+      "status": "ACTIVE",
+      "isActive": true,
+      "fcmToken": ""
+    },
+    "TiH8lxUkEjbr2ME4xe7GMjKOA2D3": {
+      "uid": "TiH8lxUkEjbr2ME4xe7GMjKOA2D3",
+      "name": "Trần Thị Mai (Khách Hàng VIP)",
+      "email": "mai.tran@oishifood.vn",
+      "phone": "0988776655",
+      "avatarUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+      "roleId": 2,
+      "role": "CUSTOMER",
+      "roleCode": "CUSTOMER",
+      "statusId": 1,
+      "status": "ACTIVE",
+      "isActive": true,
+      "fcmToken": ""
+    },
+    "admin_root_001": {
+      "uid": "admin_root_001",
+      "name": "Ban Quản Trị Hệ Thống (Admin)",
+      "email": "admin@oishifood.vn",
+      "phone": "0909999888",
+      "avatarUrl": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
+      "roleId": 1,
+      "role": "ADMIN",
+      "roleCode": "ADMIN",
+      "statusId": 1,
+      "status": "ACTIVE",
+      "isActive": true,
+      "fcmToken": ""
+    }
+  },
+  "customers": {
+    "AbzG4WfmSpOQMlKVaHEiBnDcEig1": {
+      "userId": "AbzG4WfmSpOQMlKVaHEiBnDcEig1",
+      "trustScore": 24,
+      "totalOrders": 24,
+      "completedOrders": 24,
+      "boomOrders": 0
+    },
+    "TiH8lxUkEjbr2ME4xe7GMjKOA2D3": {
+      "userId": "TiH8lxUkEjbr2ME4xe7GMjKOA2D3",
+      "trustScore": 8,
+      "totalOrders": 8,
+      "completedOrders": 8,
+      "boomOrders": 0
+    }
+  },
+  "trust_score_logs": {
+    "log_001": {
+      "logId": "log_001",
+      "userId": "AbzG4WfmSpOQMlKVaHEiBnDcEig1",
+      "orderId": "ORD-20241008-001",
+      "changeAmount": 1,
+      "oldScore": 23,
+      "newScore": 24,
+      "reason": "Hoàn thành đơn hàng #ORD-20241008-001 thành công",
+      "createdAt": 1728372720000
+    }
+  },
+  "drivers": {
+    "eDyUVxVSGBd1EvE6MgnEajGKj0B3": {
+      "userId": "eDyUVxVSGBd1EvE6MgnEajGKj0B3",
+      "storeId": "shop_01",
+      "driverCode": "TX-19",
+      "cccdNumber": "079203011111",
+      "cccdFrontUrl": "https://example.com/driver1_cccd_f.jpg",
+      "cccdBackUrl": "https://example.com/driver1_cccd_b.jpg",
+      "licenseNumber": "GPLX-79012345",
+      "vehicleType": "MOTORBIKE",
+      "vehiclePlate": "59P1-882.31",
+      "ratingAvg": 4.9,
+      "dutyStatus": "AVAILABLE",
+      "currentLat": 10.7769,
+      "currentLng": 106.7009
+    },
+    "o8tVxvcIk3QbCzeBKPPbZ497WxV2": {
+      "userId": "o8tVxvcIk3QbCzeBKPPbZ497WxV2",
+      "storeId": "shop_02",
+      "driverCode": "TX-14",
+      "cccdNumber": "079203022222",
+      "cccdFrontUrl": "https://example.com/driver2_cccd_f.jpg",
+      "cccdBackUrl": "https://example.com/driver2_cccd_b.jpg",
+      "licenseNumber": "GPLX-79067890",
+      "vehicleType": "MOTORBIKE",
+      "vehiclePlate": "59F2-441.90",
+      "ratingAvg": 5.0,
+      "dutyStatus": "AVAILABLE",
+      "currentLat": 10.7795,
+      "currentLng": 106.6980
+    }
+  },
+  "approval_statuses": {
+    "1": {
+      "statusId": 1,
+      "statusCode": "PENDING",
+      "statusName": "Chờ duyệt",
+      "description": "Hồ sơ mới gửi, đang chờ quản trị viên đối chiếu CCCD và cấp phép"
+    },
+    "2": {
+      "statusId": 2,
+      "statusCode": "APPROVED",
+      "statusName": "Đã duyệt",
+      "description": "Hồ sơ hợp lệ, đã được cấp quyền kinh doanh/giao hàng trên nền tảng"
+    },
+    "3": {
+      "statusId": 3,
+      "statusCode": "REJECTED",
+      "statusName": "Từ chối",
+      "description": "Hồ sơ không hợp lệ hoặc thông tin CCCD không trùng khớp"
+    }
+  },
+  "merchants": {
+    "y0PtqfaVTVQiv64X0pbWM5IIoVY2": {
+      "userId": "y0PtqfaVTVQiv64X0pbWM5IIoVY2",
+      "cccdNumber": "079203012345",
+      "cccdFrontUrl": "https://example.com/cccd_front.jpg",
+      "cccdBackUrl": "https://example.com/cccd_back.jpg",
+      "cccdHoldUrl": "https://example.com/cccd_hold.jpg",
+      "cccdPortraitUrl": "https://example.com/cccd_portrait.jpg",
+      "businessLicense": "https://example.com/gpkd.jpg",
+      "taxCode": "0312345678",
+      "approvalStatusId": 2,
+      "approvalStatus": "APPROVED",
+      "createdAt": 1728115200000
+    }
+  },
+  "bank_accounts": {
+    "bank_acc_001": {
+      "bankAccountId": "bank_acc_001",
+      "userId": "y0PtqfaVTVQiv64X0pbWM5IIoVY2",
+      "bankName": "Vietcombank",
+      "accountNumber": "0071001234567",
+      "accountHolderName": "NGUYEN HOANG PHUC",
+      "branchName": "Chi nhánh Tân Bình",
+      "isDefault": true,
+      "createdAt": 1728115200000
+    }
+  },
+  "store_statuses": {
+    "1": {
+      "statusId": 1,
+      "statusCode": "PENDING",
+      "statusName": "Chờ duyệt",
+      "description": "Gian hàng đang đợi Admin phê duyệt hồ sơ"
+    },
+    "2": {
+      "statusId": 2,
+      "statusCode": "OPEN",
+      "statusName": "Đang mở cửa",
+      "description": "Gian hàng đang nhận đơn đặt từ khách hàng"
+    },
+    "3": {
+      "statusId": 3,
+      "statusCode": "CLOSED",
+      "statusName": "Đang đóng cửa",
+      "description": "Gian hàng tạm nghỉ hoặc hết giờ mở cửa"
+    },
+    "4": {
+      "statusId": 4,
+      "statusCode": "LOCKED",
+      "statusName": "Bị khóa",
+      "description": "Gian hàng bị khóa do chế tài vi phạm"
+    }
+  },
+  "penalty_tiers": {
+    "1": {
+      "tierId": 1,
+      "tierCode": "NONE",
+      "tierName": "Không phạt",
+      "description": "Gian hàng hoạt động bình thường, không có vi phạm"
+    },
+    "2": {
+      "tierId": 2,
+      "tierCode": "WARN",
+      "tierName": "Cảnh cáo",
+      "description": "Nhắc nhở qua thông báo hệ thống về chất lượng dịch vụ"
+    },
+    "3": {
+      "tierId": 3,
+      "tierCode": "HIDE",
+      "tierName": "Ẩn món/quán",
+      "description": "Tạm ẩn gian hàng khỏi trang tìm kiếm 24h"
+    },
+    "4": {
+      "tierId": 4,
+      "tierCode": "LOCK",
+      "tierName": "Khóa quán",
+      "description": "Khóa hoạt động kinh doanh vĩnh viễn hoặc đến khi khắc phục"
+    }
+  },
+  "delivery_time_frames": {
+    "1": {
+      "frameId": 1,
+      "frameCode": "15-25MIN",
+      "displayText": "15-25 phút",
+      "minMinutes": 15,
+      "maxMinutes": 25,
+      "isActive": true
+    },
+    "2": {
+      "frameId": 2,
+      "frameCode": "20-30MIN",
+      "displayText": "20-30 phút",
+      "minMinutes": 20,
+      "maxMinutes": 30,
+      "isActive": true
+    },
+    "3": {
+      "frameId": 3,
+      "frameCode": "25-35MIN",
+      "displayText": "25-35 phút",
+      "minMinutes": 25,
+      "maxMinutes": 35,
+      "isActive": true
+    },
+    "4": {
+      "frameId": 4,
+      "frameCode": "30-45MIN",
+      "displayText": "30-45 phút",
+      "minMinutes": 30,
+      "maxMinutes": 45,
+      "isActive": true
+    }
+  },
+  "restaurants": {
+    "shop_01": {
+      "id": "shop_01",
+      "merchantId": "y0PtqfaVTVQiv64X0pbWM5IIoVY2",
+      "name": "Cơm Tấm Sài Gòn",
+      "address": "123 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP.HCM",
+      "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
+      "rating": 4.8,
+      "category": "Cơm",
+      "deliveryTime": "20-30 phút",
+      "isOpen": true
+    },
+    "shop_02": {
+      "id": "shop_02",
+      "name": "Phở Hà Nội 36",
+      "address": "456 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM",
+      "imageUrl": "https://images.unsplash.com/photo-1555126634-323283e090fa?w=500",
+      "rating": 4.9,
+      "category": "Phở",
+      "deliveryTime": "25-35 phút",
+      "isOpen": true
+    },
+    "shop_03": {
+      "id": "shop_03",
+      "name": "Bún Bò Huế Cô Ba",
+      "address": "789 Hai Bà Trưng, Phường 8, Quận 3, TP.HCM",
+      "imageUrl": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500",
+      "rating": 4.7,
+      "category": "Bún",
+      "deliveryTime": "20-30 phút",
+      "isOpen": true
+    },
+    "shop_04": {
+      "id": "shop_04",
+      "name": "Bánh Mì Huỳnh Hoa",
+      "address": "26 Lê Thị Riêng, Phường Bến Thành, Quận 1, TP.HCM",
+      "imageUrl": "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=500",
+      "rating": 4.9,
+      "category": "Bánh mì",
+      "deliveryTime": "15-25 phút",
+      "isOpen": true
+    },
+    "shop_05": {
+      "id": "shop_05",
+      "name": "Trà Sữa Oishi Cha",
+      "address": "321 Cách Mạng Tháng 8, Phường 12, Quận 10, TP.HCM",
+      "imageUrl": "https://images.unsplash.com/photo-1558857563-b371033873b8?w=500",
+      "rating": 4.6,
+      "category": "Trà sữa",
+      "deliveryTime": "15-25 phút",
+      "isOpen": true
+    },
+    "shop_06": {
+      "id": "shop_06",
+      "name": "Gà Rán Giòn Cay Hot Crispy",
+      "address": "15 Pasteur, Phường Nguyễn Thái Bình, Quận 1, TP.HCM",
+      "imageUrl": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500",
+      "rating": 4.8,
+      "category": "Gà rán",
+      "deliveryTime": "20-30 phút",
+      "isOpen": true
+    }
+  },
+  "menus": {
+    "shop_01": {
+      "item_01_1": {
+        "id": "item_01_1",
+        "name": "Cơm sườn nướng than hoa",
+        "description": "Cơm tấm sườn nướng than hoa mềm thơm kèm mỡ hành, đồ chua",
+        "price": 55000,
+        "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
+        "category": "Món chính"
+      },
+      "item_01_2": {
+        "id": "item_01_2",
+        "name": "Cơm sườn bì chả đặc biệt",
+        "description": "Cơm tấm kèm sườn bì chả, trứng ốp la, chén mắm pha tỏi ớt",
+        "price": 65000,
+        "imageUrl": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500",
+        "category": "Món chính"
+      },
+      "item_01_3": {
+        "id": "item_01_3",
+        "name": "Sườn cốt lết chiên giòn sốt mắm tỏi",
+        "description": "Sườn cốt lết chiên mắm thơm lừng, đậm vị cơm nóng",
+        "price": 60000,
+        "imageUrl": "https://images.unsplash.com/photo-1544025162-d76694265947?w=500",
+        "category": "Món chính"
+      },
+      "item_01_4": {
+        "id": "item_01_4",
+        "name": "Canh chua cá lóc miền Tây",
+        "description": "Canh chua cá lóc thơm ngon đậm đà, giải nhiệt cực đã",
+        "price": 35000,
+        "imageUrl": "https://images.unsplash.com/photo-1547592180-85f173990554?w=500",
+        "category": "Canh"
+      },
+      "item_01_5": {
+        "id": "item_01_5",
+        "name": "Chả trứng hấp nấm mèo",
+        "description": "Chả trứng thịt xay nấm mèo mềm béo chuẩn vị Sài Gòn",
+        "price": 20000,
+        "imageUrl": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500",
+        "category": "Món phụ"
+      },
+      "item_01_6": {
+        "id": "item_01_6",
+        "name": "Trà đá lá dứa thanh mát",
+        "description": "Trà đá lá dứa thơm nồng, giải khát bữa ăn",
+        "price": 5000,
+        "imageUrl": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500",
+        "category": "Đồ uống"
+      }
+    },
+    "shop_02": {
+      "item_02_1": {
+        "id": "item_02_1",
+        "name": "Phở bò tái lăn Hà Nội",
+        "description": "Bò tái lăn đảo trên chảo lửa rực, nước dùng ngọt xương thanh tao",
+        "price": 65000,
+        "imageUrl": "https://images.unsplash.com/photo-1555126634-323283e090fa?w=500",
+        "category": "Món chính"
+      },
+      "item_02_2": {
+        "id": "item_02_2",
+        "name": "Phở đặc biệt nạm gầu gân bò",
+        "description": "Tô phở đầy đặn đủ nạm, gầu, gân mềm giòn sần sật",
+        "price": 75000,
+        "imageUrl": "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500",
+        "category": "Món chính"
+      },
+      "item_02_3": {
+        "id": "item_02_3",
+        "name": "Phở gà ta hoa hồi lá chanh",
+        "description": "Thịt gà ta da giòn dai, rắc lá chanh thái chỉ thơm nức",
+        "price": 60000,
+        "imageUrl": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500",
+        "category": "Món chính"
+      },
+      "item_02_4": {
+        "id": "item_02_4",
+        "name": "Quẩy giòn vàng ruộm (dĩa 2 cái)",
+        "description": "Quẩy phở chiên giòn tan ăn kèm nước dùng phở",
+        "price": 10000,
+        "imageUrl": "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=500",
+        "category": "Món phụ"
+      },
+      "item_02_5": {
+        "id": "item_02_5",
+        "name": "Trứng chần nước béo hành trần",
+        "description": "Trứng gà ta lòng đào chần trong nước dùng bò béo ngậy",
+        "price": 15000,
+        "imageUrl": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500",
+        "category": "Món phụ"
+      }
+    },
+    "shop_03": {
+      "item_03_1": {
+        "id": "item_03_1",
+        "name": "Bún bò Huế giò heo chả cua",
+        "description": "Nước dùng ruốc sả cay nồng, giò heo chặt khoanh cùng chả cua tươi",
+        "price": 60000,
+        "imageUrl": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500",
+        "category": "Món chính"
+      },
+      "item_03_2": {
+        "id": "item_03_2",
+        "name": "Bún bò bắp hoa nạm gân",
+        "description": "Bắp bò hoa thái mỏng giòn thơm kết hợp nạm gân hầm mềm",
+        "price": 65000,
+        "imageUrl": "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500",
+        "category": "Món chính"
+      },
+      "item_03_3": {
+        "id": "item_03_3",
+        "name": "Bánh bột lọc Huế tôm thịt",
+        "description": "Bánh bột lọc gói lá chuối dai giòn tôm rim đậm đà (dĩa 5 cái)",
+        "price": 35000,
+        "imageUrl": "https://images.unsplash.com/photo-1541832676-9b763b0239ab?w=500",
+        "category": "Khai vị"
+      },
+      "item_03_4": {
+        "id": "item_03_4",
+        "name": "Nước sâm thốt nốt lá dứa",
+        "description": "Nước sâm nấu đường thốt nốt ngọt thanh tự nhiên",
+        "price": 15000,
+        "imageUrl": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500",
+        "category": "Đồ uống"
+      }
+    },
+    "shop_04": {
+      "item_04_1": {
+        "id": "item_04_1",
+        "name": "Bánh mì pate chả lụa đặc biệt",
+        "description": "Bánh mì giòn rụm đầy ắp pate gan béo ngậy, 5 loại chả giò sốt bơ trứng",
+        "price": 68000,
+        "imageUrl": "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=500",
+        "category": "Bánh mì"
+      },
+      "item_04_2": {
+        "id": "item_04_2",
+        "name": "Bánh mì thịt nướng sả ớt",
+        "description": "Thịt xiên nướng trên than hoa đẫm sốt sả ớt, đồ chua giòn ngọt",
+        "price": 45000,
+        "imageUrl": "https://images.unsplash.com/photo-1544025162-d76694265947?w=500",
+        "category": "Bánh mì"
+      },
+      "item_04_3": {
+        "id": "item_04_3",
+        "name": "Bánh mì xíu mại sốt cà trứng muối",
+        "description": "Viên xíu mại mềm tan cùng lòng đỏ trứng muối bùi béo",
+        "price": 48000,
+        "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
+        "category": "Bánh mì"
+      },
+      "item_04_4": {
+        "id": "item_04_4",
+        "name": "Sữa đậu nành nguyên chất ướp lạnh",
+        "description": "Sữa đậu nành nấu tươi mỗi sáng, ngọt dịu vừa phải",
+        "price": 15000,
+        "imageUrl": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500",
+        "category": "Đồ uống"
+      }
+    },
+    "shop_05": {
+      "item_05_1": {
+        "id": "item_05_1",
+        "name": "Trà sữa trân châu hoàng kim",
+        "description": "Vị trà đen đậm đà hòa cùng sữa tươi thơm béo và trân châu dẻo dai",
+        "price": 42000,
+        "imageUrl": "https://images.unsplash.com/photo-1558857563-b371033873b8?w=500",
+        "category": "Trà sữa"
+      },
+      "item_05_2": {
+        "id": "item_05_2",
+        "name": "Trà lài macchiato kem cheese",
+        "description": "Trà hoa nhài thanh hương kết hợp lớp kem cheese mặn béo ngậy",
+        "price": 45000,
+        "imageUrl": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=500",
+        "category": "Trà kem cheese"
+      },
+      "item_05_3": {
+        "id": "item_05_3",
+        "name": "Trà đào cam sả thanh mát",
+        "description": "Hương vị cam sả tươi mát cùng đào miếng giòn ngọt",
+        "price": 40000,
+        "imageUrl": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=500",
+        "category": "Trà trái cây"
+      },
+      "item_05_4": {
+        "id": "item_05_4",
+        "name": "Sữa tươi trân châu đường đen",
+        "description": "Đường đen Đài Loan nấu sệt thấm đẫm trong từng hạt trân châu",
+        "price": 48000,
+        "imageUrl": "https://images.unsplash.com/photo-1558857563-b371033873b8?w=500",
+        "category": "Trà sữa"
+      }
+    },
+    "shop_06": {
+      "item_06_1": {
+        "id": "item_06_1",
+        "name": "Combo 2 miếng gà giòn cay + khoai tây",
+        "description": "2 miếng gà tẩm ướp cay giòn rụm kèm khoai tây chiên vàng",
+        "price": 79000,
+        "imageUrl": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500",
+        "category": "Gà rán"
+      },
+      "item_06_2": {
+        "id": "item_06_2",
+        "name": "Gà sốt cay ngọt Hàn Quốc (4 miếng)",
+        "description": "Gà rút xương chiên giòn áo đều lớp sốt cay ngọt óng ánh",
+        "price": 89000,
+        "imageUrl": "https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=500",
+        "category": "Gà rán"
+      },
+      "item_06_3": {
+        "id": "item_06_3",
+        "name": "Cơm gà giòn sốt Teriyaki",
+        "description": "Cơm nóng ăn kèm má đùi gà chiên sốt Nhật Bản ngọt đậm đà",
+        "price": 55000,
+        "imageUrl": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=500",
+        "category": "Cơm gà"
+      },
+      "item_06_4": {
+        "id": "item_06_4",
+        "name": "Burger gà phô mai tan chảy",
+        "description": "Vỏ bánh mè nướng mềm kẹp ức gà giòn và phô mai Cheddar",
+        "price": 49000,
+        "imageUrl": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
+        "category": "Burger"
+      }
+    }
+  },
+  "stores": {
+    "shop_01": {
+      "id": "shop_01",
+      "name": "Cơm Tấm Sài Gòn",
+      "phone": "02838123456",
+      "address": "123 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP.HCM",
+      "latitude": 10.7712,
+      "longitude": 106.6912,
+      "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
+      "storeStatus": "OPEN",
+      "penaltyTier": "NONE",
+      "deliveryTimeFrameId": 2,
+      "ratingAvg": 4.8,
+      "category": "Cơm"
+    },
+    "shop_02": {
+      "id": "shop_02",
+      "name": "Phở Hà Nội 36",
+      "phone": "02838654321",
+      "address": "456 Lê Lợi, Phường Bến Nghé, Quận 1, TP.HCM",
+      "latitude": 10.7745,
+      "longitude": 106.7012,
+      "imageUrl": "https://images.unsplash.com/photo-1555126634-323283e090fa?w=500",
+      "storeStatus": "OPEN",
+      "penaltyTier": "NONE",
+      "deliveryTimeFrameId": 3,
+      "ratingAvg": 4.9,
+      "category": "Phở"
+    },
+    "shop_03": {
+      "id": "shop_03",
+      "name": "Bún Bò Huế Cô Ba",
+      "phone": "02838998877",
+      "address": "789 Hai Bà Trưng, Phường 8, Quận 3, TP.HCM",
+      "latitude": 10.7891,
+      "longitude": 106.6895,
+      "imageUrl": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500",
+      "storeStatus": "OPEN",
+      "penaltyTier": "NONE",
+      "deliveryTimeFrameId": 2,
+      "ratingAvg": 4.7,
+      "category": "Bún"
+    },
+    "shop_04": {
+      "id": "shop_04",
+      "name": "Bánh Mì Huỳnh Hoa",
+      "phone": "02838221133",
+      "address": "26 Lê Thị Riêng, Phường Bến Thành, Quận 1, TP.HCM",
+      "latitude": 10.7709,
+      "longitude": 106.6925,
+      "imageUrl": "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=500",
+      "storeStatus": "OPEN",
+      "penaltyTier": "NONE",
+      "deliveryTimeFrameId": 1,
+      "ratingAvg": 4.9,
+      "category": "Bánh mì"
+    },
+    "shop_05": {
+      "id": "shop_05",
+      "name": "Trà Sữa Oishi Cha",
+      "phone": "02838445566",
+      "address": "321 Cách Mạng Tháng 8, Phường 12, Quận 10, TP.HCM",
+      "latitude": 10.7788,
+      "longitude": 106.6789,
+      "imageUrl": "https://images.unsplash.com/photo-1558857563-b371033873b8?w=500",
+      "storeStatus": "OPEN",
+      "penaltyTier": "NONE",
+      "deliveryTimeFrameId": 1,
+      "ratingAvg": 4.6,
+      "category": "Trà sữa"
+    },
+    "shop_06": {
+      "id": "shop_06",
+      "name": "Gà Rán Giòn Cay Hot Crispy",
+      "phone": "02838778899",
+      "address": "15 Pasteur, Phường Nguyễn Thái Bình, Quận 1, TP.HCM",
+      "latitude": 10.7725,
+      "longitude": 106.7028,
+      "imageUrl": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=500",
+      "storeStatus": "OPEN",
+      "penaltyTier": "NONE",
+      "deliveryTimeFrameId": 2,
+      "ratingAvg": 4.8,
+      "category": "Gà rán"
+    }
+  },
+  "combos": {
+    "combo_01": {
+      "comboId": "combo_01",
+      "storeId": "shop_01",
+      "comboName": "Combo Cơm Sườn Bì + Trà Tắc",
+      "description": "1 Cơm tấm sườn bì chả đặc biệt kèm 1 ly trà tắc mát lạnh",
+      "comboPrice": 65000,
+      "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
+      "dishIds": ["item_01", "item_02"],
+      "items": [
+        { "dishId": "item_01", "quantity": 1 },
+        { "dishId": "item_02", "quantity": 1 }
+      ],
+      "isActive": true
+    },
+    "combo_02": {
+      "comboId": "combo_02",
+      "storeId": "shop_05",
+      "comboName": "Combo Trà Sữa Đôi Tình Bạn",
+      "description": "2 Ly trà sữa truyền thống Size L đầy ắp trân châu",
+      "comboPrice": 75000,
+      "imageUrl": "https://images.unsplash.com/photo-1558857563-b371033873b8?w=500",
+      "dishIds": ["item_05_1", "item_05_2"],
+      "items": [
+        { "dishId": "item_05_1", "quantity": 1 },
+        { "dishId": "item_05_2", "quantity": 1 }
+      ],
+      "isActive": true
+    }
+  },
+  "dish_reviews": {
+    "rev_001": {
+      "reviewId": "rev_001",
+      "orderId": "order_004",
+      "dishId": "item_04_1",
+      "customerId": "AbzG4WfmSpOQMlKVaHEiBnDcEig1",
+      "customerName": "Lê Hoàng Nam",
+      "rating": 5,
+      "comment": "Bánh mì đặc biệt đầy ụ nhân pate và thịt xá xíu, rất ngon!",
+      "createdAt": 1728182400000
+    },
+    "rev_002": {
+      "reviewId": "rev_002",
+      "orderId": "order_003",
+      "dishId": "item_05_1",
+      "customerId": "TiH8lxUkEjbr2ME4xe7GMjKOA2D3",
+      "customerName": "Trần Thị Mai",
+      "rating": 5,
+      "comment": "Trà sữa đậm vị trà, trân châu dẻo mềm chuẩn vị!",
+      "createdAt": 1728186000000
+    }
+  },
+  "orders": {},
+  "tracking": {},
+  "carts": {},
+  "complaints": {}
+}

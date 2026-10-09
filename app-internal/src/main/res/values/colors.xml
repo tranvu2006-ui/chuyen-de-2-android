@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Colors — Oishi Food Merchant & Driver (chuyende2 Prototype) -->
+    <color name="primary">#EE4D2D</color>
+    <color name="primary_variant">#D73211</color>
+    <color name="primary_light">#FFF0ED</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="white">#FFFFFF</color>
+
+    <color name="secondary">#2563EB</color>
+    <color name="on_secondary">#FFFFFF</color>
+
+    <!-- Backgrounds & Surfaces -->
+    <color name="background">#F4F6F8</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="on_background">#1E293B</color>
+    <color name="on_surface">#1E293B</color>
+
+    <color name="text_primary">#1E293B</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="border">#E2E8F0</color>
+    <color name="divider">#F1F5F9</color>
+
+    <!-- Semantic & Accent Colors -->
+    <color name="brand_green">#10B981</color>
+    <color name="brand_green_bg">#ECFDF5</color>
+    <color name="brand_blue">#2563EB</color>
+    <color name="brand_blue_bg">#EFF6FF</color>
+    <color name="brand_orange">#F59E0B</color>
+    <color name="brand_orange_bg">#FFFBEB</color>
+    <color name="danger">#EF4444</color>
+    <color name="danger_bg">#FEE2E2</color>
+
+    <!-- Status Colors -->
+    <color name="status_pending">#F59E0B</color>
+    <color name="status_ready">#10B981</color>
+    <color name="status_delivering">#2563EB</color>
+    <color name="status_completed">#10B981</color>
+
+    <color name="error">#EF4444</color>
+    <color name="on_error">#FFFFFF</color>
+</resources>

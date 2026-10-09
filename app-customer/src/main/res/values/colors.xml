@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Colors — Oishi Food (chuyende2 Prototype) -->
+    <color name="primary">#EE4D2D</color>
+    <color name="primary_variant">#D73211</color>
+    <color name="primary_light">#FFF0ED</color>
+    <color name="primary_hover">#D73211</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="white">#FFFFFF</color>
+
+    <color name="secondary">#00B14F</color>
+    <color name="secondary_variant">#00873C</color>
+    <color name="on_secondary">#FFFFFF</color>
+
+    <!-- Backgrounds & Surfaces -->
+    <color name="background">#F5F5F5</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="on_background">#1E293B</color>
+    <color name="on_surface">#222222</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#222222</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_muted">#888888</color>
+
+    <!-- Semantic & Accent Colors -->
+    <color name="error">#EF4444</color>
+    <color name="on_error">#FFFFFF</color>
+
+    <color name="brand_green">#00B14F</color>
+    <color name="brand_green_bg">#E8F7EE</color>
+    <color name="brand_blue">#2563EB</color>
+    <color name="brand_blue_bg">#EFF6FF</color>
+    <color name="brand_teal">#1DBB9E</color>
+    <color name="brand_teal_bg">#F0FDF8</color>
+    <color name="rating_star">#FFB800</color>
+
+    <!-- Status Colors -->
+    <color name="status_open">#00B14F</color>
+    <color name="status_closed">#94A3B8</color>
+    <color name="status_pending">#F59E0B</color>
+    <color name="status_delivering">#2563EB</color>
+    <color name="status_completed">#10B981</color>
+    <color name="status_ready">#10B981</color>
+
+    <!-- UI Elements -->
+    <color name="border">#ECECEC</color>
+    <color name="divider">#F0F0F0</color>
+    <color name="card_shadow">#10000000</color>
+    <color name="badge_bg">#EE4D2D</color>
+    <color name="ripple">#20EE4D2D</color>
+
+    <!-- Banner Gradient -->
+    <color name="banner_gradient_start">#FF6933</color>
+    <color name="banner_gradient_end">#EE4D2D</color>
+    <color name="banner_badge_bg">#FFD21E</color>
+</resources>

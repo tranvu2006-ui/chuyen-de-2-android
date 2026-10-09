@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Cho phép kiểm tra và mở ứng dụng Quán & Shipper (Oishi Internal) -->
+    <queries>
+        <package android:name="com.chuyen_de_2.foodorder.internal" />
+    </queries>
+
+    <application
+        android:name=".FoodOrderCustomerApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FoodOrder.Customer">
+
+        <!-- Google Maps API Key — lấy từ local.properties -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="YOUR_MAPS_API_KEY_HERE" />
+
+        <!-- Auth -->
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.auth.RegisterActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
+
+        <!-- Main -->
+        <activity
+            android:name=".ui.home.HomeActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Menu -->
+        <activity
+            android:name=".ui.menu.MenuActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Cart -->
+        <activity
+            android:name=".ui.cart.CartActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Checkout -->
+        <activity
+            android:name=".ui.checkout.CheckoutActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Tracking (Google Maps) -->
+        <activity
+            android:name=".ui.tracking.TrackingActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Profile & TrustScore (b11.html) -->
+        <activity
+            android:name=".ui.profile.ProfileActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Order History (b3.html) -->
+        <activity
+            android:name=".ui.order.OrderHistoryActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Complaint (b12.html) -->
+        <activity
+            android:name=".ui.complaint.ComplaintActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- FCM Service -->
+        <service
+            android:name=".service.CustomerFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

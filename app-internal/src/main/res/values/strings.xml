@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nội bộ - Đặt Đồ Ăn</string>
+    <string name="login_title">Đăng nhập nội bộ</string>
+    <string name="email_hint">Email nhân viên</string>
+    <string name="password_hint">Mật khẩu</string>
+    <string name="btn_login">Đăng nhập</string>
+    <string name="empty_orders">Chưa có đơn hàng nào</string>
+    <string name="empty_assigned">Chưa có đơn được gán</string>
+</resources>

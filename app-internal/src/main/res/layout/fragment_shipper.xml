@@ -199,12 +199,26 @@
                         android:textSize="12sp" />
 
                     <TextView
+                        android:id="@+id/tvCurrentDeliveryAddress"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:text="🏠 Giao đến: Khách hàng nội thành"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnOpenGoogleMapsNav"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="38dp"
+                        android:layout_marginTop="8dp"
+                        android:backgroundTint="#EFF6FF"
+                        android:text="🗺️ Mở Google Maps Dẫn Đường"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="8dp" />
                 </LinearLayout>
 
             </LinearLayout>

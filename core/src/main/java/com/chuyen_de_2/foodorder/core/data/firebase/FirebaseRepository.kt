@@ -317,6 +317,92 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
+    // ==================== HỒ SƠ QUÁN ĂN (STORES - Quán/8.html) ====================
+
+    /** Lắng nghe thông tin hồ sơ quán theo thời gian thực */
+    fun observeStore(storeId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Store?> = callbackFlow {
+        val ref = database.getReference("stores").child(storeId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val store = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                trySend(store)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Cập nhật thông tin hồ sơ quán ăn lên Firebase */
+    suspend fun updateStoreProfile(
+        storeId: String,
+        name: String,
+        phone: String,
+        address: String,
+        district: String,
+        ownerName: String,
+        openHours: String,
+        prepTime: String
+    ): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "name" to name,
+                "phone" to phone,
+                "address" to address,
+                "district" to district,
+                "ownerName" to ownerName,
+                "openHours" to openHours,
+                "prepTime" to prepTime
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ==================== THỰC ĐƠN QUÁN (DISHES) ====================
+
+    /** Lấy danh sách món ăn của quán theo thời gian thực */
+    fun observeStoreDishes(storeId: String): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Dish>> = callbackFlow {
+        val ref = database.getReference("stores").child(storeId).child("dishes")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Dish>()
+                for (child in snapshot.children) {
+                    val dish = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Dish::class.java)
+                    if (dish != null) {
+                        list.add(if (dish.id.isBlank()) dish.copy(id = child.key ?: "") else dish)
+                    }
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lưu / Cập nhật món ăn cho quán vào Firebase */
+    suspend fun saveStoreDish(storeId: String, dish: com.chuyen_de_2.foodorder.core.data.model.Dish) {
+        val dishId = dish.id.ifBlank {
+            database.getReference("stores").child(storeId).child("dishes").push().key ?: "dish_${System.currentTimeMillis()}"
+        }
+        val finalDish = dish.copy(id = dishId, storeId = storeId)
+        database.getReference("stores").child(storeId).child("dishes").child(dishId).setValue(finalDish).await()
+    }
+
+    /** Xóa món ăn khỏi thực đơn quán trên Firebase */
+    suspend fun deleteStoreDish(storeId: String, dishId: String) {
+        database.getReference("stores").child(storeId).child("dishes").child(dishId).removeValue().await()
+    }
+
     // ==================== KHIẾU NẠI (COMPLAINTS) ====================
 
     /** Gửi khiếu nại đơn hàng lên Firebase (Actor 2 -> Actor 1) */
@@ -333,5 +419,105 @@ class FirebaseRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    // ==================== ĐỘI NGŨ TÀI XẾ QUÁN (DRIVERS - Quán/1.html) ====================
+
+    /** Lấy danh sách tài xế nội bộ của quán theo thời gian thực */
+    fun observeStoreDrivers(storeId: String): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Driver>> = callbackFlow {
+        val ref = database.getReference("drivers")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = snapshot.children.mapNotNull {
+                    it.getValue(com.chuyen_de_2.foodorder.core.data.model.Driver::class.java)
+                }.filter {
+                    it.storeId.isEmpty() || it.storeId == storeId || storeId.isEmpty()
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lưu hoặc thêm mới tài xế */
+    suspend fun saveDriver(driver: com.chuyen_de_2.foodorder.core.data.model.Driver): Result<String> {
+        return try {
+            val ref = if (driver.driverId.isNotBlank()) {
+                database.getReference("drivers").child(driver.driverId)
+            } else {
+                database.getReference("drivers").push()
+            }
+            val id = ref.key ?: System.currentTimeMillis().toString()
+            val finalDriver = driver.copy(driverId = id)
+            ref.setValue(finalDriver).await()
+            Result.success(id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Khởi tạo 3 tài xế mẫu chuẩn theo Quán/1.html nếu database chưa có */
+    suspend fun seedDefaultDriversIfEmpty(storeId: String) {
+        try {
+            val snapshot = database.getReference("drivers").get().await()
+            if (!snapshot.exists() || snapshot.childrenCount == 0L) {
+                val demoDrivers = listOf(
+                    com.chuyen_de_2.foodorder.core.data.model.Driver(
+                        driverId = "driver_nam_14",
+                        storeId = storeId,
+                        driverCode = "TX-14",
+                        name = "Trần Văn Nam",
+                        phone = "0903882910",
+                        avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+                        vehicleModel = "Yamaha Sirius Fi (59-T1 882.91)",
+                        vehiclePlate = "59-T1 882.91",
+                        dutyStatus = com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE,
+                        todayOrdersCount = 12,
+                        totalOrdersCount = 1240,
+                        ratingAvg = 4.9f,
+                        note = "✓ Tự nhận đơn của quán"
+                    ),
+                    com.chuyen_de_2.foodorder.core.data.model.Driver(
+                        driverId = "driver_tuan_19",
+                        storeId = storeId,
+                        driverCode = "TX-19",
+                        name = "Nguyễn Văn Tuấn",
+                        phone = "0909888777",
+                        avatarUrl = "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80",
+                        vehicleModel = "Yamaha Sirius (59-K2 654.32)",
+                        vehiclePlate = "59-K2 654.32",
+                        dutyStatus = com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING,
+                        todayOrdersCount = 8,
+                        totalOrdersCount = 860,
+                        currentOrderCode = "#ORD_OISHI_88290 (Giao Q.1)",
+                        ratingAvg = 4.8f,
+                        note = "Đang thực hiện cuốc xe"
+                    ),
+                    com.chuyen_de_2.foodorder.core.data.model.Driver(
+                        driverId = "driver_nghia_08",
+                        storeId = storeId,
+                        driverCode = "TX-08",
+                        name = "Lê Hữu Nghĩa",
+                        phone = "0918765432",
+                        avatarUrl = "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=150&auto=format&fit=crop&q=80",
+                        vehicleModel = "Honda AirBlade (59-P1 123.89)",
+                        vehiclePlate = "59-P1 123.89",
+                        dutyStatus = com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY,
+                        todayOrdersCount = 0,
+                        totalOrdersCount = 95,
+                        ratingAvg = 4.9f,
+                        note = "Vào ca lúc 14:00"
+                    )
+                )
+                demoDrivers.forEach { driver ->
+                    database.getReference("drivers").child(driver.driverId).setValue(driver).await()
+                }
+            }
+        } catch (_: Exception) {}
     }
 }

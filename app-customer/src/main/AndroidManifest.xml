@@ -58,10 +58,21 @@
             android:name=".ui.cart.CartActivity"
             android:theme="@style/Theme.FoodOrder.Customer" />
 
-        <!-- Checkout -->
+        <!-- Checkout (b8.html) -->
         <activity
             android:name=".ui.checkout.CheckoutActivity"
             android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Payment (b8_payment.html) -->
+        <activity
+            android:name=".ui.payment.PaymentActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Order Success (b8_success.html) -->
+        <activity
+            android:name=".ui.order.OrderSuccessActivity"
             android:theme="@style/Theme.FoodOrder.Customer" />
 
         <!-- Tracking (Google Maps) -->

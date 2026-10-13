@@ -53,7 +53,17 @@ class ShipperFragment : Fragment() {
 
         setupGPSToggle()
         setupRecyclerView()
+        setupGoogleMapsNavigation()
         observeViewModel()
+    }
+
+    private fun setupGoogleMapsNavigation() {
+        binding.btnOpenGoogleMapsNav.setOnClickListener {
+            val currentOrderId = viewModel.currentDeliveryOrderId.value
+            val currentOrder = viewModel.assignedOrders.value?.find { it.orderId == currentOrderId }
+            val address = currentOrder?.address?.ifBlank { "Quận 1, TP.HCM" } ?: "Quận 1, TP.HCM"
+            com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.openGoogleMapsSearch(requireContext(), address)
+        }
     }
 
     private fun setupGPSToggle() {
@@ -115,16 +125,27 @@ class ShipperFragment : Fragment() {
     private fun observeViewModel() {
         viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
             binding.tvEmpty.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
-            // Update adapter
+            val currentId = viewModel.currentDeliveryOrderId.value
+            val currentOrder = orders.find { it.orderId == currentId }
+            if (currentOrder != null && currentOrder.address.isNotBlank()) {
+                binding.tvCurrentDeliveryAddress.text = "🏠 Giao đến: ${currentOrder.address}"
+            }
         }
 
         viewModel.currentDeliveryOrderId.observe(viewLifecycleOwner) { orderId ->
             if (orderId != null) {
                 binding.tvCurrentOrder.text = "Đơn hàng #${orderId.takeLast(6).uppercase()}"
                 binding.tvCurrentOrderTag.visibility = View.VISIBLE
+                binding.btnOpenGoogleMapsNav.visibility = View.VISIBLE
+
+                val currentOrder = viewModel.assignedOrders.value?.find { it.orderId == orderId }
+                if (currentOrder != null && currentOrder.address.isNotBlank()) {
+                    binding.tvCurrentDeliveryAddress.text = "🏠 Giao đến: ${currentOrder.address}"
+                }
             } else {
                 binding.tvCurrentOrder.text = "Chưa có đơn đang giao"
                 binding.tvCurrentOrderTag.visibility = View.GONE
+                binding.btnOpenGoogleMapsNav.visibility = View.GONE
             }
         }
     }

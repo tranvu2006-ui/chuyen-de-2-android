@@ -11,8 +11,10 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
@@ -25,9 +27,13 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.PolylineOptions
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
 /**
  * Màn hình Theo Dõi Đơn Hàng (TrackingActivity)
@@ -47,6 +53,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private var googleMap: GoogleMap? = null
     private var shipperMarker: Marker? = null
+    private var storeMarker: Marker? = null
+    private var customerMarker: Marker? = null
+    private var routePolyline: Polyline? = null
+    private var customerLatLng: LatLng? = null
+    private var storeLatLng: LatLng? = null
     private var isFirstUpdate = true
 
     private var currentOrderId: String = ""
@@ -90,6 +101,13 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun setupListeners() {
         binding.btnBack.setOnClickListener {
             finish()
+        }
+
+        // Bấm vào bản đồ mở ứng dụng Google Maps dẫn đường trực tiếp
+        binding.mapFragment.setOnClickListener {
+            customerLatLng?.let { dest ->
+                GoogleMapUtils.openGoogleMapsNavigation(this, dest.latitude, dest.longitude, "Điểm giao hàng")
+            }
         }
 
         // Gọi cho quán
@@ -245,6 +263,43 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Cập nhật chi tiết các món ăn & thanh toán
         bindOrderItems(order)
+
+        // Geocode địa chỉ khách hàng & quán ăn lên bản đồ Google Maps
+        lifecycleScope.launch {
+            val map = googleMap ?: return@launch
+            val cLatLng = GoogleMapUtils.geocodeAddress(this@TrackingActivity, order.address)
+            customerLatLng = cLatLng
+
+            val sLatLng = GoogleMapUtils.STORE_COORDINATES[order.shopId]
+                ?: GoogleMapUtils.findFallbackDistrict(order.shopName)
+            storeLatLng = sLatLng
+
+            if (storeMarker == null) {
+                storeMarker = map.addMarker(
+                    MarkerOptions()
+                        .position(sLatLng)
+                        .title("Quán ăn: ${order.shopName}")
+                        .snippet("Điểm nhận món")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
+                )
+            } else {
+                storeMarker?.position = sLatLng
+            }
+
+            if (customerMarker == null) {
+                customerMarker = map.addMarker(
+                    MarkerOptions()
+                        .position(cLatLng)
+                        .title("Điểm giao hàng")
+                        .snippet(order.address)
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+                )
+            } else {
+                customerMarker?.position = cLatLng
+            }
+
+            updateRouteAndCamera()
+        }
     }
 
     private fun updateStatusStep(status: String) {
@@ -500,16 +555,39 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             shipperMarker = map.addMarker(
                 MarkerOptions()
                     .position(latLng)
-                    .title("Tài xế: $currentShipperName")
+                    .title("🛵 Tài xế: $currentShipperName")
+                    .snippet("Đang di chuyển giao đơn")
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
             )
         } else {
             shipperMarker?.position = latLng
         }
 
-        if (isFirstUpdate) {
-            map.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16f))
-            isFirstUpdate = false
-        }
+        updateRouteAndCamera()
+    }
+
+    private fun updateRouteAndCamera() {
+        val map = googleMap ?: return
+        val sLatLng = storeLatLng ?: return
+        val cLatLng = customerLatLng ?: return
+        val shipLatLng = shipperMarker?.position ?: sLatLng
+
+        // Vẽ đường nối lộ trình di chuyển Google Maps
+        routePolyline?.remove()
+        routePolyline = map.addPolyline(
+            PolylineOptions()
+                .add(sLatLng, shipLatLng, cLatLng)
+                .color(ContextCompat.getColor(this, R.color.primary))
+                .width(8f)
+                .geodesic(true)
+        )
+
+        try {
+            val boundsBuilder = LatLngBounds.Builder()
+            boundsBuilder.include(sLatLng)
+            boundsBuilder.include(cLatLng)
+            boundsBuilder.include(shipLatLng)
+            map.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 120))
+        } catch (_: Exception) {}
     }
 }

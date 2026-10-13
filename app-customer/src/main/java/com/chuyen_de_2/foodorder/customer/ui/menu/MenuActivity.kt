@@ -42,8 +42,9 @@ class MenuActivity : AppCompatActivity() {
             return
         }
         shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Nhà hàng"
+        val initialDishId = intent.getStringExtra(Constants.EXTRA_DISH_ID)
 
-        viewModel.setShopInfo(shopId, shopName)
+        viewModel.setShopInfo(shopId, shopName, initialDishId)
 
         setupTopNav()
         setupCategoryChips()
@@ -85,7 +86,7 @@ class MenuActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         adapter = MenuAdapter(
             onAddClick = { dish ->
-                viewModel.addToCart(dish)
+                handleDishSelection(dish)
             },
             onRemoveClick = { itemId ->
                 viewModel.removeFromCart(itemId)
@@ -94,10 +95,7 @@ class MenuActivity : AppCompatActivity() {
                 viewModel.getItemQuantity(itemId)
             },
             onItemClick = { dish ->
-                viewModel.selectDish(dish)
-                viewModel.addToCart(dish)
-                adapter.setSelectedDishId(dish.id)
-                binding.nestedScroll.smoothScrollTo(0, 0)
+                handleDishSelection(dish)
             }
         )
 
@@ -205,9 +203,33 @@ class MenuActivity : AppCompatActivity() {
             sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
         }
 
-        // Bấm vào phần chi tiết món ở nửa trên cũng cộng thêm 1 vào giỏ hàng
+        // Bấm vào phần chi tiết món ở nửa trên
         binding.cardTopDetail.setOnClickListener {
-            viewModel.addToCart(dish)
+            handleDishSelection(dish)
         }
+    }
+
+    /**
+     * Xử lý khi người dùng chọn 1 món:
+     * - Bất kỳ món nào khi bấm vào chọn đều tự động cộng thêm 1 vào giỏ hàng
+     */
+    private fun handleDishSelection(dish: Dish) {
+        viewModel.selectDish(dish)
+        adapter.setSelectedDishId(dish.id)
+
+        // Tự động cộng thêm 1 cho món bất kì
+        viewModel.addToCart(dish)
+        adapter.notifyDataSetChanged()
+
+        val currentQty = viewModel.getItemQuantity(dish.id)
+        Toast.makeText(this, "✓ Đã chọn: ${dish.name} (x$currentQty)", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showDishOptionBottomSheet(dish: Dish) {
+        val bottomSheet = DishOptionBottomSheetDialogFragment(dish) { cartItem ->
+            viewModel.addCustomCartItem(cartItem)
+            adapter.notifyDataSetChanged()
+        }
+        bottomSheet.show(supportFragmentManager, DishOptionBottomSheetDialogFragment.TAG)
     }
 }

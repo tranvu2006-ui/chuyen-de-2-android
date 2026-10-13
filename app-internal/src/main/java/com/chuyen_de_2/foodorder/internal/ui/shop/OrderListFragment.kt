@@ -19,13 +19,19 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentOrderListBinding
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * OrderListFragment — Kênh Quản Lý Đơn Hàng Dành Cho Quán (Quán/5.html)
@@ -40,8 +46,15 @@ class OrderListFragment : Fragment() {
     private var _binding: FragmentOrderListBinding? = null
     private val binding get() = _binding!!
 
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
     private val viewModel: ShopViewModel by viewModels()
     private lateinit var adapter: OrderAdapter
+    private var currentStoreId = "shop_01"
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -53,10 +66,61 @@ class OrderListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        resolveCurrentStoreId()
         setupUI()
         setupTabs()
         setupRecyclerView()
         observeViewModel()
+        observeStoreProfile()
+    }
+
+    private fun resolveCurrentStoreId() {
+        val uid = auth.currentUser?.uid.orEmpty()
+        currentStoreId = when (uid) {
+            "whjjZ5osJhTNtMCovwgp8JXdJK73" -> "shop_01"
+            "AdBaJDWpzDYJRxVdl2qbWX8jAUR2" -> "shop_02"
+            "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2" -> "shop_03"
+            "uNzJQswcLSNnuF4GpQAlMdQnS1P2" -> "shop_04"
+            "QCXRaghsICbmi1Pngptv3s0mWO32" -> "shop_05"
+            "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1" -> "shop_06"
+            else -> "shop_01"
+        }
+    }
+
+    private fun observeStoreProfile() {
+        val openProfile = {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, StoreProfileFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+        binding.btnEditStoreProfile.setOnClickListener { openProfile() }
+        binding.layoutShopInfo.setOnClickListener { openProfile() }
+
+        binding.btnLogoutChannel.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    auth.signOut()
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    requireActivity().finish()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
+                if (store != null) {
+                    binding.tvShopName.text = store.name.ifBlank { "Hồng Trà Ngô Gia" }
+                    binding.tvShopAddress.text = "📍 " + store.address.ifBlank { "28 Tô Vĩnh Diện, TP. Thủ Đức" }
+                }
+            }
+        }
     }
 
     private fun setupUI() {

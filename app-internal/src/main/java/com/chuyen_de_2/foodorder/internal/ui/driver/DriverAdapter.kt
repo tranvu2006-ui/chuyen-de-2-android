@@ -1,0 +1,120 @@
+package com.chuyen_de_2.foodorder.internal.ui.driver
+
+import android.graphics.Color
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverBinding
+
+class DriverAdapter(
+    private val onCallClick: (String) -> Unit
+) : ListAdapter<Driver, DriverAdapter.DriverViewHolder>(DriverDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DriverViewHolder {
+        val binding = ItemDriverBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return DriverViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: DriverViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class DriverViewHolder(
+        private val binding: ItemDriverBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(driver: Driver) {
+            binding.tvDriverName.text = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
+            binding.tvDriverCode.text = driver.driverCode.ifBlank { "TX" }
+            binding.tvDriverPhone.text = "📞 ${driver.phone.ifBlank { "Chưa cập nhật" }}"
+
+            // Load avatar
+            if (driver.avatarUrl.isNotBlank()) {
+                Glide.with(binding.root.context)
+                    .load(driver.avatarUrl)
+                    .placeholder(R.drawable.bg_badge_offline)
+                    .error(R.drawable.bg_badge_offline)
+                    .into(binding.ivDriverAvatar)
+            } else {
+                binding.ivDriverAvatar.setImageResource(android.R.drawable.ic_menu_myplaces)
+            }
+
+            // Status Badge & Styling
+            when (driver.dutyStatus) {
+                Driver.DutyStatus.AVAILABLE -> {
+                    binding.tvStatusBadge.text = "🟢 Đang trực"
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_free)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#10B981"))
+
+                    binding.tvActionNote.text = "✓ Tự nhận đơn của quán"
+                    binding.tvActionNote.setBackgroundResource(R.drawable.bg_badge_free)
+                    binding.tvActionNote.setTextColor(Color.parseColor("#10B981"))
+                }
+                Driver.DutyStatus.DELIVERING -> {
+                    binding.tvStatusBadge.text = "🚚 Đang giao đơn"
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_busy)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#EE4D2D"))
+
+                    binding.tvActionNote.text = "Đang thực hiện cuốc xe"
+                    binding.tvActionNote.background = null
+                    binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
+                }
+                else -> {
+                    binding.tvStatusBadge.text = "⏸️ Nghỉ ca"
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_offline)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#64748B"))
+
+                    val noteText = driver.note.ifBlank { "Vào ca lúc 14:00" }
+                    binding.tvActionNote.text = noteText
+                    binding.tvActionNote.background = null
+                    binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
+                }
+            }
+
+            // Xe máy
+            val vehicleModelStr = if (driver.vehicleModel.isNotBlank()) driver.vehicleModel else "Yamaha Sirius"
+            val vehiclePlateStr = if (driver.vehiclePlate.isNotBlank()) " (${driver.vehiclePlate})" else ""
+            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleModelStr$vehiclePlateStr"
+
+            // Đơn giao
+            if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {
+                val ordCode = driver.currentOrderCode.ifBlank { "#ORD_OISHI_88290 (Giao Q.1)" }
+                binding.tvOrderStats.text = "📦 Đang giao đơn: $ordCode"
+            } else {
+                val today = driver.todayOrdersCount
+                val total = driver.totalOrdersCount
+                binding.tvOrderStats.text = "📦 Đã giao cho quán: $today đơn hôm nay • $total đơn tổng"
+            }
+
+            // Đánh giá
+            val ratingStr = String.format("%.1f", if (driver.ratingAvg > 0) driver.ratingAvg else 5.0f)
+            binding.tvRating.text = "⭐ Đánh giá uy tín: $ratingStr / 5.0 (Tài xế trực thuộc quán)"
+
+            // Gọi điện
+            binding.btnCall.setOnClickListener {
+                if (driver.phone.isNotBlank()) {
+                    onCallClick(driver.phone)
+                }
+            }
+        }
+    }
+
+    private class DriverDiffCallback : DiffUtil.ItemCallback<Driver>() {
+        override fun areItemsTheSame(oldItem: Driver, newItem: Driver): Boolean {
+            return oldItem.driverId == newItem.driverId
+        }
+
+        override fun areContentsTheSame(oldItem: Driver, newItem: Driver): Boolean {
+            return oldItem == newItem
+        }
+    }
+}

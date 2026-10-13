@@ -75,13 +75,36 @@ class MenuViewModel @Inject constructor(
         }
     }
 
-    fun setShopInfo(shopId: String, shopName: String) {
+    fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null) {
         currentShopId = shopId
         currentShopName = shopName
-        loadMenu(shopId)
+        loadMenu(shopId, initialDishId)
+        observeShopCart(shopId)
     }
 
-    private fun loadMenu(shopId: String) {
+    private fun observeShopCart(shopId: String) {
+        val userId = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            firebaseRepository.observeCart(userId, shopId).collectLatest { cart ->
+                if (cart != null && cart.items.isNotEmpty()) {
+                    val current = (_cartItems.value ?: emptyMap()).toMutableMap()
+                    var changed = false
+                    cart.items.forEach { (k, v) ->
+                        if (!current.containsKey(k)) {
+                            current[k] = v
+                            changed = true
+                        }
+                    }
+                    if (changed) {
+                        _cartItems.value = current
+                        updateCartTotals()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadMenu(shopId: String, initialDishId: String? = null) {
         _isLoading.value = true
         viewModelScope.launch {
             try {
@@ -93,9 +116,18 @@ class MenuViewModel @Inject constructor(
 
                     applyFilter()
 
-                    // Chọn món đầu tiên làm mặc định hiển thị ở nửa trên nếu chưa có
-                    if (_selectedDish.value == null && list.isNotEmpty()) {
-                        _selectedDish.value = list.first()
+                    // Nếu có món truyền vào từ Hot Dish
+                    if (!initialDishId.isNullOrEmpty()) {
+                        val targetDish = list.find { it.id == initialDishId }
+                        if (targetDish != null) {
+                            _selectedDish.value = targetDish
+                            addToCart(targetDish)
+                        }
+                    } else if (_selectedDish.value == null && list.isNotEmpty()) {
+                        // Chọn món đầu tiên làm mặc định hiển thị ở nửa trên và tự động cộng 1
+                        val firstDish = list.first()
+                        _selectedDish.value = firstDish
+                        addToCart(firstDish)
                     }
                 }
             } catch (e: Exception) {
@@ -126,7 +158,7 @@ class MenuViewModel @Inject constructor(
     }
 
     fun addToCart(dish: Dish) {
-        val currentMap = _cartItems.value ?: mutableMapOf()
+        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
         val existing = currentMap[dish.id]
 
         if (existing != null) {
@@ -147,7 +179,7 @@ class MenuViewModel @Inject constructor(
     }
 
     fun addCustomCartItem(cartItem: CartItem) {
-        val currentMap = _cartItems.value ?: mutableMapOf()
+        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
         val existing = currentMap[cartItem.itemId]
 
         if (existing != null) {
@@ -173,23 +205,32 @@ class MenuViewModel @Inject constructor(
         addToCart(dish)
     }
 
-    fun removeFromCart(itemId: String) {
-        val currentMap = _cartItems.value ?: mutableMapOf()
-        val existing = currentMap[itemId] ?: return
+    fun removeFromCart(itemId: String): Boolean {
+        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
+        val targetKey = if (currentMap.containsKey(itemId)) {
+            itemId
+        } else {
+            currentMap.keys.find { it.startsWith("${itemId}_") }
+        } ?: return false
+
+        val existing = currentMap[targetKey] ?: return false
 
         if (existing.quantity > 1) {
-            currentMap[itemId] = existing.copy(quantity = existing.quantity - 1)
+            currentMap[targetKey] = existing.copy(quantity = existing.quantity - 1)
         } else {
-            currentMap.remove(itemId)
+            currentMap.remove(targetKey)
         }
 
         _cartItems.value = currentMap
         updateCartTotals()
         emitCartUpdate()
+        return true
     }
 
     fun getItemQuantity(itemId: String): Int {
-        return _cartItems.value?.get(itemId)?.quantity ?: 0
+        val items = _cartItems.value ?: return 0
+        return items.filter { it.key == itemId || it.key.startsWith("${itemId}_") }
+            .values.sumOf { it.quantity }
     }
 
     private fun updateCartTotals() {

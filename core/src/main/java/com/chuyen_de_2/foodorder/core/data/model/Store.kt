@@ -42,8 +42,20 @@ data class Store(
     @SerializedName("statusId")
     val statusId: Int = 1,
 
+    @SerializedName("ownerName")
+    val ownerName: String = "Ngô Quốc Huy",
+
+    @SerializedName("openHours")
+    val openHours: String = "08:00 - 22:30",
+
+    @SerializedName("prepTime")
+    val prepTime: String = "15 phút",
+
+    @SerializedName("isVerified")
+    val isVerified: Boolean = true,
+
     @SerializedName("cccdNumber")
-    val cccdNumber: String = "",
+    val cccdNumber: String = "079088012456",
 
     @SerializedName("cccdFrontUrl")
     val cccdFrontUrl: String = "",

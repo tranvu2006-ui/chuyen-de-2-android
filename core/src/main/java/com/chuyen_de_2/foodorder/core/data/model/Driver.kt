@@ -21,6 +21,15 @@ data class Driver(
     @SerializedName("driverCode")
     val driverCode: String = "",
 
+    @SerializedName("name")
+    val name: String = "",
+
+    @SerializedName("phone")
+    val phone: String = "",
+
+    @SerializedName("avatarUrl")
+    val avatarUrl: String = "",
+
     @SerializedName("cccdNumber")
     val cccdNumber: String = "",
 
@@ -36,6 +45,9 @@ data class Driver(
     @SerializedName("vehicleType")
     val vehicleType: String = VehicleType.MOTORBIKE,
 
+    @SerializedName("vehicleModel")
+    val vehicleModel: String = "",
+
     @SerializedName("vehiclePlate")
     val vehiclePlate: String = "",
 
@@ -43,7 +55,19 @@ data class Driver(
     val ratingAvg: Float = 5.0f,
 
     @SerializedName("dutyStatus")
-    val dutyStatus: String = DutyStatus.OFF_DUTY,
+    val dutyStatus: String = DutyStatus.AVAILABLE,
+
+    @SerializedName("todayOrdersCount")
+    val todayOrdersCount: Int = 0,
+
+    @SerializedName("totalOrdersCount")
+    val totalOrdersCount: Int = 0,
+
+    @SerializedName("currentOrderCode")
+    val currentOrderCode: String = "",
+
+    @SerializedName("note")
+    val note: String = "",
 
     @SerializedName("currentLat")
     val currentLat: Double = 0.0,

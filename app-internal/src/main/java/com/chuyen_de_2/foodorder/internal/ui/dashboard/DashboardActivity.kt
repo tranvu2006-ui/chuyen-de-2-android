@@ -33,26 +33,77 @@ class DashboardActivity : AppCompatActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
 
+    private var statusBarHeight: Int = 0
+    private var navigationBarHeight: Int = 0
+    private var isMerchantMode = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, false)
-        InsetUtils.applyToolbarInsets(binding.toolbar)
+        // Tính chiều cao status bar dự phòng ban đầu
+        val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        statusBarHeight = if (resId > 0) {
+            resources.getDimensionPixelSize(resId)
+        } else {
+            (28 * resources.displayMetrics.density).toInt()
+        }
+
+        // Lắng nghe Window Insets (Status bar, Tai thỏ / Notch, Navigation bar)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
+            val statusInsets = windowInsets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.statusBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+            )
+            val navInsets = windowInsets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.navigationBars()
+            )
+
+            if (statusInsets.top > 0) {
+                statusBarHeight = statusInsets.top
+            }
+            if (navInsets.bottom > 0) {
+                navigationBarHeight = navInsets.bottom
+            }
+
+            applyWindowPadding()
+            windowInsets
+        }
 
         setupToolbar()
         loadUserRole()
     }
 
+    private fun applyWindowPadding() {
+        if (isMerchantMode) {
+            // Chế độ Quán: Toàn bộ màn hình lùi xuống dưới thanh status bar để không bị cấn tai thỏ/camera
+            InsetUtils.setLightStatusBar(this, true)
+            binding.root.setBackgroundColor(android.graphics.Color.WHITE)
+            androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
+            binding.fragmentContainer.setPadding(0, statusBarHeight, 0, 0)
+            binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
+        } else {
+            // Chế độ Shipper: Dùng toolbar màu cam
+            InsetUtils.setLightStatusBar(this, false)
+            binding.fragmentContainer.setPadding(0, 0, 0, 0)
+        }
+    }
+
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         binding.btnLogout.setOnClickListener {
-            authRepository.logout()
-            startActivity(Intent(this, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    authRepository.logout()
+                    startActivity(Intent(this, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    })
+                    finish()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
         }
     }
 
@@ -65,10 +116,7 @@ class DashboardActivity : AppCompatActivity() {
                     setupMerchantNavigation()
                 }
                 User.Role.SHIPPER, User.Role.DRIVER -> {
-                    binding.toolbar.visibility = android.view.View.VISIBLE
-                    binding.bottomNavMerchant.visibility = android.view.View.GONE
-                    supportActionBar?.title = "🛵 Shipper (Tài xế quán)"
-                    loadFragment(ShipperFragment())
+                    setupShipperNavigation()
                 }
                 else -> {
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
@@ -94,9 +142,23 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupShipperNavigation() {
+        isMerchantMode = false
+        binding.toolbar.visibility = android.view.View.VISIBLE
+        binding.bottomNavMerchant.visibility = android.view.View.GONE
+        supportActionBar?.title = "🛵 Shipper (Tài xế quán)"
+        InsetUtils.applyToolbarInsets(binding.toolbar)
+        applyWindowPadding()
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
+        loadFragment(ShipperFragment())
+    }
+
     private fun setupMerchantNavigation() {
+        isMerchantMode = true
         binding.toolbar.visibility = android.view.View.GONE
         binding.bottomNavMerchant.visibility = android.view.View.VISIBLE
+        applyWindowPadding()
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
 
         binding.bottomNavMerchant.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -114,7 +176,7 @@ class DashboardActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_drivers -> {
-                    Toast.makeText(this, "Tính năng quản lý Đội ngũ Tài xế đang được cập nhật", Toast.LENGTH_SHORT).show()
+                    loadFragment(com.chuyen_de_2.foodorder.internal.ui.driver.DriverListFragment())
                     true
                 }
                 R.id.nav_reports -> {

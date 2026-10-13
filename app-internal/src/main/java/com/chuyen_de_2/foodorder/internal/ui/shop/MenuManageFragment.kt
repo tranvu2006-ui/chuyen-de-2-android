@@ -17,11 +17,17 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Dish
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentMenuManageBinding
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * MenuManageFragment — Quản lý Thực Đơn & Điểm Danh Mở Ca Quán
@@ -37,10 +43,16 @@ class MenuManageFragment : Fragment() {
     private var _binding: FragmentMenuManageBinding? = null
     private val binding get() = _binding!!
 
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
     private lateinit var adapter: ManageDishAdapter
     private val dishList = mutableListOf<Dish>()
     private var isCheckedIn = true
-    private var autoDishId = 3
+    private var currentStoreId = "shop_01"
 
     var onNavigateToOrdersListener: (() -> Unit)? = null
 
@@ -54,30 +66,73 @@ class MenuManageFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        initDefaultDishes()
+        resolveCurrentStoreId()
         setupUI()
         setupRecyclerView()
+        observeStoreDishes()
     }
 
-    private fun initDefaultDishes() {
-        if (dishList.isEmpty()) {
-            dishList.add(
-                Dish(
-                    id = "dish-1",
-                    name = "Trà Xí Muội Ô Long",
-                    category = "Trà Trái Cây",
-                    basePrice = 28000,
-                    imageUrl = "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=300&auto=format&fit=crop&q=60"
-                )
+    private fun resolveCurrentStoreId() {
+        val uid = auth.currentUser?.uid.orEmpty()
+        currentStoreId = when (uid) {
+            "whjjZ5osJhTNtMCovwgp8JXdJK73" -> "shop_01"
+            "AdBaJDWpzDYJRxVdl2qbWX8jAUR2" -> "shop_02"
+            "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2" -> "shop_03"
+            "uNzJQswcLSNnuF4GpQAlMdQnS1P2" -> "shop_04"
+            "QCXRaghsICbmi1Pngptv3s0mWO32" -> "shop_05"
+            "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1" -> "shop_06"
+            else -> "shop_01"
+        }
+    }
+
+    private fun observeStoreDishes() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
+                dishList.clear()
+                if (dishes.isNotEmpty()) {
+                    dishList.addAll(dishes)
+                } else {
+                    dishList.addAll(getDefaultShopDishes(currentStoreId))
+                    // Tự động đẩy món mặc định lên Firebase nếu quán chưa có món
+                    dishList.forEach { dish ->
+                        firebaseRepository.saveStoreDish(currentStoreId, dish)
+                    }
+                }
+                updateList()
+            }
+        }
+    }
+
+    private fun getDefaultShopDishes(storeId: String): List<Dish> {
+        return when (storeId) {
+            "shop_02" -> listOf(
+                Dish(id = "dish_02_01", storeId = "shop_02", name = "Phở Bò Tái Lăn Hà Nội", basePrice = 65000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=400"),
+                Dish(id = "dish_02_02", storeId = "shop_02", name = "Phở Đặc Biệt (Tái, Nạm, Gầu)", basePrice = 75000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1555126634-323283e090fa?w=400"),
+                Dish(id = "dish_02_03", storeId = "shop_02", name = "Quẩy Giòn Hà Nội", basePrice = 10000, category = "Kèm", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400")
             )
-            dishList.add(
-                Dish(
-                    id = "dish-2",
-                    name = "Trà Xí Muội Ngô Gia",
-                    category = "Trà Trái Cây",
-                    basePrice = 25000,
-                    imageUrl = "https://images.unsplash.com/photo-1558857563-b371033873b8?w=300&auto=format&fit=crop&q=60"
-                )
+            "shop_03" -> listOf(
+                Dish(id = "dish_03_01", storeId = "shop_03", name = "Bún Bò Huế Đặc Biệt", basePrice = 60000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400"),
+                Dish(id = "dish_03_02", storeId = "shop_03", name = "Bún Bò Giò Heo Chả Cua", basePrice = 65000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400")
+            )
+            "shop_04" -> listOf(
+                Dish(id = "dish_04_01", storeId = "shop_04", name = "Bánh Mì Pate Chả Đặc Biệt Huỳnh Hoa", basePrice = 58000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400"),
+                Dish(id = "dish_04_02", storeId = "shop_04", name = "Bánh Mì Thịt Nướng Bơ Tỏi", basePrice = 45000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400")
+            )
+            "shop_05" -> listOf(
+                Dish(id = "dish_05_01", storeId = "shop_05", name = "Trà Sữa Trân Châu Hoàng Gia", basePrice = 45000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1558857563-b371033873b8?w=400"),
+                Dish(id = "dish_05_02", storeId = "shop_05", name = "Trà Sữa Oolong Nướng", basePrice = 48000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
+            )
+            "shop_06" -> listOf(
+                Dish(id = "dish_06_01", storeId = "shop_06", name = "Combo 2 Miếng Gà Rán Giòn Cay", basePrice = 79000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400"),
+                Dish(id = "dish_06_02", storeId = "shop_06", name = "Cánh Gà Sốt Chua Ngọt Hàn Quốc", basePrice = 85000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400")
+            )
+            else -> listOf(
+                Dish(id = "dish_01_01", storeId = "shop_01", name = "Cơm sườn nướng than hoa", basePrice = 55000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400"),
+                Dish(id = "dish_01_02", storeId = "shop_01", name = "Cơm tấm bì chả đặc biệt", basePrice = 40000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"),
+                Dish(id = "dish_01_03", storeId = "shop_01", name = "Sườn cốt lết chiên giòn", basePrice = 60000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400"),
+                Dish(id = "dish_01_04", storeId = "shop_01", name = "Canh chua cá lóc", basePrice = 35000, category = "Canh", imageUrl = "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400"),
+                Dish(id = "dish_01_05", storeId = "shop_01", name = "Gỏi cuốn tôm thịt", basePrice = 30000, category = "Khai vị", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400"),
+                Dish(id = "dish_01_06", storeId = "shop_01", name = "Trà Ô Long Xí Muội", basePrice = 28000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
             )
         }
     }
@@ -174,7 +229,7 @@ class MenuManageFragment : Fragment() {
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelDish)
         val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveDish)
 
-        val categories = arrayOf("Trà Trái Cây", "Trà Sữa", "Cơm Phần", "Ăn Vặt", "Món Khác")
+        val categories = arrayOf("Món chính", "Canh", "Khai vị", "Nước uống", "Ăn Vặt", "Trà Trái Cây", "Trà Sữa", "Cơm Phần", "Món Khác")
         val spinnerAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, categories)
         spinnerCategory.adapter = spinnerAdapter
 
@@ -205,27 +260,36 @@ class MenuManageFragment : Fragment() {
 
             if (editingDish != null) {
                 // Sửa món
-                val index = dishList.indexOfFirst { it.id == editingDish.id }
-                if (index >= 0) {
-                    val updated = editingDish.copy(
-                        name = name,
-                        basePrice = price,
-                        category = category
-                    )
-                    dishList[index] = updated
-                    Toast.makeText(requireContext(), "✓ Đã cập nhật món [$name] thành công!", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                // Thêm món mới
-                val newDish = Dish(
-                    id = "dish-$autoDishId",
+                val updated = editingDish.copy(
                     name = name,
                     basePrice = price,
                     category = category,
+                    storeId = currentStoreId
+                )
+                val index = dishList.indexOfFirst { it.id == editingDish.id }
+                if (index >= 0) {
+                    dishList[index] = updated
+                }
+                viewLifecycleOwner.lifecycleScope.launch {
+                    firebaseRepository.saveStoreDish(currentStoreId, updated)
+                }
+                Toast.makeText(requireContext(), "✓ Đã cập nhật món [$name] thành công!", Toast.LENGTH_SHORT).show()
+            } else {
+                // Thêm món mới
+                val newDishId = "dish_${currentStoreId}_${System.currentTimeMillis()}"
+                val newDish = Dish(
+                    id = newDishId,
+                    storeId = currentStoreId,
+                    name = name,
+                    basePrice = price,
+                    category = category,
+                    isAvailable = true,
                     imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=60"
                 )
-                autoDishId++
                 dishList.add(newDish)
+                viewLifecycleOwner.lifecycleScope.launch {
+                    firebaseRepository.saveStoreDish(currentStoreId, newDish)
+                }
                 Toast.makeText(requireContext(), "✓ Đã thêm món [$name] vào thực đơn quán!", Toast.LENGTH_SHORT).show()
             }
 
@@ -242,6 +306,9 @@ class MenuManageFragment : Fragment() {
             .setMessage("Bạn có chắc chắn muốn xóa món [${dish.name}] khỏi thực đơn quán?")
             .setPositiveButton("Xóa") { _, _ ->
                 dishList.removeAll { it.id == dish.id }
+                viewLifecycleOwner.lifecycleScope.launch {
+                    firebaseRepository.deleteStoreDish(currentStoreId, dish.id)
+                }
                 updateList()
                 Toast.makeText(requireContext(), "Đã xóa món khỏi thực đơn!", Toast.LENGTH_SHORT).show()
             }

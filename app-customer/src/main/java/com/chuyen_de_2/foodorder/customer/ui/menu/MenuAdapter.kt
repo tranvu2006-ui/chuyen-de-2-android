@@ -67,14 +67,24 @@ class MenuAdapter(
                 binding.cardDish.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
             }
 
-            // Click vào card món -> Đưa lên nửa trên (Top Detail Section)
-            binding.root.setOnClickListener {
-                onItemClick(item)
-            }
-
             // Stepper cộng trừ số lượng ở bên phải món (b5.html: dish-stepper-box)
             val qty = getQuantity(item.id)
             updateStepperUI(qty)
+
+            // Click vào bất kỳ vùng nào của thẻ món -> Tự động chọn món & CỘNG THÊM 1
+            val handleItemPick: (View) -> Unit = {
+                onItemClick(item)
+                updateStepperUI(getQuantity(item.id))
+            }
+            binding.root.setOnClickListener(handleItemPick)
+            binding.cardDish.setOnClickListener(handleItemPick)
+            binding.layoutDishItem.setOnClickListener(handleItemPick)
+            binding.llContent.setOnClickListener(handleItemPick)
+            binding.flThumbBox.setOnClickListener(handleItemPick)
+            binding.ivFood.setOnClickListener(handleItemPick)
+            binding.tvName.setOnClickListener(handleItemPick)
+            binding.tvDescription.setOnClickListener(handleItemPick)
+            binding.tvPrice.setOnClickListener(handleItemPick)
 
             binding.btnPlus.setOnClickListener {
                 onAddClick(item)

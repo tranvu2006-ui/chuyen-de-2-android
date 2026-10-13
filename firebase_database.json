@@ -129,6 +129,81 @@
       "status": "ACTIVE",
       "isActive": true,
       "fcmToken": ""
+    },
+    "AdBaJDWpzDYJRxVdl2qbWX8jAUR2": {
+      "avatarUrl": "https://images.unsplash.com/photo-1556157382-97eda2d62296?w=200",
+      "email": "pho36@oishifood.vn",
+      "fcmToken": "",
+      "isActive": true,
+      "name": "Nguyễn Văn An (Phở Hà Nội 36)",
+      "phone": "0902345678",
+      "role": "MERCHANT",
+      "roleCode": "MERCHANT",
+      "roleId": 3,
+      "status": "ACTIVE",
+      "statusId": 1,
+      "storeId": "shop_02",
+      "uid": "AdBaJDWpzDYJRxVdl2qbWX8jAUR2"
+    },
+    "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2": {
+      "avatarUrl": "https://images.unsplash.com/photo-1556157382-97eda2d62296?w=200",
+      "email": "bunbo@oishifood.vn",
+      "fcmToken": "",
+      "isActive": true,
+      "name": "Lê Thị Ba (Bún Bò Huế Cô Ba)",
+      "phone": "0903456789",
+      "role": "MERCHANT",
+      "roleCode": "MERCHANT",
+      "roleId": 3,
+      "status": "ACTIVE",
+      "statusId": 1,
+      "storeId": "shop_03",
+      "uid": "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2"
+    },
+    "uNzJQswcLSNnuF4GpQAlMdQnS1P2": {
+      "avatarUrl": "https://images.unsplash.com/photo-1556157382-97eda2d62296?w=200",
+      "email": "banhmi@oishifood.vn",
+      "fcmToken": "",
+      "isActive": true,
+      "name": "Huỳnh Thị Hoa (Bánh Mì Huỳnh Hoa)",
+      "phone": "0904567890",
+      "role": "MERCHANT",
+      "roleCode": "MERCHANT",
+      "roleId": 3,
+      "status": "ACTIVE",
+      "statusId": 1,
+      "storeId": "shop_04",
+      "uid": "uNzJQswcLSNnuF4GpQAlMdQnS1P2"
+    },
+    "QCXRaghsICbmi1Pngptv3s0mWO32": {
+      "avatarUrl": "https://images.unsplash.com/photo-1556157382-97eda2d62296?w=200",
+      "email": "trasua@oishifood.vn",
+      "fcmToken": "",
+      "isActive": true,
+      "name": "Trần Tuấn Anh (Trà Sữa Oishi Cha)",
+      "phone": "0905678901",
+      "role": "MERCHANT",
+      "roleCode": "MERCHANT",
+      "roleId": 3,
+      "status": "ACTIVE",
+      "statusId": 1,
+      "storeId": "shop_05",
+      "uid": "QCXRaghsICbmi1Pngptv3s0mWO32"
+    },
+    "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1": {
+      "avatarUrl": "https://images.unsplash.com/photo-1556157382-97eda2d62296?w=200",
+      "email": "hotcrispy@oishifood.vn",
+      "fcmToken": "",
+      "isActive": true,
+      "name": "Phạm Quốc Bảo (Gà Rán Hot Crispy)",
+      "phone": "0906789012",
+      "role": "MERCHANT",
+      "roleCode": "MERCHANT",
+      "roleId": 3,
+      "status": "ACTIVE",
+      "statusId": 1,
+      "storeId": "shop_06",
+      "uid": "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1"
     }
   },
   "customers": {
@@ -188,7 +263,7 @@
       "ratingAvg": 5.0,
       "dutyStatus": "AVAILABLE",
       "currentLat": 10.7795,
-      "currentLng": 106.6980
+      "currentLng": 106.698
     }
   },
   "approval_statuses": {
@@ -630,7 +705,9 @@
       "penaltyTier": "NONE",
       "deliveryTimeFrameId": 2,
       "ratingAvg": 4.8,
-      "category": "Cơm"
+      "category": "Cơm",
+      "merchantId": "whjjZ5osJhTNtMCovwgp8JXdJK73",
+      "ownerId": "whjjZ5osJhTNtMCovwgp8JXdJK73"
     },
     "shop_02": {
       "id": "shop_02",
@@ -644,7 +721,9 @@
       "penaltyTier": "NONE",
       "deliveryTimeFrameId": 3,
       "ratingAvg": 4.9,
-      "category": "Phở"
+      "category": "Phở",
+      "merchantId": "AdBaJDWpzDYJRxVdl2qbWX8jAUR2",
+      "ownerId": "AdBaJDWpzDYJRxVdl2qbWX8jAUR2"
     },
     "shop_03": {
       "id": "shop_03",
@@ -658,7 +737,9 @@
       "penaltyTier": "NONE",
       "deliveryTimeFrameId": 2,
       "ratingAvg": 4.7,
-      "category": "Bún"
+      "category": "Bún",
+      "merchantId": "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2",
+      "ownerId": "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2"
     },
     "shop_04": {
       "id": "shop_04",
@@ -672,7 +753,9 @@
       "penaltyTier": "NONE",
       "deliveryTimeFrameId": 1,
       "ratingAvg": 4.9,
-      "category": "Bánh mì"
+      "category": "Bánh mì",
+      "merchantId": "uNzJQswcLSNnuF4GpQAlMdQnS1P2",
+      "ownerId": "uNzJQswcLSNnuF4GpQAlMdQnS1P2"
     },
     "shop_05": {
       "id": "shop_05",
@@ -686,7 +769,9 @@
       "penaltyTier": "NONE",
       "deliveryTimeFrameId": 1,
       "ratingAvg": 4.6,
-      "category": "Trà sữa"
+      "category": "Trà sữa",
+      "merchantId": "QCXRaghsICbmi1Pngptv3s0mWO32",
+      "ownerId": "QCXRaghsICbmi1Pngptv3s0mWO32"
     },
     "shop_06": {
       "id": "shop_06",
@@ -700,7 +785,9 @@
       "penaltyTier": "NONE",
       "deliveryTimeFrameId": 2,
       "ratingAvg": 4.8,
-      "category": "Gà rán"
+      "category": "Gà rán",
+      "merchantId": "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1",
+      "ownerId": "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1"
     }
   },
   "combos": {
@@ -711,10 +798,19 @@
       "description": "1 Cơm tấm sườn bì chả đặc biệt kèm 1 ly trà tắc mát lạnh",
       "comboPrice": 65000,
       "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
-      "dishIds": ["item_01", "item_02"],
+      "dishIds": [
+        "item_01",
+        "item_02"
+      ],
       "items": [
-        { "dishId": "item_01", "quantity": 1 },
-        { "dishId": "item_02", "quantity": 1 }
+        {
+          "dishId": "item_01",
+          "quantity": 1
+        },
+        {
+          "dishId": "item_02",
+          "quantity": 1
+        }
       ],
       "isActive": true
     },
@@ -725,10 +821,19 @@
       "description": "2 Ly trà sữa truyền thống Size L đầy ắp trân châu",
       "comboPrice": 75000,
       "imageUrl": "https://images.unsplash.com/photo-1558857563-b371033873b8?w=500",
-      "dishIds": ["item_05_1", "item_05_2"],
+      "dishIds": [
+        "item_05_1",
+        "item_05_2"
+      ],
       "items": [
-        { "dishId": "item_05_1", "quantity": 1 },
-        { "dishId": "item_05_2", "quantity": 1 }
+        {
+          "dishId": "item_05_1",
+          "quantity": 1
+        },
+        {
+          "dishId": "item_05_2",
+          "quantity": 1
+        }
       ],
       "isActive": true
     }

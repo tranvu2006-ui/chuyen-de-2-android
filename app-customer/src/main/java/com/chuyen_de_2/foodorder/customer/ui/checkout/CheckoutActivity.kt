@@ -8,13 +8,17 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityCheckoutBinding
-import com.chuyen_de_2.foodorder.customer.ui.tracking.TrackingActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.util.Locale
 
 @AndroidEntryPoint
 class CheckoutActivity : AppCompatActivity() {
@@ -62,7 +66,7 @@ class CheckoutActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME)
         supportActionBar?.apply {
-            title = if (!targetShopName.isNullOrBlank()) targetShopName else "Xác Nhận & Thanh Toán"
+            title = if (!targetShopName.isNullOrBlank()) targetShopName else "Phở Hà Nội 36"
             setDisplayHomeAsUpEnabled(true)
         }
         binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
@@ -72,44 +76,36 @@ class CheckoutActivity : AppCompatActivity() {
         // Dropdown quận huyện theo b8.html
         val districtAdapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            com.chuyen_de_2.foodorder.customer.R.layout.item_district_spinner,
             districts
         )
+        districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spDistrict.adapter = districtAdapter
 
         binding.spDistrict.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val selected = districts[position]
-                if (selected.contains("Nội thành")) {
-                    currentShippingFee = 15000L
-                    binding.tvShipRule.text = "🛵 Cước phí giao hàng đồng giá 15.000 đ cho nội thành TP.HCM"
-                } else {
-                    currentShippingFee = 25000L
-                    binding.tvShipRule.text = "🛵 Cước phí giao hàng 25.000 đ cho khu vực ngoại thành TP.HCM"
-                }
-                recalculateTotal()
+                updateLocationAndFee()
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
-        // Voucher Coupon (b8.html)
-        binding.btnApplyVoucher.setOnClickListener {
-            val code = binding.etVoucherCode.text.toString().trim()
-            if (code.equals("OISHI15K", ignoreCase = true)) {
-                currentDiscount = 15000L
-                binding.layoutVoucherDiscount.visibility = View.VISIBLE
-                binding.tvDiscount.text = "-15.000 đ"
-                binding.tvVoucherMessage.text = "✔ Đã áp dụng mã OISHI15K: Giảm 15.000 đ"
-                binding.tvVoucherMessage.setTextColor(getColor(android.R.color.holo_green_dark))
-                recalculateTotal()
-                Toast.makeText(this, "🎉 Áp dụng mã OISHI15K thành công!", Toast.LENGTH_SHORT).show()
-            } else if (code.isBlank()) {
-                Toast.makeText(this, "Vui lòng nhập mã voucher", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Mã voucher không hợp lệ hoặc đã hết hạn", Toast.LENGTH_SHORT).show()
-            }
+        // Tự động Geocode khi người dùng thay đổi địa chỉ
+        binding.etAddress.doAfterTextChanged {
+            updateLocationAndFee()
         }
+
+        // Bấm vào cước phí để xem trước trên Google Maps
+        binding.tvShipRule.setOnClickListener {
+            val streetAddress = binding.etAddress.text.toString().trim()
+            val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: "Quận 1"
+            val fullAddress = if (streetAddress.isNotBlank()) "$streetAddress, $selectedDistrict, TP.HCM" else "$selectedDistrict, TP.HCM"
+            GoogleMapUtils.openGoogleMapsSearch(this, fullAddress)
+        }
+
+        // Mặc định chọn Chuyển khoản ngân hàng (VietQR) theo screenshot
+        binding.rbBanking.isChecked = true
+        binding.layoutBankingInfo.visibility = View.VISIBLE
 
         // Chọn phương thức thanh toán
         binding.rgPayment.setOnCheckedChangeListener { _, checkedId ->
@@ -123,8 +119,10 @@ class CheckoutActivity : AppCompatActivity() {
 
             if (streetAddress.isBlank()) {
                 binding.tilAddress.error = "Vui lòng nhập địa chỉ giao hàng"
+                binding.etAddress.requestFocus()
                 return@setOnClickListener
             }
+            binding.tilAddress.error = null
 
             val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
             val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
@@ -145,6 +143,24 @@ class CheckoutActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateLocationAndFee() {
+        val streetAddress = binding.etAddress.text.toString().trim()
+        val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: "Quận 1 (Nội thành)"
+        val fullAddress = if (streetAddress.isNotBlank()) "$streetAddress, $selectedDistrict, TP.HCM" else "$selectedDistrict, TP.HCM"
+
+        lifecycleScope.launch {
+            val storeId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: "store_1"
+            val storeLatLng = GoogleMapUtils.STORE_COORDINATES[storeId] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+            val customerLatLng = GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
+            val distanceKm = GoogleMapUtils.calculateDistanceKm(storeLatLng, customerLatLng)
+
+            currentShippingFee = GoogleMapUtils.calculateShippingFeeByDistance(distanceKm)
+            val distanceStr = String.format(Locale.US, "%.1f", distanceKm)
+            binding.tvShipRule.text = "🛵 Google Maps: Khoảng cách ~$distanceStr km • Cước phí: ${currentShippingFee.toVndCurrency()}"
+            recalculateTotal()
+        }
+    }
+
     private fun recalculateTotal() {
         binding.tvShippingFee.text = currentShippingFee.toVndCurrency()
         val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
@@ -154,6 +170,10 @@ class CheckoutActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         viewModel.carts.observe(this) { carts ->
+            val shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: carts.firstOrNull()?.shopName
+            if (!shopName.isNullOrBlank()) {
+                supportActionBar?.title = shopName
+            }
             currentSubtotal = carts.sumOf { it.totalAmount }
             binding.tvSubtotal.text = currentSubtotal.toVndCurrency()
             binding.tvItemCount.text = "${carts.sumOf { it.items.size }} món"
@@ -179,10 +199,37 @@ class CheckoutActivity : AppCompatActivity() {
             result.onSuccess { orderId ->
                 Toast.makeText(this, "🎉 Đặt hàng thành công!", Toast.LENGTH_SHORT).show()
 
-                // Mở màn hình Theo dõi đơn hàng theo chuẩn b9.html
-                if (orderId.isNotBlank() && orderId != "OK") {
-                    val intent = Intent(this, TrackingActivity::class.java).apply {
+                val streetAddress = binding.etAddress.text.toString().trim()
+                val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
+                val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
+                val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
+                val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: supportActionBar?.title?.toString() ?: "Phở Hà Nội 36"
+
+                if (binding.rbBanking.isChecked || binding.rbMoMo.isChecked) {
+                    // Chuyển sang màn hình Quét Mã Thanh Toán chuẩn b8_payment.html
+                    val channel = if (binding.rbMoMo.isChecked) "momo" else "bank"
+                    val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
                         putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                        putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
+                        putExtra("extra_address", fullAddress)
+                        putExtra("extra_amount", finalTotal)
+                        putExtra("extra_subtotal", currentSubtotal)
+                        putExtra("extra_shipping_fee", currentShippingFee)
+                        putExtra("extra_discount", currentDiscount)
+                        putExtra("extra_channel", channel)
+                    }
+                    startActivity(intent)
+                } else {
+                    // COD: Chuyển sang màn hình Đặt Đơn Thành Công chuẩn b8_success.html
+                    val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.order.OrderSuccessActivity::class.java).apply {
+                        putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                        putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
+                        putExtra("extra_address", fullAddress)
+                        putExtra("extra_amount", finalTotal)
+                        putExtra("extra_subtotal", currentSubtotal)
+                        putExtra("extra_shipping_fee", currentShippingFee)
+                        putExtra("extra_discount", currentDiscount)
+                        putExtra("extra_payment_method", "Tiền mặt khi nhận hàng (COD)")
                     }
                     startActivity(intent)
                 }

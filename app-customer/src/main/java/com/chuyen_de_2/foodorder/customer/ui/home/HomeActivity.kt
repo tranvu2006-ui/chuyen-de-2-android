@@ -82,23 +82,67 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showDistrictPicker() {
-        val districts = arrayOf("Tất cả TP.HCM", "Quận 1", "Quận 3", "Quận 5", "Quận 10", "Quận Bình Thạnh", "Quận Tân Bình", "TP. Thủ Đức")
+        val districts = arrayOf(
+            "📍 Định vị vị trí hiện tại (GPS Google Maps)",
+            "Tất cả TP.HCM",
+            "Quận 1",
+            "Quận 3",
+            "Quận 5",
+            "Quận 10",
+            "Quận Bình Thạnh",
+            "Quận Tân Bình",
+            "TP. Thủ Đức"
+        )
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("📍 Chọn Khu Vực Giao Hàng TP.HCM")
             .setItems(districts) { _, which ->
                 val choice = districts[which]
                 if (which == 0) {
+                    detectCurrentLocationAndGeocode()
+                } else if (which == 1) {
                     selectedDistrict = null
                     binding.tvLocation.text = "📍 TP.HCM"
+                    filterRestaurants(binding.etSearch.text.toString())
+                    Toast.makeText(this, "Hiển thị tất cả quán", Toast.LENGTH_SHORT).show()
                 } else {
                     selectedDistrict = choice
                     binding.tvLocation.text = "📍 $choice"
+                    filterRestaurants(binding.etSearch.text.toString())
+                    Toast.makeText(this, "Khu vực: $choice", Toast.LENGTH_SHORT).show()
                 }
-                filterRestaurants(binding.etSearch.text.toString())
-                Toast.makeText(this, "Khu vực: $choice", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Đóng", null)
             .show()
+    }
+
+    private fun detectCurrentLocationAndGeocode() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 101)
+            return
+        }
+
+        val fusedClient = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(this)
+        fusedClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                lifecycleScope.launch {
+                    val addressStr = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.reverseGeocode(
+                        this@HomeActivity,
+                        location.latitude,
+                        location.longitude
+                    )
+                    binding.tvLocation.text = "📍 $addressStr"
+                    selectedDistrict = null
+                    filterRestaurants(binding.etSearch.text.toString())
+                    Toast.makeText(this@HomeActivity, "Google Maps: Đã định vị $addressStr", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "Không tìm thấy GPS, sử dụng vị trí mặc định TP.HCM", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun setupCategories() {
@@ -178,6 +222,7 @@ class HomeActivity : AppCompatActivity() {
             val intent = Intent(this, MenuActivity::class.java).apply {
                 putExtra(Constants.EXTRA_SHOP_ID, hotDish.storeId)
                 putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName)
+                putExtra(Constants.EXTRA_DISH_ID, hotDish.id)
             }
             startActivity(intent)
         }

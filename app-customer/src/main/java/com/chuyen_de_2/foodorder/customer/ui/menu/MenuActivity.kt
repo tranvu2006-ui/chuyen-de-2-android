@@ -95,6 +95,7 @@ class MenuActivity : AppCompatActivity() {
             },
             onItemClick = { dish ->
                 viewModel.selectDish(dish)
+                viewModel.addToCart(dish)
                 adapter.setSelectedDishId(dish.id)
                 binding.nestedScroll.smoothScrollTo(0, 0)
             }
@@ -202,6 +203,11 @@ class MenuActivity : AppCompatActivity() {
                 reviewCount = reviewCount
             )
             sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
+        }
+
+        // Bấm vào phần chi tiết món ở nửa trên cũng cộng thêm 1 vào giỏ hàng
+        binding.cardTopDetail.setOnClickListener {
+            viewModel.addToCart(dish)
         }
     }
 }

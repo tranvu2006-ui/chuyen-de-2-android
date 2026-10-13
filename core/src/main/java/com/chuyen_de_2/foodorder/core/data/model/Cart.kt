@@ -13,6 +13,12 @@ data class Cart(
     @SerializedName("shopName")
     val shopName: String = "",
 
+    @SerializedName("shopDistrict")
+    val shopDistrict: String = "",
+
+    @SerializedName("shopAddress")
+    val shopAddress: String = "",
+
     @SerializedName("totalAmount")
     val totalAmount: Long = 0,
 

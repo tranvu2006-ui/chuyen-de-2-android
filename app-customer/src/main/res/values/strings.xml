@@ -21,9 +21,9 @@
     <string name="location_default">📍 Q.1, TP.HCM ▾</string>
     <string name="section_popular_restaurants">Quán ngon gần bạn</string>
     <string name="view_all">Xem tất cả</string>
-    <string name="banner_badge">Freeship Extra</string>
-    <string name="banner_title">ĐẠI TIỆC 0 ĐỒNG</string>
-    <string name="banner_subtitle">Mỗi quán 1 giỏ riêng • Giao nhanh nội thành</string>
+    <string name="banner_badge">🔥 HOT TRENDING</string>
+    <string name="banner_title">MÓN ĂN HOT CỦA CÁC QUÁN</string>
+    <string name="banner_subtitle">Top món ngon &amp; đồ uống được đặt nhiều nhất hôm nay</string>
 
     <!-- Categories -->
     <string name="cat_rice">Cơm Trưa</string>

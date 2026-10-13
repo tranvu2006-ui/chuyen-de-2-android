@@ -34,6 +34,7 @@ class HomeActivity : AppCompatActivity() {
     private val viewModel: HomeViewModel by viewModels()
     private val cartViewModel: CartViewModel by viewModels()
     private lateinit var adapter: RestaurantAdapter
+    private lateinit var hotDishAdapter: HotDishAdapter
 
     private var originalList: List<Store> = emptyList()
     private var selectedCategory: String? = null
@@ -53,6 +54,7 @@ class HomeActivity : AppCompatActivity() {
 
         setupHeader()
         setupCategories()
+        setupHotDishes()
         setupSearch()
         setupRecyclerView()
         setupSwipeRefresh()
@@ -76,11 +78,6 @@ class HomeActivity : AppCompatActivity() {
         // Chọn Quận / Khu vực TP.HCM theo b1.html
         binding.tvLocation.setOnClickListener {
             showDistrictPicker()
-        }
-
-        // Banner click
-        binding.bannerPromotion.setOnClickListener {
-            Toast.makeText(this, "🎉 Bạn đã lưu voucher FREESHIP ĐƠN 0Đ!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -113,11 +110,6 @@ class HomeActivity : AppCompatActivity() {
         binding.catPizza.setOnClickListener { selectCategory("Pizza") }
         binding.catCoffee.setOnClickListener { selectCategory("Cà Phê") }
         binding.catDessert.setOnClickListener { selectCategory("Tráng Miệng") }
-
-        binding.cardFlashSale.setOnClickListener {
-            selectCategory("Cơm")
-            Toast.makeText(this, "⚡ Đang xem các deal Flash Sale sốc!", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun selectCategory(categoryKeyword: String) {
@@ -181,6 +173,21 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupHotDishes() {
+        hotDishAdapter = HotDishAdapter { hotDish ->
+            val intent = Intent(this, MenuActivity::class.java).apply {
+                putExtra(Constants.EXTRA_SHOP_ID, hotDish.storeId)
+                putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName)
+            }
+            startActivity(intent)
+        }
+
+        binding.rvHotDishes.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = hotDishAdapter
+        }
+    }
+
     private fun setupSwipeRefresh() {
         binding.swipeRefresh.setOnRefreshListener {
             viewModel.loadRestaurants()
@@ -215,6 +222,13 @@ class HomeActivity : AppCompatActivity() {
         viewModel.stores.observe(this) { stores ->
             originalList = stores
             filterRestaurants(binding.etSearch.text.toString())
+        }
+
+        viewModel.hotDishes.observe(this) { hotDishes ->
+            hotDishAdapter.submitList(hotDishes)
+            val hasHot = hotDishes.isNotEmpty()
+            binding.layoutHotDishesHeader.visibility = if (hasHot) View.VISIBLE else View.GONE
+            binding.rvHotDishes.visibility = if (hasHot) View.VISIBLE else View.GONE
         }
 
         viewModel.isLoading.observe(this) { isLoading ->

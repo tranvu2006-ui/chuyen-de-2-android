@@ -44,6 +44,11 @@ class CheckoutActivity : AppCompatActivity() {
         binding = ActivityCheckoutBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        val targetShopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID)
+        if (!targetShopId.isNullOrBlank()) {
+            viewModel.loadCarts(targetShopId)
+        }
+
         InsetUtils.setLightStatusBar(this, false)
         InsetUtils.applyToolbarInsets(binding.toolbar)
         InsetUtils.applyNavigationBarPadding(binding.bottomBar)
@@ -55,8 +60,9 @@ class CheckoutActivity : AppCompatActivity() {
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
+        val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME)
         supportActionBar?.apply {
-            title = "Xác Nhận & Thanh Toán"
+            title = if (!targetShopName.isNullOrBlank()) targetShopName else "Xác Nhận & Thanh Toán"
             setDisplayHomeAsUpEnabled(true)
         }
         binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }

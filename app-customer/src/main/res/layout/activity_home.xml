@@ -157,64 +157,41 @@
                 android:orientation="vertical"
                 android:padding="14dp">
 
-                <!-- 1. Banner Khuyến mãi (b4.html: Freeship Extra - ĐẠI TIỆC 0 ĐỒNG) -->
-                <androidx.constraintlayout.widget.ConstraintLayout
-                    android:id="@+id/bannerPromotion"
+                <!-- Danh sách món ăn hot cuộn ngang của các quán -->
+                <LinearLayout
+                    android:id="@+id/layoutHotDishesHeader"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_banner_gradient"
-                    android:padding="16dp">
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="6dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <TextView
-                        android:id="@+id/tvBannerBadge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@color/banner_badge_bg"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="3dp"
-                        android:text="@string/banner_badge"
-                        android:textColor="#000000"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toTopOf="parent" />
-
-                    <TextView
-                        android:id="@+id/tvBannerTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="@string/banner_title"
-                        android:textColor="@color/on_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toBottomOf="@id/tvBannerBadge" />
-
-                    <TextView
-                        android:id="@+id/tvBannerSubtitle"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:layout_marginEnd="8dp"
-                        android:text="@string/banner_subtitle"
-                        android:textColor="@color/on_primary"
-                        android:textSize="11sp"
-                        app:layout_constraintEnd_toStartOf="@id/tvBannerIcon"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toBottomOf="@id/tvBannerTitle" />
+                        android:layout_weight="1"
+                        android:text="🔥 Top Món Hot Bán Chạy"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
 
                     <TextView
-                        android:id="@+id/tvBannerIcon"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🍔"
-                        android:textSize="36sp"
-                        app:layout_constraintBottom_toBottomOf="parent"
-                        app:layout_constraintEnd_toEndOf="parent"
-                        app:layout_constraintTop_toTopOf="parent" />
+                        android:text="Được yêu thích nhất"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+                </LinearLayout>
 
-                </androidx.constraintlayout.widget.ConstraintLayout>
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvHotDishes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="4dp" />
 
                 <!-- 2. Danh mục 4 icon món ăn (b4.html: Cơm, Trà Sữa, Bún Phở, Gà Rán) -->
                 <com.google.android.material.card.MaterialCardView
@@ -489,65 +466,7 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Flash Sale / Deal Hot Widget (b1.html: deal-box) -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardFlashSale"
-                    style="@style/Widget.FoodOrder.Card"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:padding="12dp">
-
-                        <TextView
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:background="@drawable/bg_badge_orange"
-                            android:gravity="center"
-                            android:text="⚡"
-                            android:textSize="18sp" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="10dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="FLASH DEAL HÔM NAY"
-                                android:textColor="@color/primary"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="Giảm đến 50% • Freeship đơn 0đ"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:background="@drawable/bg_voucher_chip"
-                            android:paddingHorizontal="8dp"
-                            android:paddingVertical="4dp"
-                            android:text="Săn Ngay ➔"
-                            android:textColor="@color/primary"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
 
                 <!-- 3. Tiêu đề "Quán ngon gần bạn" -->
                 <LinearLayout

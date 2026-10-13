@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="140dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="10dp"
+    android:layout_marginVertical="3dp"
+    app:cardBackgroundColor="@color/surface"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="2dp"
+    app:strokeColor="@color/border"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Ảnh món ăn + Badge Hot -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="95dp">
+
+            <ImageView
+                android:id="@+id/ivDishThumb"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@drawable/placeholder_food" />
+
+            <TextView
+                android:id="@+id/tvDishEmoji"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textSize="32sp"
+                android:visibility="gone"
+                tools:text="🧋" />
+
+            <!-- Badge Hot góc trên bên trái -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:layout_margin="6dp"
+                android:background="@drawable/bg_badge_orange"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:text="🔥 Hot"
+                android:textColor="@color/primary"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <!-- Thông tin món -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="8dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:id="@+id/tvDishName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:text="Trà Ô Long Sữa" />
+
+            <TextView
+                android:id="@+id/tvShopName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                tools:text="🏪 Phúc Long" />
+
+            <TextView
+                android:id="@+id/tvDishPrice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                tools:text="45.000₫" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

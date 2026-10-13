@@ -36,7 +36,7 @@ class CheckoutViewModel @Inject constructor(
         loadCarts()
     }
 
-    private fun loadCarts() {
+    fun loadCarts(filterShopId: String? = null) {
         val userId = auth.currentUser?.uid ?: return
 
         database.getReference("carts").child(userId)
@@ -44,9 +44,13 @@ class CheckoutViewModel @Inject constructor(
                 override fun onDataChange(snapshot: DataSnapshot) {
                     val cartList = mutableListOf<Cart>()
                     for (shopSnapshot in snapshot.children) {
+                        val currentShopId = shopSnapshot.key ?: ""
+                        if (!filterShopId.isNullOrBlank() && currentShopId != filterShopId) {
+                            continue
+                        }
                         val cart = shopSnapshot.getValue(Cart::class.java)
                         if (cart != null && cart.items.isNotEmpty()) {
-                            cartList.add(cart.copy(shopId = shopSnapshot.key ?: ""))
+                            cartList.add(cart.copy(shopId = currentShopId))
                         }
                     }
                     _carts.value = cartList

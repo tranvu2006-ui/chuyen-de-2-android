@@ -237,6 +237,29 @@ class FirebaseRepository @Inject constructor(
         })
     }
 
+    /**
+     * Shipper hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán)
+     */
+    fun unassignShipper(
+        orderId: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val dbRef = database.getReference("orders").child(orderId)
+        val updates = mapOf<String, Any?>(
+            "shipperId" to null,
+            "shipperName" to "",
+            "driverId" to null,
+            "status" to Order.Status.READY
+        )
+        dbRef.updateChildren(updates).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                onResult(true, "Đã hoàn trả đơn về danh sách chờ của quán!")
+            } else {
+                onResult(false, task.exception?.message ?: "Lỗi hủy nhận đơn")
+            }
+        }
+    }
+
     /** Cập nhật trạng thái đơn hàng */
     suspend fun updateOrderStatus(orderId: String, status: String) {
         database.getReference("orders")

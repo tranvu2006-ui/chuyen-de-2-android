@@ -148,4 +148,6 @@ data class OrderItem(
 
     @SerializedName("itemSubtotal")
     val itemSubtotal: Long = 0
-)
+) {
+    val dishName: String get() = name
+}

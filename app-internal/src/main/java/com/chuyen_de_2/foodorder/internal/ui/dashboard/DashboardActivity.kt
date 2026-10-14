@@ -12,6 +12,8 @@ import com.chuyen_de_2.foodorder.internal.databinding.ActivityDashboardBinding
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
 import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperFragment
+import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperIncomeFragment
+import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperProfileFragment
 import com.chuyen_de_2.foodorder.internal.ui.shop.MenuManageFragment
 import com.chuyen_de_2.foodorder.internal.ui.shop.OrderListFragment
 import dagger.hilt.android.AndroidEntryPoint
@@ -83,9 +85,11 @@ class DashboardActivity : AppCompatActivity() {
             binding.fragmentContainer.setPadding(0, statusBarHeight, 0, 0)
             binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
         } else {
-            // Chế độ Shipper: Dùng toolbar màu cam
-            InsetUtils.setLightStatusBar(this, false)
-            binding.fragmentContainer.setPadding(0, 0, 0, 0)
+            // Chế độ Shipper: Tránh cấn tai thỏ và thanh điều hướng
+            InsetUtils.setLightStatusBar(this, true)
+            binding.root.setBackgroundColor(android.graphics.Color.WHITE)
+            binding.fragmentContainer.setPadding(0, statusBarHeight, 0, 0)
+            binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
         }
     }
 
@@ -144,13 +148,31 @@ class DashboardActivity : AppCompatActivity() {
 
     private fun setupShipperNavigation() {
         isMerchantMode = false
-        binding.toolbar.visibility = android.view.View.VISIBLE
+        binding.toolbar.visibility = android.view.View.GONE
         binding.bottomNavMerchant.visibility = android.view.View.GONE
-        supportActionBar?.title = "🛵 Shipper (Tài xế quán)"
-        InsetUtils.applyToolbarInsets(binding.toolbar)
+        binding.bottomNavShipper.visibility = android.view.View.VISIBLE
         applyWindowPadding()
         androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
-        loadFragment(ShipperFragment())
+
+        binding.bottomNavShipper.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_shipper_orders -> {
+                    loadFragment(ShipperFragment())
+                    true
+                }
+                R.id.nav_shipper_income -> {
+                    loadFragment(ShipperIncomeFragment())
+                    true
+                }
+                R.id.nav_shipper_profile -> {
+                    loadFragment(ShipperProfileFragment())
+                    true
+                }
+                else -> false
+            }
+        }
+
+        binding.bottomNavShipper.selectedItemId = R.id.nav_shipper_orders
     }
 
     private fun setupMerchantNavigation() {

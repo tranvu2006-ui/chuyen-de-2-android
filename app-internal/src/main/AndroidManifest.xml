@@ -52,6 +52,11 @@
             android:name=".ui.dashboard.DashboardActivity"
             android:theme="@style/Theme.FoodOrder.Internal" />
 
+        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
+        <activity
+            android:name=".ui.ship.DeliveryTripActivity"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
         <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
         <service
             android:name=".service.LocationForegroundService"

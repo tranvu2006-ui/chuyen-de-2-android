@@ -64,6 +64,12 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.FoodOrder.Customer" />
 
+        <!-- Chọn địa chỉ Google Maps -->
+        <activity
+            android:name=".ui.checkout.SelectLocationActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
+
         <!-- Payment (b8_payment.html) -->
         <activity
             android:name=".ui.payment.PaymentActivity"

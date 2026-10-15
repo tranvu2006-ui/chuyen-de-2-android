@@ -1,13 +1,18 @@
 package com.chuyen_de_2.foodorder.customer.ui.checkout
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.model.Order
@@ -16,6 +21,7 @@ import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityCheckoutBinding
+import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -43,6 +49,45 @@ class CheckoutActivity : AppCompatActivity() {
         "Quận Bình Tân (Ngoại thành)"
     )
 
+    // Launcher mở màn hình bản đồ Google Maps chọn vị trí
+    private val selectLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val street = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS) ?: ""
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT) ?: ""
+
+            if (street.isNotBlank()) {
+                binding.etAddress.setText(street)
+            }
+
+            // Tự động chọn đúng quận trong Spinner
+            if (district.isNotBlank()) {
+                val index = districts.indexOfFirst { it.contains(district, ignoreCase = true) }
+                if (index != -1) {
+                    binding.spDistrict.setSelection(index)
+                }
+            }
+
+            updateLocationAndFee()
+            Toast.makeText(this, "📍 Đã chọn địa chỉ từ Google Maps thành công!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Launcher xin quyền GPS cho nút lấy vị trí nhanh
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
+            fetchCurrentGpsAndFillAddress()
+        } else {
+            Toast.makeText(this, "Cần cấp quyền vị trí để định vị GPS", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCheckoutBinding.inflate(layoutInflater)
@@ -66,7 +111,7 @@ class CheckoutActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME)
         supportActionBar?.apply {
-            title = if (!targetShopName.isNullOrBlank()) targetShopName else "Phở Hà Nội 36"
+            title = if (!targetShopName.isNullOrBlank()) targetShopName else "Thanh Toán Đơn Hàng"
             setDisplayHomeAsUpEnabled(true)
         }
         binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
@@ -95,7 +140,29 @@ class CheckoutActivity : AppCompatActivity() {
             updateLocationAndFee()
         }
 
-        // Bấm vào cước phí để xem trước trên Google Maps
+        // 1. NÚT CHỌN ĐỊA CHỈ TRÊN GOOGLE MAPS (Bản đồ trực quan tương tác)
+        binding.btnSelectFromMap.setOnClickListener {
+            val intent = Intent(this, SelectLocationActivity::class.java)
+            selectLocationLauncher.launch(intent)
+        }
+
+        // 2. NÚT ĐỊNH VỊ GPS NHANH TẠI CHỖ
+        binding.btnQuickGps.setOnClickListener {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            ) {
+                fetchCurrentGpsAndFillAddress()
+            } else {
+                locationPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            }
+        }
+
+        // Bấm vào cước phí để xem trước trên Google Maps ngoài
         binding.tvShipRule.setOnClickListener {
             val streetAddress = binding.etAddress.text.toString().trim()
             val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: "Quận 1"
@@ -141,6 +208,59 @@ class CheckoutActivity : AppCompatActivity() {
                 paymentMethod = paymentMethod
             )
         }
+    }
+
+    /** Lấy toạ độ GPS hiện tại và tự động điền địa chỉ */
+    private fun fetchCurrentGpsAndFillAddress() {
+        Toast.makeText(this, "📡 Đang lấy vị trí GPS hiện tại...", Toast.LENGTH_SHORT).show()
+        try {
+            val fusedClient = LocationServices.getFusedLocationProviderClient(this)
+            fusedClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    lifecycleScope.launch {
+                        val fullAddr = GoogleMapUtils.reverseGeocode(
+                            this@CheckoutActivity,
+                            location.latitude,
+                            location.longitude
+                        )
+
+                        // Trích xuất quận
+                        val knownDistricts = listOf(
+                            "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
+                            "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
+                            "Bình Thạnh", "Phú Nhuận", "Tân Bình", "Tân Phú",
+                            "Gò Vấp", "Bình Tân", "Thủ Đức", "Bình Chánh",
+                            "Hóc Môn", "Nhà Bè"
+                        )
+                        var matchedDistrict = "Quận 1"
+                        for (d in knownDistricts) {
+                            if (fullAddr.contains(d, ignoreCase = true)) {
+                                matchedDistrict = d
+                                break
+                            }
+                        }
+
+                        val street = fullAddr
+                            .replace(", TP. Hồ Chí Minh", "")
+                            .replace(", TP.HCM", "")
+                            .replace(", $matchedDistrict", "")
+                            .trim()
+
+                        binding.etAddress.setText(street)
+
+                        val index = districts.indexOfFirst { it.contains(matchedDistrict, ignoreCase = true) }
+                        if (index != -1) {
+                            binding.spDistrict.setSelection(index)
+                        }
+
+                        updateLocationAndFee()
+                        Toast.makeText(this@CheckoutActivity, "🎯 Đã định vị thành công: $fullAddr", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(this, "Không lấy được vị trí GPS. Vui lòng bật vị trí thiết bị!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (_: SecurityException) {}
     }
 
     private fun updateLocationAndFee() {

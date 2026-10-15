@@ -128,6 +128,7 @@ class ProfileActivity : AppCompatActivity() {
             authRepository.logout()
             val intent = Intent(this, LoginActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("LOGOUT", true)
             }
             startActivity(intent)
             finish()

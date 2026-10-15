@@ -91,6 +91,7 @@ class ShipperProfileFragment : Fragment() {
                     authRepository.logout()
                     val intent = Intent(requireContext(), LoginActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
                     }
                     startActivity(intent)
                     requireActivity().finish()

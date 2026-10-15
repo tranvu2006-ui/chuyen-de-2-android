@@ -55,6 +55,21 @@
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnShipperLogoutHeader"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="#FEE2E2"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="🚪 Đăng xuất"
+                android:textColor="#DC2626"
+                android:textSize="11sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- Driver Profile Card (2.html: driver-card) -->

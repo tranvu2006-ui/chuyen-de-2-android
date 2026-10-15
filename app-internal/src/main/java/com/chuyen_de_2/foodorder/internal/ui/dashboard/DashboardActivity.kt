@@ -103,6 +103,7 @@ class DashboardActivity : AppCompatActivity() {
                     authRepository.logout()
                     startActivity(Intent(this, LoginActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
                     })
                     finish()
                 }
@@ -136,7 +137,10 @@ class DashboardActivity : AppCompatActivity() {
                         }
                         .setNegativeButton("Đăng xuất") { _, _ ->
                             authRepository.logout()
-                            startActivity(Intent(this@DashboardActivity, LoginActivity::class.java))
+                            startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                putExtra("LOGOUT", true)
+                            })
                             finish()
                         }
                         .setCancelable(false)

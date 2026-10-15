@@ -28,6 +28,9 @@ class ShipperFragment : Fragment() {
     private var _binding: FragmentShipperBinding? = null
     private val binding get() = _binding!!
 
+    @javax.inject.Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
     private val viewModel: ShipperViewModel by activityViewModels()
 
     private lateinit var activeAdapter: DriverActiveOrdersAdapter
@@ -48,7 +51,27 @@ class ShipperFragment : Fragment() {
 
         setupAdapters()
         setupDutyToggle()
+        setupLogout()
         observeData()
+    }
+
+    private fun setupLogout() {
+        binding.btnShipperLogoutHeader.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất ca trực tài xế không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    authRepository.logout()
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    }
+                    startActivity(intent)
+                    requireActivity().finish()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
     }
 
     private fun setupAdapters() {

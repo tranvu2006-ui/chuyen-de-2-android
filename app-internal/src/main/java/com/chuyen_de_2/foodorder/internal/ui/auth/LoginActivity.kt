@@ -26,7 +26,10 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (authRepository.isLoggedIn) {
+        val isLogout = intent.getBooleanExtra("LOGOUT", false)
+        if (isLogout) {
+            authRepository.logout()
+        } else if (authRepository.isLoggedIn) {
             navigateToDashboard()
             return
         }
@@ -70,5 +73,13 @@ class LoginActivity : AppCompatActivity() {
     private fun navigateToDashboard() {
         startActivity(Intent(this, DashboardActivity::class.java))
         finish()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("LOGOUT", false)) {
+            authRepository.logout()
+        }
     }
 }

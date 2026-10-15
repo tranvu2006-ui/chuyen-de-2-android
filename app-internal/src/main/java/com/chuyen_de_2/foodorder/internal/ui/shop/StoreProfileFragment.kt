@@ -44,6 +44,9 @@ class StoreProfileFragment : Fragment() {
     @Inject
     lateinit var auth: FirebaseAuth
 
+    @Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
     private var currentStoreId = "shop_01"
     private var currentStore: Store? = null
 
@@ -84,9 +87,10 @@ class StoreProfileFragment : Fragment() {
                 .setTitle("🚪 Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
-                    auth.signOut()
+                    authRepository.logout()
                     val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
                         flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
                     }
                     startActivity(intent)
                     requireActivity().finish()

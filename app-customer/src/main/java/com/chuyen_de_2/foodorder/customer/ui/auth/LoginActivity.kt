@@ -31,9 +31,19 @@ class LoginActivity : AppCompatActivity() {
         setupUI()
         observeViewModel()
 
-        // Nếu đã đăng nhập → kiểm tra role và điều hướng
-        if (viewModel.isLoggedIn) {
+        val isLogout = intent.getBooleanExtra("LOGOUT", false)
+        if (isLogout) {
+            viewModel.logout()
+        } else if (viewModel.isLoggedIn) {
             checkRoleAndRoute()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("LOGOUT", false)) {
+            viewModel.logout()
         }
     }
 

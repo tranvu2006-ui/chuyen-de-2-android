@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; }
+    #realMap { width: 100%; height: 100%; }
+
+    .driver-marker-box {
+      width: 42px; height: 42px; background: #FFF; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+      border: 3px solid #EE4D2D; box-shadow: 0 4px 14px rgba(238, 77, 45, 0.45);
+    }
+    .shop-marker-box {
+      width: 40px; height: 40px; background: #1A73E8; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+      color: #FFF; border: 3px solid #FFF; box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div id="realMap"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const driverCoords = [10.8522, 106.7685];
+    const shopCoords = [10.8548, 106.7720];
+
+    const map = L.map('realMap', {
+      zoomControl: false,
+      attributionControl: false
+    }).setView([10.8535, 106.7702], 16);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19
+    }).addTo(map);
+
+    const driverIcon = L.divIcon({
+      className: 'driver-marker-box',
+      html: '🛵',
+      iconSize: [42, 42],
+      iconAnchor: [21, 21]
+    });
+    L.marker(driverCoords, { icon: driverIcon }).addTo(map);
+
+    const shopIcon = L.divIcon({
+      className: 'shop-marker-box',
+      html: '🏪',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
+    });
+    L.marker(shopCoords, { icon: shopIcon }).addTo(map);
+
+    L.polyline([driverCoords, [10.8528, 106.7695], [10.8539, 106.7708], shopCoords], {
+      color: '#1A73E8', weight: 6, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
+    }).addTo(map);
+
+    function focusShop() {
+      map.flyTo(shopCoords, 17, { duration: 1 });
+    }
+    function focusDriver() {
+      map.flyTo(driverCoords, 17, { duration: 1 });
+    }
+  </script>
+</body>
+</html>

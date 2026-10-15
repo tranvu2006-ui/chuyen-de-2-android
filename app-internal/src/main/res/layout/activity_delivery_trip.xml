@@ -160,9 +160,10 @@
                 app:layout_constraintBottom_toTopOf="@id/bottomSheetStoreStep1"
                 app:layout_constraintTop_toTopOf="parent">
 
-                <!-- WebView nạp bản đồ trực quan với vị trí tài xế và quán -->
-                <WebView
-                    android:id="@+id/webViewMapStep1"
+                <!-- Google Maps Native Android SDK -->
+                <androidx.fragment.app.FragmentContainerView
+                    android:id="@+id/mapFragmentStep1"
+                    android:name="com.google.android.gms.maps.SupportMapFragment"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
 
@@ -636,8 +637,10 @@
                 app:layout_constraintBottom_toTopOf="@id/bottomSheetCustStep3"
                 app:layout_constraintTop_toTopOf="parent">
 
-                <WebView
-                    android:id="@+id/webViewMapStep3"
+                <!-- Google Maps Native Android SDK -->
+                <androidx.fragment.app.FragmentContainerView
+                    android:id="@+id/mapFragmentStep3"
+                    android:name="com.google.android.gms.maps.SupportMapFragment"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
 

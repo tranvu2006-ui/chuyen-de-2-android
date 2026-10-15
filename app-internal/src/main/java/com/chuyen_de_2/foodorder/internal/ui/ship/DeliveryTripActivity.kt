@@ -5,15 +5,15 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +31,17 @@ import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBin
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.PolylineOptions
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -48,7 +58,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private var currentOrderId: String = ""
     private var currentOrder: Order? = null
-    private var currentStep = 1 // 1: Đến quán (4.html), 2: Lấy hàng (5.html), 3: Đến khách (6.html), 4: Quét QR xong (8.html)
+    private var currentStep = 1 // 1: Đến quán, 2: Lấy hàng, 3: Đến khách, 4: Quét QR xong
 
     // Tọa độ GPS thực tế của Shipper và Điểm đến
     private var driverLat: Double = 10.8522
@@ -57,6 +67,17 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var storeLng: Double = 106.7720
     private var customerLat: Double = 10.8580
     private var customerLng: Double = 106.7765
+
+    // Native Google Maps instances & components
+    private var googleMapStep1: GoogleMap? = null
+    private var googleMapStep3: GoogleMap? = null
+    private var shipperMarkerStep1: Marker? = null
+    private var storeMarkerStep1: Marker? = null
+    private var polylineStep1: Polyline? = null
+
+    private var shipperMarkerStep3: Marker? = null
+    private var custMarkerStep3: Marker? = null
+    private var polylineStep3: Polyline? = null
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -95,7 +116,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             return
         }
 
-        setupWebViews()
+        setupNativeGoogleMaps()
         setupSwipeToConfirm()
         setupListeners()
         observeOrderDetails()
@@ -103,37 +124,28 @@ class DeliveryTripActivity : AppCompatActivity() {
         checkAndRequestLocation()
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun setupWebViews() {
-        // Cấu hình WebView cho bản đồ bước 1
-        binding.webViewMapStep1.apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.cacheMode = WebSettings.LOAD_DEFAULT
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
-                    evaluateJavascript("setDestination($storeLat, $storeLng);", null)
-                }
-            }
-            loadUrl("file:///android_asset/map_step1.html")
+    private fun setupNativeGoogleMaps() {
+        val mapFrag1 = supportFragmentManager.findFragmentById(R.id.mapFragmentStep1) as? SupportMapFragment
+        mapFrag1?.getMapAsync { map ->
+            googleMapStep1 = map
+            configureMapUi(map)
+            updateStep1NativeMap()
         }
 
-        // Cấu hình WebView cho bản đồ bước 3
-        binding.webViewMapStep3.apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.cacheMode = WebSettings.LOAD_DEFAULT
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
-                    val name = currentOrder?.customerName ?: "Khách hàng"
-                    evaluateJavascript("setDestination($customerLat, $customerLng, '$name');", null)
-                }
-            }
-            loadUrl("file:///android_asset/map_step3.html")
+        val mapFrag3 = supportFragmentManager.findFragmentById(R.id.mapFragmentStep3) as? SupportMapFragment
+        mapFrag3?.getMapAsync { map ->
+            googleMapStep3 = map
+            configureMapUi(map)
+            updateStep3NativeMap()
+        }
+    }
+
+    private fun configureMapUi(map: GoogleMap) {
+        map.uiSettings.apply {
+            isZoomControlsEnabled = true
+            isCompassEnabled = true
+            isMyLocationButtonEnabled = false
+            isMapToolbarEnabled = true
         }
     }
 
@@ -242,17 +254,19 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         binding.tvStep4Summary.text = "Khách hàng: $cusName • 0938 112 233\nĐịa chỉ: $dest"
 
-        // Geocoding địa chỉ khách thực tế để cập nhật lên bản đồ
+        // Geocoding địa chỉ khách thực tế để vẽ lộ trình Google Maps Native
         lifecycleScope.launch {
             try {
                 val coords = GoogleMapUtils.geocodeAddress(this@DeliveryTripActivity, dest)
                 customerLat = coords.latitude
                 customerLng = coords.longitude
-                binding.webViewMapStep3.evaluateJavascript("setDestination($customerLat, $customerLng, '$cusName');", null)
+                updateStep3NativeMap()
             } catch (e: Exception) {
                 // Giữ nguyên tọa độ mặc định nếu lỗi mạng
             }
         }
+
+        updateStep1NativeMap()
     }
 
     private fun checkAndRequestLocation() {
@@ -275,8 +289,8 @@ class DeliveryTripActivity : AppCompatActivity() {
                     if (location != null) {
                         driverLat = location.latitude
                         driverLng = location.longitude
-                        binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
-                        binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                        updateStep1NativeMap()
+                        updateStep3NativeMap()
                     }
                 }
                 .addOnFailureListener {
@@ -284,13 +298,141 @@ class DeliveryTripActivity : AppCompatActivity() {
                         if (loc != null) {
                             driverLat = loc.latitude
                             driverLng = loc.longitude
-                            binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
-                            binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                            updateStep1NativeMap()
+                            updateStep3NativeMap()
                         }
                     }
                 }
         } catch (e: Exception) {
             // Không làm gián đoạn UI
+        }
+    }
+
+    private fun updateStep1NativeMap() {
+        val map = googleMapStep1 ?: return
+        val driverLatLng = LatLng(driverLat, driverLng)
+        val targetStoreLatLng = LatLng(storeLat, storeLng)
+
+        // Marker tài xế xe máy native
+        val bikeIcon = bitmapDescriptorFromVector(this, R.drawable.ic_shipper_bike)
+        if (shipperMarkerStep1 == null) {
+            shipperMarkerStep1 = map.addMarker(
+                MarkerOptions()
+                    .position(driverLatLng)
+                    .title("🛵 Vị trí của bạn (Tài xế)")
+                    .apply {
+                        if (bikeIcon != null) icon(bikeIcon)
+                        else icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
+                    }
+            )
+        } else {
+            shipperMarkerStep1?.position = driverLatLng
+        }
+
+        // Marker quán ăn native
+        val storeName = currentOrder?.shopName?.ifBlank { "Quán ăn" } ?: "Quán ăn"
+        if (storeMarkerStep1 == null) {
+            storeMarkerStep1 = map.addMarker(
+                MarkerOptions()
+                    .position(targetStoreLatLng)
+                    .title("🏪 $storeName")
+                    .snippet("Điểm nhận món ăn")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+            )
+        } else {
+            storeMarkerStep1?.position = targetStoreLatLng
+            storeMarkerStep1?.title = "🏪 $storeName"
+        }
+
+        // Tuyến đường native màu xanh Google Maps
+        polylineStep1?.remove()
+        polylineStep1 = map.addPolyline(
+            PolylineOptions()
+                .add(driverLatLng, targetStoreLatLng)
+                .color(Color.parseColor("#1A73E8"))
+                .width(12f)
+                .geodesic(true)
+        )
+
+        // Căn chỉnh góc nhìn camera
+        try {
+            val bounds = LatLngBounds.Builder()
+                .include(driverLatLng)
+                .include(targetStoreLatLng)
+                .build()
+            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 130))
+        } catch (_: Exception) {
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(driverLatLng, 15f))
+        }
+    }
+
+    private fun updateStep3NativeMap() {
+        val map = googleMapStep3 ?: return
+        val driverLatLng = LatLng(driverLat, driverLng)
+        val targetCustLatLng = LatLng(customerLat, customerLng)
+
+        // Marker tài xế xe máy native
+        val bikeIcon = bitmapDescriptorFromVector(this, R.drawable.ic_shipper_bike)
+        if (shipperMarkerStep3 == null) {
+            shipperMarkerStep3 = map.addMarker(
+                MarkerOptions()
+                    .position(driverLatLng)
+                    .title("🛵 Vị trí của bạn (Tài xế)")
+                    .apply {
+                        if (bikeIcon != null) icon(bikeIcon)
+                        else icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                    }
+            )
+        } else {
+            shipperMarkerStep3?.position = driverLatLng
+        }
+
+        // Marker khách hàng native
+        val cusName = currentOrder?.customerName?.ifBlank { "Khách hàng" } ?: "Khách hàng"
+        if (custMarkerStep3 == null) {
+            custMarkerStep3 = map.addMarker(
+                MarkerOptions()
+                    .position(targetCustLatLng)
+                    .title("📍 $cusName")
+                    .snippet(currentOrder?.address ?: "Điểm giao khách")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+            )
+        } else {
+            custMarkerStep3?.position = targetCustLatLng
+            custMarkerStep3?.title = "📍 $cusName"
+        }
+
+        // Tuyến đường native xanh lá chặng 3
+        polylineStep3?.remove()
+        polylineStep3 = map.addPolyline(
+            PolylineOptions()
+                .add(driverLatLng, targetCustLatLng)
+                .color(Color.parseColor("#059669"))
+                .width(12f)
+                .geodesic(true)
+        )
+
+        try {
+            val bounds = LatLngBounds.Builder()
+                .include(driverLatLng)
+                .include(targetCustLatLng)
+                .build()
+            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 130))
+        } catch (_: Exception) {
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(driverLatLng, 15f))
+        }
+    }
+
+    private fun bitmapDescriptorFromVector(context: Context, vectorResId: Int): BitmapDescriptor? {
+        return try {
+            val drawable = ContextCompat.getDrawable(context, vectorResId) ?: return null
+            drawable.setBounds(0, 0, drawable.intrinsicWidth, drawable.intrinsicHeight)
+            val bitmap = Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.draw(canvas)
+            BitmapDescriptorFactory.fromBitmap(bitmap)
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -305,7 +447,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 1: Nút "Đến quán" trên hộp Google Navigation (Mở Google Maps Turn-by-Turn thật)
         binding.btnOpenNavStep1.setOnClickListener {
-            binding.webViewMapStep1.evaluateJavascript("focusShop();", null)
+            googleMapStep1?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(storeLat, storeLng), 17f))
             GoogleMapUtils.openGoogleMapsNavigation(this, storeLat, storeLng, binding.tvStep1StoreName.text.toString())
         }
 
@@ -330,13 +472,14 @@ class DeliveryTripActivity : AppCompatActivity() {
                 Toast.makeText(this@DeliveryTripActivity, "🛵 Xuất phát đi giao hàng!", Toast.LENGTH_SHORT).show()
                 updateStepUI(3)
                 fetchRealShipperLocation()
+                updateStep3NativeMap()
             }
         }
 
         // Bước 3: Dẫn đường đến khách (Mở Google Maps Turn-by-Turn thật)
         binding.btnOpenNavStep3.setOnClickListener {
-            binding.webViewMapStep3.evaluateJavascript("focusCustomer();", null)
             val cusName = currentOrder?.customerName ?: "Khách hàng"
+            googleMapStep3?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(customerLat, customerLng), 17f))
             GoogleMapUtils.openGoogleMapsNavigation(this, customerLat, customerLng, cusName)
         }
 

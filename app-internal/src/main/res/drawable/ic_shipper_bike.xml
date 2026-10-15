@@ -1,0 +1,46 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Vòng tròn nền trắng viền cam ShopeeFood -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#EE4D2D"
+        android:strokeWidth="3.5"
+        android:pathData="M24,24m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0"/>
+    <!-- Thùng hàng shipper sau xe màu cam -->
+    <path
+        android:fillColor="#EE4D2D"
+        android:pathData="M11,17h7v8h-7z"/>
+    <!-- Bánh xe sau -->
+    <path
+        android:fillColor="#334155"
+        android:pathData="M14,33m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <!-- Bánh xe trước -->
+    <path
+        android:fillColor="#334155"
+        android:pathData="M34,33m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    <!-- Khung xe máy -->
+    <path
+        android:strokeColor="#EE4D2D"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M14,33l4,-10h7l4,10"/>
+    <!-- Cổ xe & Ghi đông -->
+    <path
+        android:strokeColor="#334155"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M25,23l4,-9h4"/>
+    <!-- Đầu shipper & Mũ bảo hiểm -->
+    <path
+        android:fillColor="#EE4D2D"
+        android:pathData="M24,12m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0"/>
+    <!-- Thân người lái -->
+    <path
+        android:strokeColor="#1E293B"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M21,16l3,6h4"/>
+</vector>

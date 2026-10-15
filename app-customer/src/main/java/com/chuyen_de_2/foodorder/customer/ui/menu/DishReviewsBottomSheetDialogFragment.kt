@@ -63,39 +63,7 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
             dismiss()
         }
 
-        // Danh sách review mẫu theo b5.html
-        val sampleReviews = mutableListOf(
-            DishReviewItem(
-                id = "101",
-                customerName = "Nguyễn Thùy Trang",
-                avatarLetter = "T",
-                avatarColorHex = "#EE4D2D",
-                rating = 5,
-                dateText = "Hôm qua",
-                specText = "Size L • 50% Đường • 70% Đá",
-                comment = "Trà thơm đậm vị, vị xí muội mặn ngọt hài hòa uống rất cuốn, trân châu hoàng kim dai dẻo chuẩn vị. Đã gọi lần thứ 3 trong tuần rồi!"
-            ),
-            DishReviewItem(
-                id = "102",
-                customerName = "Hoàng Tuấn Kiệt",
-                avatarLetter = "K",
-                avatarColorHex = "#2563EB",
-                rating = 5,
-                dateText = "2 ngày trước",
-                specText = "Size L • Ít ngọt • Nhiều đá",
-                comment = "Giao tới nơi đá vẫn chưa tan nhiều, vị đậm đà không bị nhạt. Uống thanh mát giải nhiệt ngày hè cực đã."
-            ),
-            DishReviewItem(
-                id = "103",
-                customerName = "Lê Minh Đức",
-                avatarLetter = "Đ",
-                avatarColorHex = "#10B981",
-                rating = 4,
-                dateText = "3 ngày trước",
-                specText = "Size M • 70% Đường",
-                comment = "Món ngon, vị chuẩn truyền thống. Nếu quán cho thêm xíu topping trân châu nữa thì tuyệt vời."
-            )
-        )
+        val sampleReviews = mutableListOf<DishReviewItem>()
 
         reviewsAdapter = DishReviewsAdapter(sampleReviews)
         binding.rvDishReviews.apply {

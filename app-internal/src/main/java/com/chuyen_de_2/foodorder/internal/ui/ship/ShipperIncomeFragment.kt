@@ -73,31 +73,20 @@ class ShipperIncomeFragment : Fragment() {
             binding.rvCompletedTrips.visibility = View.VISIBLE
             incomeAdapter.submitList(completedOrders)
 
-            val totalEarn = completedOrders.sumOf { if (it.shippingFee > 0) it.shippingFee else 25000L }
-            binding.tvTotalBalance.text = "+${(totalEarn + 1065000L).toVndCurrency()}"
+            val totalEarn = completedOrders.sumOf { it.shippingFee }
+            binding.tvTotalBalance.text = "+${totalEarn.toVndCurrency()}"
             binding.tvTodayIncome.text = "+${totalEarn.toVndCurrency()}"
-            binding.tvWeekIncome.text = "+${(totalEarn + 1765000L).toVndCurrency()}"
+            binding.tvWeekIncome.text = "+${totalEarn.toVndCurrency()}"
             binding.tvCompletedTripsCount.text = "${completedOrders.size} cuốc"
         } else {
-            // Mẫu khởi tạo ban đầu giống thiết kế 1.html để giao diện luôn trực quan
-            val sampleTrip = Order(
-                orderId = "88290",
-                shopName = "Trà Sữa Ngô Gia (CN Võ Văn Ngân)",
-                address = "45 Đinh Tiên Hoàng, P. Bến Nghé, Q.1",
-                shippingFee = 25000L,
-                totalPayment = 95000L,
-                paymentMethod = "COD",
-                status = Order.Status.COMPLETED,
-                timestamp = System.currentTimeMillis() - 3600000L
-            )
-            binding.tvEmptyIncome.visibility = View.GONE
-            binding.rvCompletedTrips.visibility = View.VISIBLE
-            incomeAdapter.submitList(listOf(sampleTrip))
+            binding.tvEmptyIncome.visibility = View.VISIBLE
+            binding.rvCompletedTrips.visibility = View.GONE
+            incomeAdapter.submitList(emptyList())
 
-            binding.tvTotalBalance.text = "+1.450.000 đ"
-            binding.tvTodayIncome.text = "+385.000 đ"
-            binding.tvWeekIncome.text = "+2.150.000 đ"
-            binding.tvCompletedTripsCount.text = "12 cuốc"
+            binding.tvTotalBalance.text = "0 đ"
+            binding.tvTodayIncome.text = "0 đ"
+            binding.tvWeekIncome.text = "0 đ"
+            binding.tvCompletedTripsCount.text = "0 cuốc"
         }
     }
 

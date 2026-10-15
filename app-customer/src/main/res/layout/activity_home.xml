@@ -585,13 +585,15 @@
                 <!-- Trạng thái trống -->
                 <TextView
                     android:id="@+id/tvEmpty"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
                     android:layout_marginTop="40dp"
+                    android:paddingHorizontal="24dp"
+                    android:gravity="center"
                     android:text="@string/empty_restaurants"
                     android:textColor="@color/text_secondary"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp"
                     android:visibility="gone" />
 
             </LinearLayout>

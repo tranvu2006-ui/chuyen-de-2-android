@@ -244,11 +244,19 @@ class OrderListFragment : Fragment() {
                 ).show()
             }
             Order.Status.READY -> {
-                // BƯỚC 3: XÁC NHẬN GIAO CHO TÀI XẾ
-                viewModel.handoverToDriver(order.orderId)
                 Toast.makeText(
                     requireContext(),
-                    "✓ ĐÃ XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ!\nTài xế bắt đầu di chuyển giao tới khách hàng.",
+                    "Món đã nấu xong. Đang chờ tài xế nhận đơn trên hệ thống!",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            Order.Status.ASSIGNED -> {
+                // BƯỚC 3: XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ ĐÃ NHẬN
+                viewModel.handoverToDriver(order.orderId)
+                val driverName = order.shipperName.ifBlank { "tài xế" }
+                Toast.makeText(
+                    requireContext(),
+                    "✓ ĐÃ BÀN GIAO TÚI MÓN CHO $driverName!\nTài xế bắt đầu di chuyển giao tới khách hàng.",
                     Toast.LENGTH_LONG
                 ).show()
             }

@@ -126,32 +126,78 @@ class OrderAdapter(
                 }
 
                 Order.Status.READY -> {
-                    // Bước 3: Nấu xong -> Chờ giao tài xế
-                    val driverText = order.shipperName.ifBlank { "Tài xế của quán" }
-                    binding.tvOrderBadge.text = "🛵 Món đã nấu xong • Chờ giao tài xế"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+                    // Bước 3: Nấu xong -> Chờ tài xế bấm tự nhận đơn
+                    val hasShipper = !order.shipperId.isNullOrBlank()
+                    if (!hasShipper) {
+                        binding.tvOrderBadge.text = "🍳 Đã nấu xong • Đang chờ tài xế nhận đơn"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                        binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                        binding.boxDriverStatus.visibility = View.VISIBLE
+                        binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_searching)
+                        binding.tvDriverStatusTxt.apply {
+                            text = "⏳ Món đã xong. Đang phát đơn để tài xế tự bấm nhận..."
+                            setTextColor(Color.parseColor("#B45309"))
+                        }
+                        binding.btnCallDriver.visibility = View.GONE
+
+                        binding.btnMainAction.apply {
+                            isEnabled = false
+                            text = "⏳ ĐANG CHỜ TÀI XẾ BẤM NHẬN ĐƠN..."
+                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.text_secondary)
+                            setTextColor(Color.WHITE)
+                        }
+                    } else {
+                        // Trường hợp tài xế đã nhận
+                        val driverText = order.shipperName.ifBlank { "Tài xế" }
+                        binding.tvOrderBadge.text = "🛵 Tài xế đã nhận • Đang đến quầy lấy món"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+
+                        binding.boxDriverStatus.visibility = View.VISIBLE
+                        binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
+                        binding.tvDriverStatusTxt.apply {
+                            text = "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
+                            setTextColor(Color.parseColor("#047857"))
+                        }
+                        binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
+
+                        binding.btnMainAction.apply {
+                            isEnabled = true
+                            text = "🛵 XÁC NHẬN GIAO MÓN CHO $driverText ➔"
+                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
+                            setTextColor(Color.WHITE)
+                        }
+                    }
+                }
+
+                Order.Status.ASSIGNED -> {
+                    // Bước 3.5: Tài xế ĐÃ bấm nhận đơn -> Đang đến quầy lấy món
+                    val driverText = order.shipperName.ifBlank { "Tài xế" }
+                    binding.tvOrderBadge.text = "🛵 Tài xế đã nhận • Đang đến quầy lấy món"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
 
                     binding.boxDriverStatus.visibility = View.VISIBLE
                     binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
                     binding.tvDriverStatusTxt.apply {
-                        text = "🛵 Món đã nấu xong • $driverText đã nhận đơn, đang đến quầy"
+                        text = "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
                         setTextColor(Color.parseColor("#047857"))
                     }
-                    binding.btnCallDriver.visibility = View.VISIBLE
+                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
 
                     binding.btnMainAction.apply {
                         isEnabled = true
-                        text = "🛵 XÁC NHẬN GIAO CHO TÀI XẾ ➔"
+                        text = "🛵 XÁC NHẬN GIAO MÓN CHO $driverText ➔"
                         backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
                         setTextColor(Color.WHITE)
                     }
                 }
 
-                Order.Status.ASSIGNED, Order.Status.DELIVERING -> {
-                    // Bước 4: Đã giao tài xế đi giao
-                    val driverText = order.shipperName.ifBlank { "Tài xế của quán" }
-                    binding.tvOrderBadge.text = "🛵 Đang giao hàng • Tài xế đã nhận đơn"
+                Order.Status.DELIVERING -> {
+                    // Bước 4: Quán đã giao túi món cho tài xế -> Tài xế đang chạy đến khách
+                    val driverText = order.shipperName.ifBlank { "Tài xế" }
+                    binding.tvOrderBadge.text = "🛵 Đang giao hàng • $driverText"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_delivering)
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 
@@ -161,7 +207,7 @@ class OrderAdapter(
                         text = "🛵 Đã giao túi món cho $driverText • Đang chạy đến khách"
                         setTextColor(Color.parseColor("#047857"))
                     }
-                    binding.btnCallDriver.visibility = if (order.shipperName.isNotBlank()) View.VISIBLE else View.GONE
+                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
 
                     binding.btnMainAction.apply {
                         isEnabled = false

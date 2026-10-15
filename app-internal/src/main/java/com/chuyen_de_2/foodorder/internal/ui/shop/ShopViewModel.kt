@@ -95,11 +95,11 @@ class ShopViewModel @Inject constructor(
 
         // Tính doanh thu và đơn hoàn tất hôm nay
         val completedOrders = orders.filter { it.status == Order.Status.COMPLETED }
-        _todayCompletedCount.value = if (completedOrders.isNotEmpty()) completedOrders.size else 24
+        _todayCompletedCount.value = completedOrders.size
         val calculatedRevenue = completedOrders.sumOf {
             if (it.totalPayment > 0) it.totalPayment else if (it.total > 0) it.total else 0L
         }
-        _todayRevenue.value = if (calculatedRevenue > 0) calculatedRevenue else 1480000L
+        _todayRevenue.value = calculatedRevenue
 
         // Lọc danh sách theo tab được chọn
         filteredOrders.value = when (tab) {
@@ -155,12 +155,9 @@ class ShopViewModel @Inject constructor(
         }
     }
 
-    /** Bước 3: Xác nhận giao cho tài xế -> Chuyển sang DELIVERING */
-    fun handoverToDriver(orderId: String, shipperId: String? = null, shipperName: String? = null) {
+    /** Bước 3: Xác nhận đã giao món cho tài xế đến lấy -> Chuyển sang DELIVERING */
+    fun handoverToDriver(orderId: String) {
         viewModelScope.launch {
-            val assignedName = shipperName ?: "Tài xế của quán"
-            val assignedId = shipperId ?: ""
-            firebaseRepository.assignShipper(orderId, assignedId, assignedName) { _, _ -> }
             firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
         }
     }

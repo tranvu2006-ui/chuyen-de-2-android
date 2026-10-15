@@ -211,13 +211,14 @@ class FirebaseRepository @Inject constructor(
                 val order = currentData.getValue(Order::class.java)
                     ?: return Transaction.abort()
 
-                // Kỹ thuật Lock: Đơn phải PENDING/READY và CHƯA có shipper
-                if (order.shipperId != null || order.status == Order.Status.DELIVERING) {
-                    return Transaction.abort() // Xung đột, người khác đã gán
+                // Kỹ thuật Lock: Đơn phải READY/PENDING và CHƯA có shipper nào nhận
+                if (!order.shipperId.isNullOrBlank() || order.status == Order.Status.DELIVERING || order.status == Order.Status.COMPLETED) {
+                    return Transaction.abort() // Xung đột, tài xế khác đã nhận
                 }
 
                 order.shipperId = shipperId
-                order.status = Order.Status.DELIVERING
+                order.shipperName = shipperName
+                order.status = Order.Status.ASSIGNED
                 currentData.value = order
 
                 return Transaction.success(currentData)

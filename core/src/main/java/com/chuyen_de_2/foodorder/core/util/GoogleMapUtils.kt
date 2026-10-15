@@ -205,4 +205,41 @@ object GoogleMapUtils {
             Toast.makeText(context, "Không thể mở bản đồ: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
+    /**
+     * Tạo URL gọi API Google Maps Static Maps để tải trực tiếp ảnh bản đồ
+     * Bao gồm Marker Tài xế (Đỏ), Marker Quán (Xanh) và đường nối Polyline (Xanh dương)
+     */
+    fun getGoogleStaticMapUrl(
+        driverLat: Double = 10.8522,
+        driverLng: Double = 106.7685,
+        destLat: Double = 10.8548,
+        destLng: Double = 106.7720,
+        width: Int = 640,
+        height: Int = 400,
+        apiKey: String = ""
+    ): String {
+        val baseUrl = "https://maps.googleapis.com/maps/api/staticmap"
+        val driverMarker = "color:red%7Clabel:D%7C$driverLat,$driverLng"
+        val destMarker = "color:blue%7Clabel:S%7C$destLat,$destLng"
+        val path = "color:0x1a73e8ff%7Cweight:5%7C$driverLat,$driverLng%7C$destLat,$destLng"
+        val keyParam = if (apiKey.isNotBlank()) "&key=$apiKey" else ""
+        return "$baseUrl?size=${width}x${height}&scale=2&maptype=roadmap&markers=$driverMarker&markers=$destMarker&path=$path$keyParam"
+    }
+
+    /**
+     * Tạo URL lấy ảnh bản đồ tĩnh OpenStreetMap (Miễn phí 100%, không cần API Key)
+     */
+    fun getFreeStaticMapUrl(
+        driverLat: Double = 10.8522,
+        driverLng: Double = 106.7685,
+        destLat: Double = 10.8548,
+        destLng: Double = 106.7720,
+        width: Int = 640,
+        height: Int = 400
+    ): String {
+        val midLat = (driverLat + destLat) / 2
+        val midLng = (driverLng + destLng) / 2
+        return "https://staticmap.openstreetmap.de/staticmap.php?center=$midLat,$midLng&zoom=15&size=${width}x${height}&markers=$driverLat,$driverLng,ol-marker%7C$destLat,$destLng,ol-marker"
+    }
 }

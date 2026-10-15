@@ -380,14 +380,13 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const mode = urlParams.get('mode') || 'FULL'; // 'FULL', 'DEPOSIT', 'COD', 'FULL_CASH'
-    const channel = urlParams.get('channel') || 'momo';
+    const channel = urlParams.get('channel') || 'bank';
     const total = parseInt(urlParams.get('total')) || 105000;
     const deposit = parseInt(urlParams.get('deposit')) || 21000;
     const remain = parseInt(urlParams.get('remain')) || (total - deposit);
 
     const channelNames = {
-      momo: 'Ví MoMo',
-      bank: 'Ngân Hàng',
+      bank: 'VietQR Ngân Hàng',
       cash: 'Tiền Mặt'
     };
 
@@ -485,11 +484,11 @@
       txtSummaryMode.innerText = 'Tiền mặt khi nhận';
 
     } else {
-      // 4. TRẢ THẲNG 100% ONLINE (MOMO / NGÂN HÀNG)
+      // 4. TRẢ THẲNG 100% ONLINE (VIETQR NGÂN HÀNG)
       iconWrap.className = 'success-icon-wrap icon-bg-green';
       iconEmoji.innerText = '💰';
       txtMainHeadline.innerText = 'THANH TOÁN THÀNH CÔNG!';
-      txtSubHeadline.innerText = `Bạn đã thanh toán đủ 100% qua ${channelNames[channel] || 'Ví MoMo'}. Đơn hàng đang chờ xác nhận của quán.`;
+      txtSubHeadline.innerText = `Bạn đã thanh toán đủ 100% qua ${channelNames[channel] || 'VietQR Ngân Hàng'}. Đơn hàng đang chờ xác nhận của quán.`;
 
       cardStatusBadge.className = 'status-badge-card badge-full-theme';
       lblBadgeTitle.style.color = '#1D4ED8';
@@ -500,7 +499,7 @@
       pillBadgeRight.style.borderColor = '#FDE68A';
       txtBadgeDesc.innerHTML = 'Đơn hàng đã được chuyển tới quán Ngô Gia. <b>Đang chờ xác nhận của quán</b> trước khi bếp chuẩn bị món.';
 
-      lblPaidTitle.innerText = `Đã thanh toán đủ (${channelNames[channel] || 'Ví MoMo'}):`;
+      lblPaidTitle.innerText = `Đã thanh toán đủ (${channelNames[channel] || 'VietQR Ngân Hàng'}):`;
       txtPaidVal.innerText = total.toLocaleString('vi-VN') + ' đ';
       txtPaidVal.style.color = '#10B981';
 

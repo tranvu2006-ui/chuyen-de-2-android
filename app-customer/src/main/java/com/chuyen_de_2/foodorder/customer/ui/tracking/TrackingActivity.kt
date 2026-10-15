@@ -92,10 +92,15 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupUI() {
-        val shortCode = currentOrderId.takeLast(6).uppercase()
+        val shortCode = if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
         binding.tvHeaderOrderCode.text = "#ORD_$shortCode"
         binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Quán đang kiểm tra món ăn"
-        binding.tokenPill.text = "TOKEN_OISHI_$shortCode"
+        val tokenText = "TOKEN_OISHI_$shortCode"
+        binding.tokenPill.text = tokenText
+
+        // Sinh và hiển thị mã QR thực tế sắc nét bằng QRCodeUtils
+        val qrBitmap = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.generateQRCodeBitmap(tokenText, 400, 400)
+        binding.ivQrCode.setImageBitmap(qrBitmap)
     }
 
     private fun setupListeners() {
@@ -541,7 +546,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Hình thức thanh toán
         val payMethodStr = when (order.paymentMethod) {
-            Order.PaymentMethod.MOMO_QR -> "Ví MoMo (Đã thanh toán)"
             Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
             else -> "Tiền mặt khi nhận món (COD)"
         }

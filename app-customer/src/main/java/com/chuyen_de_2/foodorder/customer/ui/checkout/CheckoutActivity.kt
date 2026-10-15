@@ -195,7 +195,6 @@ class CheckoutActivity : AppCompatActivity() {
             val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
 
             val paymentMethod = when {
-                binding.rbMoMo.isChecked -> Order.PaymentMethod.MOMO_QR
                 binding.rbBanking.isChecked -> Order.PaymentMethod.BANKING
                 else -> Order.PaymentMethod.COD
             }
@@ -325,9 +324,8 @@ class CheckoutActivity : AppCompatActivity() {
                 val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
                 val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: supportActionBar?.title?.toString() ?: "Phở Hà Nội 36"
 
-                if (binding.rbBanking.isChecked || binding.rbMoMo.isChecked) {
-                    // Chuyển sang màn hình Quét Mã Thanh Toán chuẩn b8_payment.html
-                    val channel = if (binding.rbMoMo.isChecked) "momo" else "bank"
+                if (binding.rbBanking.isChecked) {
+                    // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng
                     val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
                         putExtra(Constants.EXTRA_ORDER_ID, orderId)
                         putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
@@ -336,7 +334,7 @@ class CheckoutActivity : AppCompatActivity() {
                         putExtra("extra_subtotal", currentSubtotal)
                         putExtra("extra_shipping_fee", currentShippingFee)
                         putExtra("extra_discount", currentDiscount)
-                        putExtra("extra_channel", channel)
+                        putExtra("extra_channel", "bank")
                     }
                     startActivity(intent)
                 } else {

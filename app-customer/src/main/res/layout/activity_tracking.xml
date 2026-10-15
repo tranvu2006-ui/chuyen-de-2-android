@@ -672,37 +672,22 @@
                         android:textSize="11sp" />
 
                     <!-- QR Code Visual Wrapper (b9.html: qr-code-wrapper) -->
-                    <LinearLayout
+                    <androidx.cardview.widget.CardView
                         android:id="@+id/qrCodeWrapper"
-                        android:layout_width="160dp"
-                        android:layout_height="160dp"
-                        android:background="#0F172A"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:padding="10dp">
+                        android:layout_width="170dp"
+                        android:layout_height="170dp"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="@color/white">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
-                            android:gravity="center"
-                            android:letterSpacing="0.2"
-                            android:lineSpacingExtra="2dp"
-                            android:text="■■■■■■■ ■ ■■■■■■■\n■ ■   ■ ■ ■   ■ ■\n■■■■■■■ ■ ■■■■■■■\n■ ■■■ ■■■ ■■■ ■ ■\n■■■■■■■ ■ ■■■■■■■"
-                            android:textColor="@color/white"
-                            android:textSize="9.5sp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:fontFamily="monospace"
-                            android:letterSpacing="0.1"
-                            android:text="DELIVERY TOKEN"
-                            android:textColor="#94A3B8"
-                            android:textSize="9sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
+                        <ImageView
+                            android:id="@+id/ivQrCode"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:scaleType="fitCenter"
+                            android:padding="8dp"
+                            android:contentDescription="Mã QR Delivery Token" />
+                    </androidx.cardview.widget.CardView>
 
                     <!-- Token Code Pill -->
                     <TextView
@@ -1061,7 +1046,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="💳 Hình thức: Ví MoMo (Đã thanh toán)"
+                        android:text="💳 Hình thức: Chuyển khoản VietQR (Đã thanh toán)"
                         android:textColor="#64748B"
                         android:textSize="11sp" />
                 </LinearLayout>

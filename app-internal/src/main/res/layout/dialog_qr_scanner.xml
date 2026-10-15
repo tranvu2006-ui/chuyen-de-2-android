@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_rounded"
+    android:orientation="vertical"
+    android:padding="24px">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📷 Quét Mã QR Delivery Token"
+            android:textColor="#0F172A"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/btnCloseScanner"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="#64748B" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Đặt camera hướng về phía mã QR trên điện thoại của khách hàng để hệ thống tự động nhận diện."
+        android:textColor="#64748B"
+        android:textSize="12sp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Viewfinder Simulation Box -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="220dp"
+        app:cardBackgroundColor="#0B0F19"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        android:layout_marginBottom="16dp">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <!-- Radar / Target Frame -->
+            <View
+                android:layout_width="160dp"
+                android:layout_height="160dp"
+                android:layout_centerInParent="true"
+                android:background="@drawable/bg_scanner_viewfinder" />
+
+            <!-- Scanning Laser Line Animation effect placeholder -->
+            <View
+                android:layout_width="150dp"
+                android:layout_height="2dp"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="60dp"
+                android:background="#10B981" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+                android:layout_centerHorizontal="true"
+                android:layout_marginBottom="14dp"
+                android:fontFamily="monospace"
+                android:text="● Đang quét Camera (Oishi Scanner)..."
+                android:textColor="#34D399"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </RelativeLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Detected Token Box -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#F8FAFC"
+        android:padding="12dp"
+        android:orientation="vertical"
+        android:layout_marginBottom="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Mã Token nhận diện:"
+            android:textColor="#64748B"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/tvDetectedToken"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="monospace"
+            android:text="TOKEN_OISHI_88291"
+            android:textColor="#0F172A"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCancelScan"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="Hủy"
+            android:textColor="#64748B"
+            app:cornerRadius="10dp"
+            app:strokeColor="#CBD5E1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnConfirmScannedToken"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="#10B981"
+            android:text="✓ Khớp &amp; Hoàn Tất"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            app:cornerRadius="10dp" />
+    </LinearLayout>
+
+</LinearLayout>

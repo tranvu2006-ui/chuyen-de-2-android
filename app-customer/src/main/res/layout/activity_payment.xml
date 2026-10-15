@@ -381,7 +381,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="1. Mở ứng dụng Ngân hàng (hoặc MoMo) và chọn chức năng Quét QR.&#10;2. Quét mã QR ở trên hoặc chuyển khoản theo đúng số tài khoản và cú pháp.&#10;3. Bấm xác nhận &quot;Tôi đã chuyển khoản xong&quot; bên dưới để hoàn tất."
+                        android:text="1. Mở ứng dụng Ngân hàng và chọn chức năng Quét QR.&#10;2. Quét mã QR ở trên hoặc chuyển khoản theo đúng số tài khoản và cú pháp.&#10;3. Bấm xác nhận &quot;Tôi đã chuyển khoản xong&quot; bên dưới để hoàn tất."
                         android:textColor="#475569"
                         android:textSize="11.5sp" />
                 </LinearLayout>
@@ -401,6 +401,7 @@
         android:paddingHorizontal="16dp"
         android:paddingVertical="12dp"
         app:layout_constraintBottom_toBottomOf="parent">
+
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnConfirmPaid"

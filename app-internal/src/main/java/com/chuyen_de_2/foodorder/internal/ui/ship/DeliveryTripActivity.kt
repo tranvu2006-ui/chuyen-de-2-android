@@ -235,7 +235,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.tvStep3PaymentMethodBadge.text = "💵 Thu tiền mặt COD: ${totalPayment.toVndCurrency()}"
             binding.tvStep4CodCollection.text = "Thu Tiền Mặt COD: ${totalPayment.toVndCurrency()}"
         } else {
-            binding.tvStep3PaymentMethodBadge.text = "✓ ĐÃ THANH TOÁN ONLINE (MOMO/VNPAY) - KHÔNG THU TIỀN"
+            binding.tvStep3PaymentMethodBadge.text = "✓ ĐÃ THANH TOÁN ONLINE (VIETQR) - KHÔNG THU TIỀN"
             binding.tvStep4CodCollection.text = "ĐÃ THANH TOÁN TRƯỚC (COD: 0 đ)"
         }
 
@@ -362,7 +362,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 4: Nút quét mã QR
         binding.btnSimulateScan.setOnClickListener {
-            Toast.makeText(this, "✓ Quét mã QR thành công! Đã khớp mã đơn của khách hàng", Toast.LENGTH_SHORT).show()
+            showQrScannerDialog()
         }
 
         // Bước 4: Hoàn tất đơn hàng
@@ -409,6 +409,33 @@ class DeliveryTripActivity : AppCompatActivity() {
 
             binding.btnTripCancel.visibility = View.GONE
         }
+    }
+
+    private fun showQrScannerDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_qr_scanner, null)
+        val tvToken = dialogView.findViewById<android.widget.TextView>(R.id.tvDetectedToken)
+        val btnClose = dialogView.findViewById<android.widget.ImageView>(R.id.btnCloseScanner)
+        val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnCancelScan)
+        val btnConfirm = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnConfirmScannedToken)
+
+        val shortCode = if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
+        val tokenText = "TOKEN_OISHI_$shortCode"
+        tvToken.text = tokenText
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+        btnConfirm.setOnClickListener {
+            dialog.dismiss()
+            Toast.makeText(this, "✓ Quét mã QR thành công! Đã khớp Delivery Token: $tokenText", Toast.LENGTH_SHORT).show()
+            completeTripOrder()
+        }
+
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.show()
     }
 
     private fun completeTripOrder() {

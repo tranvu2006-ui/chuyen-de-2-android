@@ -21,6 +21,7 @@ import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityPaymentBinding
 import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
 import com.chuyen_de_2.foodorder.customer.ui.order.OrderSuccessActivity
+import com.chuyen_de_2.foodorder.customer.R
 
 class PaymentActivity : AppCompatActivity() {
 
@@ -43,10 +44,9 @@ class PaymentActivity : AppCompatActivity() {
         val subtotal = intent.getLongExtra("extra_subtotal", 115000L)
         val shippingFee = intent.getLongExtra("extra_shipping_fee", 15000L)
         val discount = intent.getLongExtra("extra_discount", 0L)
-        val channel = intent.getStringExtra("extra_channel") ?: "bank"
 
         setupToolbar()
-        bindPaymentData(orderId, amount, channel)
+        bindPaymentData(orderId, amount)
         startCountdownTimer()
 
         // Nút xác nhận thanh toán xong -> chuyển màn hình OrderSuccessActivity chuẩn b8_success.html
@@ -59,7 +59,7 @@ class PaymentActivity : AppCompatActivity() {
                 putExtra("extra_subtotal", subtotal)
                 putExtra("extra_shipping_fee", shippingFee)
                 putExtra("extra_discount", discount)
-                putExtra("extra_payment_method", if (channel == "momo") "Ví MoMo (Quét QR)" else "Chuyển khoản VietQR (MB Bank)")
+                putExtra("extra_payment_method", "Chuyển khoản VietQR (MB Bank)")
             }
             startActivity(intent)
             finish()
@@ -75,23 +75,16 @@ class PaymentActivity : AppCompatActivity() {
         }
     }
 
-    private fun bindPaymentData(orderId: String, amount: Long, channel: String) {
+    private fun bindPaymentData(orderId: String, amount: Long) {
         binding.tvAmountValue.text = amount.toVndCurrency()
 
         val transferSyntax = "OISHI ${if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else "DH8888"}"
-        val accountNum = if (channel == "momo") "0901234888" else "0988 888 888"
+        val accountNum = "0988 888 888"
 
-        if (channel == "momo") {
-            binding.tvPayTypeBadge.text = "👛 VÍ ĐIỆN TỬ MOMO QR"
-            binding.tvBankName.text = "Ví MoMo"
-            binding.tvAccountNum.text = accountNum
-            binding.tvAccountHolder.text = "VÍ MOMO OISHI FOOD"
-        } else {
-            binding.tvPayTypeBadge.text = "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (MB BANK)"
-            binding.tvBankName.text = "MB Bank (TMCP Quân Đội)"
-            binding.tvAccountNum.text = accountNum
-            binding.tvAccountHolder.text = "OISHI FOOD VIETNAM"
-        }
+        binding.tvPayTypeBadge.text = "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (MB BANK)"
+        binding.tvBankName.text = "MB Bank (TMCP Quân Đội)"
+        binding.tvAccountNum.text = accountNum
+        binding.tvAccountHolder.text = "OISHI FOOD VIETNAM"
 
         binding.tvTransferSyntax.text = transferSyntax
 

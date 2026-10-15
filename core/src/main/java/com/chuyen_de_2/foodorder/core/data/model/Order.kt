@@ -114,7 +114,6 @@ data class Order(
     /** Phương thức thanh toán */
     object PaymentMethod {
         const val COD = "COD"
-        const val MOMO_QR = "MOMO_QR"
         const val BANKING = "BANKING"
     }
 }

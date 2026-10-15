@@ -344,13 +344,9 @@
         <div class="channel-select-wrap" id="channelSelectWrap">
           <div class="channel-title" id="channelSelectTitle">Chọn kênh thanh toán trực tuyến:</div>
           <div class="channel-grid">
-            <div class="channel-card active" onclick="selectChannel('momo', this)">
-              <span class="channel-icon">👛</span>
-              <span class="channel-name">Ví MoMo</span>
-            </div>
-            <div class="channel-card" onclick="selectChannel('bank', this)">
+            <div class="channel-card active" onclick="selectChannel('bank', this)">
               <span class="channel-icon">🏦</span>
-              <span class="channel-name">Ngân Hàng</span>
+              <span class="channel-name">VietQR Ngân Hàng</span>
             </div>
           </div>
         </div>
@@ -470,7 +466,7 @@
 
     let shippingFee = 15000;
     let selectedMode = 'FULL'; // 'FULL' (Trả thẳng 100%) hoặc 'DEPOSIT' (Cọc 20%)
-    let selectedChannel = 'momo';
+    let selectedChannel = 'bank';
 
     let cartDishes = [
       {
@@ -582,10 +578,9 @@
       calculateAmounts();
     }
 
-    // Nhận diện tên kênh thanh toán (Chỉ Ví MoMo hoặc Ngân Hàng)
+    // Nhận diện tên kênh thanh toán (Chuyển khoản VietQR Ngân Hàng)
     function getChannelLabel(ch) {
-      if (ch === 'bank') return 'Ngân Hàng';
-      return 'Ví MoMo';
+      return 'VietQR Ngân Hàng';
     }
 
     // Chọn kênh thanh toán

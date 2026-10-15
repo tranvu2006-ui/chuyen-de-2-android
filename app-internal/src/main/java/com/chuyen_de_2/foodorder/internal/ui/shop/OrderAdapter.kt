@@ -41,7 +41,6 @@ class OrderAdapter(
                 "• 1x Suất ăn đặt trực tiếp"
             }
             val payText = when (order.paymentMethod) {
-                Order.PaymentMethod.MOMO_QR -> "Đã thanh toán Ví MoMo"
                 Order.PaymentMethod.BANKING -> "Đã thanh toán Ngân hàng"
                 else -> "Thu tiền mặt khi nhận (COD)"
             }

@@ -276,16 +276,6 @@
                             android:textSize="13.5sp" />
 
                         <RadioButton
-                            android:id="@+id/rbMoMo"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:buttonTint="@color/primary"
-                            android:text="🟣 Ví MoMo (Quét QR)"
-                            android:textColor="#1E293B"
-                            android:textSize="13.5sp" />
-
-                        <RadioButton
                             android:id="@+id/rbBanking"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"

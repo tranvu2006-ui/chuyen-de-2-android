@@ -20,3 +20,8 @@ local.properties
 # Extracted web prototypes (already in repo root)
 chuyen-de-2-android-main/
 chuyende2/
+
+# Analysis and tool cache
+.claude/
+CLAUDE.md
+graphify-out/

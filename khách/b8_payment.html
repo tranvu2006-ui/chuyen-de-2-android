@@ -308,8 +308,8 @@
         <div class="transfer-row">
           <span class="transfer-lbl">Tài khoản nhận:</span>
           <span class="transfer-val">
-            <span id="valAccountNum">0901234888</span>
-            <button class="btn-copy" onclick="copyText('0901234888')">Sao chép</button>
+            <span id="valAccountNum">0784365960</span>
+            <button class="btn-copy" onclick="copyText('0784365960')">Sao chép</button>
           </span>
         </div>
         <div class="transfer-row">
@@ -326,7 +326,7 @@
         <div class="guide-title">📌 Cách thanh toán nhanh:</div>
         <div class="guide-step">
           <span class="guide-num">1</span>
-          <span>Mở ứng dụng <b>Ngân hàng</b> hoặc <b>Ví MoMo</b> trên điện thoại.</span>
+          <span>Mở ứng dụng <b>Ngân hàng (Mobile Banking)</b> trên điện thoại.</span>
         </div>
         <div class="guide-step">
           <span class="guide-num">2</span>
@@ -361,27 +361,20 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const mode = urlParams.get('mode') || 'FULL'; // 'FULL' hoặc 'DEPOSIT'
-    const channel = urlParams.get('channel') || 'momo';
+    const channel = urlParams.get('channel') || 'bank';
     const total = parseInt(urlParams.get('total')) || 105000;
     const deposit = parseInt(urlParams.get('deposit')) || 21000;
     const remain = parseInt(urlParams.get('remain')) || 84000;
 
-    // Render thông tin kênh thanh toán (MoMo vs Ngân Hàng)
+    // Render thông tin kênh thanh toán (VietQR Ngân Hàng)
     const tagLogo = document.getElementById('tagChannelLogo');
     const valBeneficiary = document.getElementById('valBeneficiary');
     const valAccountNum = document.getElementById('valAccountNum');
 
-    if (channel === 'momo') {
-      tagLogo.className = 'channel-logo-tag logo-momo';
-      tagLogo.innerHTML = '👛 VÍ ĐIỆN TỬ MOMO QR';
-      valBeneficiary.innerText = 'VÍ MOMO OISHI FOOD';
-      valAccountNum.innerText = '0901234888';
-    } else {
-      tagLogo.className = 'channel-logo-tag logo-bank';
-      tagLogo.innerHTML = '🏦 VIETQR LIÊN NGÂN HÀNG 24/7';
-      valBeneficiary.innerText = 'CTY CP OISHI FOOD VN (MB BANK)';
-      valAccountNum.innerText = '99988899812';
-    }
+    tagLogo.className = 'channel-logo-tag logo-bank';
+    tagLogo.innerHTML = '🏦 VIETQR LIÊN NGÂN HÀNG 24/7';
+    valBeneficiary.innerText = 'CTY CP OISHI FOOD VN (MB BANK)';
+    valAccountNum.innerText = '99988899812';
 
     // Render loại thanh toán: Trả thẳng 100% vs Cọc 20%
     const badgePayType = document.getElementById('badgePayType');

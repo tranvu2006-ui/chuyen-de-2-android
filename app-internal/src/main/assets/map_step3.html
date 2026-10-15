@@ -9,11 +9,21 @@
     html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     #realMap { width: 100%; height: 100%; }
 
-    .driver-marker-box {
-      width: 44px; height: 44px; background: #FFF; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center; font-size: 24px;
-      border: 3.5px solid #059669; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45);
-      animation: pulse 2s infinite;
+    .driver-marker-wrap {
+      position: relative; width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .driver-pulse-ring {
+      position: absolute; width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(5, 150, 105, 0.25);
+      animation: driverRadar 2s infinite ease-out;
+    }
+    .driver-marker-card {
+      position: relative; width: 40px; height: 40px; background: #FFFFFF;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      border: 3px solid #059669;
+      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45), 0 2px 6px rgba(0,0,0,0.12);
+      z-index: 2;
     }
     .customer-marker-box {
       padding: 6px 12px; background: #EE4D2D; border-radius: 14px;
@@ -21,10 +31,9 @@
       color: #FFF; border: 2.5px solid #FFF; box-shadow: 0 4px 14px rgba(238, 77, 45, 0.4);
       white-space: nowrap;
     }
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.08); }
-      100% { transform: scale(1); }
+    @keyframes driverRadar {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      100% { transform: scale(1.6); opacity: 0; }
     }
     .route-info-badge {
       position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
@@ -58,10 +67,28 @@
     }).addTo(map);
 
     const driverIcon = L.divIcon({
-      className: 'driver-marker-box',
-      html: '🛵',
-      iconSize: [44, 44],
-      iconAnchor: [22, 22]
+      className: 'driver-div-icon',
+      html: `
+        <div class="driver-marker-wrap">
+          <div class="driver-pulse-ring"></div>
+          <div class="driver-marker-card">
+            <svg viewBox="0 0 32 32" width="25" height="25" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="7" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="7" cy="22" r="1.4" fill="#FFFFFF"/>
+              <circle cx="24" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="24" cy="22" r="1.4" fill="#FFFFFF"/>
+              <rect x="3.5" y="10" width="7" height="7.5" rx="1.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
+              <line x1="7" y1="11" x2="7" y2="16.5" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+              <path d="M7 22l3.8-7.5h5.8l2.8 7.5" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16.6 14.5l3.5-6h3.2" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="15.8" cy="7" r="2.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
+              <path d="M13.5 10.5l2.8 4h3.5" stroke="#1E293B" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      `,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24]
     });
     const driverMarker = L.marker(driverCoords, { icon: driverIcon }).addTo(map);
 

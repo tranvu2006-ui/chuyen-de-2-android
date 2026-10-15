@@ -310,10 +310,27 @@
     }).addTo(map);
 
     const driverIcon = L.divIcon({
-      className: 'driver-marker-box',
-      html: '🛵',
-      iconSize: [40, 40],
-      iconAnchor: [20, 20]
+      className: 'driver-div-icon',
+      html: `
+        <div style="position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center;">
+          <div style="position:relative;width:38px;height:38px;background:#FFF;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #EE4D2D;box-shadow:0 4px 12px rgba(238,77,45,0.45);">
+            <svg viewBox="0 0 32 32" width="24" height="24" fill="none">
+              <circle cx="7" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="7" cy="22" r="1.4" fill="#FFFFFF"/>
+              <circle cx="24" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="24" cy="22" r="1.4" fill="#FFFFFF"/>
+              <rect x="3.5" y="10" width="7" height="7.5" rx="1.8" fill="#EE4D2D" stroke="#FFFFFF" stroke-width="0.8"/>
+              <line x1="7" y1="11" x2="7" y2="16.5" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+              <path d="M7 22l3.8-7.5h5.8l2.8 7.5" stroke="#EE4D2D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16.6 14.5l3.5-6h3.2" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="15.8" cy="7" r="2.8" fill="#EE4D2D" stroke="#FFFFFF" stroke-width="0.8"/>
+              <path d="M13.5 10.5l2.8 4h3.5" stroke="#1E293B" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      `,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22]
     });
     L.marker(driverCoords, { icon: driverIcon }).addTo(map);
 

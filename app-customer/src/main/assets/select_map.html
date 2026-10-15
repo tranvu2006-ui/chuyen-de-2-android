@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #F1F5F9; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #mapView { width: 100%; height: 100%; }
+
+    /* Ghim cố định ở tâm bản đồ */
+    .center-pin-wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -100%);
+      z-index: 1000;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.15s ease-out;
+    }
+    .pin-shadow {
+      width: 14px;
+      height: 6px;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 50%;
+      margin-top: -2px;
+      filter: blur(1px);
+    }
+    .pin-icon {
+      width: 42px;
+      height: 42px;
+      filter: drop-shadow(0 4px 8px rgba(238, 77, 45, 0.45));
+    }
+
+    /* Hiệu ứng nhấc ghim khi đang kéo */
+    body.is-moving .center-pin-wrapper {
+      transform: translate(-50%, -115%);
+    }
+
+    /* Nút GPS tròn ở góc dưới */
+    .gps-btn {
+      position: absolute;
+      right: 16px;
+      bottom: 24px;
+      width: 46px;
+      height: 46px;
+      background: #FFFFFF;
+      border-radius: 50%;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      cursor: pointer;
+      border: 1px solid #E2E8F0;
+      transition: transform 0.15s;
+    }
+    .gps-btn:active { transform: scale(0.92); }
+    .gps-btn svg { width: 22px; height: 22px; fill: #EE4D2D; }
+
+    /* Hướng dẫn trên đầu */
+    .map-hint {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(6px);
+      color: #FFFFFF;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 700;
+      z-index: 1000;
+      pointer-events: none;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    }
+  </style>
+</head>
+<body>
+  <div class="map-hint">👉 Kéo bản đồ để đặt ghim đúng vị trí giao</div>
+  <div id="mapView"></div>
+
+  <!-- Ghim đỏ tâm màn hình -->
+  <div class="center-pin-wrapper">
+    <svg class="pin-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#EE4D2D" stroke="#FFFFFF" stroke-width="1.5"/>
+      <circle cx="12" cy="9" r="3" fill="#FFFFFF"/>
+    </svg>
+    <div class="pin-shadow"></div>
+  </div>
+
+  <!-- Nút GPS vị trí hiện tại -->
+  <div class="gps-btn" onclick="requestCurrentLocation()" title="Vị trí của tôi">
+    <svg viewBox="0 0 24 24">
+      <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+    </svg>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let defaultLat = 10.7769;
+    let defaultLng = 106.7009;
+
+    const map = L.map('mapView', {
+      zoomControl: false,
+      attributionControl: false
+    }).setView([defaultLat, defaultLng], 16);
+
+    // Google Maps Roadmap Tiles sắc nét, tiếng Việt, load cực nhanh không cần API Key
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    }).addTo(map);
+
+    // Bổ sung nút zoom góc phải trên
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    map.on('movestart', function() {
+      document.body.classList.add('is-moving');
+    });
+
+    map.on('moveend', function() {
+      document.body.classList.remove('is-moving');
+      const center = map.getCenter();
+      if (window.AndroidBridge && window.AndroidBridge.onLocationMoved) {
+        window.AndroidBridge.onLocationMoved(center.lat, center.lng);
+      }
+    });
+
+    // Hàm gọi từ Android để di chuyển bản đồ đến toạ độ
+    function setMapCenter(lat, lng, zoomLevel) {
+      map.setView([lat, lng], zoomLevel || 17, { animate: true });
+    }
+
+    // Hàm người dùng bấm nút GPS
+    function requestCurrentLocation() {
+      if (window.AndroidBridge && window.AndroidBridge.onGpsButtonClicked) {
+        window.AndroidBridge.onGpsButtonClicked();
+      }
+    }
+
+    // Thông báo cho Android là map đã sẵn sàng
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const center = map.getCenter();
+        if (window.AndroidBridge && window.AndroidBridge.onMapReady) {
+          window.AndroidBridge.onMapReady(center.lat, center.lng);
+        }
+      }, 400);
+    });
+  </script>
+</body>
+</html>

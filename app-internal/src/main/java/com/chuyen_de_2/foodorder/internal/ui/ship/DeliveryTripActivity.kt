@@ -217,14 +217,14 @@ class DeliveryTripActivity : AppCompatActivity() {
         val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
         binding.tvTripOrderCode.text = "Đơn #ORD-$shortCode"
 
-        val storeName = order.shopName.ifBlank { "Trà Sữa Ngô Gia (Q.Thủ Đức)" }
+        val storeName = order.shopName.ifBlank { "Quán ăn" }
         binding.tvStep1StoreName.text = storeName
         binding.tvTripStoreBadge.text = storeName
 
-        val cusName = order.customerName.ifBlank { "An Nguyễn" }
+        val cusName = order.customerName.ifBlank { "Khách hàng" }
         binding.tvStep3CustomerName.text = cusName
 
-        val dest = order.address.ifBlank { "104 Hai Bà Trưng, P. Đa Kao, Q.1" }
+        val dest = order.address.ifBlank { "Địa chỉ giao hàng" }
         binding.tvStep3DeliveryAddress.text = "📍 Địa chỉ: $dest"
 
         val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
@@ -239,7 +239,8 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.tvStep4CodCollection.text = "ĐÃ THANH TOÁN TRƯỚC (COD: 0 đ)"
         }
 
-        binding.tvStep4Summary.text = "Khách hàng: $cusName • 0938 112 233\nĐịa chỉ: $dest"
+        val phoneDisplay = if (order.customerPhone.isNotBlank()) order.customerPhone else "Khách hàng"
+        binding.tvStep4Summary.text = "$cusName • $phoneDisplay\nĐịa chỉ: $dest"
 
         // Geocoding địa chỉ khách thực tế để vẽ lộ trình thật
         lifecycleScope.launch {
@@ -310,7 +311,8 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 1: Gọi điện cho quán
         binding.btnCallStoreStep1.setOnClickListener {
-            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:02838229999"))
+            val phone = currentOrder?.shopPhone?.ifBlank { "19001000" } ?: "19001000"
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
             startActivity(intent)
         }
 
@@ -341,13 +343,15 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 3: Gọi khách
         binding.btnCallCustomerStep3.setOnClickListener {
-            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:0938112233"))
+            val phone = currentOrder?.customerPhone?.ifBlank { "19001000" } ?: "19001000"
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
             startActivity(intent)
         }
 
         // Bước 3: Nhắn tin khách
         binding.btnMessageCustomerStep3.setOnClickListener {
-            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:0938112233"))
+            val phone = currentOrder?.customerPhone?.ifBlank { "19001000" } ?: "19001000"
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$phone"))
             startActivity(intent)
         }
 

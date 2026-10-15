@@ -19,6 +19,9 @@ data class Order(
     @SerializedName("customerName")
     val customerName: String = "",
 
+    @SerializedName("customerPhone")
+    val customerPhone: String = "",
+
     @SerializedName("storeId")
     val storeId: String = "",
 
@@ -27,6 +30,9 @@ data class Order(
 
     @SerializedName("shopName")
     val shopName: String = "",
+
+    @SerializedName("shopPhone")
+    val shopPhone: String = "",
 
     @SerializedName("driverId")
     var driverId: String? = null,

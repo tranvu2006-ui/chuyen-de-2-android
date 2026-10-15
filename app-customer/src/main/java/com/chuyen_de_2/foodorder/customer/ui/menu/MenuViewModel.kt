@@ -107,33 +107,53 @@ class MenuViewModel @Inject constructor(
     private fun loadMenu(shopId: String, initialDishId: String? = null) {
         _isLoading.value = true
         viewModelScope.launch {
-            try {
-                val response = api.getDishesByStore(shopId)
-                if (response.isSuccessful) {
-                    val list = response.body() ?: emptyList()
+            // Quan sát thực đơn thời gian thực từ Firebase Realtime Database
+            firebaseRepository.observeStoreDishes(shopId).collectLatest { firebaseDishes ->
+                if (firebaseDishes.isNotEmpty()) {
                     allDishes.clear()
-                    allDishes.addAll(list)
-
+                    allDishes.addAll(firebaseDishes)
                     applyFilter()
 
-                    // Nếu có món truyền vào từ Hot Dish
+                    // Chọn món theo initialDishId hoặc mặc định món đầu tiên
                     if (!initialDishId.isNullOrEmpty()) {
-                        val targetDish = list.find { it.id == initialDishId }
+                        val targetDish = firebaseDishes.find { it.id == initialDishId }
                         if (targetDish != null) {
                             _selectedDish.value = targetDish
                             addToCart(targetDish)
                         }
-                    } else if (_selectedDish.value == null && list.isNotEmpty()) {
-                        // Chọn món đầu tiên làm mặc định hiển thị ở nửa trên và tự động cộng 1
-                        val firstDish = list.first()
+                    } else if (_selectedDish.value == null && firebaseDishes.isNotEmpty()) {
+                        val firstDish = firebaseDishes.first()
                         _selectedDish.value = firstDish
                         addToCart(firstDish)
                     }
+                    _isLoading.value = false
+                } else {
+                    // Dự phòng nếu Firebase chưa có dữ liệu món của quán này
+                    try {
+                        val response = api.getDishesByStore(shopId)
+                        if (response.isSuccessful) {
+                            val list = response.body() ?: emptyList()
+                            allDishes.clear()
+                            allDishes.addAll(list)
+                            applyFilter()
+
+                            if (!initialDishId.isNullOrEmpty()) {
+                                val targetDish = list.find { it.id == initialDishId }
+                                if (targetDish != null) {
+                                    _selectedDish.value = targetDish
+                                    addToCart(targetDish)
+                                }
+                            } else if (_selectedDish.value == null && list.isNotEmpty()) {
+                                val firstDish = list.first()
+                                _selectedDish.value = firstDish
+                                addToCart(firstDish)
+                            }
+                        }
+                    } catch (_: Exception) {
+                    } finally {
+                        _isLoading.value = false
+                    }
                 }
-            } catch (e: Exception) {
-                // Handled by UI
-            } finally {
-                _isLoading.value = false
             }
         }
     }

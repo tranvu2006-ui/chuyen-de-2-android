@@ -342,6 +342,63 @@ class FirebaseRepository @Inject constructor(
 
     // ==================== HỒ SƠ QUÁN ĂN (STORES - Quán/8.html) ====================
 
+    /** Lấy danh sách tất cả các quán ăn theo thời gian thực (cho Khách hàng mua món) */
+    fun observeAllStores(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Store>> = callbackFlow {
+        val ref = database.getReference("stores")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Store>()
+                for (child in snapshot.children) {
+                    val store = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                    if (store != null) {
+                        val finalStore = if (store.id.isBlank()) store.copy(id = child.key ?: "") else store
+                        list.add(finalStore)
+                    }
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Tìm Store ID tương ứng cho tài khoản hiện tại */
+    suspend fun resolveStoreIdForUser(uid: String): String {
+        if (uid.isBlank()) return "shop_01"
+        return when (uid) {
+            "whjjZ5osJhTNtMCovwgp8JXdJK73" -> "shop_01"
+            "AdBaJDWpzDYJRxVdl2qbWX8jAUR2" -> "shop_02"
+            "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2" -> "shop_03"
+            "uNzJQswcLSNnuF4GpQAlMdQnS1P2" -> "shop_04"
+            "QCXRaghsICbmi1Pngptv3s0mWO32" -> "shop_05"
+            "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1" -> "shop_06"
+            else -> {
+                try {
+                    // 1. Kiểm tra users/{uid}/storeId
+                    val userSnap = database.getReference("users").child(uid).get().await()
+                    val userStoreId = userSnap.child("storeId").getValue(String::class.java)
+                    if (!userStoreId.isNullOrBlank()) {
+                        return userStoreId
+                    }
+                    // 2. Kiểm tra stores với ownerId hoặc merchantId == uid
+                    val storesSnap = database.getReference("stores").get().await()
+                    for (child in storesSnap.children) {
+                        val ownerId = child.child("ownerId").getValue(String::class.java)
+                            ?: child.child("merchantId").getValue(String::class.java)
+                        if (ownerId == uid) {
+                            return child.key ?: "shop_01"
+                        }
+                    }
+                } catch (_: Exception) {}
+                "shop_01"
+            }
+        }
+    }
+
     /** Lắng nghe thông tin hồ sơ quán theo thời gian thực */
     fun observeStore(storeId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Store?> = callbackFlow {
         val ref = database.getReference("stores").child(storeId)

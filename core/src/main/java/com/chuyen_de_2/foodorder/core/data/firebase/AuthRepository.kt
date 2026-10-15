@@ -52,6 +52,14 @@ class AuthRepository @Inject constructor(
                 else -> User.Role.CUSTOMER
             }
 
+            val assignedStoreId = if (normalizedRole == User.Role.MERCHANT) {
+                "store_${firebaseUser.uid.take(8)}"
+            } else if (normalizedRole == User.Role.DRIVER) {
+                "shop_01"
+            } else {
+                ""
+            }
+
             // 1. Lưu thông tin tài khoản dùng chung (Bảng 1: users)
             val user = User(
                 uid = firebaseUser.uid,
@@ -59,7 +67,8 @@ class AuthRepository @Inject constructor(
                 name = name,
                 email = email,
                 phone = "",
-                status = User.Status.ACTIVE
+                status = User.Status.ACTIVE,
+                storeId = assignedStoreId
             )
             database.getReference("users")
                 .child(firebaseUser.uid)
@@ -87,7 +96,7 @@ class AuthRepository @Inject constructor(
                     val randomCode = "TX-" + (10..99).random()
                     val driver = Driver(
                         driverId = firebaseUser.uid,
-                        storeId = "shop_01",
+                        storeId = assignedStoreId.ifBlank { "shop_01" },
                         driverCode = randomCode,
                         vehiclePlate = "59P1-${(100..999).random()}.${(10..99).random()}",
                         ratingAvg = 5.0f,
@@ -100,20 +109,21 @@ class AuthRepository @Inject constructor(
                 }
                 User.Role.MERCHANT -> {
                     // Bảng 5: stores — Hồ sơ cửa hàng của đối tác chủ quán
-                    val storeId = "store_${firebaseUser.uid.take(8)}"
-                    val storeData = mapOf(
-                        "id" to storeId,
-                        "ownerId" to firebaseUser.uid,
-                        "name" to "$name Food & Drink",
-                        "phone" to "",
-                        "address" to "TP. Hồ Chí Minh",
-                        "district" to "Quận 1",
-                        "storeStatus" to "OPEN",
-                        "penaltyTier" to "NONE",
-                        "ratingAvg" to 5.0
+                    val storeData = com.chuyen_de_2.foodorder.core.data.model.Store(
+                        id = assignedStoreId,
+                        merchantId = firebaseUser.uid,
+                        name = if (name.isNotBlank()) "$name Food" else "Quán Ăn Mới",
+                        phone = "",
+                        address = "123 Nguyễn Trãi, Q.1, TP.HCM",
+                        district = "Quận 1",
+                        storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN,
+                        ratingAvg = 5.0f,
+                        deliveryTime = "20-30 phút",
+                        category = "Món chính",
+                        imageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400"
                     )
                     database.getReference("stores")
-                        .child(storeId)
+                        .child(assignedStoreId)
                         .setValue(storeData)
                         .await()
                 }

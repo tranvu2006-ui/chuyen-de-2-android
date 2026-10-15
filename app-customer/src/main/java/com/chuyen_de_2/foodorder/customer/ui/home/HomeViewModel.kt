@@ -4,15 +4,18 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.data.remote.RestBackendApi
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val api: RestBackendApi
+    private val api: RestBackendApi,
+    private val firebaseRepository: FirebaseRepository
 ) : ViewModel() {
 
     private val _stores = MutableLiveData<List<Store>>()
@@ -39,19 +42,29 @@ class HomeViewModel @Inject constructor(
         _error.value = null
 
         viewModelScope.launch {
-            try {
-                val response = api.getStores()
-                if (response.isSuccessful) {
-                    val storeList = response.body() ?: emptyList()
-                    _stores.value = storeList
-                    loadHotDishes(storeList)
+            // Lắng nghe danh sách quán ăn theo thời gian thực từ Firebase Realtime Database
+            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
+                if (firebaseStores.isNotEmpty()) {
+                    _stores.value = firebaseStores
+                    loadHotDishes(firebaseStores)
+                    _isLoading.value = false
                 } else {
-                    _error.value = "Lỗi tải dữ liệu: ${response.code()}"
+                    // Dự phòng nếu Firebase chưa có quán nào thì lấy từ Mock REST API
+                    try {
+                        val response = api.getStores()
+                        if (response.isSuccessful) {
+                            val storeList = response.body() ?: emptyList()
+                            _stores.value = storeList
+                            loadHotDishes(storeList)
+                        } else {
+                            _error.value = "Lỗi tải dữ liệu: ${response.code()}"
+                        }
+                    } catch (e: Exception) {
+                        _error.value = e.message ?: "Lỗi kết nối"
+                    } finally {
+                        _isLoading.value = false
+                    }
                 }
-            } catch (e: Exception) {
-                _error.value = e.message ?: "Lỗi kết nối"
-            } finally {
-                _isLoading.value = false
             }
         }
     }

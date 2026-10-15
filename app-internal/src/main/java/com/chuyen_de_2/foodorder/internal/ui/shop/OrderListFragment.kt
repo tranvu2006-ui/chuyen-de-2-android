@@ -66,24 +66,18 @@ class OrderListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        resolveCurrentStoreId()
         setupUI()
         setupTabs()
         setupRecyclerView()
         observeViewModel()
-        observeStoreProfile()
+        resolveCurrentStoreIdAndObserve()
     }
 
-    private fun resolveCurrentStoreId() {
+    private fun resolveCurrentStoreIdAndObserve() {
         val uid = auth.currentUser?.uid.orEmpty()
-        currentStoreId = when (uid) {
-            "whjjZ5osJhTNtMCovwgp8JXdJK73" -> "shop_01"
-            "AdBaJDWpzDYJRxVdl2qbWX8jAUR2" -> "shop_02"
-            "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2" -> "shop_03"
-            "uNzJQswcLSNnuF4GpQAlMdQnS1P2" -> "shop_04"
-            "QCXRaghsICbmi1Pngptv3s0mWO32" -> "shop_05"
-            "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1" -> "shop_06"
-            else -> "shop_01"
+        viewLifecycleOwner.lifecycleScope.launch {
+            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            observeStoreProfile()
         }
     }
 

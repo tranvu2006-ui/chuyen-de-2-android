@@ -39,7 +39,10 @@ data class User(
     val avatarUrl: String = "",
 
     @SerializedName("fcmToken")
-    val fcmToken: String = ""
+    val fcmToken: String = "",
+
+    @SerializedName("storeId")
+    val storeId: String = ""
 ) {
     /** Role constants — RBAC phân quyền 4 Actors */
     object Role {

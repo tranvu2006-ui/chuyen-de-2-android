@@ -38,11 +38,7 @@ class RegisterActivity : AppCompatActivity() {
             val pass = binding.etRegisterPassword.text.toString().trim()
             val confirmPass = binding.etRegisterConfirmPassword.text.toString().trim()
 
-            val role = if (binding.rbMerchantRole.isChecked) {
-                User.Role.MERCHANT
-            } else {
-                User.Role.DRIVER
-            }
+            val role = User.Role.MERCHANT
 
             if (phone.isBlank()) {
                 Toast.makeText(this, "Vui lòng nhập số điện thoại liên hệ", Toast.LENGTH_SHORT).show()

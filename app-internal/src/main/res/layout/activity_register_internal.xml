@@ -27,7 +27,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:text="🛵"
+                android:text="🏪"
                 android:textSize="36sp" />
         </FrameLayout>
 
@@ -37,7 +37,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:letterSpacing="-0.02"
-            android:text="Đăng Ký Đối Tác"
+            android:text="Đăng Ký Chủ Quán"
             android:textColor="@color/primary"
             android:textSize="24sp"
             android:textStyle="bold"
@@ -50,7 +50,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Tham gia mạng lưới Tài Xế &amp; Quán Ăn Oishi Food"
+            android:text="Mở gian hàng kinh doanh ẩm thực trên Oishi Food"
             android:textColor="@color/text_secondary"
             android:textSize="13sp"
             app:layout_constraintEnd_toEndOf="parent"
@@ -78,48 +78,10 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="14dp"
-                    android:text="Thông tin đăng ký đối tác"
+                    android:text="Thông tin đăng ký gian hàng"
                     android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
-
-                <!-- Vai trò đối tác -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="6dp"
-                    android:text="Bạn muốn đăng ký trở thành:"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <RadioGroup
-                    android:id="@+id/rgRoleInternal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <RadioButton
-                        android:id="@+id/rbDriverRole"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:checked="true"
-                        android:text="🛵 Tài Xế"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-
-                    <RadioButton
-                        android:id="@+id/rbMerchantRole"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="🏪 Chủ Quán"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-                </RadioGroup>
 
                 <!-- Họ tên -->
                 <com.google.android.material.textfield.TextInputLayout

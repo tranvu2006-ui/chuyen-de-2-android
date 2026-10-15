@@ -524,80 +524,87 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Lưu hoặc thêm mới tài xế */
-    suspend fun saveDriver(driver: com.chuyen_de_2.foodorder.core.data.model.Driver): Result<String> {
+    /**
+     * Tạo tài khoản tài xế mới cho quán:
+     * 1. Tạo tài khoản đăng nhập Firebase Auth (dùng secondary FirebaseApp để giữ nguyên đăng nhập của quán)
+     * 2. Lưu thông tin vào users/{driverUid} (role = DRIVER, storeId = storeId)
+     * 3. Lưu hồ sơ vào drivers/{driverUid}
+     */
+    suspend fun createDriverAccount(
+        context: android.content.Context,
+        storeId: String,
+        name: String,
+        phone: String,
+        driverCode: String,
+        vehiclePlate: String,
+        vehicleModel: String,
+        email: String,
+        pass: String
+    ): Result<String> {
         return try {
-            val ref = if (driver.driverId.isNotBlank()) {
-                database.getReference("drivers").child(driver.driverId)
-            } else {
-                database.getReference("drivers").push()
+            val secondaryApp = try {
+                com.google.firebase.FirebaseApp.getInstance("DriverCreator")
+            } catch (e: Exception) {
+                val options = com.google.firebase.FirebaseApp.getInstance().options
+                com.google.firebase.FirebaseApp.initializeApp(context.applicationContext, options, "DriverCreator")
             }
-            val id = ref.key ?: System.currentTimeMillis().toString()
-            val finalDriver = driver.copy(driverId = id)
-            ref.setValue(finalDriver).await()
-            Result.success(id)
+            val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
+            val authResult = secondaryAuth.createUserWithEmailAndPassword(email, pass).await()
+            val driverUid = authResult.user?.uid ?: return Result.failure(Exception("Không lấy được UID của tài xế mới"))
+            secondaryAuth.signOut()
+
+            // 1. Lưu thông tin vào users
+            val user = com.chuyen_de_2.foodorder.core.data.model.User(
+                uid = driverUid,
+                roleId = 4,
+                role = com.chuyen_de_2.foodorder.core.data.model.User.Role.DRIVER,
+                name = name,
+                email = email,
+                phone = phone,
+                statusId = 1,
+                status = com.chuyen_de_2.foodorder.core.data.model.User.Status.ACTIVE,
+                isActive = true,
+                storeId = storeId
+            )
+            database.getReference("users").child(driverUid).setValue(user).await()
+
+            // 2. Lưu thông tin vào drivers
+            val driver = com.chuyen_de_2.foodorder.core.data.model.Driver(
+                driverId = driverUid,
+                storeId = storeId,
+                driverCode = driverCode,
+                name = name,
+                phone = phone,
+                avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+                vehicleModel = if (vehicleModel.isNotBlank()) "$vehicleModel ($vehiclePlate)" else vehiclePlate,
+                vehiclePlate = vehiclePlate,
+                dutyStatus = com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE,
+                todayOrdersCount = 0,
+                totalOrdersCount = 0,
+                ratingAvg = 5.0f,
+                note = "Tài xế nội bộ của quán"
+            )
+            database.getReference("drivers").child(driverUid).setValue(driver).await()
+
+            Result.success(driverUid)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /** Khởi tạo 3 tài xế mẫu chuẩn theo Quán/1.html nếu database chưa có */
+    /** Xóa tài xế khỏi đội ngũ của quán */
+    suspend fun deleteDriver(driverId: String): Result<Unit> {
+        return try {
+            database.getReference("drivers").child(driverId).removeValue().await()
+            database.getReference("users").child(driverId).removeValue().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Khởi tạo tài xế mẫu nếu cần (đã tắt để ưu tiên dữ liệu thật do quán tự tạo) */
     suspend fun seedDefaultDriversIfEmpty(storeId: String) {
-        try {
-            val snapshot = database.getReference("drivers").get().await()
-            if (!snapshot.exists() || snapshot.childrenCount == 0L) {
-                val demoDrivers = listOf(
-                    com.chuyen_de_2.foodorder.core.data.model.Driver(
-                        driverId = "driver_nam_14",
-                        storeId = storeId,
-                        driverCode = "TX-14",
-                        name = "Trần Văn Nam",
-                        phone = "0903882910",
-                        avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-                        vehicleModel = "Yamaha Sirius Fi (59-T1 882.91)",
-                        vehiclePlate = "59-T1 882.91",
-                        dutyStatus = com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE,
-                        todayOrdersCount = 12,
-                        totalOrdersCount = 1240,
-                        ratingAvg = 4.9f,
-                        note = "✓ Tự nhận đơn của quán"
-                    ),
-                    com.chuyen_de_2.foodorder.core.data.model.Driver(
-                        driverId = "driver_tuan_19",
-                        storeId = storeId,
-                        driverCode = "TX-19",
-                        name = "Nguyễn Văn Tuấn",
-                        phone = "0909888777",
-                        avatarUrl = "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80",
-                        vehicleModel = "Yamaha Sirius (59-K2 654.32)",
-                        vehiclePlate = "59-K2 654.32",
-                        dutyStatus = com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING,
-                        todayOrdersCount = 8,
-                        totalOrdersCount = 860,
-                        currentOrderCode = "#ORD_OISHI_88290 (Giao Q.1)",
-                        ratingAvg = 4.8f,
-                        note = "Đang thực hiện cuốc xe"
-                    ),
-                    com.chuyen_de_2.foodorder.core.data.model.Driver(
-                        driverId = "driver_nghia_08",
-                        storeId = storeId,
-                        driverCode = "TX-08",
-                        name = "Lê Hữu Nghĩa",
-                        phone = "0918765432",
-                        avatarUrl = "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=150&auto=format&fit=crop&q=80",
-                        vehicleModel = "Honda AirBlade (59-P1 123.89)",
-                        vehiclePlate = "59-P1 123.89",
-                        dutyStatus = com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY,
-                        todayOrdersCount = 0,
-                        totalOrdersCount = 95,
-                        ratingAvg = 4.9f,
-                        note = "Vào ca lúc 14:00"
-                    )
-                )
-                demoDrivers.forEach { driver ->
-                    database.getReference("drivers").child(driver.driverId).setValue(driver).await()
-                }
-            }
-        } catch (_: Exception) {}
+        // Tắt seed tự động để bảo toàn dữ liệu thật của quán
     }
 }

@@ -102,9 +102,6 @@ class DriverListFragment : Fragment() {
         binding.progressBar.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
-            // Đảm bảo có dữ liệu demo chuẩn Quán/1.html nếu database đang trống
-            firebaseRepository.seedDefaultDriversIfEmpty(currentStoreId)
-
             firebaseRepository.observeStoreDrivers(currentStoreId).collectLatest { drivers ->
                 binding.progressBar.visibility = View.GONE
 
@@ -145,13 +142,17 @@ class DriverListFragment : Fragment() {
         val etCode = dialog.findViewById<EditText>(R.id.etDriverCode)
         val etPlate = dialog.findViewById<EditText>(R.id.etDriverPlate)
         val etModel = dialog.findViewById<EditText>(R.id.etVehicleModel)
+        val etEmail = dialog.findViewById<EditText>(R.id.etDriverEmail)
+        val etPassword = dialog.findViewById<EditText>(R.id.etDriverPassword)
         val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
         val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitDriver)
 
-        // Tự động tạo mã tài xế ngẫu nhiên nếu để trống
-        val randomNum = (20..50).random()
+        // Tự động tạo mã tài xế và gợi ý email
+        val randomNum = (10..99).random()
         etCode.setText("TX-$randomNum")
+        etEmail.setText("driver$randomNum@oishi.vn")
+        etPassword.setText("123456")
 
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
@@ -160,44 +161,63 @@ class DriverListFragment : Fragment() {
             val name = etName.text.toString().trim()
             val phone = etPhone.text.toString().trim()
             val code = etCode.text.toString().trim().ifBlank { "TX-$randomNum" }
-            val plate = etPlate.text.toString().trim().ifBlank { "59-S1 888.88" }
-            val model = etModel.text.toString().trim().ifBlank { "Honda Wave RSX" }
+            val plate = etPlate.text.toString().trim()
+            val model = etModel.text.toString().trim().ifBlank { "Honda Wave Alpha" }
+            val email = etEmail.text.toString().trim()
+            val pass = etPassword.text.toString().trim()
 
             if (name.isBlank()) {
-                etName.error = "Vui lòng nhập tên tài xế"
+                etName.error = "Vui lòng nhập họ và tên tài xế"
                 return@setOnClickListener
             }
             if (phone.isBlank()) {
                 etPhone.error = "Vui lòng nhập số điện thoại"
                 return@setOnClickListener
             }
+            if (plate.isBlank()) {
+                etPlate.error = "Vui lòng nhập biển số xe"
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !email.contains("@")) {
+                etEmail.error = "Vui lòng nhập email hợp lệ"
+                return@setOnClickListener
+            }
+            if (pass.length < 6) {
+                etPassword.error = "Mật khẩu đăng nhập tối thiểu 6 ký tự"
+                return@setOnClickListener
+            }
 
             btnSubmit.isEnabled = false
+            btnSubmit.text = "Đang tạo..."
 
             viewLifecycleOwner.lifecycleScope.launch {
-                val newDriver = Driver(
-                    driverId = "driver_${System.currentTimeMillis()}",
+                val result = firebaseRepository.createDriverAccount(
+                    context = requireContext(),
                     storeId = currentStoreId,
-                    driverCode = code,
                     name = name,
                     phone = phone,
-                    avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-                    vehicleModel = "$model ($plate)",
+                    driverCode = code,
                     vehiclePlate = plate,
-                    dutyStatus = Driver.DutyStatus.AVAILABLE,
-                    todayOrdersCount = 0,
-                    totalOrdersCount = 0,
-                    ratingAvg = 5.0f,
-                    note = "✓ Tự nhận đơn của quán"
+                    vehicleModel = model,
+                    email = email,
+                    pass = pass
                 )
 
-                val result = firebaseRepository.saveDriver(newDriver)
                 if (result.isSuccess) {
-                    Toast.makeText(requireContext(), "Đã thêm tài xế $name ($code)!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        requireContext(),
+                        "✓ Đã tạo tài khoản tài xế [$name - $code] thành công!\nEmail: $email",
+                        Toast.LENGTH_LONG
+                    ).show()
                     dialog.dismiss()
                 } else {
-                    Toast.makeText(requireContext(), "Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        requireContext(),
+                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                     btnSubmit.isEnabled = true
+                    btnSubmit.text = "Tạo tài khoản"
                 }
             }
         }

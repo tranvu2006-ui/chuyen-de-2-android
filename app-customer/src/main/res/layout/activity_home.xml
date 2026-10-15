@@ -53,17 +53,47 @@
                 android:layout_height="0dp"
                 android:layout_weight="1" />
 
+            <!-- Nút Quán Gần Đây (b1.html: btn-nearby-header) -->
+            <LinearLayout
+                android:id="@+id/btnNearbyStores"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_btn_nearby_header"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4.5dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📍"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="3dp"
+                    android:text="Quán Gần Đây"
+                    android:textColor="@color/white"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
             <!-- Pill chọn quận/huyện TP.HCM -->
             <TextView
                 android:id="@+id/tvLocation"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="#2EFFFFFF"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4.5dp"
                 android:text="@string/location_default"
                 android:textColor="@color/on_primary"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
         </LinearLayout>
@@ -468,22 +498,71 @@
 
 
 
-                <!-- 3. Tiêu đề "Quán ngon gần bạn" -->
+                <!-- Banner thông báo khi đang lọc món các quán gần (b1.html: active-filter-indicator) -->
+                <LinearLayout
+                    android:id="@+id/layoutActiveFilterIndicator"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="#ECFDF5"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="8dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvFilterIndicatorSummary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Đang lọc: 📍 Các quán gần nhất (&lt; 1.5 km)"
+                        android:textColor="#047857"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btnClearFilter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="#D1FAE5"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="3dp"
+                        android:text="✕ Xóa lọc"
+                        android:textColor="#047857"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- 3. Tiêu đề "Món ngon đề xuất cho bạn" (Theo chuẩn b1.html) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="14dp"
                     android:layout_marginBottom="10dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
                     <TextView
-                        android:layout_width="0dp"
+                        android:id="@+id/tvSectionTitle"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="@string/section_popular_restaurants"
+                        android:text="Món ngon đề xuất cho bạn"
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvDishesCountBadge"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="(8 món)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -496,9 +575,9 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <!-- 4. Danh sách Quán ăn -->
+                <!-- 4. Danh sách Món Ăn chính của trang chủ (b1.html: shop-list dish-food-card) -->
                 <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvRestaurants"
+                    android:id="@+id/rvDishes"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:nestedScrollingEnabled="false" />

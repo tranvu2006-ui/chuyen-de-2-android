@@ -88,7 +88,10 @@ data class Store(
     val deliveryTime: String = "20-30 phút",
 
     @SerializedName("category")
-    val category: String = ""
+    val category: String = "",
+
+    @SerializedName("dishes")
+    val dishes: Map<String, Dish> = emptyMap()
 ) {
     /** Thuộc tính phụ trợ tương thích UI */
     val isOpen: Boolean

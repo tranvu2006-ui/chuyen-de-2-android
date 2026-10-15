@@ -8,24 +8,24 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
+import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
 import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
 import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
-
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.model.User
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
@@ -33,11 +33,13 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHomeBinding
     private val viewModel: HomeViewModel by viewModels()
     private val cartViewModel: CartViewModel by viewModels()
-    private lateinit var adapter: RestaurantAdapter
+
+    // Adapter danh sách món ăn chính trên trang chủ (theo chuẩn b1.html)
+    private lateinit var dishAdapter: HomeDishAdapter
     private lateinit var hotDishAdapter: HotDishAdapter
 
-    private var originalList: List<Store> = emptyList()
     private var selectedCategory: String? = null
+    private var isNearbyFiltered: Boolean = false
 
     @Inject
     lateinit var authRepository: AuthRepository
@@ -56,7 +58,7 @@ class HomeActivity : AppCompatActivity() {
         setupCategories()
         setupHotDishes()
         setupSearch()
-        setupRecyclerView()
+        setupDishRecyclerView()
         setupSwipeRefresh()
         setupFloatingCart()
         setupBottomNav()
@@ -64,156 +66,99 @@ class HomeActivity : AppCompatActivity() {
         checkUserRoleForBanner()
     }
 
-    private var selectedDistrict: String? = null
-
     private fun setupHeader() {
+        // Nút '📍 Quán Gần Đây' ở thanh Header (b1.html: btn-nearby-header)
+        binding.btnNearbyStores.setOnClickListener {
+            showNearbyStoresBottomSheet()
+        }
+
+        // Bấm vào địa chỉ cũng mở danh sách Quán Gần Đây
+        binding.tvLocation.setOnClickListener {
+            showNearbyStoresBottomSheet()
+        }
+
+        // Nút 'Xem tất cả' để reset toàn bộ lọc
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
-            selectedDistrict = null
-            binding.tvLocation.text = getString(R.string.location_default)
-            filterRestaurants(binding.etSearch.text.toString())
-            Toast.makeText(this, "Hiển thị tất cả quán", Toast.LENGTH_SHORT).show()
+            isNearbyFiltered = false
+            binding.layoutActiveFilterIndicator.visibility = View.GONE
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false)
+            binding.etSearch.setText("")
+            Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         }
 
-        // Chọn Quận / Khu vực TP.HCM theo b1.html
-        binding.tvLocation.setOnClickListener {
-            showDistrictPicker()
-        }
-    }
-
-    private fun showDistrictPicker() {
-        val districts = arrayOf(
-            "📍 Định vị vị trí hiện tại (GPS Google Maps)",
-            "Tất cả TP.HCM",
-            "Quận 1",
-            "Quận 3",
-            "Quận 5",
-            "Quận 10",
-            "Quận Bình Thạnh",
-            "Quận Tân Bình",
-            "TP. Thủ Đức"
-        )
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("📍 Chọn Khu Vực Giao Hàng TP.HCM")
-            .setItems(districts) { _, which ->
-                val choice = districts[which]
-                if (which == 0) {
-                    detectCurrentLocationAndGeocode()
-                } else if (which == 1) {
-                    selectedDistrict = null
-                    binding.tvLocation.text = "📍 TP.HCM"
-                    filterRestaurants(binding.etSearch.text.toString())
-                    Toast.makeText(this, "Hiển thị tất cả quán", Toast.LENGTH_SHORT).show()
-                } else {
-                    selectedDistrict = choice
-                    binding.tvLocation.text = "📍 $choice"
-                    filterRestaurants(binding.etSearch.text.toString())
-                    Toast.makeText(this, "Khu vực: $choice", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton("Đóng", null)
-            .show()
-    }
-
-    private fun detectCurrentLocationAndGeocode() {
-        if (androidx.core.content.ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.ACCESS_FINE_LOCATION
-            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 101)
-            return
-        }
-
-        val fusedClient = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(this)
-        fusedClient.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
-                lifecycleScope.launch {
-                    val addressStr = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.reverseGeocode(
-                        this@HomeActivity,
-                        location.latitude,
-                        location.longitude
-                    )
-                    binding.tvLocation.text = "📍 $addressStr"
-                    selectedDistrict = null
-                    filterRestaurants(binding.etSearch.text.toString())
-                    Toast.makeText(this@HomeActivity, "Google Maps: Đã định vị $addressStr", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(this, "Không tìm thấy GPS, sử dụng vị trí mặc định TP.HCM", Toast.LENGTH_SHORT).show()
-            }
+        // Nút 'Xóa lọc' trên indicator banner
+        binding.btnClearFilter.setOnClickListener {
+            isNearbyFiltered = false
+            binding.layoutActiveFilterIndicator.visibility = View.GONE
+            viewModel.filterDishes(nearbyOnly = false)
         }
     }
 
-    private fun setupCategories() {
-        binding.catRice.setOnClickListener { selectCategory("Cơm") }
-        binding.catMilkTea.setOnClickListener { selectCategory("Trà Sữa") }
-        binding.catNoodle.setOnClickListener { selectCategory("Bún") }
-        binding.catChicken.setOnClickListener { selectCategory("Gà") }
-        binding.catBread.setOnClickListener { selectCategory("Bánh Mì") }
-        binding.catPizza.setOnClickListener { selectCategory("Pizza") }
-        binding.catCoffee.setOnClickListener { selectCategory("Cà Phê") }
-        binding.catDessert.setOnClickListener { selectCategory("Tráng Miệng") }
-    }
+    /** Hiển thị Bottom Sheet Modal: Các Quán Ăn Gần Bạn Nhất (chuẩn b1.html) */
+    private fun showNearbyStoresBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
 
-    private fun selectCategory(categoryKeyword: String) {
-        selectedCategory = if (selectedCategory == categoryKeyword) null else categoryKeyword
-        filterRestaurants(binding.etSearch.text.toString())
-        val msg = selectedCategory?.let { "Đang lọc: $it" } ?: "Đã bỏ lọc danh mục"
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun setupSearch() {
-        binding.etSearch.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                filterRestaurants(s.toString())
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-    }
-
-    private fun filterRestaurants(query: String) {
-        var filtered = originalList
-
-        if (!selectedDistrict.isNullOrBlank()) {
-            filtered = filtered.filter {
-                it.district.contains(selectedDistrict!!, ignoreCase = true) ||
-                it.address.contains(selectedDistrict!!, ignoreCase = true)
-            }
-        }
-
-        if (!selectedCategory.isNullOrBlank()) {
-            filtered = filtered.filter {
-                it.category.contains(selectedCategory!!, ignoreCase = true) ||
-                it.name.contains(selectedCategory!!, ignoreCase = true)
-            }
-        }
-
-        if (query.isNotBlank()) {
-            filtered = filtered.filter {
-                it.name.contains(query, ignoreCase = true) ||
-                it.address.contains(query, ignoreCase = true) ||
-                it.category.contains(query, ignoreCase = true)
-            }
-        }
-
-        adapter.submitList(filtered)
-        binding.tvEmpty.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
-    }
-
-    private fun setupRecyclerView() {
-        adapter = RestaurantAdapter { restaurant ->
+        val nearbyAdapter = NearbyStoreAdapter { storeItem ->
+            dialog.dismiss()
             val intent = Intent(this, MenuActivity::class.java).apply {
-                putExtra(Constants.EXTRA_SHOP_ID, restaurant.id)
-                putExtra(Constants.EXTRA_SHOP_NAME, restaurant.name)
+                putExtra(Constants.EXTRA_SHOP_ID, storeItem.id)
+                putExtra(Constants.EXTRA_SHOP_NAME, storeItem.name)
             }
             startActivity(intent)
         }
 
-        binding.rvRestaurants.apply {
+        sheetBinding.rvNearbyStores.apply {
             layoutManager = LinearLayoutManager(this@HomeActivity)
-            adapter = this@HomeActivity.adapter
+            adapter = nearbyAdapter
+        }
+
+        val stores = viewModel.nearbyStores.value ?: emptyList()
+        nearbyAdapter.submitList(stores)
+
+        // Nút đóng sheet [✕]
+        sheetBinding.btnCloseSheet.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        // Nút: Chỉ Lọc Món Các Quán Gần (< 1.5 km)
+        sheetBinding.btnFilterNearbyOnly.setOnClickListener {
+            dialog.dismiss()
+            isNearbyFiltered = true
+            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
+            binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Món từ các quán gần (< 1.5 km)"
+            viewModel.filterDishes(nearbyOnly = true)
+        }
+
+        dialog.show()
+    }
+
+    /** Thiết lập danh sách Món Ăn chính của trang chủ */
+    private fun setupDishRecyclerView() {
+        dishAdapter = HomeDishAdapter(
+            onDishClick = { dish ->
+                val intent = Intent(this, MenuActivity::class.java).apply {
+                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
+                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
+                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                }
+                startActivity(intent)
+            },
+            onAddClick = { dish ->
+                val intent = Intent(this, MenuActivity::class.java).apply {
+                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
+                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
+                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                }
+                startActivity(intent)
+            }
+        )
+
+        binding.rvDishes.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity)
+            adapter = dishAdapter
         }
     }
 
@@ -221,7 +166,7 @@ class HomeActivity : AppCompatActivity() {
         hotDishAdapter = HotDishAdapter { hotDish ->
             val intent = Intent(this, MenuActivity::class.java).apply {
                 putExtra(Constants.EXTRA_SHOP_ID, hotDish.storeId)
-                putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName)
+                putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName.removePrefix("🏪 ").trim())
                 putExtra(Constants.EXTRA_DISH_ID, hotDish.id)
             }
             startActivity(intent)
@@ -231,6 +176,39 @@ class HomeActivity : AppCompatActivity() {
             layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
             adapter = hotDishAdapter
         }
+    }
+
+    private fun setupCategories() {
+        binding.catRice.setOnClickListener { onCategorySelected("Cơm", "Cơm Trưa") }
+        binding.catMilkTea.setOnClickListener { onCategorySelected("Trà", "Trà Sữa") }
+        binding.catNoodle.setOnClickListener { onCategorySelected("Bún", "Bún/Phở") }
+        binding.catChicken.setOnClickListener { onCategorySelected("Gà", "Gà Rán") }
+        binding.catBread.setOnClickListener { onCategorySelected("Bánh mì", "Bánh Mì") }
+        binding.catPizza.setOnClickListener { onCategorySelected("Pizza", "Pizza") }
+        binding.catCoffee.setOnClickListener { onCategorySelected("Cà phê", "Cà Phê") }
+        binding.catDessert.setOnClickListener { onCategorySelected("Tráng miệng", "Ăn Vặt") }
+    }
+
+    private fun onCategorySelected(keyword: String, displayName: String) {
+        if (selectedCategory == keyword) {
+            selectedCategory = null
+            viewModel.filterDishes(category = "ALL")
+            Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
+        } else {
+            selectedCategory = keyword
+            viewModel.filterDishes(category = keyword)
+            Toast.makeText(this, "Danh mục: $displayName", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setupSearch() {
+        binding.etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                viewModel.filterDishes(query = s?.toString() ?: "")
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
     }
 
     private fun setupSwipeRefresh() {
@@ -264,11 +242,14 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun observeViewModel() {
-        viewModel.stores.observe(this) { stores ->
-            originalList = stores
-            filterRestaurants(binding.etSearch.text.toString())
+        // Quan sát danh sách Món Ăn chính
+        viewModel.homeDishes.observe(this) { dishes ->
+            dishAdapter.submitList(dishes)
+            binding.tvDishesCountBadge.text = "(${dishes.size} món)"
+            binding.tvEmpty.visibility = if (dishes.isEmpty()) View.VISIBLE else View.GONE
         }
 
+        // Quan sát món hot cuộn ngang
         viewModel.hotDishes.observe(this) { hotDishes ->
             hotDishAdapter.submitList(hotDishes)
             val hasHot = hotDishes.isNotEmpty()
@@ -286,7 +267,7 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-        // Realtime cart status trên Floating Button (b4.html: 2 quán • 175.000 đ ➔)
+        // Realtime cart status trên Floating Button
         cartViewModel.carts.observe(this) { carts ->
             val totalItems = carts.sumOf { cart -> cart.items.values.sumOf { it.quantity } }
             if (totalItems > 0) {
@@ -299,48 +280,31 @@ class HomeActivity : AppCompatActivity() {
         }
 
         cartViewModel.totalAmount.observe(this) { total ->
-            binding.tvCartAmount.text = "${total.toVndCurrency()} ➔"
+            if (total != null && total > 0L) {
+                binding.tvCartAmount.text = "${total.toVndCurrency()} ➔"
+            }
         }
     }
 
     private fun checkUserRoleForBanner() {
         lifecycleScope.launch {
-            val role = authRepository.getUserRole()
-            if (role == User.Role.MERCHANT || role == User.Role.MANAGER || role == User.Role.DRIVER || role == User.Role.SHIPPER) {
+            val role = authRepository.getUserRole()?.trim()?.uppercase()
+            if (role == User.Role.MERCHANT || role == User.Role.MANAGER || role == "SHOP" || role == "STORE" || role == User.Role.DRIVER || role == User.Role.SHIPPER) {
                 binding.bannerMerchantNotice.visibility = View.VISIBLE
-                val isShop = role == User.Role.MERCHANT || role == User.Role.MANAGER
-                binding.tvMerchantNoticeText.text = if (isShop) {
-                    "🏪 Bạn đang đăng nhập tài khoản Quán ăn"
-                } else {
-                    "🛵 Bạn đang đăng nhập tài khoản Tài xế"
-                }
-                binding.btnOpenInternalApp.text = if (isShop) "Mở App Quán ➔" else "Mở App Tài Xế ➔"
+                val roleName = if (role == User.Role.DRIVER || role == User.Role.SHIPPER) "Tài Xế (Driver)" else "Cửa Hàng (Merchant)"
+                binding.tvMerchantNoticeText.text = "Bạn đang đăng nhập bằng tài khoản $roleName."
+
                 binding.btnOpenInternalApp.setOnClickListener {
-                    openInternalApp(isShop)
+                    val launchIntent = packageManager.getLaunchIntentForPackage("com.chuyen_de_2.foodorder.internal")
+                    if (launchIntent != null) {
+                        startActivity(launchIntent)
+                    } else {
+                        Toast.makeText(this@HomeActivity, "Ứng dụng Quán/Shipper (Oishi Internal) chưa cài đặt!", Toast.LENGTH_LONG).show()
+                    }
                 }
             } else {
                 binding.bannerMerchantNotice.visibility = View.GONE
             }
-        }
-    }
-
-    private fun openInternalApp(isShop: Boolean) {
-        val launchIntent = packageManager.getLaunchIntentForPackage("com.chuyen_de_2.foodorder.internal")
-        if (launchIntent != null) {
-            startActivity(launchIntent)
-        } else {
-            val targetName = if (isShop) "Cửa Hàng (Quán Ăn)" else "Tài Xế (Shipper)"
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("⚠️ Chưa cài đặt Oishi Internal")
-                .setMessage(
-                    "Ứng dụng Oishi Internal ($targetName) chưa được cài trên thiết bị.\n\n" +
-                    "👉 Hướng dẫn chạy trên Android Studio:\n" +
-                    "1. Nhìn lên thanh công cụ cạnh nút Run ▶️ màu xanh.\n" +
-                    "2. Nhấn vào danh sách module (đang chọn 'app-customer') và đổi sang 'app-internal'.\n" +
-                    "3. Bấm Run (▶️) để cài và mở ứng dụng Cửa hàng / Tài xế!"
-                )
-                .setPositiveButton("Đã hiểu", null)
-                .show()
         }
     }
 }

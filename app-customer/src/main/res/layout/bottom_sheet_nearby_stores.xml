@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_bottom_sheet_dialog"
+    android:orientation="vertical"
+    android:paddingTop="12dp">
+
+    <!-- Thanh kéo Handle Bar (b1.html: sheet-handle-bar) -->
+    <View
+        android:layout_width="38dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="12dp"
+        android:background="#CBD5E1" />
+
+    <!-- Header Modal: Tiêu đề + Nút đóng (b1.html: sheet-header) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="18dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📍"
+            android:textSize="18sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Các Quán Ăn Gần Bạn Nhất"
+            android:textColor="#0F172A"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnCloseSheet"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="#F1F5F9"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="✕"
+            android:textColor="#64748B"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Badge Vị trí GPS hiện tại (b1.html: current-loc-badge) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="18dp"
+        android:layout_marginBottom="10dp"
+        android:background="#EFF6FF"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📡 Vị trí hiện tại: Phường Đa Kao, Quận 1, TP.HCM"
+            android:textColor="#1E40AF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#DBEAFE"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:text="Đang Bật GPS"
+            android:textColor="#1D4ED8"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Danh sách quán cuộn dọc (b1.html: nearby-stores-scroll) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvNearbyStores"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:maxHeight="380dp"
+        android:paddingHorizontal="18dp" />
+
+    <!-- Nút Lọc món quán gần (< 1.5 km) (b1.html: btn-nearby-filter-apply) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        android:orientation="vertical"
+        android:paddingHorizontal="18dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnFilterNearbyOnly"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:backgroundTint="#10B981"
+            android:text="⚡ Chỉ Lọc Món Các Quán Gần (&lt; 1.5 km)"
+            android:textAllCaps="false"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            app:cornerRadius="10dp" />
+    </LinearLayout>
+</LinearLayout>

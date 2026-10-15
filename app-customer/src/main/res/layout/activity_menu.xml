@@ -42,7 +42,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="Hồng Trà Ngô Gia"
+                android:text=""
                 android:textColor="#1E293B"
                 android:textSize="14.5sp"
                 android:textStyle="bold" />
@@ -158,7 +158,7 @@
                                 android:layout_height="wrap_content"
                                 android:ellipsize="end"
                                 android:maxLines="2"
-                                android:text="Trà Xí Muội Ô Long Ngô Gia"
+                                android:text=""
                                 android:textColor="#0F172A"
                                 android:textSize="15sp"
                                 android:textStyle="bold" />
@@ -168,7 +168,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Quán Hồng Trà Ngô Gia"
+                                android:text=""
                                 android:textColor="#64748B"
                                 android:textSize="11.5sp" />
 
@@ -513,7 +513,7 @@
                         android:id="@+id/tvCheckoutCartSub"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Đã chọn 2 món • Quán Ngô Gia"
+                        android:text=""
                         android:textColor="#FFF0ED"
                         android:textSize="10.5sp" />
                 </LinearLayout>

@@ -85,7 +85,7 @@
                         android:id="@+id/tvProfileName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Trần Văn Nam (TX-14)"
+                        android:text=""
                         android:textColor="@color/text_primary"
                         android:textSize="16.5sp"
                         android:textStyle="bold" />
@@ -144,7 +144,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Trà Sữa Ngô Gia (CN Võ Văn Ngân, TP.Thủ Đức)"
+                    android:text="Quán ăn trực thuộc"
                     android:textColor="#1E3A8A"
                     android:textSize="15sp"
                     android:textStyle="bold" />

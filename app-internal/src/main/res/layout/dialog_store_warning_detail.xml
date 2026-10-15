@@ -50,7 +50,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:lineSpacingExtra="4dp"
-        android:text="Mã đơn: #ORD_OISHI_88292\nKhách hàng: Trần Thị Mai (0912.345.678)\nĐịa chỉ: 88 Nguyễn Đình Chiểu, P. Đa Kao, Q.1\nTài xế giao: Nguyễn Văn Hùng (TX-09)\nThời gian báo sự cố: Hệ thống ghi nhận 3 cuộc gọi nhỡ"
+        android:text=""
         android:textColor="@color/text_primary"
         android:textSize="12sp" />
 

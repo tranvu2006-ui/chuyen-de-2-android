@@ -54,7 +54,7 @@
                         android:textColor="#1E293B"
                         android:textSize="14sp"
                         android:textStyle="bold"
-                        tools:text="Trần Văn Nam" />
+                        tools:text="Tên tài xế" />
 
                     <TextView
                         android:id="@+id/tvDriverCode"

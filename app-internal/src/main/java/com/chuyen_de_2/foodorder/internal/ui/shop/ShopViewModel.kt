@@ -158,8 +158,8 @@ class ShopViewModel @Inject constructor(
     /** Bước 3: Xác nhận giao cho tài xế -> Chuyển sang DELIVERING */
     fun handoverToDriver(orderId: String, shipperId: String? = null, shipperName: String? = null) {
         viewModelScope.launch {
-            val assignedName = shipperName ?: "Trần Văn Nam (TX-14)"
-            val assignedId = shipperId ?: "driver_default"
+            val assignedName = shipperName ?: "Tài xế của quán"
+            val assignedId = shipperId ?: ""
             firebaseRepository.assignShipper(orderId, assignedId, assignedName) { _, _ -> }
             firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
         }

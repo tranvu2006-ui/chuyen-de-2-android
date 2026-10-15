@@ -62,7 +62,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:lineSpacingExtra="2dp"
-            android:text="📍 Giao đến: An Nguyễn - 104 Hai Bà Trưng, P. Đa Kao, Q.1 (6.2 km)"
+            android:text=""
             android:textColor="#334155"
             android:textSize="12sp" />
 
@@ -71,7 +71,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="📦 Món: 1x Trà Ô Long, 1x Trà Ngô Gia (Size M)"
+            android:text=""
             android:textColor="@color/text_secondary"
             android:textSize="11.5sp" />
 

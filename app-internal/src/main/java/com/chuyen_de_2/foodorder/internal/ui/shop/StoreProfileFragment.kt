@@ -110,12 +110,12 @@ class StoreProfileFragment : Fragment() {
     }
 
     private fun bindStoreData(store: Store) {
-        binding.tvProfileStoreName.text = store.name.ifBlank { "Hồng Trà Ngô Gia" }
-        binding.tvProfileStoreAddress.text = "📍 " + store.address.ifBlank { "28 Tô Vĩnh Diện, P. Linh Chiểu, TP. Thủ Đức" }
-        binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Ngô Quốc Huy" }
-        binding.tvProfileCccd.text = store.cccdNumber.ifBlank { "079088012456" }
-        binding.tvProfilePhone.text = store.phone.ifBlank { "0908.889.999" }
-        binding.tvProfileOpenHours.text = store.openHours.ifBlank { "08:00 - 22:30" }
+        binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
+        binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
+        binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileCccd.text = store.cccdNumber.ifBlank { "Chưa cập nhật" }
+        binding.tvProfilePhone.text = store.phone.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileOpenHours.text = store.openHours.ifBlank { "08:00 - 22:00" }
         binding.tvProfilePrepTime.text = store.prepTime.ifBlank { "15 phút" }
 
         if (store.isOpen) {
@@ -128,17 +128,18 @@ class StoreProfileFragment : Fragment() {
     }
 
     private fun getDefaultStore(): Store {
+        val user = authRepository.currentUser
         return Store(
             id = currentStoreId,
-            name = "Hồng Trà Ngô Gia",
-            phone = "0908889999",
-            address = "28 Tô Vĩnh Diện, P. Linh Chiểu, TP. Thủ Đức",
-            district = "TP. Thủ Đức",
-            ownerName = "Ngô Quốc Huy",
-            openHours = "08:00 - 22:30",
+            name = user?.displayName?.ifBlank { "Quán của bạn" } ?: "Quán của bạn",
+            phone = user?.phoneNumber ?: "",
+            address = "",
+            district = "",
+            ownerName = user?.displayName ?: "",
+            openHours = "08:00 - 22:00",
             prepTime = "15 phút",
-            isVerified = true,
-            cccdNumber = "079088012456",
+            isVerified = false,
+            cccdNumber = "",
             storeStatus = Store.StoreStatus.OPEN
         )
     }

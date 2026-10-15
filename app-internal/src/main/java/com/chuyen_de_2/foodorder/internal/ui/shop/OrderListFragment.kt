@@ -113,8 +113,8 @@ class OrderListFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
                 if (store != null) {
-                    binding.tvShopName.text = store.name.ifBlank { "Hồng Trà Ngô Gia" }
-                    binding.tvShopAddress.text = "📍 " + store.address.ifBlank { "28 Tô Vĩnh Diện, TP. Thủ Đức" }
+                    binding.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
+                    binding.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
                 }
             }
         }
@@ -288,7 +288,10 @@ class OrderListFragment : Fragment() {
         val btnDismiss = dialog.findViewById<MaterialButton>(R.id.btnDismissModal)
 
         val total = if (order.totalPayment > 0) order.totalPayment else order.total
-        tvInfo.text = "Mã đơn: #ORD_OISHI_${order.orderId.takeLast(6).uppercase()}\nKhách hàng: ${order.customerName.ifBlank { "Trần Thị Mai" }}\nĐịa chỉ: ${order.address.ifBlank { "88 Nguyễn Đình Chiểu, Q.1" }}\nTài xế giao: ${order.shipperName.ifBlank { "Nguyễn Văn Hùng (TX-09)" }}\nTổng bill: ${total.toVndCurrency()}\nThời gian báo sự cố: Hệ thống ghi nhận 3 cuộc gọi nhỡ"
+        val customer = order.customerName.ifBlank { "Khách hàng" }
+        val address = order.address.ifBlank { "Chưa cập nhật địa chỉ" }
+        val driver = order.shipperName.ifBlank { "Chưa có tài xế" }
+        tvInfo.text = "Mã đơn: #ORD_OISHI_${order.orderId.takeLast(6).uppercase()}\nKhách hàng: $customer\nĐịa chỉ: $address\nTài xế giao: $driver\nTổng bill: ${total.toVndCurrency()}\nThời gian báo sự cố: Hệ thống ghi nhận 3 cuộc gọi nhỡ"
 
         val dismissAction = View.OnClickListener { dialog.dismiss() }
         btnClose.setOnClickListener(dismissAction)

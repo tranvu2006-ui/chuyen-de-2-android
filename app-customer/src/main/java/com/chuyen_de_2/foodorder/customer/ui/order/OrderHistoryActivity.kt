@@ -90,7 +90,7 @@ class OrderHistoryActivity : AppCompatActivity() {
             onViewProofClick = { order ->
                 val modal = IncidentProofBottomSheetDialogFragment.newInstance(
                     orderId = order.orderId,
-                    driverName = order.shipperName.ifBlank { "Trần Văn Nam (TX-19)" },
+                    driverName = order.shipperName.ifBlank { "Tài xế giao hàng" },
                     reason = if (order.status == Order.Status.BOOM) {
                         "Khách không nghe máy sau 15 phút đếm ngược (Bom hàng)"
                     } else {

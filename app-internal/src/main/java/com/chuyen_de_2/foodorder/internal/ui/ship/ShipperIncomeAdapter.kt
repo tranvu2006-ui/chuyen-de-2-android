@@ -48,8 +48,8 @@ class ShipperIncomeAdapter : RecyclerView.Adapter<ShipperIncomeAdapter.TripViewH
             val dateStr = if (order.timestamp > 0) timeFormat.format(Date(order.timestamp)) else "Hôm nay"
             binding.tvTripTime.text = "$dateStr (Giao đúng hẹn)"
 
-            val storeName = order.shopName.ifBlank { "Trà Sữa Ngô Gia" }
-            val dest = order.address.ifBlank { "Quận 1, TP.HCM" }
+            val storeName = order.shopName.ifBlank { "Quán ăn" }
+            val dest = order.address.ifBlank { "Địa chỉ khách hàng" }
             binding.tvTripRoute.text = "$storeName ➔ $dest"
 
             val isCod = order.paymentMethod.equals("COD", ignoreCase = true)

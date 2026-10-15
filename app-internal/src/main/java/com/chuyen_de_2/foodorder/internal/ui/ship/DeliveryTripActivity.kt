@@ -174,7 +174,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                             .setDuration(120)
                             .withEndAction {
                                 v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                Toast.makeText(this, "✓ ĐÃ ĐẾN QUÁN TRÀ SỮA NGÔ GIA!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "✓ ĐÃ ĐẾN QUÁN ĂN!", Toast.LENGTH_SHORT).show()
                                 updateStepUI(2)
                                 thumb.translationX = 0f
                                 label.alpha = 1f

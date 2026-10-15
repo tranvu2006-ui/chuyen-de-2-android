@@ -61,10 +61,10 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var isFirstUpdate = true
 
     private var currentOrderId: String = ""
-    private var currentStoreName: String = "Quán ăn"
-    private var currentStorePhone: String = "02838229999"
-    private var currentShipperName: String = "Trần Văn Nam"
-    private var currentShipperPhone: String = "0901234567"
+    private var currentStoreName: String = ""
+    private var currentStorePhone: String = ""
+    private var currentShipperName: String = "Tài xế giao hàng"
+    private var currentShipperPhone: String = ""
     private var currentRating: Int = 5
 
     override fun onCreate(savedInstanceState: Bundle?) {

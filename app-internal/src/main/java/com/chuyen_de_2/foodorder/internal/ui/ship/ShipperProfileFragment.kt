@@ -60,10 +60,10 @@ class ShipperProfileFragment : Fragment() {
 
     private fun setupUI() {
         val user = auth.currentUser
-        val name = user?.displayName?.ifBlank { "Trần Văn Nam (TX-14)" } ?: "Trần Văn Nam (TX-14)"
-        val email = user?.email ?: "0908 123 456"
+        val name = user?.displayName?.ifBlank { user.email?.substringBefore("@") ?: "Tài xế" } ?: "Tài xế"
+        val email = user?.email ?: ""
         binding.tvProfileName.text = name
-        binding.tvProfileSub.text = "$email • Sirius 59-T1 882.91"
+        binding.tvProfileSub.text = email
     }
 
     private fun setupListeners() {

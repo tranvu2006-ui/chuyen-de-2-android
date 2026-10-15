@@ -72,7 +72,7 @@
             android:id="@+id/tvPopupStore"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🏪 Lấy tại: Trà Sữa Ngô Gia (CN Võ Văn Ngân, Thủ Đức)"
+            android:text="🏪 Điểm lấy món"
             android:textColor="@color/text_primary"
             android:textSize="12.5sp"
             android:textStyle="bold" />
@@ -82,7 +82,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="📍 Giao đến: 104 Hai Bà Trưng, P. Đa Kao, Q.1 (5.4 km)"
+            android:text="📍 Địa chỉ giao hàng"
             android:textColor="#334155"
             android:textSize="12.5sp" />
 
@@ -91,7 +91,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="📦 Món: 2x Hồng Trà Sữa (L) • Đã đóng túi niêm phong"
+            android:text="📦 Món ăn theo đơn"
             android:textColor="@color/text_secondary"
             android:textSize="11.5sp" />
     </LinearLayout>

@@ -106,7 +106,7 @@
                             android:textColor="#1E293B"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            tools:text="Hồng Trà Ngô Gia" />
+                            tools:text="Quán của bạn" />
 
                         <TextView
                             android:id="@+id/tvProfileStoreAddress"

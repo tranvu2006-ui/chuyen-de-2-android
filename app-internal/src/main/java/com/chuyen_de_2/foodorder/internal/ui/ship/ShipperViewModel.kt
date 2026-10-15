@@ -82,8 +82,8 @@ class ShipperViewModel @Inject constructor(
             return
         }
 
-        val shipperId = auth.currentUser?.uid ?: "default_driver"
-        val shipperName = auth.currentUser?.displayName?.ifBlank { "Trần Văn Nam (TX-14)" } ?: "Trần Văn Nam (TX-14)"
+        val shipperId = auth.currentUser?.uid ?: ""
+        val shipperName = auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
 
         viewModelScope.launch {
             firebaseRepository.assignShipper(orderId, shipperId, shipperName) { success, msg ->

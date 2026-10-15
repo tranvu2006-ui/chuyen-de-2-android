@@ -119,7 +119,7 @@ class ShipperFragment : Fragment() {
             binding.btnDutyToggle.text = "🟢 ĐANG TRỰC"
             binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
             binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.brand_green_bg))
-            Toast.makeText(requireContext(), "Bạn đã BẬT trực tuyến, sẵn sàng nhận đơn của Quán Ngô Gia!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "Bạn đã BẬT trực tuyến, sẵn sàng nhận đơn!", Toast.LENGTH_SHORT).show()
         } else {
             binding.btnDutyToggle.text = "⏸️ TẠM NGHỈ"
             binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
@@ -179,16 +179,16 @@ class ShipperFragment : Fragment() {
         val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
         dialogBinding.tvPopupFee.text = "+${fee.toVndCurrency()}"
 
-        val storeName = order.shopName.ifBlank { "Trà Sữa Ngô Gia (CN Võ Văn Ngân, Thủ Đức)" }
+        val storeName = order.shopName.ifBlank { "Quán ăn" }
         dialogBinding.tvPopupStore.text = "🏪 Lấy tại: $storeName"
 
-        val dest = order.address.ifBlank { "104 Hai Bà Trưng, P. Đa Kao, Q.1" }
-        dialogBinding.tvPopupCustomerDest.text = "📍 Giao đến: $dest (5.4 km)"
+        val dest = order.address.ifBlank { "Địa chỉ giao hàng" }
+        dialogBinding.tvPopupCustomerDest.text = "📍 Giao đến: $dest"
 
         val dishesText = if (order.items.isNotEmpty()) {
             order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName}" }
         } else {
-            "2x Hồng Trà Sữa (L) • Đã đóng túi niêm phong"
+            "Món ăn theo đơn"
         }
         dialogBinding.tvPopupDishes.text = "📦 Món: $dishesText"
 

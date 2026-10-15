@@ -53,7 +53,7 @@
                     android:background="@drawable/bg_badge_shop_tag"
                     android:paddingHorizontal="6dp"
                     android:paddingVertical="1dp"
-                    android:text="Quán Trà Sữa Ngô Gia"
+                    android:text="Quán ăn"
                     android:textColor="@color/brand_blue"
                     android:textSize="10.5sp"
                     android:textStyle="bold" />
@@ -279,7 +279,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="1dp"
-                                android:text="300 m • 1 phút nữa tới quán Ngô Gia"
+                                android:text="Đang điều hướng đến quán nhận món"
                                 android:textColor="#E0E7FF"
                                 android:textSize="11sp" />
                         </LinearLayout>
@@ -347,7 +347,7 @@
                                 android:id="@+id/tvStep1StoreName"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Trà Sữa Ngô Gia (Q.Thủ Đức)"
+                                android:text="Quán ăn"
                                 android:textColor="@color/text_primary"
                                 android:textSize="15.5sp"
                                 android:textStyle="bold" />
@@ -516,7 +516,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Đã đến quán Trà Sữa Ngô Gia"
+                                android:text="Đã đến quán nhận món"
                                 android:textColor="#065F46"
                                 android:textSize="13.5sp"
                                 android:textStyle="bold" />
@@ -580,7 +580,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:checked="true"
-                            android:text="1x Trà Ô Long (Size M) - 100% đường, 50% đá"
+                            android:text="Món 1 theo đơn"
                             android:textColor="#1E293B"
                             android:textSize="12.5sp" />
 
@@ -589,7 +589,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:checked="true"
-                            android:text="1x Trà Ngô Gia (Size M) - Trân châu hoàng kim"
+                            android:text="Món 2 theo đơn"
                             android:textColor="#1E293B"
                             android:textSize="12.5sp" />
 

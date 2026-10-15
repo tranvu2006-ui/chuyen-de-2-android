@@ -95,7 +95,7 @@ class OrderHistoryAdapter(
                 binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_red)
 
                 binding.tvShipperInfo.visibility = View.VISIBLE
-                val shipper = order.shipperName.ifBlank { "Trần Văn Nam (TX-19)" }
+                val shipper = order.shipperName.ifBlank { "Tài xế giao hàng" }
                 binding.tvShipperInfo.text = "🛵 Shipper: $shipper (Đã đến điểm giao)"
                 binding.tvShipperInfo.setTextColor(Color.parseColor("#DC2626"))
 
@@ -203,7 +203,7 @@ class OrderHistoryAdapter(
                     binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
                     binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
 
-                    val shipper = order.shipperName.ifBlank { "Tài xế Oishi Food (TX-19)" }
+                    val shipper = order.shipperName.ifBlank { "Tài xế giao hàng" }
                     binding.tvShipperInfo.visibility = View.VISIBLE
                     binding.tvShipperInfo.text = "🛵 Shipper: $shipper đang di chuyển"
                     binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))

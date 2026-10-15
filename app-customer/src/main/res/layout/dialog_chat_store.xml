@@ -34,7 +34,7 @@
                 android:id="@+id/tvChatShopName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Trà Sữa Ngô Gia • Q.1"
+                android:text=""
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />

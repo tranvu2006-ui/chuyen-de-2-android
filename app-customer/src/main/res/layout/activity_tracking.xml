@@ -802,7 +802,7 @@
                             android:id="@+id/shipperName"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Trần Văn Nam"
+                            android:text=""
                             android:textColor="#0F172A"
                             android:textSize="13.5sp"
                             android:textStyle="bold" />

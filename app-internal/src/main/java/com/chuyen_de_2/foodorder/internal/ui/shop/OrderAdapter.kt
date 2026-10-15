@@ -127,7 +127,7 @@ class OrderAdapter(
 
                 Order.Status.READY -> {
                     // Bước 3: Nấu xong -> Chờ giao tài xế
-                    val driverText = if (order.shipperName.isNotBlank()) order.shipperName else "Trần Văn Nam (TX-14)"
+                    val driverText = order.shipperName.ifBlank { "Tài xế của quán" }
                     binding.tvOrderBadge.text = "🛵 Món đã nấu xong • Chờ giao tài xế"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
@@ -135,7 +135,7 @@ class OrderAdapter(
                     binding.boxDriverStatus.visibility = View.VISIBLE
                     binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
                     binding.tvDriverStatusTxt.apply {
-                        text = "🛵 Món đã nấu xong • Tài xế $driverText đã nhận đơn, đang đến quầy"
+                        text = "🛵 Món đã nấu xong • $driverText đã nhận đơn, đang đến quầy"
                         setTextColor(Color.parseColor("#047857"))
                     }
                     binding.btnCallDriver.visibility = View.VISIBLE
@@ -150,7 +150,7 @@ class OrderAdapter(
 
                 Order.Status.ASSIGNED, Order.Status.DELIVERING -> {
                     // Bước 4: Đã giao tài xế đi giao
-                    val driverText = if (order.shipperName.isNotBlank()) order.shipperName else "Trần Văn Nam (TX-14)"
+                    val driverText = order.shipperName.ifBlank { "Tài xế của quán" }
                     binding.tvOrderBadge.text = "🛵 Đang giao hàng • Tài xế đã nhận đơn"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_delivering)
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
@@ -158,10 +158,10 @@ class OrderAdapter(
                     binding.boxDriverStatus.visibility = View.VISIBLE
                     binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
                     binding.tvDriverStatusTxt.apply {
-                        text = "🛵 Đã giao túi món cho tài xế $driverText • Đang chạy đến khách"
+                        text = "🛵 Đã giao túi món cho $driverText • Đang chạy đến khách"
                         setTextColor(Color.parseColor("#047857"))
                     }
-                    binding.btnCallDriver.visibility = View.VISIBLE
+                    binding.btnCallDriver.visibility = if (order.shipperName.isNotBlank()) View.VISIBLE else View.GONE
 
                     binding.btnMainAction.apply {
                         isEnabled = false

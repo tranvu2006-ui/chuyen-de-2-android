@@ -57,7 +57,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="Trà Sữa Ngô Gia ➔ 45 Đinh Tiên Hoàng, P. Bến Nghé, Q.1"
+            android:text=""
             android:textColor="#334155"
             android:textSize="12sp" />
 

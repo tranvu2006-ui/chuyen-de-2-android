@@ -61,7 +61,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:lineSpacingExtra="3dp"
-            android:text="• 1x Trà Xí Muội Ô Long (Size M, Ít đá)\n• 1x Trà Xí Muội Ngô Gia (Size M, Đá riêng)\nTổng bill: 78.000 đ (Đã thanh toán Ví MoMo)"
+            android:text=""
             android:textColor="#334155"
             android:textSize="12sp" />
 

@@ -37,7 +37,7 @@
                 android:background="@drawable/bg_badge_shop_tag"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="4dp"
-                android:text="🏪 Trà Sữa Ngô Gia"
+                android:text="🏪 Tài xế nội bộ"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold" />

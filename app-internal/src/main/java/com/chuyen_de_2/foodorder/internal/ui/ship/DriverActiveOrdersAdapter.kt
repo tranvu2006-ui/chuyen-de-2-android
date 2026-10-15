@@ -54,7 +54,7 @@ class DriverActiveOrdersAdapter(
             val dishSummary = if (order.items.isNotEmpty()) {
                 order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName}" }
             } else {
-                "1x Trà Ô Long, 1x Trà Ngô Gia (Size M)"
+                "Món ăn theo đơn"
             }
             binding.tvActiveOrderDishes.text = "📦 Món: $dishSummary"
 

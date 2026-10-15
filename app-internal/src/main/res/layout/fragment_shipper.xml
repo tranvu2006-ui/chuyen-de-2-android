@@ -51,7 +51,7 @@
                 android:background="@drawable/bg_badge_shop_tag"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="4dp"
-                android:text="🏪 Trà Sữa Ngô Gia (Q.Thủ Đức)"
+                android:text="🏪 Tài xế nội bộ quán"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold" />
@@ -115,7 +115,7 @@
                         android:id="@+id/tvDriverName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Trần Văn Nam (TX-14)"
+                        tools:text="Tài xế"
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
@@ -342,7 +342,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🔔 Đơn Chờ Giao Của Quán Ngô Gia"
+                android:text="🔔 Đơn Chờ Giao Của Quán"
                 android:textColor="@color/text_primary"
                 android:textSize="13.5sp"
                 android:textStyle="bold" />

@@ -121,7 +121,7 @@
                 android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="🏪 Hồng Trà Ngô Gia - 28 Tô Vĩnh Diện"
+                android:text=""
                 android:textColor="#64748B"
                 android:textSize="11sp"
                 android:textStyle="bold" />

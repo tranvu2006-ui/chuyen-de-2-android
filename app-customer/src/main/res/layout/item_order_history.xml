@@ -48,7 +48,7 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:text="Hồng Trà Ngô Gia"
+                    android:text=""
                     android:textColor="#1E293B"
                     android:textSize="13.5sp"
                     android:textStyle="bold" />
@@ -99,7 +99,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:lineSpacingExtra="2dp"
-                    android:text="• 1x Trà Xí Muội Ô Long\n• 1x Trà Xí Muội Ngô Gia"
+                    android:text=""
                     android:textColor="#475569"
                     android:textSize="12sp" />
 

@@ -131,7 +131,6 @@ class ProfileActivity : AppCompatActivity() {
                 putExtra("LOGOUT", true)
             }
             startActivity(intent)
-            finish()
         }
     }
 }

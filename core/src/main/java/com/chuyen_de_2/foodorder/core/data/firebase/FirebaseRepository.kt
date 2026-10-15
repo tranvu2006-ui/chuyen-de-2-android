@@ -62,7 +62,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
 
@@ -116,7 +116,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
 
@@ -139,7 +139,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
 
@@ -162,7 +162,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
 
@@ -180,7 +180,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
 
@@ -297,7 +297,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
 
@@ -332,7 +332,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
 
@@ -359,7 +359,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
         ref.addValueEventListener(listener)
@@ -409,7 +409,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
         ref.addValueEventListener(listener)
@@ -462,7 +462,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
         ref.addValueEventListener(listener)
@@ -517,7 +517,7 @@ class FirebaseRepository @Inject constructor(
             }
 
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                close()
             }
         }
         ref.addValueEventListener(listener)

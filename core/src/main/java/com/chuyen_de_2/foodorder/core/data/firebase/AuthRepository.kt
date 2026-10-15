@@ -273,15 +273,19 @@ class AuthRepository @Inject constructor(
             .await()
     }
 
-    /** Đăng xuất */
+    /** Đăng xuất an toàn tuyệt đối, tránh crash do Firebase permission */
     fun logout() {
-        auth.currentUser?.uid?.let { uid ->
-            database.getReference("users")
-                .child(uid)
-                .child("status")
-                .setValue(User.Status.OFFLINE)
-        }
-        auth.signOut()
+        try {
+            auth.currentUser?.uid?.let { uid ->
+                database.getReference("users")
+                    .child(uid)
+                    .child("status")
+                    .setValue(User.Status.OFFLINE)
+            }
+        } catch (_: Exception) {}
+        try {
+            auth.signOut()
+        } catch (_: Exception) {}
     }
 
     /** User hiện tại (nullable) */

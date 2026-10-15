@@ -67,7 +67,6 @@ class ShipperFragment : Fragment() {
                         putExtra("LOGOUT", true)
                     }
                     startActivity(intent)
-                    requireActivity().finish()
                 }
                 .setNegativeButton("Hủy", null)
                 .show()

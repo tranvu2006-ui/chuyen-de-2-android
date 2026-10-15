@@ -105,7 +105,6 @@ class DashboardActivity : AppCompatActivity() {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         putExtra("LOGOUT", true)
                     })
-                    finish()
                 }
                 .setNegativeButton("Hủy", null)
                 .show()
@@ -141,7 +140,6 @@ class DashboardActivity : AppCompatActivity() {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                 putExtra("LOGOUT", true)
                             })
-                            finish()
                         }
                         .setCancelable(false)
                         .show()

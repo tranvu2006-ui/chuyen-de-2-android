@@ -1,8 +1,10 @@
 package com.chuyen_de_2.foodorder.internal.ui.ship
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
@@ -10,9 +12,11 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.webkit.WebSettings
+import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -24,6 +28,10 @@ import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityDeliveryTripBinding
 import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBinding
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -33,6 +41,7 @@ import javax.inject.Inject
 class DeliveryTripActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDeliveryTripBinding
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     @Inject
     lateinit var firebaseRepository: FirebaseRepository
@@ -40,6 +49,26 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var currentOrderId: String = ""
     private var currentOrder: Order? = null
     private var currentStep = 1 // 1: Đến quán (4.html), 2: Lấy hàng (5.html), 3: Đến khách (6.html), 4: Quét QR xong (8.html)
+
+    // Tọa độ GPS thực tế của Shipper và Điểm đến
+    private var driverLat: Double = 10.8522
+    private var driverLng: Double = 106.7685
+    private var storeLat: Double = 10.8548
+    private var storeLng: Double = 106.7720
+    private var customerLat: Double = 10.8580
+    private var customerLng: Double = 106.7765
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
+            fetchRealShipperLocation()
+        } else {
+            Toast.makeText(this, "Đang dùng vị trí mặc định do chưa cấp quyền GPS", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     companion object {
         const val EXTRA_ORDER_ID = "extra_order_id"
@@ -57,6 +86,8 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding = ActivityDeliveryTripBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
         currentOrderId = intent.getStringExtra(EXTRA_ORDER_ID) ?: ""
         if (currentOrderId.isBlank()) {
             Toast.makeText(this, "Không tìm thấy mã đơn hàng", Toast.LENGTH_SHORT).show()
@@ -69,6 +100,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         setupListeners()
         observeOrderDetails()
         updateStepUI(1)
+        checkAndRequestLocation()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -78,7 +110,13 @@ class DeliveryTripActivity : AppCompatActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.cacheMode = WebSettings.LOAD_DEFAULT
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                    evaluateJavascript("setDestination($storeLat, $storeLng);", null)
+                }
+            }
             loadUrl("file:///android_asset/map_step1.html")
         }
 
@@ -87,7 +125,14 @@ class DeliveryTripActivity : AppCompatActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.cacheMode = WebSettings.LOAD_DEFAULT
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                    val name = currentOrder?.customerName ?: "Khách hàng"
+                    evaluateJavascript("setDestination($customerLat, $customerLng, '$name');", null)
+                }
+            }
             loadUrl("file:///android_asset/map_step3.html")
         }
     }
@@ -196,6 +241,57 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
 
         binding.tvStep4Summary.text = "Khách hàng: $cusName • 0938 112 233\nĐịa chỉ: $dest"
+
+        // Geocoding địa chỉ khách thực tế để cập nhật lên bản đồ
+        lifecycleScope.launch {
+            try {
+                val coords = GoogleMapUtils.geocodeAddress(this@DeliveryTripActivity, dest)
+                customerLat = coords.latitude
+                customerLng = coords.longitude
+                binding.webViewMapStep3.evaluateJavascript("setDestination($customerLat, $customerLng, '$cusName');", null)
+            } catch (e: Exception) {
+                // Giữ nguyên tọa độ mặc định nếu lỗi mạng
+            }
+        }
+    }
+
+    private fun checkAndRequestLocation() {
+        val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (fine || coarse) {
+            fetchRealShipperLocation()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            )
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun fetchRealShipperLocation() {
+        try {
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener { location ->
+                    if (location != null) {
+                        driverLat = location.latitude
+                        driverLng = location.longitude
+                        binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                        binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                    }
+                }
+                .addOnFailureListener {
+                    fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                        if (loc != null) {
+                            driverLat = loc.latitude
+                            driverLng = loc.longitude
+                            binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                            binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            // Không làm gián đoạn UI
+        }
     }
 
     private fun setupListeners() {
@@ -207,11 +303,10 @@ class DeliveryTripActivity : AppCompatActivity() {
             showCancelOrderDialog()
         }
 
-        // Bước 1: Nút "Đến quán" trên hộp Google Navigation
+        // Bước 1: Nút "Đến quán" trên hộp Google Navigation (Mở Google Maps Turn-by-Turn thật)
         binding.btnOpenNavStep1.setOnClickListener {
-            binding.webViewMapStep1.loadUrl("javascript:focusShop()")
-            val storeAddress = "28 Tô Vĩnh Diện, Linh Chiểu, Thủ Đức, TP.HCM"
-            GoogleMapUtils.openGoogleMapsSearch(this, storeAddress)
+            binding.webViewMapStep1.evaluateJavascript("focusShop();", null)
+            GoogleMapUtils.openGoogleMapsNavigation(this, storeLat, storeLng, binding.tvStep1StoreName.text.toString())
         }
 
         // Bước 1: Gọi điện cho quán
@@ -234,14 +329,15 @@ class DeliveryTripActivity : AppCompatActivity() {
                 firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
                 Toast.makeText(this@DeliveryTripActivity, "🛵 Xuất phát đi giao hàng!", Toast.LENGTH_SHORT).show()
                 updateStepUI(3)
+                fetchRealShipperLocation()
             }
         }
 
-        // Bước 3: Dẫn đường đến khách
+        // Bước 3: Dẫn đường đến khách (Mở Google Maps Turn-by-Turn thật)
         binding.btnOpenNavStep3.setOnClickListener {
-            binding.webViewMapStep3.loadUrl("javascript:focusCustomer()")
-            val dest = currentOrder?.address?.ifBlank { "104 Hai Bà Trưng, Đa Kao, Quận 1" } ?: "Quận 1, TP.HCM"
-            GoogleMapUtils.openGoogleMapsSearch(this, dest)
+            binding.webViewMapStep3.evaluateJavascript("focusCustomer();", null)
+            val cusName = currentOrder?.customerName ?: "Khách hàng"
+            GoogleMapUtils.openGoogleMapsNavigation(this, customerLat, customerLng, cusName)
         }
 
         // Bước 3: Gọi khách

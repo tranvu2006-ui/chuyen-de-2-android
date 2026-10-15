@@ -6,13 +6,14 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; }
+    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     #realMap { width: 100%; height: 100%; }
 
     .driver-marker-box {
-      width: 42px; height: 42px; background: #FFF; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center; font-size: 22px;
-      border: 3px solid #059669; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45);
+      width: 44px; height: 44px; background: #FFF; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 24px;
+      border: 3.5px solid #059669; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45);
+      animation: pulse 2s infinite;
     }
     .customer-marker-box {
       padding: 6px 12px; background: #EE4D2D; border-radius: 14px;
@@ -20,20 +21,36 @@
       color: #FFF; border: 2.5px solid #FFF; box-shadow: 0 4px 14px rgba(238, 77, 45, 0.4);
       white-space: nowrap;
     }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    .route-info-badge {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+      padding: 6px 14px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 1000; font-size: 12px; font-weight: 700; color: #1E293B; display: flex;
+      align-items: center; gap: 6px; border: 1px solid #E2E8F0;
+    }
+    .route-info-badge span { color: #059669; }
   </style>
 </head>
 <body>
+  <div id="routeBadge" class="route-info-badge" style="display:none;">
+    <span>🛵</span> <span id="routeDistance">Đang tải lộ trình...</span>
+  </div>
   <div id="realMap"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const driverCoords = [10.8548, 106.7720];
-    const customerCoords = [10.8580, 106.7765];
+    let driverCoords = [10.8548, 106.7720];
+    let customerCoords = [10.8580, 106.7765];
 
     const map = L.map('realMap', {
       zoomControl: false,
       attributionControl: false
-    }).setView([10.8564, 106.7742], 16);
+    }).setView(driverCoords, 16);
 
     L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
       maxZoom: 20,
@@ -43,25 +60,115 @@
     const driverIcon = L.divIcon({
       className: 'driver-marker-box',
       html: '🛵',
-      iconSize: [42, 42],
-      iconAnchor: [21, 21]
+      iconSize: [44, 44],
+      iconAnchor: [22, 22]
     });
-    L.marker(driverCoords, { icon: driverIcon }).addTo(map);
+    const driverMarker = L.marker(driverCoords, { icon: driverIcon }).addTo(map);
 
     const customerIcon = L.divIcon({
       className: 'customer-marker-box',
-      html: '📍 An Nguyễn (Q.1)',
-      iconSize: [120, 32],
-      iconAnchor: [60, 16]
+      html: '📍 Điểm giao khách',
+      iconSize: [140, 32],
+      iconAnchor: [70, 16]
     });
-    L.marker(customerCoords, { icon: customerIcon }).addTo(map);
+    const customerMarker = L.marker(customerCoords, { icon: customerIcon }).addTo(map);
 
-    L.polyline([driverCoords, [10.8560, 106.7735], [10.8572, 106.7750], customerCoords], {
-      color: '#059669', weight: 6, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
-    }).addTo(map);
+    let routeBorder = null;
+    let routeLine = null;
+
+    async function fetchRealRoute(dLat, dLng, cLat, cLng) {
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${cLng},${cLat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+          
+          if (routeBorder) map.removeLayer(routeBorder);
+          if (routeLine) map.removeLayer(routeLine);
+
+          // Lớp viền xanh lục đậm
+          routeBorder = L.polyline(coords, {
+            color: '#047857', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+          }).addTo(map);
+
+          // Lớp tuyến đường xanh lá cây
+          routeLine = L.polyline(coords, {
+            color: '#059669', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round'
+          }).addTo(map);
+
+          map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+          const distKm = (route.distance / 1000).toFixed(1);
+          const durationMin = Math.round(route.duration / 60);
+          const badge = document.getElementById('routeBadge');
+          const distSpan = document.getElementById('routeDistance');
+          if (badge && distSpan) {
+            badge.style.display = 'flex';
+            distSpan.innerHTML = `Đến nhà khách: <b>${distKm} km</b> (~${durationMin} phút)`;
+          }
+          return;
+        }
+      } catch (e) {
+        console.warn('Lỗi tải tuyến đường thực tế bước 3:', e);
+      }
+
+      fallbackStraightRoute(dLat, dLng, cLat, cLng);
+    }
+
+    function fallbackStraightRoute(dLat, dLng, cLat, cLng) {
+      if (routeBorder) map.removeLayer(routeBorder);
+      if (routeLine) map.removeLayer(routeLine);
+
+      const midLat = (dLat + cLat) / 2;
+      const midLng = (dLng + cLng) / 2;
+      const points = [[dLat, dLng], [midLat, midLng], [cLat, cLng]];
+
+      routeLine = L.polyline(points, {
+        color: '#059669', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+      }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+    }
+
+    function updateDriverLocation(lat, lng) {
+      driverCoords = [lat, lng];
+      driverMarker.setLatLng(driverCoords);
+      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+    }
+
+    function setDestination(lat, lng, customerName) {
+      customerCoords = [lat, lng];
+      customerMarker.setLatLng(customerCoords);
+      if (customerName) {
+        customerMarker.setIcon(L.divIcon({
+          className: 'customer-marker-box',
+          html: `📍 ${customerName}`,
+          iconSize: [150, 32],
+          iconAnchor: [75, 16]
+        }));
+      }
+      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+    }
 
     function focusCustomer() {
       map.flyTo(customerCoords, 17, { duration: 1 });
+    }
+    function focusDriver() {
+      map.flyTo(driverCoords, 17, { duration: 1 });
+    }
+
+    fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => console.log('Chưa cấp quyền GPS trình duyệt:', err),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
     }
   </script>
 </body>

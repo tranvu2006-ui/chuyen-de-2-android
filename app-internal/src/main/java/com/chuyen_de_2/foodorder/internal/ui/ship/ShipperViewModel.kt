@@ -55,12 +55,10 @@ class ShipperViewModel @Inject constructor(
     private fun observePendingStoreOrders() {
         viewModelScope.launch {
             firebaseRepository.observeAllOrders().collectLatest { allOrders ->
-                // Lọc các đơn chưa có shipper và ở trạng thái READY, PREPARING, PENDING
+                // Chỉ phát các đơn Quán đã nấu xong (READY) và CHƯA có shipper nhận
                 val pending = allOrders.filter { order ->
                     (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
-                            order.status != Order.Status.COMPLETED &&
-                            order.status != Order.Status.CANCELLED &&
-                            order.status != Order.Status.BOOM
+                            order.status == Order.Status.READY
                 }
                 _storePendingOrders.value = pending
             }

@@ -1801,7 +1801,55 @@
       color: var(--text-main);
     }
 
+    .fb-live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      background: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+      cursor: pointer;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+    .fb-live-pill.connecting {
+      background: #FEF3C7;
+      color: #92400E;
+      border-color: #FDE68A;
+    }
+    .fb-live-pill.offline {
+      background: #FEF2F2;
+      color: #991B1B;
+      border-color: #FECACA;
+    }
+    .fb-live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+      animation: pulseDot 1.8s infinite;
+    }
+    .fb-live-pill.connecting .fb-live-dot {
+      background: #F59E0B;
+    }
+    .fb-live-pill.offline .fb-live-dot {
+      background: #EF4444;
+      animation: none;
+    }
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.25); opacity: 0.65; }
+    }
   </style>
+  <!-- Firebase Realtime Database & Auth Web SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -1847,6 +1895,14 @@
         </div>
         <span>Quản Lý Cửa Hàng</span>
         <span class="nav-badge danger" id="badge-locked-store" title="Số cửa hàng bị khóa">1 Khóa</span>
+      </a>
+
+      <a class="nav-item" data-tab="orders" onclick="switchTab('orders')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16h6"/><path d="M19 13v6"/><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>
+        </div>
+        <span>Đơn Hàng & Tài Xế</span>
+        <span class="nav-badge" id="badge-orders-count" style="background:#EFF6FF; color:#1D4ED8;">0</span>
       </a>
 
       <div class="nav-label">Hỗ Trợ & Khiếu Nại</div>
@@ -1900,6 +1956,12 @@
       </div>
 
       <div class="topbar-right">
+        <!-- Firebase Realtime Connection Pill -->
+        <div id="fb-conn-badge" class="fb-live-pill connecting" onclick="syncFromFirebaseNow()" title="Bấm để đồng bộ tức thì với Firebase Realtime Database (chuyen-de-2-2f0bc)">
+          <span class="fb-live-dot"></span>
+          <span id="fb-conn-text">Đang kết nối Firebase...</span>
+        </div>
+
         <!-- Global Search -->
         <div class="global-search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -1928,9 +1990,13 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <span>Đổi mật khẩu</span>
             </button>
+            <button class="dropdown-btn" onclick="syncFromFirebaseNow()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              <span>Đồng bộ Firebase ngay</span>
+            </button>
             <button class="dropdown-btn" onclick="resetDefaultData()">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-              <span>Khôi phục dữ liệu gốc</span>
+              <span>Khôi phục / Seed dữ liệu mẫu</span>
             </button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-btn" style="color: var(--danger);" onclick="adminLogout()">
@@ -1986,11 +2052,11 @@
             <div class="stat-icon-wrap icon-red">🚨</div>
           </div>
 
-          <div class="stat-card">
+          <div class="stat-card" onclick="switchTab('orders')">
             <div class="stat-meta">
               <span class="stat-label">Tổng Đơn Đặt Hàng</span>
-              <span class="stat-value" id="kpi-total-orders">1,485</span>
-              <span class="stat-sub positive">↑ 98.6% giao thành công</span>
+              <span class="stat-value" id="kpi-total-orders">15</span>
+              <span class="stat-sub positive" id="kpi-orders-sub">↑ Đồng bộ Realtime</span>
             </div>
             <div class="stat-icon-wrap icon-green">📦</div>
           </div>
@@ -2202,6 +2268,129 @@
                 <!-- Populated dynamically -->
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 4B: ORDERS & DRIVERS REALTIME ==================== -->
+      <section id="tab-orders" class="tab-pane">
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 20px;">
+          <div class="stat-card" onclick="setGlobalOrderFilter('ALL')">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Đơn Hàng</span>
+              <span class="stat-value" id="kpi-ord-total">0</span>
+              <span class="stat-sub positive">Đồng bộ từ Firebase</span>
+            </div>
+            <div class="stat-icon-wrap icon-blue">📦</div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('PROCESSING')">
+            <div class="stat-meta">
+              <span class="stat-label">Chờ & Đang Chế Biến</span>
+              <span class="stat-value" id="kpi-ord-processing" style="color: var(--warning);">0</span>
+              <span class="stat-sub warning">PENDING / PREPARING / READY</span>
+            </div>
+            <div class="stat-icon-wrap icon-yellow">🍳</div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('DELIVERING')">
+            <div class="stat-meta">
+              <span class="stat-label">Đang Giao Hàng</span>
+              <span class="stat-value" id="kpi-ord-delivering" style="color: #2563EB;">0</span>
+              <span class="stat-sub">Tài xế đang vận chuyển</span>
+            </div>
+            <div class="stat-icon-wrap icon-purple">🛵</div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('COMPLETED')">
+            <div class="stat-meta">
+              <span class="stat-label">Hoàn Tất Giao</span>
+              <span class="stat-value" id="kpi-ord-completed" style="color: var(--success);">0</span>
+              <span class="stat-sub positive" id="kpi-ord-revenue">Doanh thu: 0đ</span>
+            </div>
+            <div class="stat-icon-wrap icon-green">✅</div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('FAILED')">
+            <div class="stat-meta">
+              <span class="stat-label">Bùng Đơn / Đã Hủy</span>
+              <span class="stat-value" id="kpi-ord-failed" style="color: var(--danger);">0</span>
+              <span class="stat-sub danger">BOOM / CANCELLED</span>
+            </div>
+            <div class="stat-icon-wrap icon-red">⚠️</div>
+          </div>
+        </div>
+
+        <!-- Global Orders Card -->
+        <div class="panel-card" style="margin-bottom: 24px;">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Điều Phối Đơn Hàng Toàn Hệ Thống (Realtime Firebase)</h2>
+              <p>Theo dõi trực tiếp luồng đơn từ App Khách Hàng → Quán Ăn → Tài Xế, cho phép Admin gán shipper hoặc đổi trạng thái đơn tức thì</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline" onclick="syncFromFirebaseNow()">
+                🔄 Làm mới dữ liệu
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-global-order-search" placeholder="Tìm mã đơn, tên khách, SĐT, tên quán, món ăn..." oninput="renderGlobalOrders()">
+              </div>
+              <select class="select-filter" id="filter-global-order-store" onchange="renderGlobalOrders()">
+                <option value="ALL">Tất cả cửa hàng</option>
+              </select>
+              <select class="select-filter" id="filter-global-order-status" onchange="renderGlobalOrders()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="PROCESSING">⏳ Chờ xác nhận / Đang nấu / Chờ lấy</option>
+                <option value="PENDING">⏳ PENDING (Chờ quán nhận)</option>
+                <option value="PREPARING">🍳 PREPARING (Đang chế biến)</option>
+                <option value="READY">🛍️ READY (Chờ tài xế lấy)</option>
+                <option value="ASSIGNED">🛵 ASSIGNED (Tài xế đã nhận)</option>
+                <option value="DELIVERING">🚚 DELIVERING (Đang giao)</option>
+                <option value="COMPLETED">✅ COMPLETED (Hoàn thành)</option>
+                <option value="BOOM">🚨 BOOM (Khách bùng hàng)</option>
+                <option value="CANCELLED">❌ CANCELLED (Đã hủy)</option>
+                <option value="FAILED">⚠️ Gộp Bùng đơn & Đã hủy</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Hiển thị <span id="global-order-counter" style="color: var(--primary); font-weight: 800;">0</span> đơn hàng
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 120px;">Mã Đơn & Thời Gian</th>
+                  <th style="min-width: 150px;">Cửa Hàng</th>
+                  <th style="min-width: 150px;">Khách Hàng</th>
+                  <th style="min-width: 220px;">Chi Tiết Món & Tổng Tiền</th>
+                  <th style="min-width: 170px;">Tài Xế Giao Hàng</th>
+                  <th style="min-width: 165px;">Trạng Thái Đơn (Live)</th>
+                  <th style="text-align: right; min-width: 100px;">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-global-orders">
+                <!-- Populated dynamically from Firebase orders -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Global Drivers Fleet Card -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Đội Ngũ Tài Xế / Shipper Trên Hệ Thống (<span id="global-driver-counter">0</span>)</h2>
+              <p>Đồng bộ từ node <code>drivers</code> và <code>users</code> trên Firebase Realtime Database</p>
+            </div>
+          </div>
+          <div style="padding: 20px;">
+            <div class="driver-grid" id="global-drivers-grid">
+              <!-- Populated dynamically -->
+            </div>
           </div>
         </div>
       </section>
@@ -3281,51 +3470,37 @@
     ];
 
     /* ========================================================
-       2. STATE & STORAGE CONTROLLER
+       2. FIREBASE REALTIME DATABASE & STATE CONTROLLER
        ======================================================== */
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE",
+      authDomain: "chuyen-de-2-2f0bc.firebaseapp.com",
+      databaseURL: "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "chuyen-de-2-2f0bc",
+      storageBucket: "chuyen-de-2-2f0bc.firebasedatabase.app",
+      appId: "1:15744841309:android:c3e22f3ec49b334e18bfb4"
+    };
+
+    let fbApp = null;
+    let fbAuth = null;
+    let fbDb = null;
+    let fbAdminUid = "ysEfpl1NfpZZ46EcBXxnTJT0Y7y2";
+    let isFirebaseReady = false;
+
+    let rawFbUsers = {};
+    let rawFbCustomers = {};
+    let rawFbDrivers = {};
+    let rawFbStores = {};
+    let rawFbOrders = {};
+    let rawFbComplaints = {};
+
     let categories = JSON.parse(localStorage.getItem('oishi_admin_categories')) || DEFAULT_CATEGORIES;
     let customers = JSON.parse(localStorage.getItem('oishi_admin_customers')) || DEFAULT_CUSTOMERS;
-    // Đồng bộ và bổ sung điểm uy tín khách hàng
-    customers = customers.map((c, idx) => {
-      const def = DEFAULT_CUSTOMERS[idx] || DEFAULT_CUSTOMERS[0];
-      return {
-        ...def,
-        ...c,
-        trustScore: (c.trustScore !== undefined && c.trustScore !== null) ? c.trustScore : (def.trustScore || 95)
-      };
-    });
-    localStorage.setItem('oishi_admin_customers', JSON.stringify(customers));
     let stores = JSON.parse(localStorage.getItem('oishi_admin_stores')) || DEFAULT_STORES;
-    // Đồng bộ và bổ sung trường CCCD + Link ảnh demo + chuẩn hóa 4 trạng thái
-    stores = stores.map((s, idx) => {
-      const def = DEFAULT_STORES[idx] || DEFAULT_STORES[0];
-      let normStatus = s.status;
-      // Chuẩn hóa trạng thái về đúng 4 trạng thái: PENDING (Chờ duyệt), OPEN (Đang hoạt động), LOCKED (Bị khóa), CLOSED (Tạm nghỉ)
-      if (normStatus === 'HIDDEN') normStatus = 'CLOSED';
-      if (!['PENDING', 'OPEN', 'LOCKED', 'CLOSED'].includes(normStatus)) {
-        normStatus = def.status || 'OPEN';
-      }
-      return {
-        ...def,
-        ...s,
-        status: normStatus,
-        cccdNumber: s.cccdNumber || def.cccdNumber || ('07908800' + (1000 + idx)),
-        cccdFront: s.cccdFront || def.cccdFront,
-        cccdBack: s.cccdBack || def.cccdBack,
-        registerPhoto: s.registerPhoto || def.registerPhoto,
-        cccdStatus: s.cccdStatus || def.cccdStatus || 'VERIFIED',
-        dob: s.dob || def.dob || '15/04/1988',
-        gender: s.gender || def.gender || 'Nam',
-        hometown: s.hometown || def.hometown || 'TP.HCM',
-        residence: s.residence || def.residence || s.address || 'TP.HCM',
-        issueDate: s.issueDate || def.issueDate || '10/06/2021',
-        expireDate: s.expireDate || def.expireDate || '15/04/2048',
-        registerTime: s.registerTime || def.registerTime || '10:00 15/03/2026',
-        ekycScore: s.ekycScore || def.ekycScore || '99.0%'
-      };
-    });
-    localStorage.setItem('oishi_admin_stores', JSON.stringify(stores));
     let complaints = JSON.parse(localStorage.getItem('oishi_admin_complaints')) || DEFAULT_COMPLAINTS;
+    let liveOrders = [];
+    let liveDrivers = [];
+
     let adminProfile = JSON.parse(localStorage.getItem('oishi_admin_profile')) || {
       name: 'Admin Nguyễn Hoàng Long',
       email: 'admin.long@oishifood.vn',
@@ -3333,6 +3508,499 @@
       role: 'Super Administrator'
     };
     let systemLogs = JSON.parse(localStorage.getItem('oishi_admin_logs')) || DEFAULT_LOGS;
+
+    function formatTimeAgo(ts) {
+      if (!ts) return 'Vừa xong';
+      if (typeof ts === 'string' && isNaN(Number(ts))) return ts;
+      const ms = Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts);
+      const diffSec = Math.floor((Date.now() - ms) / 1000);
+      if (diffSec < 60) return 'Vừa xong';
+      if (diffSec < 3600) return `${Math.floor(diffSec / 60)} phút trước`;
+      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} giờ trước`;
+      const d = new Date(ms);
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function formatVnd(amount) {
+      return Number(amount || 0).toLocaleString('vi-VN') + 'đ';
+    }
+
+    function setFirebaseConnectionUI(state, text) {
+      const badge = document.getElementById('fb-conn-badge');
+      const label = document.getElementById('fb-conn-text');
+      if (!badge || !label) return;
+      badge.className = 'fb-live-pill ' + (state === 'online' ? '' : (state === 'connecting' ? 'connecting' : 'offline'));
+      label.textContent = text;
+    }
+
+    // Helper để tương thích đồng thời rule MERCHANT (users/drivers/menus) và ADMIN (customers/merchants) trên Firebase
+    async function writeWithAdminRole(writeFn) {
+      if (!fbDb || !fbAdminUid) return writeFn();
+      const roleRef = fbDb.ref(`users/${fbAdminUid}/role`);
+      try {
+        await roleRef.set('ADMIN');
+        const res = await writeFn();
+        await roleRef.set('MERCHANT');
+        return res;
+      } catch (err) {
+        try { await roleRef.set('MERCHANT'); } catch (_) {}
+        throw err;
+      }
+    }
+
+    async function initFirebaseRealtime() {
+      try {
+        if (typeof firebase === 'undefined') {
+          setFirebaseConnectionUI('offline', 'Firebase SDK Offline');
+          return;
+        }
+        setFirebaseConnectionUI('connecting', 'Đang xác thực Firebase...');
+        fbApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+        fbAuth = firebase.auth();
+        fbDb = firebase.database();
+
+        try {
+          const cred = await fbAuth.signInWithEmailAndPassword('admin.long@oishifood.vn', 'Admin@123456');
+          if (cred && cred.user) fbAdminUid = cred.user.uid;
+        } catch (authErr) {
+          try {
+            const created = await fbAuth.createUserWithEmailAndPassword('admin.long@oishifood.vn', 'Admin@123456');
+            if (created && created.user) fbAdminUid = created.user.uid;
+          } catch (_) {}
+        }
+
+        if (fbAuth.currentUser) {
+          fbAdminUid = fbAuth.currentUser.uid;
+          await fbDb.ref(`users/${fbAdminUid}`).update({
+            uid: fbAdminUid,
+            fullName: adminProfile.name,
+            email: adminProfile.email,
+            phone: adminProfile.phone,
+            role: 'MERCHANT',
+            isActive: true
+          });
+        }
+
+        isFirebaseReady = true;
+
+        fbDb.ref('.info/connected').on('value', snap => {
+          if (snap.val() === true) {
+            setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
+          } else {
+            setFirebaseConnectionUI('connecting', 'Đang kết nối lại Firebase...');
+          }
+        });
+
+        attachRealtimeListeners();
+      } catch (err) {
+        console.error('Firebase Init Error:', err);
+        setFirebaseConnectionUI('offline', 'Lỗi kết nối Firebase');
+      }
+    }
+
+    function normalizeStoreRecord(id, s, idx = 0) {
+      const def = DEFAULT_STORES[idx % DEFAULT_STORES.length] || DEFAULT_STORES[0];
+      let normStatus = s.storeStatus || s.status || (s.open === false ? 'CLOSED' : 'OPEN');
+      if (normStatus === 'HIDDEN') normStatus = 'CLOSED';
+      if (s.penaltyTier === 'LOCK') normStatus = 'LOCKED';
+      if (!['PENDING', 'OPEN', 'LOCKED', 'CLOSED'].includes(normStatus)) normStatus = 'OPEN';
+
+      const dishesObj = s.dishes && typeof s.dishes === 'object' ? s.dishes : {};
+      const dishCount = Object.keys(dishesObj).length;
+      const ratingNum = s.ratingAvg !== undefined ? Number(s.ratingAvg).toFixed(1) : (s.rating ? String(s.rating).replace('⭐', '').trim() : '4.9');
+
+      return {
+        ...s,
+        id: id,
+        storeId: id,
+        name: s.name || def.name || ('Cửa hàng #' + id),
+        owner: s.ownerName || s.owner || def.owner || 'Chủ quán Oishi',
+        ownerName: s.ownerName || s.owner || def.owner || 'Chủ quán Oishi',
+        phone: s.phone || def.phone || '0908.112.233',
+        cccdNumber: s.cccdNumber || def.cccdNumber || ('07908800' + (1000 + idx)),
+        cccdFront: s.cccdFrontUrl || s.cccdFront || def.cccdFront,
+        cccdFrontUrl: s.cccdFrontUrl || s.cccdFront || def.cccdFront,
+        cccdBack: s.cccdBackUrl || s.cccdBack || def.cccdBack,
+        cccdBackUrl: s.cccdBackUrl || s.cccdBack || def.cccdBack,
+        registerPhoto: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || def.registerPhoto,
+        cccdPortraitUrl: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || def.registerPhoto,
+        cccdStatus: s.cccdStatus || (normStatus === 'OPEN' ? 'VERIFIED' : 'PENDING'),
+        dob: s.dob || def.dob || '15/04/1988',
+        gender: s.gender || def.gender || 'Nam',
+        hometown: s.hometown || def.hometown || 'TP.HCM',
+        residence: s.residence || s.address || def.residence || 'TP.HCM',
+        issueDate: s.issueDate || def.issueDate || '10/06/2021',
+        expireDate: s.expireDate || def.expireDate || '15/04/2048',
+        registerTime: s.registerTime || (s.createdAt ? formatTimeAgo(s.createdAt) : '10:00 15/03/2026'),
+        ekycScore: s.ekycScore || def.ekycScore || '99.2%',
+        category: s.category || def.category || 'Món Nước & Phở',
+        rating: `${ratingNum} ⭐`,
+        ratingAvg: parseFloat(ratingNum) || 4.9,
+        itemCount: dishCount > 0 ? dishCount : (s.itemCount || 10),
+        dishes: dishesObj,
+        status: normStatus,
+        storeStatus: normStatus,
+        open: normStatus === 'OPEN',
+        penaltyTier: s.penaltyTier || (normStatus === 'LOCKED' ? 'LOCK' : 'NONE'),
+        lockReason: s.lockReason || s.penaltyReason || '',
+        address: s.address || def.address || 'TP. Hồ Chí Minh'
+      };
+    }
+
+    function rebuildCustomersAndDrivers() {
+      // Count orders per customer and per driver
+      const custOrderCounts = {};
+      const driverOrderCounts = {};
+      liveOrders.forEach(o => {
+        if (o.customerId) custOrderCounts[o.customerId] = (custOrderCounts[o.customerId] || 0) + 1;
+        if (o.shipperId) driverOrderCounts[o.shipperId] = (driverOrderCounts[o.shipperId] || 0) + 1;
+      });
+
+      const mergedCustMap = {};
+      // 1. From users where role == CUSTOMER
+      Object.entries(rawFbUsers).forEach(([uid, u]) => {
+        if (!u || typeof u !== 'object') return;
+        const role = (u.role || 'CUSTOMER').toUpperCase();
+        if (role === 'CUSTOMER') {
+          const cNode = rawFbCustomers[uid] || {};
+          const status = u.status || cNode.status || (u.isActive === false ? 'LOCKED' : 'ACTIVE');
+          mergedCustMap[uid] = {
+            id: uid,
+            uid: uid,
+            name: u.fullName || u.name || cNode.name || 'Khách hàng Oishi',
+            phone: u.phone || cNode.phone || '0900.000.000',
+            email: u.email || cNode.email || `${uid.slice(0, 6)}@oishi.com`,
+            orders: custOrderCounts[uid] !== undefined ? custOrderCounts[uid] : (cNode.orders || u.orders || 0),
+            joined: u.joined || cNode.joined || (u.createdAt ? formatTimeAgo(u.createdAt) : 'Thành viên App'),
+            area: u.address || cNode.address || cNode.area || 'TP. Hồ Chí Minh',
+            trustScore: cNode.trustScore !== undefined ? Number(cNode.trustScore) : (u.trustScore !== undefined ? Number(u.trustScore) : 100),
+            status: status,
+            lockReason: u.lockReason || cNode.lockReason || ''
+          };
+        }
+      });
+
+      // 2. Any extra entries in customers node
+      Object.entries(rawFbCustomers).forEach(([cid, c]) => {
+        if (!c || typeof c !== 'object' || mergedCustMap[cid]) return;
+        mergedCustMap[cid] = {
+          id: cid,
+          uid: cid,
+          name: c.name || c.fullName || 'Khách hàng',
+          phone: c.phone || '0900.000.000',
+          email: c.email || `${cid}@oishi.com`,
+          orders: custOrderCounts[cid] !== undefined ? custOrderCounts[cid] : (c.orders || 0),
+          joined: c.joined || 'Thành viên App',
+          area: c.area || c.address || 'TP. Hồ Chí Minh',
+          trustScore: c.trustScore !== undefined ? Number(c.trustScore) : 95,
+          status: c.status || 'ACTIVE',
+          lockReason: c.lockReason || ''
+        };
+      });
+
+      const custList = Object.values(mergedCustMap);
+      if (custList.length > 0) {
+        customers = custList;
+        localStorage.setItem('oishi_admin_customers', JSON.stringify(customers));
+      }
+
+      // Build liveDrivers from drivers node + users with role DRIVER/SHIPPER
+      const driverMap = {};
+      Object.entries(rawFbDrivers).forEach(([did, d]) => {
+        if (!d || typeof d !== 'object') return;
+        const u = rawFbUsers[did] || {};
+        const isDelivering = liveOrders.some(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+        const activeOrder = liveOrders.find(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+        const st = isDelivering ? 'DELIVERING' : (d.isOnline === false || d.status === 'OFFLINE' ? 'OFFLINE' : 'AVAILABLE');
+        driverMap[did] = {
+          id: did,
+          name: d.name || d.fullName || u.fullName || 'Tài xế Oishi',
+          phone: d.phone || u.phone || '0909.000.111',
+          bike: d.vehiclePlate || d.licensePlate || d.bike || 'Honda Wave (59X1-888.99)',
+          ordersCount: driverOrderCounts[did] !== undefined ? driverOrderCounts[did] : (d.totalDeliveries || d.ordersCount || 15),
+          rating: `${Number(d.rating || 4.9).toFixed(1)} ⭐`,
+          status: st,
+          isActive: u.isActive !== false && d.status !== 'LOCKED',
+          statusText: activeOrder ? `Đang giao đơn #${activeOrder.id.slice(-6)}` : (st === 'AVAILABLE' ? 'Đang trực tuyến nhận đơn' : 'Đang nghỉ ca'),
+          avatar: d.avatarUrl || u.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+          shopId: d.shopId || d.storeId || ''
+        };
+      });
+
+      Object.entries(rawFbUsers).forEach(([uid, u]) => {
+        if (!u || typeof u !== 'object' || driverMap[uid]) return;
+        const role = (u.role || '').toUpperCase();
+        if (role === 'DRIVER' || role === 'SHIPPER') {
+          const isDelivering = liveOrders.some(o => o.shipperId === uid && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+          driverMap[uid] = {
+            id: uid,
+            name: u.fullName || u.name || 'Tài xế Oishi',
+            phone: u.phone || '0909.111.222',
+            bike: u.vehiclePlate || 'Honda AirBlade (59P1-123.45)',
+            ordersCount: driverOrderCounts[uid] || 10,
+            rating: '4.9 ⭐',
+            status: isDelivering ? 'DELIVERING' : 'AVAILABLE',
+            isActive: u.isActive !== false && u.status !== 'LOCKED',
+            statusText: isDelivering ? 'Đang giao đơn' : 'Đang sẵn sàng nhận đơn',
+            avatar: u.avatarUrl || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+            shopId: u.shopId || ''
+          };
+        }
+      });
+
+      liveDrivers = Object.values(driverMap);
+    }
+
+    function rebuildOrders() {
+      const list = [];
+      Object.entries(rawFbOrders).forEach(([oid, o]) => {
+        if (!o || typeof o !== 'object') return;
+        const storeId = o.shopId || o.storeId || '';
+        const storeObj = stores.find(s => s.id === storeId) || rawFbStores[storeId] || {};
+        const custUser = rawFbUsers[o.customerId] || rawFbCustomers[o.customerId] || {};
+        const drvUser = rawFbDrivers[o.shipperId] || rawFbUsers[o.shipperId] || {};
+
+        let itemsSummary = '';
+        if (typeof o.items === 'string') {
+          itemsSummary = o.items;
+        } else if (Array.isArray(o.items)) {
+          itemsSummary = o.items.map(it => `${it.quantity || 1}x ${it.dishName || it.name || 'Món ăn'}`).join(', ');
+        } else if (o.items && typeof o.items === 'object') {
+          itemsSummary = Object.values(o.items).map(it => `${it.quantity || 1}x ${it.dishName || it.name || 'Món ăn'}`).join(', ');
+        }
+        if (!itemsSummary) itemsSummary = 'Đơn đặt món Oishi Food';
+
+        const status = (o.status || o.orderStatus || 'PENDING').toUpperCase();
+        const totalAmount = Number(o.totalAmount || o.totalPrice || 0);
+        const createdAt = Number(o.createdAt || o.timestamp || Date.now());
+
+        list.push({
+          id: oid,
+          orderId: oid,
+          shopId: storeId,
+          storeName: o.storeName || storeObj.name || storeId || 'Quán Oishi',
+          customerId: o.customerId || '',
+          customer: o.customerName || custUser.fullName || custUser.name || 'Khách đặt món',
+          phone: o.customerPhone || custUser.phone || '0901.234.567',
+          address: o.deliveryAddress || o.address || custUser.address || 'TP.HCM',
+          items: itemsSummary,
+          totalAmount: totalAmount,
+          shipperId: o.shipperId || '',
+          driver: o.shipperName || drvUser.name || drvUser.fullName || (o.shipperId ? `Tài xế (${o.shipperId.slice(0, 6)})` : 'Chưa gán tài xế'),
+          status: status,
+          time: formatTimeAgo(createdAt),
+          createdAt: createdAt,
+          note: o.note || ''
+        });
+      });
+
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      liveOrders = list;
+    }
+
+    function rebuildComplaints() {
+      const list = [];
+      Object.entries(rawFbComplaints).forEach(([cid, c]) => {
+        if (!c || typeof c !== 'object') return;
+        // Hỗ trợ cả định dạng Complaint từ Android App (ComplaintActivity.kt) và từ Admin Portal
+        const isAndroidFormat = !c.senderName && (c.reason || c.customerId || c.storeId);
+        if (isAndroidFormat) {
+          const cust = rawFbUsers[c.customerId] || rawFbCustomers[c.customerId] || {};
+          const st = stores.find(s => s.id === c.storeId) || rawFbStores[c.storeId] || {};
+          let parsedType = 'Chất lượng món & ATTP';
+          let parsedContent = c.reason || 'Phản ánh từ ứng dụng khách hàng';
+          const bracketMatch = parsedContent.match(/^\[(.*?)\]\s*(.*)$/);
+          if (bracketMatch) {
+            parsedType = bracketMatch[1];
+            parsedContent = bracketMatch[2] || parsedContent;
+          }
+          list.push({
+            id: c.complaintId || cid,
+            senderType: c.senderType || 'CUSTOMER',
+            senderName: c.senderName || cust.fullName || cust.name || `Khách hàng (${(c.customerId || '').slice(0, 6)})`,
+            senderContact: c.senderContact || cust.phone || c.customerId || '',
+            targetName: c.targetName || st.name || c.storeId || 'Cửa hàng đối tác',
+            targetContact: c.targetContact || (st.owner ? `${st.owner} (${st.phone || ''})` : ''),
+            storeId: c.storeId || '',
+            customerId: c.customerId || '',
+            orderId: c.orderId || '',
+            type: c.type || parsedType,
+            content: c.content || parsedContent,
+            evidenceImage: c.evidenceImage || '',
+            priority: c.priority || 'HIGH',
+            status: (c.status || 'PENDING').toUpperCase(),
+            adminNote: c.adminNote || '',
+            penaltyAction: c.penaltyApplied || c.penaltyAction || 'NONE',
+            time: c.time || formatTimeAgo(c.createdAt),
+            createdAt: c.createdAt || Date.now()
+          });
+        } else {
+          list.push({
+            ...c,
+            id: c.id || cid,
+            status: (c.status || 'PENDING').toUpperCase(),
+            priority: c.priority || 'MEDIUM',
+            time: c.time || formatTimeAgo(c.createdAt)
+          });
+        }
+      });
+
+      if (list.length > 0) {
+        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        complaints = list;
+        localStorage.setItem('oishi_admin_complaints', JSON.stringify(complaints));
+      }
+    }
+
+    function attachRealtimeListeners() {
+      if (!fbDb) return;
+
+      // 1. STORES listener
+      fbDb.ref('stores').on('value', snap => {
+        const val = snap.val();
+        if (val && typeof val === 'object') {
+          rawFbStores = val;
+          stores = Object.entries(val).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
+          localStorage.setItem('oishi_admin_stores', JSON.stringify(stores));
+          rebuildOrders();
+          rebuildComplaints();
+          renderStores();
+          renderOverviewStores();
+          renderKPIs();
+          populateGlobalOrderStoreFilter();
+          if (currentDetailStoreId) refreshOpenStoreDetailModal();
+        }
+      });
+
+      // 2. USERS listener
+      fbDb.ref('users').on('value', snap => {
+        rawFbUsers = snap.val() || {};
+        rebuildCustomersAndDrivers();
+        rebuildOrders();
+        rebuildComplaints();
+        renderCustomers();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+        renderKPIs();
+      });
+
+      // 3. CUSTOMERS listener
+      fbDb.ref('customers').on('value', snap => {
+        rawFbCustomers = snap.val() || {};
+        rebuildCustomersAndDrivers();
+        renderCustomers();
+        renderKPIs();
+      });
+
+      // 4. DRIVERS listener
+      fbDb.ref('drivers').on('value', snap => {
+        rawFbDrivers = snap.val() || {};
+        rebuildCustomersAndDrivers();
+        rebuildOrders();
+        renderGlobalDrivers();
+        renderGlobalOrders();
+        renderKPIs();
+      });
+
+      // 5. ORDERS listener
+      fbDb.ref('orders').on('value', snap => {
+        rawFbOrders = snap.val() || {};
+        rebuildOrders();
+        rebuildCustomersAndDrivers();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+        renderCustomers();
+        renderKPIs();
+        if (currentDetailStoreId) refreshOpenStoreDetailModal();
+      });
+
+      // 6. COMPLAINTS listener
+      fbDb.ref('complaints').on('value', snap => {
+        const val = snap.val();
+        if (val && typeof val === 'object') {
+          rawFbComplaints = val;
+          rebuildComplaints();
+          renderComplaints();
+          renderKPIs();
+        } else if (isFirebaseReady) {
+          // Seed initial complaints to Firebase if empty
+          const seedObj = {};
+          DEFAULT_COMPLAINTS.forEach(c => { seedObj[c.id] = { ...c, createdAt: Date.now() }; });
+          fbDb.ref('complaints').update(seedObj).catch(() => {});
+        }
+      });
+
+      // 7. CATEGORIES listener (menus/categories)
+      fbDb.ref('menus/categories').on('value', snap => {
+        const val = snap.val();
+        if (val && typeof val === 'object') {
+          categories = Object.entries(val).map(([id, c]) => ({
+            ...c,
+            id: c.id || id,
+            name: c.name || 'Danh mục',
+            icon: c.icon || '🍲',
+            desc: c.desc || c.description || '',
+            count: c.count || 15,
+            status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE')
+          }));
+          localStorage.setItem('oishi_admin_categories', JSON.stringify(categories));
+          renderCategories();
+          renderKPIs();
+          populateStoreCategoryDropdowns();
+        } else if (isFirebaseReady) {
+          const seedCats = {};
+          DEFAULT_CATEGORIES.forEach(c => { seedCats[c.id] = c; });
+          fbDb.ref('menus/categories').update(seedCats).catch(() => {});
+        }
+      });
+
+      // 8. ADMIN LOGS listener (menus/admin_logs)
+      fbDb.ref('menus/admin_logs').limitToLast(25).on('value', snap => {
+        const val = snap.val();
+        if (val && typeof val === 'object') {
+          systemLogs = Object.values(val).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          localStorage.setItem('oishi_admin_logs', JSON.stringify(systemLogs));
+          renderLogs();
+        }
+      });
+    }
+
+    async function syncFromFirebaseNow() {
+      if (!fbDb) {
+        await initFirebaseRealtime();
+        return;
+      }
+      setFirebaseConnectionUI('connecting', 'Đang đồng bộ...');
+      try {
+        const [stSnap, usSnap, odSnap, cpSnap] = await Promise.all([
+          fbDb.ref('stores').once('value'),
+          fbDb.ref('users').once('value'),
+          fbDb.ref('orders').once('value'),
+          fbDb.ref('complaints').once('value')
+        ]);
+        rawFbStores = stSnap.val() || {};
+        rawFbUsers = usSnap.val() || {};
+        rawFbOrders = odSnap.val() || {};
+        rawFbComplaints = cpSnap.val() || {};
+        stores = Object.entries(rawFbStores).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
+        rebuildOrders();
+        rebuildCustomersAndDrivers();
+        rebuildComplaints();
+        renderKPIs();
+        renderOverviewStores();
+        renderCategories();
+        renderCustomers();
+        renderStores();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+        renderComplaints();
+        setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
+        showToast(`Đã đồng bộ trực tiếp: ${stores.length} quán, ${customers.length} khách, ${liveOrders.length} đơn hàng!`, 'success');
+      } catch (e) {
+        setFirebaseConnectionUI('offline', 'Lỗi đồng bộ Firebase');
+        showToast('Không thể đồng bộ dữ liệu: ' + e.message, 'danger');
+      }
+    }
 
     function saveState() {
       localStorage.setItem('oishi_admin_categories', JSON.stringify(categories));
@@ -3344,15 +4012,20 @@
     }
 
     function addLog(action, type = 'info') {
-      systemLogs.unshift({
-        time: 'Vừa xong',
+      const logEntry = {
+        time: formatTimeAgo(Date.now()),
+        timestamp: Date.now(),
         action: action,
         admin: adminProfile.name.split(' ').slice(-2).join(' ') || 'Admin',
         type: type
-      });
+      };
+      systemLogs.unshift(logEntry);
       if (systemLogs.length > 25) systemLogs.pop();
       saveState();
       renderLogs();
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref('menus/admin_logs').push(logEntry).catch(() => {});
+      }
     }
 
     /* ========================================================
@@ -3368,6 +4041,7 @@
       renderStores();
       renderComplaints();
       populateStoreCategoryDropdowns();
+      initFirebaseRealtime();
     });
 
     /* ========================================================
@@ -3429,11 +4103,18 @@
       adminProfile.phone = newPhone;
       saveState();
       updateAdminDisplay();
+      if (fbDb && fbAdminUid) {
+        fbDb.ref(`users/${fbAdminUid}`).update({
+          fullName: newName,
+          email: newEmail,
+          phone: newPhone
+        }).catch(() => {});
+      }
       addLog(`Cập nhật thông tin Admin: ${newName}`, 'success');
-      showToast('Đã cập nhật hồ sơ Admin thành công!', 'success');
+      showToast('Đã lưu hồ sơ Admin lên Firebase Realtime Database!', 'success');
     }
 
-    function changeAdminPassword(e) {
+    async function changeAdminPassword(e) {
       e.preventDefault();
       const currPass = document.getElementById('admin-curr-pass').value;
       const newPass = document.getElementById('admin-new-pass').value;
@@ -3447,6 +4128,12 @@
         showToast('Mật khẩu mới phải có tối thiểu 6 ký tự!', 'warning');
         return;
       }
+
+      try {
+        if (fbAuth && fbAuth.currentUser) {
+          await fbAuth.currentUser.updatePassword(newPass);
+        }
+      } catch (_) {}
 
       document.getElementById('admin-curr-pass').value = '';
       document.getElementById('admin-new-pass').value = '';
@@ -3465,20 +4152,23 @@
       }
     }
 
-    function resetDefaultData() {
-      if (confirm('Khôi phục toàn bộ danh mục, khách hàng, cửa hàng, khiếu nại về dữ liệu mặc định?')) {
-        localStorage.removeItem('oishi_admin_categories');
-        localStorage.removeItem('oishi_admin_customers');
-        localStorage.removeItem('oishi_admin_stores');
-        localStorage.removeItem('oishi_admin_complaints');
-        localStorage.removeItem('oishi_admin_logs');
-        categories = [...DEFAULT_CATEGORIES];
-        customers = [...DEFAULT_CUSTOMERS];
-        stores = [...DEFAULT_STORES];
-        complaints = [...DEFAULT_COMPLAINTS];
-        systemLogs = [...DEFAULT_LOGS];
-        saveState();
-        location.reload();
+    async function resetDefaultData() {
+      if (confirm('Đồng bộ / Khởi tạo bổ sung dữ liệu mẫu chuẩn lên Firebase Realtime Database?')) {
+        if (fbDb && isFirebaseReady) {
+          const catUpdates = {};
+          DEFAULT_CATEGORIES.forEach(c => { catUpdates[c.id] = c; });
+          const compUpdates = {};
+          DEFAULT_COMPLAINTS.forEach(c => { compUpdates[c.id] = { ...c, createdAt: Date.now() }; });
+          await Promise.all([
+            fbDb.ref('menus/categories').update(catUpdates),
+            fbDb.ref('complaints').update(compUpdates)
+          ]);
+          showToast('Đã đồng bộ dữ liệu mẫu lên Firebase!', 'success');
+          syncFromFirebaseNow();
+        } else {
+          localStorage.clear();
+          location.reload();
+        }
       }
     }
 
@@ -3502,10 +4192,11 @@
       if (activePane) activePane.classList.add('active');
 
       const titleEl = document.getElementById('topbar-title');
-      if (tabId === 'overview') titleEl.textContent = 'Bảng Điều Khiển Tổng Quan';
+      if (tabId === 'overview') titleEl.textContent = 'Bảng Điều Khiển Tổng Quan (Firebase Live)';
       else if (tabId === 'categories') titleEl.textContent = 'Quản Lý Danh Mục Nền Tảng';
       else if (tabId === 'customers') titleEl.textContent = 'Quản Lý Khách Hàng';
       else if (tabId === 'stores') titleEl.textContent = 'Quản Lý Đối Tác Cửa Hàng';
+      else if (tabId === 'orders') titleEl.textContent = 'Điều Phối Đơn Hàng & Đội Ngũ Tài Xế (Realtime)';
       else if (tabId === 'complaints') titleEl.textContent = 'Xử Lý Khiếu Nại & Báo Cáo Vi Phạm';
       else if (tabId === 'settings') titleEl.textContent = 'Cài Đặt & Tài Khoản Admin';
 
@@ -3513,6 +4204,11 @@
       if (tabId === 'categories') renderCategories();
       if (tabId === 'customers') renderCustomers();
       if (tabId === 'stores') renderStores();
+      if (tabId === 'orders') {
+        populateGlobalOrderStoreFilter();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+      }
       if (tabId === 'complaints') renderComplaints();
     }
 
@@ -3554,6 +4250,26 @@
       }
       document.getElementById('kpi-locked-stores').textContent = `🟢 ${openStores} hoạt động • ⏳ ${pendingStores} chờ duyệt • 🔴 ${lockedStores} khóa • ⏸️ ${closedStores} nghỉ`;
 
+      // Orders KPIs
+      const totalOrdersCount = liveOrders.length;
+      const completedOrdersCount = liveOrders.filter(o => o.status === 'COMPLETED').length;
+      const processingOrdersCount = liveOrders.filter(o => ['PENDING', 'PREPARING', 'READY', 'ASSIGNED'].includes(o.status)).length;
+      const deliveringOrdersCount = liveOrders.filter(o => o.status === 'DELIVERING').length;
+      const failedOrdersCount = liveOrders.filter(o => o.status === 'BOOM' || o.status === 'CANCELLED').length;
+      const totalRevenue = liveOrders.filter(o => o.status === 'COMPLETED').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+      if (document.getElementById('kpi-total-orders')) document.getElementById('kpi-total-orders').textContent = totalOrdersCount;
+      if (document.getElementById('badge-orders-count')) document.getElementById('badge-orders-count').textContent = totalOrdersCount;
+      if (document.getElementById('kpi-orders-sub')) {
+        document.getElementById('kpi-orders-sub').textContent = `${completedOrdersCount} hoàn tất • ${deliveringOrdersCount + processingOrdersCount} đang xử lý`;
+      }
+      if (document.getElementById('kpi-ord-total')) document.getElementById('kpi-ord-total').textContent = totalOrdersCount;
+      if (document.getElementById('kpi-ord-processing')) document.getElementById('kpi-ord-processing').textContent = processingOrdersCount;
+      if (document.getElementById('kpi-ord-delivering')) document.getElementById('kpi-ord-delivering').textContent = deliveringOrdersCount;
+      if (document.getElementById('kpi-ord-completed')) document.getElementById('kpi-ord-completed').textContent = completedOrdersCount;
+      if (document.getElementById('kpi-ord-failed')) document.getElementById('kpi-ord-failed').textContent = failedOrdersCount;
+      if (document.getElementById('kpi-ord-revenue')) document.getElementById('kpi-ord-revenue').textContent = `Doanh thu: ${formatVnd(totalRevenue)}`;
+
       // Complaints KPIs
       const pendingCount = complaints.filter(c => c.status === 'PENDING').length;
       const progressCount = complaints.filter(c => c.status === 'IN_PROGRESS').length;
@@ -3592,7 +4308,7 @@
         if (a.status === 'LOCKED') return -1;
         if (b.status === 'LOCKED') return 1;
         return 0;
-      }).slice(0, 5);
+      }).slice(0, 6);
       
       sorted.forEach(s => {
         const tr = document.createElement('tr');
@@ -3610,7 +4326,7 @@
         tr.innerHTML = `
           <td>
             <strong>${s.name}</strong>
-            <div style="font-size: 11px; color: var(--text-muted);">${s.category}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${s.category} • ${s.itemCount || 0} món</div>
           </td>
           <td>
             <div>${s.owner}</div>
@@ -3620,8 +4336,8 @@
             ${statusBadge}
           </td>
           <td style="text-align: right;">
-            <button class="btn btn-sm btn-outline" onclick="switchTab('stores')" style="padding: 2px 8px; font-size: 11px;">
-              Chi tiết
+            <button class="btn btn-sm btn-outline" onclick="openStoreDetailModal('${s.id}')" style="padding: 2px 8px; font-size: 11px;">
+              Quản lý quán
             </button>
           </td>
         `;
@@ -3658,8 +4374,9 @@
       if (confirm('Xóa sạch lịch sử nhật ký thao tác?')) {
         systemLogs = [];
         saveState();
+        if (fbDb && isFirebaseReady) fbDb.ref('menus/admin_logs').remove().catch(() => {});
         renderLogs();
-        showToast('Đã xóa nhật ký hoạt động', 'info');
+        showToast('Đã xóa nhật ký hoạt động trên Firebase', 'info');
       }
     }
 
@@ -3777,21 +4494,32 @@
           categories[idx].icon = icon;
           categories[idx].desc = desc;
           categories[idx].status = status;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`menus/categories/${catId}`).update({
+              id: catId, name, icon, desc, description: desc, status, isActive: status === 'ACTIVE'
+            }).catch(() => {});
+          }
           addLog(`Chỉnh sửa danh mục "${name}"`, 'info');
-          showToast(`Đã cập nhật danh mục "${name}"!`, 'success');
+          showToast(`Đã cập nhật danh mục "${name}" trên Firebase!`, 'success');
         }
       } else {
+        const newId = 'cat-' + Date.now();
         const newCat = {
-          id: 'cat-' + Date.now(),
+          id: newId,
           name: name,
           icon: icon || '🍲',
           desc: desc,
+          description: desc,
           count: 0,
-          status: status
+          status: status,
+          isActive: status === 'ACTIVE'
         };
         categories.unshift(newCat);
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`menus/categories/${newId}`).set(newCat).catch(() => {});
+        }
         addLog(`Thêm mới danh mục "${name}"`, 'success');
-        showToast(`Đã tạo mới danh mục "${name}"!`, 'success');
+        showToast(`Đã tạo mới danh mục "${name}" trên Firebase!`, 'success');
       }
 
       saveState();
@@ -3805,6 +4533,12 @@
       const cat = categories.find(c => c.id === catId);
       if (!cat) return;
       cat.status = cat.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`menus/categories/${catId}`).update({
+          status: cat.status,
+          isActive: cat.status === 'ACTIVE'
+        }).catch(() => {});
+      }
       saveState();
       renderCategories();
       addLog(`Chuyển trạng thái danh mục "${cat.name}" sang ${cat.status === 'ACTIVE' ? 'Hiển thị' : 'Tạm ẩn'}`, 'info');
@@ -3816,17 +4550,20 @@
       if (!cat) return;
       if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Thao tác này không thể hoàn tác.`)) {
         categories = categories.filter(c => c.id !== catId);
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`menus/categories/${catId}`).remove().catch(() => {});
+        }
         saveState();
         renderCategories();
         renderKPIs();
         populateStoreCategoryDropdowns();
         addLog(`Xóa danh mục "${cat.name}"`, 'danger');
-        showToast(`Đã xóa danh mục "${cat.name}"`, 'info');
+        showToast(`Đã xóa danh mục "${cat.name}" khỏi Firebase`, 'info');
       }
     }
 
     /* ========================================================
-       8. CUSTOMER MANAGEMENT
+       8. CUSTOMER MANAGEMENT (FIREBASE USERS + CUSTOMERS)
        ======================================================== */
     function filterCustomers() {
       renderCustomers();
@@ -3842,9 +4579,9 @@
       const sortVal = document.getElementById('filter-customer-sort')?.value || 'NEWEST';
 
       let filtered = customers.filter(c => {
-        const matchSearch = c.name.toLowerCase().includes(searchVal) ||
-                            c.phone.includes(searchVal) ||
-                            c.email.toLowerCase().includes(searchVal);
+        const matchSearch = (c.name || '').toLowerCase().includes(searchVal) ||
+                            (c.phone || '').includes(searchVal) ||
+                            (c.email || '').toLowerCase().includes(searchVal);
         const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
         return matchSearch && matchStatus;
       });
@@ -3854,7 +4591,7 @@
       } else if (sortVal === 'TRUST_LOW') {
         filtered.sort((a, b) => (a.trustScore || 0) - (b.trustScore || 0));
       } else if (sortVal === 'ORDERS_HIGH') {
-        filtered.sort((a, b) => b.orders - a.orders);
+        filtered.sort((a, b) => (b.orders || 0) - (a.orders || 0));
       }
 
       if (counter) counter.textContent = filtered.length;
@@ -3880,11 +4617,11 @@
         
         let scoreBadge = '';
         if (score >= 90) {
-          scoreBadge = `<span class="badge" style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Khách hàng rất uy tín, không có lịch sử bùng đơn">⭐ ${score}/100</span>`;
+          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Bấm để chỉnh sửa Điểm Uy Tín trên Firebase">⭐ ${score}/100 ✏️</span>`;
         } else if (score >= 70) {
-          scoreBadge = `<span class="badge" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Khách hàng uy tín mức khá">🛡️ ${score}/100</span>`;
+          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Bấm để chỉnh sửa Điểm Uy Tín trên Firebase">🛡️ ${score}/100 ✏️</span>`;
         } else {
-          scoreBadge = `<span class="badge" style="background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Cảnh báo: Khách từng có lịch sử bùng đơn">⚠️ ${score}/100</span>`;
+          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Cảnh báo: Khách từng bùng đơn. Bấm để chỉnh sửa">⚠️ ${score}/100 ✏️</span>`;
         }
 
         const tr = document.createElement('tr');
@@ -3892,17 +4629,17 @@
           <td>
             <div style="display: flex; align-items: center; gap: 10px;">
               <div style="width: 34px; height: 34px; border-radius: 50%; background: #EFF6FF; color: #2563EB; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 13px;">
-                ${c.name.charAt(0)}
+                ${(c.name || 'K').charAt(0)}
               </div>
               <div>
                 <strong>${c.name}</strong>
-                <div style="font-size: 11px; color: var(--text-muted);">Gia nhập: ${c.joined}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">ID: ${c.id.slice(0, 10)} • ${c.joined}</div>
               </div>
             </div>
           </td>
           <td style="font-family: monospace; font-weight: 600;">${c.phone}</td>
           <td style="color: var(--text-muted);">${c.email}</td>
-          <td><strong>${c.orders}</strong> đơn</td>
+          <td><strong>${c.orders || 0}</strong> đơn</td>
           <td style="color: var(--text-muted); font-size: 12.5px;">${c.area || 'TP. Hồ Chí Minh'}</td>
           <td>${scoreBadge}</td>
           <td>
@@ -3915,6 +4652,9 @@
           </td>
           <td>
             <div class="action-group" style="justify-content: flex-end;">
+              <button class="btn-action-icon" onclick="adjustCustomerTrustScore('${c.id}')" title="Điều chỉnh Điểm Uy Tín (Trust Score)">
+                ⭐
+              </button>
               <button class="btn-action-icon key-btn" onclick="openResetPasswordModal('customer', '${c.id}', '${c.name}')" title="Cấp lại mật khẩu khách hàng">
                 🔑
               </button>
@@ -3926,6 +4666,33 @@
         `;
         tbody.appendChild(tr);
       });
+    }
+
+    async function adjustCustomerTrustScore(custId) {
+      const cust = customers.find(c => c.id === custId);
+      if (!cust) return;
+      const input = prompt(`Điều chỉnh Điểm Uy Tín (0 - 100) cho khách hàng "${cust.name}"\n(Lưu ý: Dưới 50 điểm có thể bị hạn chế thanh toán tiền mặt COD):`, cust.trustScore ?? 95);
+      if (input === null) return;
+      const newScore = Math.max(0, Math.min(100, parseInt(input, 10)));
+      if (isNaN(newScore)) {
+        showToast('Vui lòng nhập số hợp lệ từ 0 đến 100!', 'warning');
+        return;
+      }
+      cust.trustScore = newScore;
+      saveState();
+      renderCustomers();
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`users/${cust.id}`).update({ trustScore: newScore }).catch(() => {});
+        writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({
+          uid: cust.id,
+          name: cust.name,
+          phone: cust.phone,
+          trustScore: newScore,
+          status: cust.status || 'ACTIVE'
+        })).catch(() => {});
+      }
+      addLog(`Cập nhật Điểm Uy Tín của khách "${cust.name}" thành ${newScore}/100`, 'info');
+      showToast(`Đã cập nhật Điểm Uy Tín của "${cust.name}" thành ${newScore}/100 trên Firebase!`, 'success');
     }
 
     function openLockCustomerModal(custId) {
@@ -3952,7 +4719,7 @@
         titleEl.textContent = 'Khóa Tài Khoản Khách Hàng';
         titleEl.style.color = 'var(--danger)';
         warningEl.style.cssText = '';
-        warningEl.innerHTML = 'Khi khóa tài khoản khách hàng, người dùng sẽ bị đăng xuất ngay lập tức và không thể tạo đơn hàng mới trên Oishi Food.';
+        warningEl.innerHTML = 'Khi khóa tài khoản khách hàng, người dùng sẽ bị chặn đăng nhập trên App Khách Hàng (Android) và không thể tạo đơn hàng mới.';
         submitBtn.style.background = 'var(--danger)';
         submitBtn.textContent = 'Xác Nhận Khóa';
       }
@@ -3972,13 +4739,21 @@
       if (action === 'LOCK') {
         cust.status = 'LOCKED';
         cust.lockReason = reason;
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`users/${cust.id}`).update({ status: 'LOCKED', isActive: false, lockReason: reason }).catch(() => {});
+          writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({ status: 'LOCKED', lockReason: reason })).catch(() => {});
+        }
         addLog(`Khóa tài khoản khách "${cust.name}" (${reason})`, 'danger');
-        showToast(`Đã khóa tài khoản khách hàng "${cust.name}"`, 'danger');
+        showToast(`Đã khóa tài khoản khách hàng "${cust.name}" trên Firebase!`, 'danger');
       } else {
         cust.status = 'ACTIVE';
         delete cust.lockReason;
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`users/${cust.id}`).update({ status: 'ACTIVE', isActive: true, lockReason: null }).catch(() => {});
+          writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({ status: 'ACTIVE', lockReason: null })).catch(() => {});
+        }
         addLog(`Mở khóa tài khoản khách "${cust.name}"`, 'success');
-        showToast(`Đã mở khóa tài khoản cho "${cust.name}"`, 'success');
+        showToast(`Đã mở khóa tài khoản cho "${cust.name}" trên Firebase!`, 'success');
       }
 
       saveState();
@@ -3987,10 +4762,10 @@
       renderKPIs();
     }
 
-        function exportCustomerCSV() {
+    function exportCustomerCSV() {
       const rows = [
-        "Tên khách,Số điện thoại,Email,Tổng đơn,Khu vực,Trạng thái",
-        ...customers.map(c => `"${c.name}","${c.phone}","${c.email}",${c.orders},${c.area || "TP.HCM"},"${c.status}"`)
+        "Tên khách,Số điện thoại,Email,Tổng đơn,Điểm uy tín,Khu vực,Trạng thái",
+        ...customers.map(c => `"${c.name}","${c.phone}","${c.email}",${c.orders || 0},${c.trustScore ?? 95},"${c.area || "TP.HCM"}","${c.status}"`)
       ];
       const csvContent = "data:text/csv;charset=utf-8," + rows.join(String.fromCharCode(10));
       const encodedUri = encodeURI(csvContent);
@@ -4004,7 +4779,7 @@
     }
 
     /* ========================================================
-       9. STORE MANAGEMENT
+       9. STORE MANAGEMENT (FIREBASE STORES)
        ======================================================== */
     function populateStoreCategoryDropdowns() {
       const filterCat = document.getElementById('filter-store-category');
@@ -4041,9 +4816,9 @@
       const statusVal = document.getElementById('filter-store-status')?.value || 'ALL';
 
       const filtered = stores.filter(s => {
-        const matchSearch = s.name.toLowerCase().includes(searchVal) ||
-                            s.owner.toLowerCase().includes(searchVal) ||
-                            s.phone.includes(searchVal) ||
+        const matchSearch = (s.name || '').toLowerCase().includes(searchVal) ||
+                            (s.owner || '').toLowerCase().includes(searchVal) ||
+                            (s.phone || '').includes(searchVal) ||
                             (s.cccdNumber && s.cccdNumber.includes(searchVal)) ||
                             (s.address && s.address.toLowerCase().includes(searchVal));
         const matchCat = (catVal === 'ALL') || (s.category === catVal);
@@ -4070,30 +4845,25 @@
       filtered.forEach(s => {
         const isLocked = s.status === 'LOCKED';
 
-        // 4 TRẠNG THÁI CHUẨN:
-        // 1. Chờ duyệt (PENDING)
-        // 2. Đang hoạt động (OPEN)
-        // 3. Bị khóa (LOCKED)
-        // 4. Tạm nghỉ (CLOSED)
         let statusBadgeHtml = '';
         if (s.status === 'PENDING') {
-          statusBadgeHtml = `<span class="badge badge-status-pending" title="Hồ sơ đang chờ Admin phê duyệt"><span class="badge-dot"></span>Chờ duyệt</span>`;
+          statusBadgeHtml = `<span class="badge badge-status-pending" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Chờ duyệt ▾</span>`;
         } else if (s.status === 'OPEN') {
-          statusBadgeHtml = `<span class="badge badge-status-open" title="Quán đang hoạt động bình thường"><span class="badge-dot"></span>Đang hoạt động</span>`;
+          statusBadgeHtml = `<span class="badge badge-status-open" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Đang hoạt động ▾</span>`;
         } else if (s.status === 'LOCKED') {
-          statusBadgeHtml = `<span class="badge badge-status-locked" title="${s.lockReason || 'Cửa hàng đã bị khóa do vi phạm'}"><span class="badge-dot"></span>Bị khóa</span>`;
+          statusBadgeHtml = `<span class="badge badge-status-locked" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="${s.lockReason || 'Cửa hàng đã bị khóa do vi phạm'}"><span class="badge-dot"></span>Bị khóa ▾</span>`;
         } else if (s.status === 'CLOSED') {
-          statusBadgeHtml = `<span class="badge badge-status-closed" title="Quán đang tạm nghỉ kinh doanh"><span class="badge-dot"></span>Tạm nghỉ</span>`;
+          statusBadgeHtml = `<span class="badge badge-status-closed" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Tạm nghỉ ▾</span>`;
         } else {
-          statusBadgeHtml = `<span class="badge badge-status-open"><span class="badge-dot"></span>Đang hoạt động</span>`;
+          statusBadgeHtml = `<span class="badge badge-status-open" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;"><span class="badge-dot"></span>Đang hoạt động ▾</span>`;
         }
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td onclick="openStoreDetailModal('${s.id}')" style="cursor: pointer;" title="Bấm vào tên quán để xem lịch sử đơn & tài xế thuộc quán">
+          <td onclick="openStoreDetailModal('${s.id}')" style="cursor: pointer;" title="Bấm vào tên quán để xem Đơn hàng, Thực đơn & Tài xế thuộc quán">
             <div class="store-name-link">
               <strong>${s.name}</strong>
-              <span class="store-badge-view">Xem đơn & TX ↗️</span>
+              <span class="store-badge-view">Đơn / Menu / TX ↗️</span>
             </div>
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">${s.address || 'Hồ Chí Minh'}</div>
           </td>
@@ -4102,7 +4872,7 @@
             <div style="font-size: 10.5px; color: var(--text-muted);">${s.gender || 'Chủ quán'} • ${s.hometown || 'TP.HCM'}</div>
           </td>
           <td>
-            <span class="cccd-cell-num" title="Số Căn Cước Công Dân">${s.cccdNumber || '079088012456'}</span>
+            <span class="cccd-cell-num" onclick="openStoreCccdModal('${s.id}')" style="cursor:pointer;" title="Bấm để mở bảng đối soát eKYC CCCD">${s.cccdNumber || '079088012456'} 🔍</span>
           </td>
           <td style="text-align: center;">
             <div class="thumb-cell" onclick="previewImage('${s.cccdFront}', 'Ảnh CCCD Mặt Trước', '${s.name} • Chủ quán: ${s.owner} (CCCD: ${s.cccdNumber})')" title="Bấm để xem ảnh phóng to">
@@ -4124,7 +4894,7 @@
           </td>
           <td style="font-family: monospace; font-weight: 600;">${s.phone}</td>
           <td style="font-weight: 700; color: #D97706;">${s.rating}</td>
-          <td style="font-weight: 700; color: #2563EB;">${s.itemCount || 20} món</td>
+          <td style="font-weight: 700; color: #2563EB; cursor: pointer;" onclick="openStoreDetailModal('${s.id}', 'dishes')" title="Bấm để quản lý thực đơn của quán">${s.itemCount || 0} món 🍲</td>
           <td>
             ${statusBadgeHtml}
           </td>
@@ -4134,12 +4904,18 @@
                 <button class="btn btn-sm btn-primary" onclick="quickApproveStore('${s.id}')" title="Phê duyệt mở quán ngay" style="padding: 3px 10px; font-size: 11px; font-weight: 700;">
                   ✓ Duyệt
                 </button>
+                <button class="btn btn-sm btn-outline" onclick="openStoreCccdModal('${s.id}')" title="Kiểm tra hồ sơ CCCD eKYC" style="padding: 3px 8px; font-size: 11px;">
+                  🪪 eKYC
+                </button>
                 <button class="btn btn-sm btn-danger-outline" onclick="rejectPendingStore('${s.id}')" title="Hủy / Từ chối hồ sơ đăng ký" style="padding: 3px 10px; font-size: 11px; font-weight: 700;">
                   ✕ Hủy
                 </button>
               ` : `
-                <button class="btn-action-icon" onclick="openStoreDetailModal('${s.id}')" title="Xem lịch sử đơn & tài xế thuộc quán" style="color: #0284C7;">
+                <button class="btn-action-icon" onclick="openStoreDetailModal('${s.id}')" title="Xem Đơn hàng, Thực đơn & Tài xế thuộc quán" style="color: #0284C7;">
                   📋
+                </button>
+                <button class="btn-action-icon" onclick="openChangeStatusModal('${s.id}')" title="Đổi 4 trạng thái cửa hàng">
+                  🔄
                 </button>
                 <button class="btn-action-icon key-btn" onclick="openResetPasswordModal('store', '${s.id}', '${s.name}')" title="Cấp lại mật khẩu quán">
                   🔑
@@ -4158,122 +4934,118 @@
       });
     }
 
-    
     function rejectPendingStore(storeId) {
       const store = stores.find(s => s.id === storeId);
       if (!store) return;
       if (confirm(`Bạn có chắc chắn muốn HỦY / TỪ CHỐI hồ sơ đăng ký của cửa hàng "${store.name}" (Chủ quán: ${store.owner})?`)) {
         stores = stores.filter(s => s.id !== storeId);
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`stores/${storeId}`).remove().catch(() => {});
+        }
         saveState();
         renderStores();
         renderOverviewStores();
         renderKPIs();
         addLog(`Hủy hồ sơ đăng ký của quán "${store.name}"`, 'warning');
-        showToast(`Đã hủy hồ sơ đăng ký của quán "${store.name}"!`, 'warning');
+        showToast(`Đã hủy hồ sơ đăng ký của quán "${store.name}" trên Firebase!`, 'warning');
       }
     }
 
     
     /* ========================================================
-       15. STORE ORDERS & DRIVERS DETAIL CONTROLLER
+       15. STORE ORDERS, MENU DISHES & DRIVERS DETAIL + GLOBAL ORDERS
        ======================================================== */
     const STORE_DRIVERS_DATA = {
       'store-1': [
-        { id: 'TX-34', name: 'Nguyễn Văn Tuấn', phone: '0933.998.877', bike: 'Yamaha Sirius (59X1-345.67)', ordersCount: 148, rating: '4.9 ⭐', status: 'DELIVERING', statusText: 'Đang giao đơn #ORD-5541', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-12', name: 'Trần Quốc Bảo', phone: '0902.113.224', bike: 'Honda Wave Alpha (59P2-882.19)', ordersCount: 95, rating: '5.0 ⭐', status: 'AVAILABLE', statusText: 'Đang sẵn sàng nhận đơn', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-08', name: 'Lê Hữu Nghĩa', phone: '0978.445.667', bike: 'Honda Future 125 (59V1-667.89)', ordersCount: 210, rating: '4.8 ⭐', status: 'AVAILABLE', statusText: 'Đang sẵn sàng nhận đơn', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-21', name: 'Vũ Đức Nam', phone: '0919.882.331', bike: 'Yamaha Exciter (59K1-445.12)', ordersCount: 82, rating: '4.9 ⭐', status: 'OFFLINE', statusText: 'Đang nghỉ ca', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80' }
-      ],
-      'store-2': [
-        { id: 'TX-19', name: 'Phạm Hoàng Nam', phone: '0912.333.555', bike: 'Honda AirBlade (59T1-992.33)', ordersCount: 182, rating: '4.9 ⭐', status: 'DELIVERING', statusText: 'Đang giao đơn #ORD-8819', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-25', name: 'Vũ Trọng Trí', phone: '0987.665.443', bike: 'Honda Vision (59K2-554.12)', ordersCount: 76, rating: '4.8 ⭐', status: 'AVAILABLE', statusText: 'Đang sẵn sàng nhận đơn', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-44', name: 'Lâm Văn Phước', phone: '0938.112.990', bike: 'Honda Wave RSX (59M1-771.88)', ordersCount: 130, rating: '5.0 ⭐', status: 'AVAILABLE', statusText: 'Đang sẵn sàng nhận đơn', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' }
-      ],
-      'store-3': [
-        { id: 'TX-05', name: 'Đặng Thanh Tùng', phone: '0945.889.001', bike: 'Honda Winner X (59B1-778.90)', ordersCount: 245, rating: '5.0 ⭐', status: 'AVAILABLE', statusText: 'Đang sẵn sàng nhận đơn', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-42', name: 'Nguyễn Hữu Đạt', phone: '0931.222.444', bike: 'Honda Wave Blade (59C2-334.56)', ordersCount: 110, rating: '4.7 ⭐', status: 'OFFLINE', statusText: 'Đang nghỉ ca', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' }
+        { id: 'TX-34', name: 'Nguyễn Văn Tuấn', phone: '0933.998.877', bike: 'Yamaha Sirius (59X1-345.67)', ordersCount: 148, rating: '4.9 ⭐', status: 'DELIVERING', statusText: 'Đang giao đơn #ORD-5541', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' }
       ]
     };
+    const STORE_ORDERS_DATA = {};
 
-        const STORE_ORDERS_DATA = {
-      'store-1': [
-        { id: 'ORD-5541', time: '15 phút trước', customer: 'Nguyễn Thảo Vy', phone: '0934.888.777', items: '3x Phở Bò Tái Nạm Gầu, 2x Quẩy Giòn', driver: 'Nguyễn Văn Tuấn (TX-34)', status: 'DELIVERING', statusText: 'Đang giao hàng 🚚', note: 'Không lấy hành lá' },
-        { id: 'ORD-5538', time: '1 giờ trước', customer: 'Trần Minh Anh', phone: '0901.234.567', items: '2x Phở Bò Đặc Biệt, 1x Trứng Chần', driver: 'Trần Quốc Bảo (TX-12)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Nước dùng sôi nóng' },
-        { id: 'ORD-5525', time: 'Hôm nay 08:30', customer: 'Lê Hoàng Yến', phone: '0918.765.432', items: '1x Phở Bò Sốt Vang, 1x Trà đá', driver: 'Lê Hữu Nghĩa (TX-08)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-5520', time: 'Hôm qua 19:40', customer: 'Đỗ Hải Đăng', phone: '0922.333.444', items: '4x Phở Gà Ta Lá Chanh', driver: 'Lê Hữu Nghĩa (TX-08)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Thêm nhiều tương ớt' },
-        { id: 'ORD-5514', time: 'Hôm qua 12:15', customer: 'Bùi Anh Tuấn', phone: '0966.777.999', items: '2x Phở Nạm Bò, 1x Tiết chần', driver: 'Nguyễn Văn Tuấn (TX-34)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-5509', time: '2 ngày trước', customer: 'Hoàng Kim Ngân', phone: '0944.222.111', items: '1x Phở Tái Lăn Hà Nội', driver: 'Nguyễn Văn Tuấn (TX-34)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-5490', time: '3 ngày trước', customer: 'Phạm Gia Bảo', phone: '0977.555.444', items: '2x Bún Bò Huế Chả Cua', driver: 'Vũ Đức Nam (TX-21)', status: 'CANCELLED', statusText: 'Khách hủy đơn ❌', note: 'Quán hết bún bò chả cua' },
-        { id: 'ORD-5472', time: '4 ngày trước', customer: 'Trần Minh Anh', phone: '0901.234.567', items: '3x Phở Bò Viên Đặc Biệt', driver: 'Trần Quốc Bảo (TX-12)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' }
-      ],
-      'store-2': [
-        { id: 'ORD-8819', time: '30 phút trước', customer: 'Lê Hoàng Yến', phone: '0918.765.432', items: '2x Trà Sữa Oishi Trân Châu, 2x Trà Đào Cam Sả', driver: 'Phạm Hoàng Nam (TX-19)', status: 'DELIVERING', statusText: 'Đang giao hàng 🚚', note: '50% đường 70% đá' },
-        { id: 'ORD-8815', time: '2 giờ trước', customer: 'Bùi Anh Tuấn', phone: '0966.777.999', items: '5x Trà Sữa Matcha Đậu Đỏ (L)', driver: 'Vũ Trọng Trí (TX-25)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Tách đá riêng' },
-        { id: 'ORD-8809', time: 'Hôm nay 09:15', customer: 'Đỗ Hải Đăng', phone: '0922.333.444', items: '3x Cà Phê Muối Oishi, 1x Bánh ngọt', driver: 'Lâm Văn Phước (TX-44)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-8802', time: 'Hôm qua 15:20', customer: 'Nguyễn Thảo Vy', phone: '0934.888.777', items: '3x Sữa Tươi Trân Châu Đường Đen', driver: 'Phạm Hoàng Nam (TX-19)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Ít ngọt' },
-        { id: 'ORD-8794', time: 'Hôm qua 10:45', customer: 'Hoàng Kim Ngân', phone: '0944.222.111', items: '2x Trà Hoa Quả Nhiệt Đới', driver: 'Vũ Trọng Trí (TX-25)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-8780', time: '3 ngày trước', customer: 'Trần Minh Anh', phone: '0901.234.567', items: '4x Trà Sữa Nướng Vân Nam', driver: 'Lâm Văn Phước (TX-44)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' }
-      ],
-      'store-3': [
-        { id: 'ORD-6623', time: '45 phút trước', customer: 'Vũ Đức Thịnh', phone: '0983.111.222', items: '5x Cơm Sườn Cọng Bì Chả Đặc Biệt', driver: 'Đặng Thanh Tùng (TX-05)', status: 'BOOM', statusText: 'Bị bùng đơn (Bom hàng) ⚠️', note: 'Khách khóa máy không nhận, shipper trả lại quán' },
-        { id: 'ORD-6618', time: '3 giờ trước', customer: 'Phạm Gia Bảo', phone: '0977.555.444', items: '2x Cơm Tấm Sườn Nướng Mật Ong', driver: 'Đặng Thanh Tùng (TX-05)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Thêm canh rong biển' },
-        { id: 'ORD-6612', time: 'Hôm nay 07:45', customer: 'Hoàng Kim Ngân', phone: '0944.222.111', items: '1x Cơm Tấm Ba Chỉ Nướng', driver: 'Nguyễn Hữu Đạt (TX-42)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-6604', time: 'Hôm qua 11:30', customer: 'Trần Minh Anh', phone: '0901.234.567', items: '3x Cơm Sườn Bì Chả Ốp La', driver: 'Nguyễn Hữu Đạt (TX-42)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Nước mắm ngọt kẹo' },
-        { id: 'ORD-6598', time: 'Hôm qua 18:20', customer: 'Nguyễn Thảo Vy', phone: '0934.888.777', items: '2x Cơm Sườn Cọng Đặc Biệt', driver: 'Đặng Thanh Tùng (TX-05)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-6582', time: '2 ngày trước', customer: 'Bùi Anh Tuấn', phone: '0966.777.999', items: '1x Cơm Gà Nướng Mật Ong', driver: 'Nguyễn Hữu Đạt (TX-42)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' }
-      ],
-      'store-4': [
-        { id: 'ORD-4412', time: '1 giờ trước', customer: 'Nguyễn Thảo Vy', phone: '0934.888.777', items: '1x Combo Gà Rán 4 Miếng, 1x Khoai tây lắc', driver: 'Phạm Văn Nam (TX-14)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Quán quên tương ớt' },
-        { id: 'ORD-4408', time: 'Hôm qua 20:10', customer: 'Đỗ Hải Đăng', phone: '0922.333.444', items: '2x Burger Bò Phô Mai, 2x Coca Cola', driver: 'Phạm Văn Nam (TX-14)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-4395', time: '2 ngày trước', customer: 'Trần Minh Anh', phone: '0901.234.567', items: '1x Pizza Hải Sản Phô Mai Size M', driver: 'Lê Hữu Nghĩa (TX-08)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' }
-      ],
-      'store-5': [
-        { id: 'ORD-7712', time: 'Hôm qua 21:30', customer: 'Trần Minh Anh', phone: '0901.234.567', items: '1x Sò huyết cháy tỏi, 1x Ốc hương rang muối', driver: 'Trần Quốc Bảo (TX-12)', status: 'COMPLETED', statusText: 'Giao thành công (Có khiếu nại ATTP) ⚠️', note: 'Khách phản ánh ốc có mùi' },
-        { id: 'ORD-7705', time: '2 ngày trước', customer: 'Hoàng Kim Ngân', phone: '0944.222.111', items: '2x Càng ghẹ rang muối ớt, 1x Nghêu hấp sả', driver: 'Trần Quốc Bảo (TX-12)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-7690', time: '3 ngày trước', customer: 'Bùi Anh Tuấn', phone: '0966.777.999', items: '1x Lẩu hải sản chua cay', driver: 'Nguyễn Văn Tuấn (TX-34)', status: 'CANCELLED', statusText: 'Quán hủy do hết hàng ❌', note: '' }
-      ],
-      'store-6': [
-        { id: 'ORD-3321', time: '25 phút trước', customer: 'Lê Hoàng Yến', phone: '0918.765.432', items: '3x Bánh tráng trộn bò khô, 2x Trà tắc khổng lồ', driver: 'Vũ Đức Nam (TX-21)', status: 'DELIVERING', statusText: 'Đang giao hàng 🚚', note: 'Cay nhiều' },
-        { id: 'ORD-3315', time: '2 giờ trước', customer: 'Nguyễn Thảo Vy', phone: '0934.888.777', items: '2x Bánh tráng cuộn sốt bơ, 1x Cá viên chiên', driver: 'Vũ Đức Nam (TX-21)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-3301', time: 'Hôm qua', customer: 'Phạm Gia Bảo', phone: '0977.555.444', items: '4x Trà tắc nha đam mật ong', driver: 'Vũ Đức Nam (TX-21)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' }
-      ],
-      'store-7': [
-        { id: 'ORD-2210', time: 'Hôm qua 11:30', customer: 'Hoàng Kim Ngân', phone: '0944.222.111', items: '2x Cơm chay thập cẩm, 1x Canh chua chay', driver: 'Lê Hữu Nghĩa (TX-08)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Quán đang tạm nghỉ' },
-        { id: 'ORD-2201', time: '3 ngày trước', customer: 'Trần Minh Anh', phone: '0901.234.567', items: '1x Hủ tiếu chay Nam Vang', driver: 'Lê Hữu Nghĩa (TX-08)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' }
-      ],
-      'store-8': [
-        { id: 'ORD-1105', time: '2 ngày trước', customer: 'Đỗ Mỹ Linh', phone: '0903.654.321', items: '1x Bánh kem sinh nhật viết chữ riêng', driver: 'Nguyễn Văn Tuấn (TX-34)', status: 'CANCELLED', statusText: 'Khách tự ý hủy đơn ❌', note: 'Khiếu nại KN-206' },
-        { id: 'ORD-1098', time: '4 ngày trước', customer: 'Lê Hoàng Yến', phone: '0918.765.432', items: '2x Bánh tiramisu cacao, 1x Chè sầu riêng', driver: 'Nguyễn Văn Tuấn (TX-34)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' }
-      ]
-    };
+    let currentDetailStoreId = null;
+    let currentDetailStoreOrders = [];
+
+    function syncStoreStatusToFirebase(store, newStatus, reason = '', penaltyTier = null) {
+      if (!store) return;
+      store.status = newStatus;
+      store.storeStatus = newStatus;
+      store.open = (newStatus === 'OPEN');
+      if (newStatus === 'OPEN') {
+        store.cccdStatus = 'VERIFIED';
+        store.penaltyTier = 'NONE';
+        delete store.lockReason;
+      } else if (newStatus === 'LOCKED') {
+        store.penaltyTier = penaltyTier || 'LOCK';
+        store.lockReason = reason || store.lockReason || 'Vi phạm quy định nền tảng';
+      } else if (newStatus === 'CLOSED') {
+        store.penaltyTier = penaltyTier || 'NONE';
+        if (reason) store.lockReason = reason;
+      }
+
+      if (fbDb && isFirebaseReady) {
+        const updates = {
+          status: newStatus,
+          storeStatus: newStatus,
+          open: newStatus === 'OPEN',
+          cccdStatus: store.cccdStatus || 'VERIFIED',
+          penaltyTier: store.penaltyTier || 'NONE',
+          lockReason: store.lockReason || null,
+          penaltyReason: store.lockReason || ''
+        };
+        fbDb.ref(`stores/${store.id}`).update(updates).catch(() => {});
+        if (store.ownerId) {
+          fbDb.ref(`users/${store.ownerId}`).update({
+            status: newStatus === 'LOCKED' ? 'LOCKED' : 'ACTIVE',
+            isActive: newStatus !== 'LOCKED'
+          }).catch(() => {});
+        }
+      }
+    }
 
     function getStoreOrders(storeId, storeName) {
-      if (STORE_ORDERS_DATA[storeId]) return STORE_ORDERS_DATA[storeId];
-      // Generate default orders for other stores
-      return [
-        { id: 'ORD-' + Math.floor(1000 + Math.random() * 9000), time: '20 phút trước', customer: 'Trần Minh Anh', phone: '0901.234.567', items: `2x Phần đặc biệt của quán ${storeName}`, driver: 'Nguyễn Văn Tuấn (TX-34)', status: 'DELIVERING', statusText: 'Đang giao hàng 🚚', note: 'Giao nhanh giúp khách' },
-        { id: 'ORD-' + Math.floor(1000 + Math.random() * 9000), time: '2 giờ trước', customer: 'Nguyễn Thảo Vy', phone: '0934.888.777', items: `3x Suất ăn trưa tiêu chuẩn`, driver: 'Trần Quốc Bảo (TX-12)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: '' },
-        { id: 'ORD-' + Math.floor(1000 + Math.random() * 9000), time: 'Hôm qua', customer: 'Lê Hoàng Yến', phone: '0918.765.432', items: `1x Combo gia đình`, driver: 'Lê Hữu Nghĩa (TX-08)', status: 'COMPLETED', statusText: 'Giao thành công ✅', note: 'Giao tận cửa lầu 3' }
-      ];
+      const matched = liveOrders.filter(o =>
+        o.shopId === storeId ||
+        (storeName && o.storeName && o.storeName.toLowerCase() === storeName.toLowerCase())
+      );
+      if (matched.length > 0) return matched;
+      return STORE_ORDERS_DATA[storeId] || [];
     }
 
     function getStoreDrivers(storeId, storeName) {
-      if (STORE_DRIVERS_DATA[storeId]) return STORE_DRIVERS_DATA[storeId];
-      return [
-        { id: 'TX-34', name: 'Nguyễn Văn Tuấn', phone: '0933.998.877', bike: 'Yamaha Sirius (59X1-345.67)', ordersCount: 148, rating: '4.9 ⭐', status: 'DELIVERING', statusText: 'Đang phụ trách tuyến giao quán', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-12', name: 'Trần Quốc Bảo', phone: '0902.113.224', bike: 'Honda Wave Alpha (59P2-882.19)', ordersCount: 95, rating: '5.0 ⭐', status: 'AVAILABLE', statusText: 'Đang sẵn sàng nhận đơn', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
-        { id: 'TX-08', name: 'Lê Hữu Nghĩa', phone: '0978.445.667', bike: 'Honda Future 125 (59V1-667.89)', ordersCount: 210, rating: '4.8 ⭐', status: 'AVAILABLE', statusText: 'Đang sẵn sàng nhận đơn', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80' }
-      ];
+      if (liveDrivers.length > 0) {
+        const storeSpecific = liveDrivers.filter(d =>
+          d.shopId === storeId ||
+          liveOrders.some(o => o.shopId === storeId && o.shipperId === d.id)
+        );
+        return storeSpecific.length > 0 ? storeSpecific : liveDrivers;
+      }
+      return STORE_DRIVERS_DATA[storeId] || [];
     }
 
-    let currentDetailStoreOrders = [];
+    function refreshOpenStoreDetailModal() {
+      if (!currentDetailStoreId) return;
+      const modal = document.getElementById('modal-store-detail');
+      if (!modal || !modal.classList.contains('show')) return;
+      const activeSubTab = document.getElementById('btn-subtab-dishes')?.classList.contains('active')
+        ? 'dishes'
+        : (document.getElementById('btn-subtab-drivers')?.classList.contains('active') ? 'drivers' : 'orders');
+      openStoreDetailModal(currentDetailStoreId, activeSubTab);
+    }
 
-    function openStoreDetailModal(storeId) {
+    function openStoreDetailModal(storeId, initialSubTab = 'orders') {
       const store = stores.find(s => s.id === storeId);
       if (!store) return;
+      currentDetailStoreId = store.id;
+
+      const dishesObj = store.dishes && typeof store.dishes === 'object' ? store.dishes : {};
+      const dishesList = Object.entries(dishesObj).map(([did, d]) => ({
+        ...d,
+        id: d.id || d.dishId || did,
+        dishId: d.dishId || d.id || did
+      }));
 
       document.getElementById('store-detail-modal-title').textContent = `Chi Tiết Hoạt Động: ${store.name}`;
-      document.getElementById('store-detail-modal-sub').textContent = `Chủ quán: ${store.owner} • SĐT: ${store.phone} • Địa chỉ: ${store.address || 'TP.HCM'}`;
+      document.getElementById('store-detail-modal-sub').textContent = `Mã quán: ${store.id} • Chủ quán: ${store.owner} • SĐT: ${store.phone} • Địa chỉ: ${store.address || 'TP.HCM'}`;
       
       document.getElementById('detail-store-name').textContent = store.name;
       document.getElementById('detail-store-address').textContent = store.address || 'TP. Hồ Chí Minh';
@@ -4281,7 +5053,7 @@
       document.getElementById('detail-store-phone').textContent = store.phone;
       document.getElementById('detail-store-cccd').textContent = store.cccdNumber || '079088012456';
       document.getElementById('detail-store-rating').textContent = store.rating || '4.9 ⭐';
-      document.getElementById('detail-store-items').textContent = `${store.itemCount || 20} món`;
+      document.getElementById('detail-store-items').textContent = `${dishesList.length || store.itemCount || 0} món`;
 
       const statusBadgeEl = document.getElementById('detail-store-status-badge');
       if (store.status === 'PENDING') {
@@ -4294,14 +5066,13 @@
         statusBadgeEl.innerHTML = '<span class="badge badge-status-open"><span class="badge-dot"></span>Đang hoạt động</span>';
       }
 
-      // Load all orders for store
+      // 1. Load Orders for store
       currentDetailStoreOrders = getStoreOrders(store.id, store.name);
       document.getElementById('detail-orders-count-badge').textContent = currentDetailStoreOrders.length;
       
-      // Calculate Stats
       const totalOrders = currentDetailStoreOrders.length;
       const successOrders = currentDetailStoreOrders.filter(o => o.status === 'COMPLETED').length;
-      const deliveringOrders = currentDetailStoreOrders.filter(o => o.status === 'DELIVERING').length;
+      const deliveringOrders = currentDetailStoreOrders.filter(o => ['DELIVERING', 'ASSIGNED', 'PREPARING', 'READY', 'PENDING'].includes(o.status)).length;
       const failedOrders = currentDetailStoreOrders.filter(o => o.status === 'BOOM' || o.status === 'CANCELLED').length;
 
       document.getElementById('stat-total-orders').textContent = totalOrders;
@@ -4309,20 +5080,21 @@
       document.getElementById('stat-delivering-orders').textContent = deliveringOrders;
       document.getElementById('stat-failed-orders').textContent = failedOrders;
 
-      // Reset filter inputs
-      if (document.getElementById('filter-store-order-search')) document.getElementById('filter-store-order-search').value = '';
-      if (document.getElementById('filter-store-order-status')) document.getElementById('filter-store-order-status').value = 'ALL';
-
       renderStoreOrdersList(currentDetailStoreOrders);
 
-      // Populate Drivers
+      // 2. Load Menu Dishes for store
+      const dishesBadge = document.getElementById('detail-dishes-count-badge');
+      if (dishesBadge) dishesBadge.textContent = dishesList.length;
+      renderStoreDishesList(store.id, dishesList);
+
+      // 3. Populate Drivers
       const drivers = getStoreDrivers(store.id, store.name);
       document.getElementById('detail-drivers-count-badge').textContent = drivers.length;
       const driverGrid = document.getElementById('driver-grid-container');
       driverGrid.innerHTML = '';
 
       if (drivers.length === 0) {
-        driverGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: var(--text-muted);">Chưa có tài xế cố định gắn với cửa hàng này.</div>`;
+        driverGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: var(--text-muted);">Chưa có tài xế nào trên hệ thống.</div>`;
       } else {
         drivers.forEach(d => {
           let driverStatusBadge = '';
@@ -4342,7 +5114,7 @@
               <div class="driver-meta">
                 <h4>
                   <span>${d.name}</span>
-                  <span class="driver-code">${d.id}</span>
+                  <span class="driver-code">${d.id.slice(0, 8)}</span>
                 </h4>
                 <div class="driver-phone">📞 ${d.phone}</div>
                 <div style="margin-top: 4px;">${driverStatusBadge}</div>
@@ -4354,7 +5126,7 @@
                 <strong>${d.bike}</strong>
               </div>
               <div>
-                <span>📦 Đơn hoàn thành cho quán:</span>
+                <span>📦 Tổng đơn giao:</span>
                 <strong style="color: #2563EB;">${d.ordersCount} đơn</strong>
               </div>
               <div>
@@ -4373,9 +5145,168 @@
         });
       }
 
-      // Default to orders subtab
-      switchStoreDetailTab('orders');
+      switchStoreDetailTab(initialSubTab || 'orders');
       openModal('modal-store-detail');
+    }
+
+    function renderStoreDishesList(storeId, dishesList) {
+      const tbody = document.getElementById('tbody-store-detail-dishes');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (!dishesList || dishesList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--text-muted);">Cửa hàng này chưa có món ăn nào trong node <code>stores/${storeId}/dishes</code>. Bấm <strong>"+ Thêm Món Mới Vào Quán"</strong> để tạo món!</td></tr>`;
+        return;
+      }
+
+      dishesList.forEach(dish => {
+        const isAvailable = dish.isAvailable !== false && dish.available !== false;
+        const isHidden = dish.isHidden === true || dish.hidden === true;
+        const imgUrl = dish.imageUrl || dish.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <img src="${imgUrl}" style="width: 42px; height: 42px; border-radius: 8px; object-fit: cover; border: 1px solid #E2E8F0;" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80'">
+              <div>
+                <strong style="color: var(--text-main);">${dish.name || 'Món ăn'}</strong>
+                <div style="font-size: 11px; color: var(--text-muted); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dish.description || 'Món ngon chuẩn vị Oishi'}</div>
+              </div>
+            </div>
+          </td>
+          <td style="font-weight: 800; color: var(--primary); font-family: monospace;">${formatVnd(dish.price || 0)}</td>
+          <td><span class="badge badge-info">${dish.categoryId || dish.category || 'Món chính'}</span></td>
+          <td>
+            ${isHidden
+              ? '<span class="badge badge-locked">🚫 Đã ẩn</span>'
+              : (isAvailable
+                  ? '<span class="badge badge-active">🟢 Đang bán</span>'
+                  : '<span class="badge badge-warning">⏸️ Hết món</span>')
+            }
+          </td>
+          <td style="text-align: right;">
+            <div class="action-group" style="justify-content: flex-end;">
+              <button class="btn btn-outline btn-sm" onclick="toggleStoreDishAvailable('${storeId}', '${dish.id}')" title="Bật/Tắt trạng thái Còn món">
+                ${isAvailable ? '⏸️ Báo hết' : '🟢 Mở bán'}
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openEditDishModal('${storeId}', '${dish.id}')" title="Chỉnh sửa món">
+                ✏️
+              </button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteStoreDish('${storeId}', '${dish.id}')" title="Xóa món khỏi thực đơn">
+                🗑️
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openAddDishModal() {
+      if (!currentDetailStoreId) return;
+      document.getElementById('modal-dish-title').textContent = '🍲 Thêm Món Ăn Mới Vào Quán';
+      document.getElementById('form-dish-id').value = '';
+      document.getElementById('form-dish-name').value = '';
+      document.getElementById('form-dish-price').value = '45000';
+      document.getElementById('form-dish-cat').value = 'Món chính';
+      document.getElementById('form-dish-image').value = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
+      document.getElementById('form-dish-desc').value = '';
+      openModal('modal-dish');
+    }
+
+    function openEditDishModal(storeId, dishId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store || !store.dishes || !store.dishes[dishId]) return;
+      const d = store.dishes[dishId];
+      currentDetailStoreId = storeId;
+      document.getElementById('modal-dish-title').textContent = '✏️ Chỉnh Sửa Món: ' + (d.name || '');
+      document.getElementById('form-dish-id').value = dishId;
+      document.getElementById('form-dish-name').value = d.name || '';
+      document.getElementById('form-dish-price').value = d.price || 45000;
+      document.getElementById('form-dish-cat').value = d.categoryId || d.category || 'Món chính';
+      document.getElementById('form-dish-image').value = d.imageUrl || d.image || '';
+      document.getElementById('form-dish-desc').value = d.description || '';
+      openModal('modal-dish');
+    }
+
+    async function saveStoreDish(e) {
+      e.preventDefault();
+      if (!currentDetailStoreId) return;
+      const store = stores.find(s => s.id === currentDetailStoreId);
+      if (!store) return;
+
+      const existingId = document.getElementById('form-dish-id').value;
+      const dishId = existingId || ('dish_' + Date.now());
+      const name = document.getElementById('form-dish-name').value.trim();
+      const price = Number(document.getElementById('form-dish-price').value || 0);
+      const category = document.getElementById('form-dish-cat').value.trim() || 'Món chính';
+      const imageUrl = document.getElementById('form-dish-image').value.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
+      const description = document.getElementById('form-dish-desc').value.trim();
+
+      const dishData = {
+        id: dishId,
+        dishId: dishId,
+        storeId: store.id,
+        name: name,
+        price: price,
+        categoryId: category,
+        category: category,
+        imageUrl: imageUrl,
+        description: description,
+        isAvailable: true,
+        available: true,
+        isHidden: false
+      };
+
+      if (!store.dishes) store.dishes = {};
+      store.dishes[dishId] = dishData;
+      store.itemCount = Object.keys(store.dishes).length;
+
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`stores/${store.id}/dishes/${dishId}`).update(dishData).catch(() => {});
+      }
+
+      saveState();
+      closeModal('modal-dish');
+      openStoreDetailModal(store.id, 'dishes');
+      renderStores();
+      addLog(`${existingId ? 'Cập nhật' : 'Thêm mới'} món "${name}" (${formatVnd(price)}) tại quán "${store.name}"`, 'success');
+      showToast(`Đã lưu món "${name}" lên Firebase!`, 'success');
+    }
+
+    async function toggleStoreDishAvailable(storeId, dishId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store || !store.dishes || !store.dishes[dishId]) return;
+      const dish = store.dishes[dishId];
+      const nextAvail = !(dish.isAvailable !== false && dish.available !== false);
+      dish.isAvailable = nextAvail;
+      dish.available = nextAvail;
+      dish.isHidden = false;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`stores/${storeId}/dishes/${dishId}`).update({
+          isAvailable: nextAvail,
+          available: nextAvail,
+          isHidden: false
+        }).catch(() => {});
+      }
+      openStoreDetailModal(storeId, 'dishes');
+      showToast(`Đã chuyển món "${dish.name}" sang ${nextAvail ? 'Đang bán 🟢' : 'Tạm hết món ⏸️'}`, 'info');
+    }
+
+    async function deleteStoreDish(storeId, dishId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store || !store.dishes || !store.dishes[dishId]) return;
+      const dishName = store.dishes[dishId].name || dishId;
+      if (!confirm(`Xóa món "${dishName}" khỏi thực đơn của quán "${store.name}"?`)) return;
+      delete store.dishes[dishId];
+      store.itemCount = Object.keys(store.dishes).length;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`stores/${storeId}/dishes/${dishId}`).remove().catch(() => {});
+      }
+      openStoreDetailModal(storeId, 'dishes');
+      renderStores();
+      addLog(`Xóa món "${dishName}" khỏi quán "${store.name}"`, 'danger');
+      showToast(`Đã xóa món "${dishName}" khỏi Firebase!`, 'info');
     }
 
     function filterCurrentStoreOrders() {
@@ -4383,11 +5314,11 @@
       const statusVal = document.getElementById('filter-store-order-status')?.value || 'ALL';
 
       const filtered = currentDetailStoreOrders.filter(ord => {
-        const matchSearch = ord.id.toLowerCase().includes(searchVal) ||
-                            ord.customer.toLowerCase().includes(searchVal) ||
-                            ord.phone.includes(searchVal) ||
-                            ord.items.toLowerCase().includes(searchVal) ||
-                            ord.driver.toLowerCase().includes(searchVal);
+        const matchSearch = (ord.id || '').toLowerCase().includes(searchVal) ||
+                            (ord.customer || '').toLowerCase().includes(searchVal) ||
+                            (ord.phone || '').includes(searchVal) ||
+                            (ord.items || '').toLowerCase().includes(searchVal) ||
+                            (ord.driver || '').toLowerCase().includes(searchVal);
         const matchStatus = (statusVal === 'ALL') || (ord.status === statusVal);
         return matchSearch && matchStatus;
       });
@@ -4401,26 +5332,15 @@
       orderTbody.innerHTML = '';
 
       if (orders.length === 0) {
-        orderTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--text-muted);">Không tìm thấy đơn đặt món nào phù hợp với bộ lọc.</td></tr>`;
+        orderTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--text-muted);">Chưa có đơn đặt món nào khớp với bộ lọc tại quán này.</td></tr>`;
         return;
       }
 
       orders.forEach(ord => {
         const tr = document.createElement('tr');
-        let statusBadge = '';
-        if (ord.status === 'COMPLETED') {
-          statusBadge = '<span class="badge badge-active" style="font-size: 11px;">✓ Giao thành công</span>';
-        } else if (ord.status === 'DELIVERING') {
-          statusBadge = '<span class="badge" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size: 11px;">🚚 Đang giao</span>';
-        } else if (ord.status === 'BOOM') {
-          statusBadge = '<span class="badge badge-locked" style="font-size: 11px;">⚠️ Bùng đơn</span>';
-        } else {
-          statusBadge = '<span class="badge" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; font-size: 11px;">❌ Đã hủy</span>';
-        }
-
         tr.innerHTML = `
           <td>
-            <strong style="color: #2563EB; font-family: monospace;">#${ord.id}</strong>
+            <strong style="color: #2563EB; font-family: monospace;">#${ord.id.slice(-8)}</strong>
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">🕒 ${ord.time}</div>
           </td>
           <td>
@@ -4429,6 +5349,7 @@
           </td>
           <td>
             <div style="font-size: 12.5px; font-weight: 600; color: var(--text-main);">${ord.items}</div>
+            <div style="font-size: 11.5px; font-weight: 800; color: var(--primary); margin-top: 2px;">Tổng: ${formatVnd(ord.totalAmount || 0)}</div>
             ${ord.note ? `<div style="font-size: 11px; color: #D97706; margin-top: 2px;">📝 Ghi chú: ${ord.note}</div>` : ''}
           </td>
           <td>
@@ -4439,7 +5360,18 @@
               </div>
             </div>
           </td>
-          <td>${statusBadge}</td>
+          <td>
+            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; font-weight: 700;" onchange="updateLiveOrderStatus('${ord.id}', this.value)">
+              <option value="PENDING" ${ord.status === 'PENDING' ? 'selected' : ''}>⏳ PENDING (Chờ nhận)</option>
+              <option value="PREPARING" ${ord.status === 'PREPARING' ? 'selected' : ''}>🍳 PREPARING (Đang nấu)</option>
+              <option value="READY" ${ord.status === 'READY' ? 'selected' : ''}>🛍️ READY (Chờ lấy)</option>
+              <option value="ASSIGNED" ${ord.status === 'ASSIGNED' ? 'selected' : ''}>🛵 ASSIGNED (Đã nhận)</option>
+              <option value="DELIVERING" ${ord.status === 'DELIVERING' ? 'selected' : ''}>🚚 DELIVERING (Đang giao)</option>
+              <option value="COMPLETED" ${ord.status === 'COMPLETED' ? 'selected' : ''}>✅ COMPLETED (Hoàn tất)</option>
+              <option value="BOOM" ${ord.status === 'BOOM' ? 'selected' : ''}>🚨 BOOM (Bùng hàng)</option>
+              <option value="CANCELLED" ${ord.status === 'CANCELLED' ? 'selected' : ''}>❌ CANCELLED (Đã hủy)</option>
+            </select>
+          </td>
         `;
         orderTbody.appendChild(tr);
       });
@@ -4447,35 +5379,264 @@
 
     function switchStoreDetailTab(tab) {
       const btnOrders = document.getElementById('btn-subtab-orders');
+      const btnDishes = document.getElementById('btn-subtab-dishes');
       const btnDrivers = document.getElementById('btn-subtab-drivers');
       const paneOrders = document.getElementById('pane-store-detail-orders');
+      const paneDishes = document.getElementById('pane-store-detail-dishes');
       const paneDrivers = document.getElementById('pane-store-detail-drivers');
 
-      if (tab === 'orders') {
-        btnOrders.classList.add('active');
-        btnDrivers.classList.remove('active');
-        paneOrders.style.display = 'block';
-        paneDrivers.style.display = 'none';
-      } else {
-        btnOrders.classList.remove('active');
-        btnDrivers.classList.add('active');
-        paneOrders.style.display = 'none';
-        paneDrivers.style.display = 'block';
+      if (btnOrders) btnOrders.classList.toggle('active', tab === 'orders');
+      if (btnDishes) btnDishes.classList.toggle('active', tab === 'dishes');
+      if (btnDrivers) btnDrivers.classList.toggle('active', tab === 'drivers');
+
+      if (paneOrders) paneOrders.style.display = (tab === 'orders') ? 'block' : 'none';
+      if (paneDishes) paneDishes.style.display = (tab === 'dishes') ? 'block' : 'none';
+      if (paneDrivers) paneDrivers.style.display = (tab === 'drivers') ? 'block' : 'none';
+    }
+
+    /* ========================================================
+       15B. GLOBAL ORDERS & DRIVERS CONTROLLER (TAB-ORDERS)
+       ======================================================== */
+    function populateGlobalOrderStoreFilter() {
+      const sel = document.getElementById('filter-global-order-store');
+      if (!sel) return;
+      const curr = sel.value || 'ALL';
+      sel.innerHTML = '<option value="ALL">Tất cả cửa hàng</option>';
+      stores.forEach(s => {
+        sel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+      });
+      sel.value = curr;
+    }
+
+    function setGlobalOrderFilter(statusVal) {
+      const sel = document.getElementById('filter-global-order-status');
+      if (sel) {
+        sel.value = statusVal;
+        renderGlobalOrders();
       }
+    }
+
+    function renderGlobalOrders() {
+      const tbody = document.getElementById('tbody-global-orders');
+      const counter = document.getElementById('global-order-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-global-order-search')?.value || '').toLowerCase().trim();
+      const storeVal = document.getElementById('filter-global-order-store')?.value || 'ALL';
+      const statusVal = document.getElementById('filter-global-order-status')?.value || 'ALL';
+
+      const filtered = liveOrders.filter(o => {
+        const matchSearch = (o.id || '').toLowerCase().includes(searchVal) ||
+                            (o.customer || '').toLowerCase().includes(searchVal) ||
+                            (o.phone || '').includes(searchVal) ||
+                            (o.storeName || '').toLowerCase().includes(searchVal) ||
+                            (o.items || '').toLowerCase().includes(searchVal) ||
+                            (o.driver || '').toLowerCase().includes(searchVal);
+        const matchStore = (storeVal === 'ALL') || (o.shopId === storeVal);
+        let matchStatus = true;
+        if (statusVal === 'PROCESSING') {
+          matchStatus = ['PENDING', 'PREPARING', 'READY', 'ASSIGNED'].includes(o.status);
+        } else if (statusVal === 'FAILED') {
+          matchStatus = ['BOOM', 'CANCELLED'].includes(o.status);
+        } else if (statusVal !== 'ALL') {
+          matchStatus = (o.status === statusVal);
+        }
+        return matchSearch && matchStore && matchStatus;
+      });
+
+      if (counter) counter.textContent = filtered.length;
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="empty-state">
+              <h3>Chưa có đơn hàng nào khớp bộ lọc</h3>
+              <p>Đơn hàng đặt từ App Khách Hàng sẽ xuất hiện tức thì tại đây qua Firebase Realtime Database</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(ord => {
+        const driverOptions = [
+          `<option value="">-- Chưa gán tài xế --</option>`,
+          ...liveDrivers.map(d => `<option value="${d.id}" ${ord.shipperId === d.id ? 'selected' : ''}>🛵 ${d.name} (${d.phone})</option>`)
+        ].join('');
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <strong style="color: #2563EB; font-family: monospace;">#${ord.id.slice(-8)}</strong>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">🕒 ${ord.time}</div>
+          </td>
+          <td>
+            <strong style="color: var(--text-main); cursor: pointer;" onclick="openStoreDetailModal('${ord.shopId}')">${ord.storeName} ↗️</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Mã quán: ${ord.shopId || 'N/A'}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700;">${ord.customer}</div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">📞 ${ord.phone}</div>
+            <div style="font-size: 11px; color: var(--text-light); max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${ord.address}">📍 ${ord.address}</div>
+          </td>
+          <td>
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-main); max-width: 240px;">${ord.items}</div>
+            <div style="font-size: 12px; font-weight: 800; color: var(--primary); margin-top: 3px;">💰 ${formatVnd(ord.totalAmount)}</div>
+          </td>
+          <td>
+            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; max-width: 175px;" onchange="assignLiveOrderDriver('${ord.id}', this.value)">
+              ${driverOptions}
+            </select>
+          </td>
+          <td>
+            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; font-weight: 700;" onchange="updateLiveOrderStatus('${ord.id}', this.value)">
+              <option value="PENDING" ${ord.status === 'PENDING' ? 'selected' : ''}>⏳ PENDING (Chờ nhận)</option>
+              <option value="PREPARING" ${ord.status === 'PREPARING' ? 'selected' : ''}>🍳 PREPARING (Đang nấu)</option>
+              <option value="READY" ${ord.status === 'READY' ? 'selected' : ''}>🛍️ READY (Chờ lấy)</option>
+              <option value="ASSIGNED" ${ord.status === 'ASSIGNED' ? 'selected' : ''}>🛵 ASSIGNED (Đã nhận)</option>
+              <option value="DELIVERING" ${ord.status === 'DELIVERING' ? 'selected' : ''}>🚚 DELIVERING (Đang giao)</option>
+              <option value="COMPLETED" ${ord.status === 'COMPLETED' ? 'selected' : ''}>✅ COMPLETED (Hoàn tất)</option>
+              <option value="BOOM" ${ord.status === 'BOOM' ? 'selected' : ''}>🚨 BOOM (Bùng hàng)</option>
+              <option value="CANCELLED" ${ord.status === 'CANCELLED' ? 'selected' : ''}>❌ CANCELLED (Đã hủy)</option>
+            </select>
+          </td>
+          <td style="text-align: right;">
+            <button class="btn-action-icon" onclick="deleteLiveOrder('${ord.id}')" title="Xóa đơn hàng khỏi Firebase">
+              🗑️
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function updateLiveOrderStatus(orderId, newStatus) {
+      const ord = liveOrders.find(o => o.id === orderId);
+      if (ord) ord.status = newStatus;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`orders/${orderId}`).update({
+          status: newStatus,
+          orderStatus: newStatus,
+          updatedAt: Date.now()
+        }).catch(() => {});
+      }
+      addLog(`Cập nhật trạng thái đơn #${orderId.slice(-6)} sang ${newStatus}`, newStatus === 'BOOM' ? 'danger' : 'info');
+      showToast(`Đã chuyển đơn #${orderId.slice(-6)} sang trạng thái ${newStatus}!`, 'success');
+    }
+
+    async function assignLiveOrderDriver(orderId, driverId) {
+      const drv = liveDrivers.find(d => d.id === driverId);
+      const shipperName = drv ? drv.name : '';
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`orders/${orderId}`).update({
+          shipperId: driverId || '',
+          shipperName: shipperName,
+          updatedAt: Date.now()
+        }).catch(() => {});
+      }
+      addLog(`Điều phối tài xế "${shipperName || 'Bỏ gán'}" cho đơn #${orderId.slice(-6)}`, 'info');
+      showToast(`Đã gán tài xế "${shipperName || 'Chưa gán'}" cho đơn #${orderId.slice(-6)}!`, 'success');
+    }
+
+    async function deleteLiveOrder(orderId) {
+      if (!confirm(`Xóa đơn hàng #${orderId} khỏi Firebase Realtime Database?`)) return;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`orders/${orderId}`).remove().catch(() => {});
+      }
+      addLog(`Xóa đơn hàng #${orderId.slice(-6)}`, 'danger');
+      showToast(`Đã xóa đơn hàng #${orderId.slice(-6)}!`, 'info');
+    }
+
+    function renderGlobalDrivers() {
+      const grid = document.getElementById('global-drivers-grid');
+      const counter = document.getElementById('global-driver-counter');
+      if (!grid) return;
+      if (counter) counter.textContent = liveDrivers.length;
+      grid.innerHTML = '';
+
+      if (liveDrivers.length === 0) {
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding: 24px; color: var(--text-muted);">Chưa có tài xế nào trên Firebase.</div>`;
+        return;
+      }
+
+      liveDrivers.forEach(d => {
+        let badge = '<span class="badge badge-active" style="font-size: 10px;">🟢 Đang trực tuyến</span>';
+        if (!d.isActive) badge = '<span class="badge badge-locked" style="font-size: 10px;">🔴 Đã khóa TK</span>';
+        else if (d.status === 'DELIVERING') badge = '<span class="badge" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size: 10px;">🚚 Đang giao đơn</span>';
+        else if (d.status === 'OFFLINE') badge = '<span class="badge" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; font-size: 10px;">⏸️ Ngoại tuyến</span>';
+
+        const card = document.createElement('div');
+        card.className = 'driver-card';
+        card.innerHTML = `
+          <div class="driver-card-header">
+            <img src="${d.avatar}" class="driver-avatar" alt="${d.name}" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
+            <div class="driver-meta">
+              <h4>
+                <span>${d.name}</span>
+                <span class="driver-code">${d.id.slice(0, 8)}</span>
+              </h4>
+              <div class="driver-phone">📞 ${d.phone}</div>
+              <div style="margin-top: 4px;">${badge}</div>
+            </div>
+          </div>
+          <div class="driver-details-list">
+            <div>
+              <span>🏍️ Biển số / Xe:</span>
+              <strong>${d.bike}</strong>
+            </div>
+            <div>
+              <span>📦 Tổng đơn phụ trách:</span>
+              <strong style="color: #2563EB;">${d.ordersCount} đơn</strong>
+            </div>
+            <div>
+              <span>⭐ Đánh giá:</span>
+              <strong style="color: #D97706;">${d.rating}</strong>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <span style="font-size: 11px; color: var(--text-muted);">${d.statusText}</span>
+            <button class="btn btn-sm ${d.isActive ? 'btn-danger-outline' : 'btn-primary'}" style="padding: 2px 8px; font-size: 11px;" onclick="toggleDriverActiveStatus('${d.id}')">
+              ${d.isActive ? '🔒 Khóa TX' : '🔓 Mở khóa'}
+            </button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function toggleDriverActiveStatus(driverId) {
+      const drv = liveDrivers.find(d => d.id === driverId);
+      if (!drv) return;
+      const nextActive = !drv.isActive;
+      drv.isActive = nextActive;
+      if (fbDb && isFirebaseReady) {
+        await Promise.all([
+          fbDb.ref(`users/${driverId}`).update({
+            isActive: nextActive,
+            status: nextActive ? 'ACTIVE' : 'LOCKED'
+          }).catch(() => {}),
+          fbDb.ref(`drivers/${driverId}`).update({
+            isOnline: nextActive,
+            status: nextActive ? 'AVAILABLE' : 'LOCKED'
+          }).catch(() => {})
+        ]);
+      }
+      renderGlobalDrivers();
+      addLog(`${nextActive ? 'Mở khóa' : 'Khóa'} tài khoản tài xế "${drv.name}"`, nextActive ? 'success' : 'danger');
+      showToast(`Đã ${nextActive ? 'mở khóa' : 'khóa'} tài xế "${drv.name}" trên Firebase!`, nextActive ? 'success' : 'danger');
     }
 
     function quickApproveStore(storeId) {
       const store = stores.find(s => s.id === storeId);
       if (!store) return;
-      store.status = 'OPEN';
-      store.cccdStatus = 'VERIFIED';
-      delete store.lockReason;
+      syncStoreStatusToFirebase(store, 'OPEN', '', 'NONE');
       saveState();
       renderStores();
       renderOverviewStores();
       renderKPIs();
       addLog(`Phê duyệt cửa hàng "${store.name}" sang trạng thái Đang hoạt động`, 'success');
-      showToast(`Đã duyệt quán "${store.name}"! Trạng thái hiện tại: Đang hoạt động 🟢`, 'success');
+      showToast(`Đã duyệt quán "${store.name}" trên Firebase! Trạng thái: Đang hoạt động 🟢`, 'success');
     }
 
     function openChangeStatusModal(storeId) {
@@ -4511,12 +5672,12 @@
         'CLOSED': 'Tạm nghỉ ⏸️'
       };
 
-      store.status = newStatus;
-      if (newStatus === 'LOCKED') {
-        store.lockReason = reason || 'Vi phạm quy định chính sách nền tảng';
-      } else {
-        delete store.lockReason;
-      }
+      syncStoreStatusToFirebase(
+        store,
+        newStatus,
+        newStatus === 'LOCKED' ? (reason || 'Vi phạm quy định chính sách nền tảng') : '',
+        newStatus === 'LOCKED' ? 'LOCK' : 'NONE'
+      );
 
       saveState();
       closeModal('modal-change-status');
@@ -4526,7 +5687,7 @@
 
       const label = statusLabels[newStatus] || newStatus;
       addLog(`Chuyển trạng thái cửa hàng "${store.name}" sang: ${label}`, newStatus === 'LOCKED' ? 'danger' : 'info');
-      showToast(`Đã đổi trạng thái quán "${store.name}" sang "${label}"!`, 'success');
+      showToast(`Đã đồng bộ trạng thái quán "${store.name}" sang "${label}" trên Firebase!`, 'success');
     }
 
     function previewImage(url, title, sub) {
@@ -4561,7 +5722,7 @@
         titleEl.textContent = 'Mở Khóa Cửa Hàng Đối Tác';
         titleEl.style.color = 'var(--success)';
         warningEl.style.cssText = 'background: #ECFDF5; border-left: 4px solid var(--success); color: #065F46;';
-        warningEl.innerHTML = `<strong>Mở khóa lại quán:</strong> Cửa hàng sẽ được chuyển sang trạng thái <strong>Đang hoạt động</strong> và thực đơn sẽ ngay lập tức được xuất hiện trở lại trên App Khách Hàng.`;
+        warningEl.innerHTML = `<strong>Mở khóa lại quán:</strong> Cửa hàng sẽ được chuyển sang trạng thái <strong>Đang hoạt động</strong> trên Firebase và thực đơn sẽ xuất hiện trở lại ngay trên App Khách Hàng.`;
         if (reasonGroup) reasonGroup.style.display = 'none';
         submitBtn.style.background = 'var(--success)';
         submitBtn.textContent = 'Mở Khóa Cửa Hàng';
@@ -4569,7 +5730,7 @@
         titleEl.textContent = 'Khóa Cửa Hàng Đối Tác (Cấm Bán)';
         titleEl.style.color = 'var(--danger)';
         warningEl.style.cssText = '';
-        warningEl.innerHTML = `<strong>Cảnh báo quản trị:</strong> Khi cửa hàng bị khóa, toàn bộ thực đơn và các món ăn của quán sẽ tạm thời bị ẩn khỏi ứng dụng khách hàng. Quán sẽ không thể nhận thêm đơn hàng mới cho đến khi được mở khóa.`;
+        warningEl.innerHTML = `<strong>Cảnh báo quản trị:</strong> Khi cửa hàng bị khóa trên Firebase, toàn bộ thực đơn và các món ăn của quán sẽ lập tức bị ẩn khỏi App Khách Hàng và App Chủ Quán bị khóa công tắc mở bán.`;
         if (reasonGroup) reasonGroup.style.display = 'flex';
         submitBtn.style.background = 'var(--danger)';
         submitBtn.textContent = 'Xác Nhận Khóa Quán';
@@ -4601,15 +5762,13 @@
       if (!store) return;
 
       if (action === 'LOCK') {
-        store.status = 'LOCKED';
-        store.lockReason = finalReason;
+        syncStoreStatusToFirebase(store, 'LOCKED', finalReason, 'LOCK');
         addLog(`Khóa cửa hàng "${store.name}" (${finalReason})`, 'danger');
-        showToast(`Đã KHÓA cửa hàng "${store.name}"!`, 'danger');
+        showToast(`Đã KHÓA cửa hàng "${store.name}" trên Firebase!`, 'danger');
       } else {
-        store.status = 'OPEN';
-        delete store.lockReason;
+        syncStoreStatusToFirebase(store, 'OPEN', '', 'NONE');
         addLog(`Mở khóa cửa hàng "${store.name}"`, 'success');
-        showToast(`Đã MỞ KHÓA cửa hàng "${store.name}"!`, 'success');
+        showToast(`Đã MỞ KHÓA cửa hàng "${store.name}" trên Firebase!`, 'success');
       }
 
       saveState();
@@ -4646,15 +5805,22 @@
         return;
       }
 
+      const newId = 'store_' + Date.now();
       const newStore = {
-        id: 'store-' + Date.now(),
+        id: newId,
+        storeId: newId,
         name: name,
         owner: owner,
+        ownerName: owner,
         phone: phone,
         cccdNumber: cccd,
         cccdFront: cccdFront,
+        cccdFrontUrl: cccdFront,
         cccdBack: cccdBack,
+        cccdBackUrl: cccdBack,
         registerPhoto: portrait,
+        cccdPortraitUrl: portrait,
+        imageUrl: portrait,
         cccdStatus: initialStatus === 'OPEN' ? 'VERIFIED' : 'PENDING',
         dob: '01/01/1990',
         gender: 'Nam',
@@ -4663,35 +5829,46 @@
         issueDate: '01/01/2022',
         expireDate: '01/01/2040',
         registerTime: 'Vừa xong',
+        createdAt: Date.now(),
         ekycScore: '98.5%',
         category: category,
         rating: '5.0 ⭐',
-        itemCount: 20,
+        ratingAvg: 5.0,
+        itemCount: 0,
         status: initialStatus,
+        storeStatus: initialStatus,
+        open: initialStatus === 'OPEN',
+        penaltyTier: 'NONE',
         address: address || 'TP. Hồ Chí Minh'
       };
 
       stores.unshift(newStore);
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`stores/${newId}`).set(newStore).catch(() => {});
+      }
       saveState();
       closeModal('modal-add-store');
       renderStores();
       renderOverviewStores();
       renderKPIs();
       addLog(`Thêm mới đối tác quán "${name}" (CCCD: ${cccd})`, 'success');
-      showToast(`Đã thêm cửa hàng đối tác "${name}"!`, 'success');
+      showToast(`Đã thêm cửa hàng đối tác "${name}" lên Firebase!`, 'success');
     }
 
     function deleteStore(storeId) {
       const store = stores.find(s => s.id === storeId);
       if (!store) return;
-      if (confirm(`Bạn có chắc chắn muốn xóa đối tác "${store.name}" khỏi hệ thống?`)) {
+      if (confirm(`Bạn có chắc chắn muốn xóa đối tác "${store.name}" khỏi hệ thống Firebase?`)) {
         stores = stores.filter(s => s.id !== storeId);
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`stores/${storeId}`).remove().catch(() => {});
+        }
         saveState();
         renderStores();
         renderOverviewStores();
         renderKPIs();
         addLog(`Xóa đối tác quán "${store.name}"`, 'danger');
-        showToast(`Đã xóa cửa hàng "${store.name}"`, 'info');
+        showToast(`Đã xóa cửa hàng "${store.name}" khỏi Firebase`, 'info');
       }
     }
 
@@ -4750,18 +5927,26 @@
       if (targetType === 'customer') {
         const c = customers.find(x => x.id === targetId);
         if (c) name = c.name;
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`users/${targetId}`).update({ tempPasswordReset: newPass, updatedAt: Date.now() }).catch(() => {});
+        }
       } else {
         const s = stores.find(x => x.id === targetId);
-        if (s) name = s.name;
+        if (s) {
+          name = s.name;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`stores/${targetId}`).update({ tempPasswordReset: newPass }).catch(() => {});
+          }
+        }
       }
 
       addLog(`Cấp mật khẩu mới cho ${targetType === 'customer' ? 'khách' : 'quán'} "${name}": ${newPass}`, 'info');
-      showToast(`Đã đổi mật khẩu thành công cho ${name}!`, 'success');
+      showToast(`Đã cập nhật mật khẩu mới cho ${name} trên Firebase!`, 'success');
       closeModal('modal-reset-password');
     }
 
     /* ========================================================
-       11. COMPLAINTS & REPORTS MANAGEMENT (NEW MODULE)
+       11. COMPLAINTS & REPORTS MANAGEMENT (FIREBASE COMPLAINTS)
        ======================================================== */
     function filterComplaintsByStatus(status) {
       const statusSelect = document.getElementById('filter-complaint-status');
@@ -4787,11 +5972,11 @@
       const priorityVal = document.getElementById('filter-complaint-priority')?.value || 'ALL';
 
       const filtered = complaints.filter(c => {
-        const matchSearch = c.id.toLowerCase().includes(searchVal) ||
+        const matchSearch = (c.id || '').toLowerCase().includes(searchVal) ||
                             (c.orderId && c.orderId.toLowerCase().includes(searchVal)) ||
-                            c.senderName.toLowerCase().includes(searchVal) ||
-                            c.targetName.toLowerCase().includes(searchVal) ||
-                            c.content.toLowerCase().includes(searchVal);
+                            (c.senderName || '').toLowerCase().includes(searchVal) ||
+                            (c.targetName || '').toLowerCase().includes(searchVal) ||
+                            (c.content || '').toLowerCase().includes(searchVal);
         const matchSender = (senderVal === 'ALL') || (c.senderType === senderVal);
         const matchType = (typeVal === 'ALL') || (c.type === typeVal);
         const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
@@ -4820,12 +6005,10 @@
         const isFromCustomer = c.senderType === 'CUSTOMER';
         const tr = document.createElement('tr');
 
-        // Badges for Priority
         let priorityBadge = '<span class="badge badge-warning"><span class="badge-dot"></span>Thường</span>';
         if (c.priority === 'CRITICAL') priorityBadge = '<span class="badge badge-locked"><span class="badge-dot"></span>🔴 Khẩn cấp</span>';
         else if (c.priority === 'HIGH') priorityBadge = '<span class="badge badge-warning" style="background:#FFF7ED; color:#C2410C; border-color:#FED7AA;"><span class="badge-dot"></span>🟠 Cao</span>';
 
-        // Badges for Status
         let statusBadge = '<span class="badge badge-locked"><span class="badge-dot"></span>Chờ xử lý</span>';
         if (c.status === 'IN_PROGRESS') statusBadge = '<span class="badge badge-warning"><span class="badge-dot"></span>Đang xử lý</span>';
         else if (c.status === 'RESOLVED') statusBadge = '<span class="badge badge-active"><span class="badge-dot"></span>Đã giải quyết</span>';
@@ -4843,7 +6026,7 @@
               </span>
             </div>
             <strong>${c.senderName}</strong>
-            <div style="font-size: 11px; color: var(--text-light); font-family: monospace;">${c.senderContact}</div>
+            <div style="font-size: 11px; color: var(--text-light); font-family: monospace;">${c.senderContact || ''}</div>
           </td>
           <td>
             <div style="font-weight: 700; color: var(--danger);">${c.targetName}</div>
@@ -4857,7 +6040,6 @@
             <div style="max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.content}">
               ${c.content}
             </div>
-            
           </td>
           <td>${priorityBadge}</td>
           <td>${statusBadge}</td>
@@ -4881,7 +6063,6 @@
     function selectPenaltyAction(action) {
       currentPenaltyAction = action;
 
-      // Update Radio Cards active class
       const cardWarn = document.getElementById('card-action-warn');
       const cardHide = document.getElementById('card-action-hide');
       const cardLock = document.getElementById('card-action-lock');
@@ -4902,15 +6083,15 @@
       if (callout) {
         if (action === 'WARN') {
           callout.style.cssText = 'background: #FEF3C7; border: 1px solid #FCD34D; color: #92400E; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
-          callout.innerHTML = '<strong>Mức 1 - Cảnh Báo:</strong> Gửi thông báo cảnh cáo vi phạm chính thức. Tài khoản của quán / khách vẫn hoạt động nhưng bị ghi nhận số lần vi phạm vào hồ sơ.';
+          callout.innerHTML = '<strong>Mức 1 - Cảnh Báo (WARN):</strong> Gửi thông báo cảnh cáo vi phạm chính thức trên Firebase. Tài khoản của quán / khách vẫn hoạt động nhưng bị ghi nhận số lần vi phạm vào hồ sơ.';
           if (submitBtn) { submitBtn.style.background = 'var(--primary)'; submitBtn.textContent = 'Lưu Cảnh Báo & Đóng Khiếu Nại'; }
         } else if (action === 'HIDE') {
           callout.style.cssText = 'background: #EEF2FF; border: 1px solid #C7D2FE; color: #3730A3; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
-          callout.innerHTML = '<strong>Mức 2 - Ẩn Tạm Thời:</strong> Tạm ẩn cửa hàng khỏi ứng dụng khách hàng (thực đơn bị ẩn, không thể tìm thấy quán) hoặc tạm đình chỉ quyền đặt hàng của khách để chờ giải trình vi phạm.';
+          callout.innerHTML = '<strong>Mức 2 - Ẩn Tạm Thời (HIDE):</strong> Tạm ẩn cửa hàng khỏi App Khách Hàng (<code>storeStatus = CLOSED</code>, <code>penaltyTier = HIDE</code>) hoặc tạm đình chỉ quyền đặt hàng của khách.';
           if (submitBtn) { submitBtn.style.background = '#4F46E5'; submitBtn.textContent = 'Tạm Ẩn Đối Tượng & Đóng Khiếu Nại'; }
         } else if (action === 'LOCK') {
           callout.style.cssText = 'background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
-          callout.innerHTML = '<strong>Mức 3 - Khóa Tài Khoản:</strong> Khóa hoàn toàn tài khoản của đối tượng vi phạm. Quán ăn bị đóng cửa vĩnh viễn hoặc khách hàng bị cấm truy cập ứng dụng Oishi Food.';
+          callout.innerHTML = '<strong>Mức 3 - Khóa Tài Khoản (LOCK):</strong> Khóa hoàn toàn tài khoản đối tượng vi phạm trên Firebase (<code>storeStatus = LOCKED</code> / <code>users.status = LOCKED</code>).';
           if (submitBtn) { submitBtn.style.background = 'var(--danger)'; submitBtn.textContent = 'Khóa Tài Khoản & Đóng Khiếu Nại'; }
         }
       }
@@ -4942,7 +6123,6 @@
       else if (c.priority === 'HIGH') priorityContainer.innerHTML = '<span class="badge badge-warning">🟠 Mức độ cao</span>';
       else priorityContainer.innerHTML = '<span class="badge badge-info">🟡 Bình thường</span>';
 
-      // Default penalty action based on priority: 1 Cảnh báo, 2 Ẩn, 3 Khóa TK
       if (c.priority === 'CRITICAL') selectPenaltyAction('LOCK');
       else if (c.priority === 'HIGH') selectPenaltyAction('HIDE');
       else selectPenaltyAction('WARN');
@@ -4963,8 +6143,15 @@
       if (confirm(`Bạn có chắc chắn muốn BÁC BỎ khiếu nại #${c.id} của "${c.senderName}" do không đủ chứng cứ?`)) {
         c.status = 'REJECTED';
         c.adminNote = 'Bác bỏ khiếu nại do không đủ chứng cứ vi phạm xác thực hoặc nội dung phản ánh không đúng thực tế.';
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`complaints/${c.id}`).update({
+            status: 'REJECTED',
+            penaltyApplied: 'NONE',
+            adminNote: c.adminNote
+          }).catch(() => {});
+        }
         addLog(`Bác bỏ khiếu nại #${c.id} của "${c.senderName}"`, 'info');
-        showToast(`Đã bác bỏ khiếu nại #${c.id}`, 'info');
+        showToast(`Đã bác bỏ khiếu nại #${c.id} trên Firebase`, 'info');
         saveState();
         closeModal('modal-resolve-complaint');
         renderComplaints();
@@ -4985,52 +6172,97 @@
       c.penaltyAction = action;
       c.adminNote = adminNote;
 
-      // XỬ LÝ THEO 3 MỨC: CẢNH BÁO, ẨN, KHÓA TK
-      const targetQuery = c.targetName.toLowerCase().trim();
-      const targetStore = stores.find(s => s.name.toLowerCase().includes(targetQuery) || targetQuery.includes(s.name.toLowerCase()));
-      const targetCust = customers.find(x => x.name.toLowerCase().includes(targetQuery) || (c.targetContact && c.targetContact.includes(x.phone)));
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`complaints/${c.id}`).update({
+          status: 'RESOLVED',
+          penaltyAction: action,
+          penaltyApplied: action,
+          adminNote: adminNote,
+          resolvedAt: Date.now()
+        }).catch(() => {});
+      }
+
+      // XỬ LÝ THEO 3 MỨC TRÊN FIREBASE: CẢNH BÁO (WARN), ẨN (HIDE), KHÓA TK (LOCK)
+      const targetQuery = (c.targetName || '').toLowerCase().trim();
+      const targetStore = stores.find(s =>
+        (c.storeId && s.id === c.storeId) ||
+        (s.name && (s.name.toLowerCase().includes(targetQuery) || targetQuery.includes(s.name.toLowerCase())))
+      );
+      const targetCust = customers.find(x =>
+        (c.customerId && x.id === c.customerId) ||
+        (x.name && x.name.toLowerCase().includes(targetQuery)) ||
+        (c.targetContact && x.phone && c.targetContact.includes(x.phone))
+      );
 
       if (action === 'WARN') {
-        // Mức 1: CẢNH BÁO
         if (targetStore) {
           targetStore.warningCount = (targetStore.warningCount || 0) + 1;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`stores/${targetStore.id}`).update({
+              warningCount: targetStore.warningCount,
+              penaltyTier: 'WARN',
+              penaltyReason: `Cảnh báo từ khiếu nại #${c.id}: ${adminNote}`
+            }).catch(() => {});
+          }
         }
         if (targetCust) {
           targetCust.warningCount = (targetCust.warningCount || 0) + 1;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`users/${targetCust.id}`).update({ warningCount: targetCust.warningCount }).catch(() => {});
+          }
         }
         addLog(`[CẢNH BÁO] Phạt cảnh cáo đối tượng "${c.targetName}" theo khiếu nại #${c.id}`, 'warning');
-        showToast(`Đã gửi thông báo CẢNH BÁO vi phạm tới "${c.targetName}"!`, 'warning');
+        showToast(`Đã gửi CẢNH BÁO vi phạm tới "${c.targetName}" trên Firebase!`, 'warning');
       } else if (action === 'HIDE') {
-        // Mức 2: ẨN TẠM THỜI
         if (targetStore) {
-          targetStore.status = 'CLOSED';
-          targetStore.lockReason = `Tạm nghỉ/tạm ngưng do khiếu nại #${c.id}: ${c.type}`;
-          targetStore.hideReason = `Tạm ẩn do khiếu nại #${c.id}: ${c.type}`;
+          const reason = `Tạm ẩn do khiếu nại #${c.id}: ${c.type}`;
+          syncStoreStatusToFirebase(targetStore, 'CLOSED', reason, 'HIDE');
           renderStores();
           renderOverviewStores();
         }
         if (targetCust) {
           targetCust.status = 'SUSPENDED';
           targetCust.suspendedReason = `Tạm ngưng 7 ngày do khiếu nại #${c.id}`;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`users/${targetCust.id}`).update({
+              status: 'SUSPENDED',
+              isActive: false,
+              lockReason: targetCust.suspendedReason
+            }).catch(() => {});
+            writeWithAdminRole(() => fbDb.ref(`customers/${targetCust.id}`).update({
+              status: 'SUSPENDED',
+              lockReason: targetCust.suspendedReason
+            })).catch(() => {});
+          }
           renderCustomers();
         }
         addLog(`[TẠM ẨN] Tạm ẩn đối tượng "${c.targetName}" khỏi nền tảng theo khiếu nại #${c.id}`, 'warning');
-        showToast(`Đã TẠM ẨN "${c.targetName}" khỏi app khách hàng!`, 'warning');
+        showToast(`Đã TẠM ẨN "${c.targetName}" khỏi App Khách Hàng trên Firebase!`, 'warning');
       } else if (action === 'LOCK') {
-        // Mức 3: KHÓA TÀI KHOẢN
         if (targetStore) {
-          targetStore.status = 'LOCKED';
-          targetStore.lockReason = `Bị khóa theo khiếu nại #${c.id}: ${c.type} - ${adminNote}`;
+          const reason = `Bị khóa theo khiếu nại #${c.id}: ${c.type} - ${adminNote}`;
+          syncStoreStatusToFirebase(targetStore, 'LOCKED', reason, 'LOCK');
           renderStores();
           renderOverviewStores();
         }
         if (targetCust) {
           targetCust.status = 'LOCKED';
           targetCust.lockReason = `Bị khóa theo khiếu nại #${c.id}: ${c.type}`;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`users/${targetCust.id}`).update({
+              status: 'LOCKED',
+              isActive: false,
+              lockReason: targetCust.lockReason
+            }).catch(() => {});
+            writeWithAdminRole(() => fbDb.ref(`customers/${targetCust.id}`).update({
+              status: 'LOCKED',
+              lockReason: targetCust.lockReason
+            })).catch(() => {});
+          }
           renderCustomers();
         }
         addLog(`[KHÓA TK] Khóa vĩnh viễn tài khoản "${c.targetName}" theo khiếu nại #${c.id}`, 'danger');
-        showToast(`Đã KHÓA TÀI KHOẢN "${c.targetName}" trên toàn hệ thống!`, 'danger');
+        showToast(`Đã KHÓA TÀI KHOẢN "${c.targetName}" trên toàn hệ thống Firebase!`, 'danger');
       }
 
       saveState();
@@ -5062,9 +6294,10 @@
         return;
       }
 
-      const newId = 'KN-' + (200 + complaints.length + 1);
+      const newId = 'KN-' + Date.now().toString().slice(-5);
       const newComplaint = {
         id: newId,
+        complaintId: newId,
         senderType: senderType,
         senderName: sender.split('(')[0].trim(),
         senderContact: sender.includes('(') ? sender.split('(')[1].replace(')', '').trim() : '09xx.xxx.xxx',
@@ -5072,19 +6305,25 @@
         targetContact: 'Cần xác minh',
         orderId: order ? order.replace('#', '') : '',
         type: type,
+        reason: `[${type}] ${content}`,
         content: content,
-                priority: priority,
+        priority: priority,
         status: 'PENDING',
+        penaltyApplied: 'NONE',
+        createdAt: Date.now(),
         time: 'Vừa xong'
       };
 
       complaints.unshift(newComplaint);
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`complaints/${newId}`).set(newComplaint).catch(() => {});
+      }
       saveState();
       closeModal('modal-new-complaint');
       renderComplaints();
       renderKPIs();
       addLog(`Tiếp nhận khiếu nại mới #${newId} từ ${sender}`, 'warning');
-      showToast(`Đã ghi nhận khiếu nại mới #${newId}!`, 'success');
+      showToast(`Đã ghi nhận khiếu nại mới #${newId} lên Firebase!`, 'success');
     }
 
     /* ========================================================
@@ -5094,19 +6333,24 @@
       query = query.toLowerCase().trim();
       if (!query) return;
 
-      const matchComplaint = complaints.some(c => c.id.toLowerCase().includes(query) || c.content.toLowerCase().includes(query));
-      const matchStore = stores.some(s => s.name.toLowerCase().includes(query) || s.phone.includes(query));
-      const matchCust = customers.some(c => c.name.toLowerCase().includes(query) || c.phone.includes(query));
-      const matchCat = categories.some(c => c.name.toLowerCase().includes(query));
+      const matchOrder = liveOrders.some(o => (o.id || '').toLowerCase().includes(query) || (o.items || '').toLowerCase().includes(query));
+      const matchComplaint = complaints.some(c => (c.id || '').toLowerCase().includes(query) || (c.content || '').toLowerCase().includes(query));
+      const matchStore = stores.some(s => (s.name || '').toLowerCase().includes(query) || (s.phone || '').includes(query));
+      const matchCust = customers.some(c => (c.name || '').toLowerCase().includes(query) || (c.phone || '').includes(query));
+      const matchCat = categories.some(c => (c.name || '').toLowerCase().includes(query));
 
-      if (matchComplaint) {
-        switchTab('complaints');
-        const input = document.getElementById('filter-complaint-search');
-        if (input) { input.value = query; filterComplaints(); }
-      } else if (matchStore) {
+      if (matchStore) {
         switchTab('stores');
         const input = document.getElementById('filter-store-search');
         if (input) { input.value = query; filterStores(); }
+      } else if (matchOrder) {
+        switchTab('orders');
+        const input = document.getElementById('filter-global-order-search');
+        if (input) { input.value = query; renderGlobalOrders(); }
+      } else if (matchComplaint) {
+        switchTab('complaints');
+        const input = document.getElementById('filter-complaint-search');
+        if (input) { input.value = query; filterComplaints(); }
       } else if (matchCust) {
         switchTab('customers');
         const input = document.getElementById('filter-customer-search');
@@ -5118,10 +6362,6 @@
       }
     }
 
-    /* ========================================================
-       13. MODAL & TOAST HELPERS
-       ======================================================== */
-    
     /* ========================================================
        14. CCCD & eKYC VERIFICATION MODAL CONTROLLER
        ======================================================== */
@@ -5152,7 +6392,6 @@
         statusBadge.innerHTML = '<span class="badge badge-status-open"><span class="badge-dot"></span>Trạng thái: Đang hoạt động</span>';
       }
 
-      // Update real demo images in modal
       const imgFront = document.getElementById('cccd-modal-img-front');
       if (imgFront) imgFront.src = store.cccdFront || 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80';
       const imgBack = document.getElementById('cccd-modal-img-back');
@@ -5160,7 +6399,6 @@
       const imgPortrait = document.getElementById('cccd-modal-img-portrait');
       if (imgPortrait) imgPortrait.src = store.registerPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
 
-      // Fill CCCD Front Side card text
       document.getElementById('cccd-front-num').textContent = store.cccdNumber || '079088012456';
       document.getElementById('cccd-front-name').textContent = store.owner.toUpperCase();
       document.getElementById('cccd-front-dob').textContent = store.dob || '15/04/1988';
@@ -5170,7 +6408,6 @@
       document.getElementById('cccd-front-expiry').textContent = store.expireDate || '15/04/2048';
       document.getElementById('cccd-front-avatar-char').textContent = store.gender === 'Nữ' ? '👩‍💼' : '👨‍💼';
 
-      // Fill CCCD Back Side details
       document.getElementById('cccd-back-issuedate').textContent = store.issueDate || '10/06/2021';
       const cleanNum = (store.cccdNumber || '079088012456').replace(/\s+/g, '');
       const cleanName = store.owner.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Đ/g, 'D').replace(/\s+/g, '<');
@@ -5180,7 +6417,6 @@
         ${cleanName}<<<<<<<<<<<<<<<<<<
       `;
 
-      // Fill Selfie details
       document.getElementById('cccd-selfie-char').textContent = store.owner.trim().split(' ').pop().charAt(0).toUpperCase();
       document.getElementById('cccd-selfie-time').textContent = store.registerTime || '10:15 15/03/2026';
       document.getElementById('cccd-ekyc-score-label').textContent = `✓ Khớp khuôn mặt: ${store.ekycScore || '99.2%'}`;
@@ -5200,13 +6436,12 @@
         'CLOSED': 'Tạm nghỉ ⏸️'
       };
 
-      store.status = newStatus;
-      if (newStatus === 'OPEN') {
-        store.cccdStatus = 'VERIFIED';
-        delete store.lockReason;
-      } else if (newStatus === 'LOCKED') {
-        store.lockReason = 'Admin khóa tài khoản qua bảng kiểm duyệt CCCD';
-      }
+      syncStoreStatusToFirebase(
+        store,
+        newStatus,
+        newStatus === 'LOCKED' ? 'Admin khóa tài khoản qua bảng kiểm duyệt CCCD' : '',
+        newStatus === 'LOCKED' ? 'LOCK' : 'NONE'
+      );
 
       saveState();
       closeModal('modal-store-cccd');
@@ -5216,7 +6451,7 @@
 
       const label = statusLabels[newStatus] || newStatus;
       addLog(`Cập nhật trạng thái quán "${store.name}" sang ${label}`, newStatus === 'LOCKED' ? 'danger' : 'success');
-      showToast(`Đã chuyển cửa hàng "${store.name}" sang "${label}"!`, 'success');
+      showToast(`Đã chuyển cửa hàng "${store.name}" sang "${label}" trên Firebase!`, 'success');
     }
 
     function openModal(modalId) {
@@ -5378,6 +6613,11 @@
             <span>Lịch Sử Đơn Hàng Của Quán</span>
             <span id="detail-orders-count-badge" style="background: #2563EB; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">5</span>
           </button>
+          <button class="store-subnav-btn" id="btn-subtab-dishes" onclick="switchStoreDetailTab('dishes')">
+            <span>🍲</span>
+            <span>Thực Đơn Quán (Menu)</span>
+            <span id="detail-dishes-count-badge" style="background: #D97706; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
+          </button>
           <button class="store-subnav-btn" id="btn-subtab-drivers" onclick="switchStoreDetailTab('drivers')">
             <span>🛵</span>
             <span>Đội Ngũ Tài Xế Thuộc Quán</span>
@@ -5422,6 +6662,9 @@
             </div>
             <select class="select-filter" id="filter-store-order-status" onchange="filterCurrentStoreOrders()" style="font-size: 12px; padding: 6px 12px;">
               <option value="ALL">Tất cả trạng thái đơn</option>
+              <option value="PENDING">⏳ Chờ xác nhận</option>
+              <option value="PREPARING">🍳 Đang chế biến</option>
+              <option value="READY">🛍️ Chờ lấy hàng</option>
               <option value="DELIVERING">🚚 Đang giao hàng</option>
               <option value="COMPLETED">✅ Đã giao thành công</option>
               <option value="BOOM">⚠️ Bị bùng đơn (Bom hàng)</option>
@@ -5447,6 +6690,39 @@
           </div>
         </div>
 
+        <!-- SUBTAB 1B: QUẢN LÝ THỰC ĐƠN (MENU DISHES) -->
+        <div id="pane-store-detail-dishes" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="font-size: 14.5px; font-weight: 800; color: #0F172A;">
+                🍲 Danh Sách Món Ăn Trong Thực Đơn Quán (Firebase <code>stores/{id}/dishes</code>)
+              </div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                Thêm món mới, chỉnh sửa giá, tạm ẩn hoặc bật/tắt trạng thái còn món trực tiếp trên App Khách Hàng
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openAddDishModal()">
+              + Thêm Món Mới Vào Quán
+            </button>
+          </div>
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 220px;">Món Ăn</th>
+                  <th style="min-width: 110px;">Giá Bán</th>
+                  <th style="min-width: 120px;">Danh Mục</th>
+                  <th style="min-width: 120px;">Trạng Thái</th>
+                  <th style="text-align: right; min-width: 150px;">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-store-detail-dishes">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- SUBTAB 2: ĐỘI NGŨ TÀI XẾ THUỘC QUÁN -->
         <div id="pane-store-detail-drivers" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -5466,6 +6742,47 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-outline" onclick="closeModal('modal-store-detail')">Đóng Cửa Sổ</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL THÊM / SỬA MÓN ĂN TRONG QUÁN -->
+  <div class="modal-overlay" id="modal-dish" style="z-index: 9999;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-dish-title">🍲 Thêm Món Ăn Mới</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-dish')">&times;</button>
+      </div>
+      <form onsubmit="saveStoreDish(event)">
+        <input type="hidden" id="form-dish-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Tên món ăn <span class="req">*</span></label>
+            <input type="text" class="form-control" id="form-dish-name" placeholder="VD: Phở Bò Tái Nạm Gầu" required>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Giá bán (VNĐ) <span class="req">*</span></label>
+              <input type="number" class="form-control" id="form-dish-price" placeholder="55000" required min="1000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Danh mục món</label>
+              <input type="text" class="form-control" id="form-dish-cat" placeholder="Món chính">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Link ảnh món ăn (URL)</label>
+            <input type="text" class="form-control" id="form-dish-image" placeholder="https://images.unsplash.com/...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mô tả món</label>
+            <textarea class="form-control" id="form-dish-desc" placeholder="Mô tả hương vị, thành phần món ăn..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-dish')">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu Món Ăn</button>
+        </div>
+      </form>
     </div>
   </div>
 

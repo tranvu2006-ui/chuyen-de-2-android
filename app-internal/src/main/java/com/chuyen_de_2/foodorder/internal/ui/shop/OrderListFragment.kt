@@ -115,14 +115,48 @@ class OrderListFragment : Fragment() {
                 if (store != null) {
                     binding.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
                     binding.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
+
+                    val st = store.storeStatus.uppercase()
+                    binding.switchShopStatus.setOnCheckedChangeListener(null)
+                    when (st) {
+                        com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
+                            binding.switchShopStatus.isChecked = false
+                            binding.switchShopStatus.isEnabled = false
+                            binding.tvShopStatusTxt.text = "Bị Khóa 🔴"
+                            binding.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
+                        }
+                        com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING -> {
+                            binding.switchShopStatus.isChecked = false
+                            binding.switchShopStatus.isEnabled = false
+                            binding.tvShopStatusTxt.text = "Chờ Duyệt ⏳"
+                            binding.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
+                        }
+                        com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
+                            binding.switchShopStatus.isEnabled = true
+                            binding.switchShopStatus.isChecked = false
+                            binding.tvShopStatusTxt.text = "Tạm Đóng"
+                            binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+                        }
+                        else -> {
+                            binding.switchShopStatus.isEnabled = true
+                            binding.switchShopStatus.isChecked = true
+                            binding.tvShopStatusTxt.text = "Đang Bán"
+                            binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+                        }
+                    }
+                    bindShopStatusSwitchListener()
                 }
             }
         }
     }
 
-    private fun setupUI() {
-        // Toggle Switch Đang Bán / Tạm Đóng (Quán/5.html: toggleShopOpen)
+    private fun bindShopStatusSwitchListener() {
         binding.switchShopStatus.setOnCheckedChangeListener { _, isChecked ->
+            val newStatus = if (isChecked) {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
+            } else {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED
+            }
             if (isChecked) {
                 binding.tvShopStatusTxt.text = "Đang Bán"
                 binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
@@ -132,7 +166,15 @@ class OrderListFragment : Fragment() {
                 binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
                 Toast.makeText(requireContext(), "⚪ Quán tạm đóng cửa ngưng nhận đơn mới.", Toast.LENGTH_SHORT).show()
             }
+            viewLifecycleOwner.lifecycleScope.launch {
+                firebaseRepository.updateStoreStatus(currentStoreId, newStatus)
+            }
         }
+    }
+
+    private fun setupUI() {
+        // Toggle Switch Đang Bán / Tạm Đóng (Quán/5.html: toggleShopOpen)
+        bindShopStatusSwitchListener()
     }
 
     private fun setupTabs() {

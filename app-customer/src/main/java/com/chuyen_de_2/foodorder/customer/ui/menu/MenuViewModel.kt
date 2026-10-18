@@ -109,20 +109,21 @@ class MenuViewModel @Inject constructor(
         viewModelScope.launch {
             // Quan sát thực đơn thời gian thực từ Firebase Realtime Database
             firebaseRepository.observeStoreDishes(shopId).collectLatest { firebaseDishes ->
-                if (firebaseDishes.isNotEmpty()) {
+                val visibleDishes = firebaseDishes.filter { !it.isHidden && it.isAvailable }
+                if (visibleDishes.isNotEmpty()) {
                     allDishes.clear()
-                    allDishes.addAll(firebaseDishes)
+                    allDishes.addAll(visibleDishes)
                     applyFilter()
 
                     // Chọn món theo initialDishId hoặc mặc định món đầu tiên
                     if (!initialDishId.isNullOrEmpty()) {
-                        val targetDish = firebaseDishes.find { it.id == initialDishId }
+                        val targetDish = visibleDishes.find { it.id == initialDishId }
                         if (targetDish != null) {
                             _selectedDish.value = targetDish
                             addToCart(targetDish)
                         }
-                    } else if (_selectedDish.value == null && firebaseDishes.isNotEmpty()) {
-                        val firstDish = firebaseDishes.first()
+                    } else if (_selectedDish.value == null && visibleDishes.isNotEmpty()) {
+                        val firstDish = visibleDishes.first()
                         _selectedDish.value = firstDish
                         addToCart(firstDish)
                     }

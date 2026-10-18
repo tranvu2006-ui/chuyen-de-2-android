@@ -445,6 +445,22 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Cập nhật trạng thái đóng/mở cửa của quán lên Firebase (OPEN / CLOSED) */
+    suspend fun updateStoreStatus(storeId: String, status: String): Result<Unit> {
+        return try {
+            val isOpen = status.equals("OPEN", ignoreCase = true)
+            val updates = mapOf<String, Any>(
+                "storeStatus" to status,
+                "status" to status,
+                "open" to isOpen
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ==================== THỰC ĐƠN QUÁN (DISHES) ====================
 
     /** Lấy danh sách món ăn của quán theo thời gian thực */

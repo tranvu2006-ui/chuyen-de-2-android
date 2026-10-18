@@ -61,7 +61,18 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun processStoresAndDishes(storeList: List<Store>) {
-        if (storeList.isEmpty()) {
+        // Chỉ hiển thị các quán đang hoạt động (OPEN) và không bị Admin ẩn/khóa
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            st != Store.StoreStatus.PENDING &&
+            st != Store.StoreStatus.CLOSED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        if (activeStores.isEmpty()) {
             _nearbyStores.value = emptyList()
             _homeDishes.value = emptyList()
             _hotDishes.value = emptyList()
@@ -70,7 +81,7 @@ class HomeViewModel @Inject constructor(
         }
 
         // 1. Quán gần đây từ dữ liệu thật trên Firebase
-        val nearbyList = storeList.mapIndexed { index, store ->
+        val nearbyList = activeStores.mapIndexed { index, store ->
             val dist = if (store.latitude != 0.0 && store.longitude != 0.0) {
                 // Tạm tính khoảng cách từ toạ độ quán
                 0.8 + (index * 0.4)
@@ -100,14 +111,14 @@ class HomeViewModel @Inject constructor(
         }
         _nearbyStores.value = nearbyList
 
-        // 2. Thu thập các món ăn THẬT do các quán tự thêm vào stores/{storeId}/dishes
+        // 2. Thu thập các món ăn THẬT do các quán tự thêm vào stores/{storeId}/dishes (chỉ lấy món không bị ẩn)
         val allDishes = mutableListOf<HomeDishItem>()
 
-        storeList.forEachIndexed { storeIndex, store ->
+        activeStores.forEachIndexed { storeIndex, store ->
             val dist = 0.8 + (storeIndex * 0.4)
             val roundedDist = Math.round(dist * 10.0) / 10.0
 
-            store.dishes.values.forEach { dish ->
+            store.dishes.values.filter { !it.isHidden && it.isAvailable }.forEach { dish ->
                 val emoji = when {
                     dish.name.contains("Trà", true) -> "🧋"
                     dish.name.contains("Cơm", true) -> "🍛"

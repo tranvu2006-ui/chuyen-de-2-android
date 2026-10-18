@@ -22,12 +22,28 @@ class AuthRepository @Inject constructor(
     private val auth: FirebaseAuth,
     private val database: FirebaseDatabase
 ) {
-    /** Đăng nhập bằng Email/Password */
+    /** Đăng nhập bằng Email/Password (kiểm tra khóa tài khoản từ Admin) */
     suspend fun login(email: String, password: String): Result<FirebaseUser> {
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()
-            result.user?.let { Result.success(it) }
-                ?: Result.failure(Exception("Đăng nhập thất bại"))
+            val firebaseUser = result.user ?: return Result.failure(Exception("Đăng nhập thất bại"))
+
+            val userSnap = database.getReference("users").child(firebaseUser.uid).get().await()
+            if (userSnap.exists()) {
+                val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
+                val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
+                    ?: userSnap.child("active").getValue(Boolean::class.java)
+                    ?: true
+                if (status == "LOCKED" || status == "SUSPENDED" || !isActive) {
+                    val reason = userSnap.child("lockReason").getValue(String::class.java)
+                        ?: userSnap.child("suspendedReason").getValue(String::class.java)
+                        ?: "Vi phạm quy định nền tảng"
+                    auth.signOut()
+                    return Result.failure(Exception("Tài khoản đã bị khóa bởi Admin: $reason"))
+                }
+            }
+
+            Result.success(firebaseUser)
         } catch (e: Exception) {
             Result.failure(e)
         }

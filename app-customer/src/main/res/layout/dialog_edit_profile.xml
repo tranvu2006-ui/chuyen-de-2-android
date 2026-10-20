@@ -24,15 +24,77 @@
         android:textColor="@color/text_muted"
         android:textSize="12sp" />
 
-    <!-- Chọn Avatar Emoji -->
+    <!-- Khu vực Tải ảnh đại diện -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <!-- Avatar Preview Box -->
+        <FrameLayout
+            android:id="@+id/flEditAvatarPreview"
+            android:layout_width="68dp"
+            android:layout_height="68dp"
+            android:background="@drawable/bg_badge_orange">
+
+            <ImageView
+                android:id="@+id/ivEditAvatarPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvEditAvatarPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="👤"
+                android:textSize="30sp" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPickImage"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="📷 Chọn ảnh từ máy"
+                android:textColor="@color/primary"
+                android:textSize="12.5sp"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="0dp"
+                app:strokeColor="@color/primary"
+                app:strokeWidth="1.2dp"
+                app:cornerRadius="10dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Hỗ trợ ảnh JPG, PNG từ thư viện"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Hoặc Chọn Avatar Emoji -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp"
-        android:text="Chọn Biểu Tượng Đại Diện:"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="6dp"
+        android:text="Hoặc chọn biểu tượng đại diện:"
         android:textColor="@color/text_primary"
-        android:textSize="13sp"
+        android:textSize="12.5sp"
         android:textStyle="bold" />
 
     <HorizontalScrollView

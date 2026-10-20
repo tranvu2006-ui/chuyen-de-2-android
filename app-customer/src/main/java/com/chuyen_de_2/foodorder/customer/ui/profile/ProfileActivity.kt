@@ -1,17 +1,23 @@
 package com.chuyen_de_2.foodorder.customer.ui.profile
 
+import android.app.Activity
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.RadioButton
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.CustomerAddress
@@ -23,6 +29,7 @@ import com.chuyen_de_2.foodorder.customer.databinding.DialogAddressBookBinding
 import com.chuyen_de_2.foodorder.customer.databinding.DialogEditAddressBinding
 import com.chuyen_de_2.foodorder.customer.databinding.DialogEditProfileBinding
 import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
+import com.chuyen_de_2.foodorder.customer.ui.checkout.SelectLocationActivity
 import com.chuyen_de_2.foodorder.customer.ui.complaint.ComplaintActivity
 import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryActivity
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -30,11 +37,15 @@ import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 /**
  * Trang cá nhân & Điểm uy tín chuẩn b11.html
- * Hỗ trợ cập nhật Avatar, Tên, Số điện thoại và Quản lý Sổ địa chỉ giao hàng
+ * Hỗ trợ:
+ * - Upload ảnh avatar từ máy hoặc chọn Emoji avatar
+ * - Quản lý Sổ địa chỉ giao hàng
+ * - Lấy GPS và kéo bản đồ để chọn địa chỉ nhận hàng
  */
 @AndroidEntryPoint
 class ProfileActivity : AppCompatActivity() {
@@ -52,12 +63,50 @@ class ProfileActivity : AppCompatActivity() {
 
     private var currentUserData: User? = null
 
+    // Biến tạm lưu ảnh avatar vừa chọn từ thiết bị
+    private var pendingAvatarBase64: String? = null
+    private var currentEditDialogBinding: DialogEditProfileBinding? = null
+    private var currentAddressDialogBinding: DialogEditAddressBinding? = null
+
     private val hcmDistricts = listOf(
         "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6", "Quận 7", "Quận 8",
         "Quận 10", "Quận 11", "Quận 12", "Bình Thạnh", "Gò Vấp", "Phú Nhuận",
         "Tân Bình", "Tân Phú", "Bình Tân", "TP. Thủ Đức", "Củ Chi", "Hóc Môn",
         "Bình Chánh", "Nhà Bè", "Cần Giờ"
     )
+
+    // Launcher chọn ảnh avatar từ thư viện
+    private val pickAvatarLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processAndPreviewAvatar(uri)
+        }
+    }
+
+    // Launcher mở màn hình bản đồ để lấy vị trí GPS và kéo chọn
+    private val selectLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val street = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS) ?: ""
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT) ?: ""
+
+            currentAddressDialogBinding?.let { dBinding ->
+                if (street.isNotBlank()) {
+                    dBinding.etStreetAddress.setText(street)
+                }
+                if (district.isNotBlank()) {
+                    val index = hcmDistricts.indexOfFirst { it.contains(district, ignoreCase = true) }
+                    if (index != -1) {
+                        dBinding.spAddressDistrict.setSelection(index)
+                    }
+                }
+                Toast.makeText(this, "📍 Đã lấy vị trí từ bản đồ thành công!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,10 +139,8 @@ class ProfileActivity : AppCompatActivity() {
                     binding.tvUserName.text = user.name.ifBlank { currentUser.displayName ?: "Người dùng Oishi" }
                     binding.tvUserPhone.text = if (user.phone.isNotBlank()) user.phone else "Chưa cập nhật SĐT"
                     
-                    // Cập nhật avatar nếu có
-                    if (user.avatarUrl.isNotBlank()) {
-                        binding.tvUserAvatar.text = user.avatarUrl
-                    }
+                    // Hiển thị Avatar (Ảnh hoặc Emoji)
+                    displayAvatar(user.avatarUrl)
 
                     // Hiển thị vai trò nếu là Merchant / Driver
                     when (user.role) {
@@ -120,10 +167,28 @@ class ProfileActivity : AppCompatActivity() {
                         else -> "Cần Cải Thiện ⚠️"
                     }
                     if (customer.avatarUrl.isNotBlank() && (currentUserData?.avatarUrl.isNullOrBlank())) {
-                        binding.tvUserAvatar.text = customer.avatarUrl
+                        displayAvatar(customer.avatarUrl)
                     }
                 }
             }
+        }
+    }
+
+    /** Hiển thị Avatar: Ảnh thật (URL/Base64) hoặc Biểu tượng Emoji */
+    private fun displayAvatar(avatarUrl: String) {
+        if (avatarUrl.startsWith("data:image") || avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) {
+            binding.ivUserAvatar.visibility = View.VISIBLE
+            binding.tvUserAvatar.visibility = View.GONE
+            Glide.with(this)
+                .load(avatarUrl)
+                .circleCrop()
+                .placeholder(R.drawable.bg_badge_orange)
+                .error(R.drawable.bg_badge_orange)
+                .into(binding.ivUserAvatar)
+        } else {
+            binding.ivUserAvatar.visibility = View.GONE
+            binding.tvUserAvatar.visibility = View.VISIBLE
+            binding.tvUserAvatar.text = avatarUrl.ifBlank { "👤" }
         }
     }
 
@@ -170,9 +235,12 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
-    /** Mở Dialog chỉnh sửa thông tin cá nhân: Avatar, Tên, Số điện thoại */
+    /** Mở Dialog chỉnh sửa thông tin cá nhân: Upload ảnh / Chọn Emoji, Tên, Số điện thoại */
     private fun showEditProfileDialog() {
         val dialogBinding = DialogEditProfileBinding.inflate(LayoutInflater.from(this))
+        currentEditDialogBinding = dialogBinding
+        pendingAvatarBase64 = null
+
         val dialog = AlertDialog.Builder(this)
             .setView(dialogBinding.root)
             .create()
@@ -181,17 +249,44 @@ class ProfileActivity : AppCompatActivity() {
 
         val currentName = currentUserData?.name ?: binding.tvUserName.text.toString()
         val currentPhone = currentUserData?.phone ?: if (binding.tvUserPhone.text.toString().startsWith("0")) binding.tvUserPhone.text.toString() else ""
-        val currentAvatar = currentUserData?.avatarUrl ?: binding.tvUserAvatar.text.toString()
+        val currentAvatar = currentUserData?.avatarUrl ?: "👤"
 
         dialogBinding.etEditName.setText(currentName)
         dialogBinding.etEditPhone.setText(currentPhone)
 
-        // Đánh dấu avatar hiện tại trong RadioGroup
+        // Hiển thị Preview avatar hiện tại
+        if (currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http")) {
+            dialogBinding.ivEditAvatarPreview.visibility = View.VISIBLE
+            dialogBinding.tvEditAvatarPreview.visibility = View.GONE
+            Glide.with(this).load(currentAvatar).circleCrop().into(dialogBinding.ivEditAvatarPreview)
+        } else {
+            dialogBinding.ivEditAvatarPreview.visibility = View.GONE
+            dialogBinding.tvEditAvatarPreview.visibility = View.VISIBLE
+            dialogBinding.tvEditAvatarPreview.text = currentAvatar.ifBlank { "👤" }
+        }
+
+        // Đánh dấu emoji hiện tại trong RadioGroup nếu có
         for (i in 0 until dialogBinding.rgAvatars.childCount) {
             val rb = dialogBinding.rgAvatars.getChildAt(i) as? RadioButton
             if (rb?.text?.toString() == currentAvatar) {
                 rb.isChecked = true
                 break
+            }
+        }
+
+        // Nút chọn ảnh từ thiết bị
+        dialogBinding.btnPickImage.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+
+        // Khi người dùng bấm chọn biểu tượng emoji thì hủy ảnh upload tạm
+        dialogBinding.rgAvatars.setOnCheckedChangeListener { group, checkedId ->
+            val rb = group.findViewById<RadioButton>(checkedId)
+            if (rb != null && rb.isChecked) {
+                pendingAvatarBase64 = null
+                dialogBinding.ivEditAvatarPreview.visibility = View.GONE
+                dialogBinding.tvEditAvatarPreview.visibility = View.VISIBLE
+                dialogBinding.tvEditAvatarPreview.text = rb.text.toString()
             }
         }
 
@@ -207,10 +302,16 @@ class ProfileActivity : AppCompatActivity() {
             }
             dialogBinding.tilEditName.error = null
 
-            // Lấy avatar được chọn
-            val selectedRbId = dialogBinding.rgAvatars.checkedRadioButtonId
-            val selectedRb = dialogBinding.root.findViewById<RadioButton>(selectedRbId)
-            val selectedAvatar = selectedRb?.text?.toString() ?: "👤"
+            // Xác định Avatar cuối cùng: Ảnh vừa upload > Ảnh cũ nếu là ảnh > Emoji được chọn
+            val finalAvatar = when {
+                pendingAvatarBase64 != null -> pendingAvatarBase64!!
+                dialogBinding.rgAvatars.checkedRadioButtonId != -1 -> {
+                    val selectedRb = dialogBinding.rgAvatars.findViewById<RadioButton>(dialogBinding.rgAvatars.checkedRadioButtonId)
+                    selectedRb?.text?.toString() ?: "👤"
+                }
+                currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http") -> currentAvatar
+                else -> "👤"
+            }
 
             dialogBinding.btnSaveProfile.isEnabled = false
             dialogBinding.btnSaveProfile.text = "Đang lưu..."
@@ -219,15 +320,15 @@ class ProfileActivity : AppCompatActivity() {
                 val result = authRepository.updateUserProfile(
                     name = newName,
                     phone = newPhone,
-                    avatarUrl = selectedAvatar
+                    avatarUrl = finalAvatar
                 )
 
                 if (result.isSuccess) {
                     Toast.makeText(this@ProfileActivity, "✅ Đã cập nhật thông tin thành công!", Toast.LENGTH_SHORT).show()
                     binding.tvUserName.text = newName
                     binding.tvUserPhone.text = if (newPhone.isNotBlank()) newPhone else "Chưa cập nhật SĐT"
-                    binding.tvUserAvatar.text = selectedAvatar
-                    currentUserData = currentUserData?.copy(name = newName, phone = newPhone, avatarUrl = selectedAvatar)
+                    displayAvatar(finalAvatar)
+                    currentUserData = currentUserData?.copy(name = newName, phone = newPhone, avatarUrl = finalAvatar)
                     dialog.dismiss()
                 } else {
                     dialogBinding.btnSaveProfile.isEnabled = true
@@ -238,6 +339,50 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         dialog.show()
+    }
+
+    /** Xử lý ảnh vừa chọn từ thư viện, nén và chuyển sang Base64 */
+    private fun processAndPreviewAvatar(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap != null) {
+                // Resize ảnh về tối đa 180x180 để tối ưu dung lượng lưu trữ trên Firebase
+                val maxDim = 180
+                val width = originalBitmap.width
+                val height = originalBitmap.height
+                val ratio = width.toFloat() / height.toFloat()
+                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
+                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
+
+                val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, maxOf(1, targetWidth), maxOf(1, targetHeight), true)
+
+                val outputStream = ByteArrayOutputStream()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                val byteArray = outputStream.toByteArray()
+
+                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                pendingAvatarBase64 = base64String
+
+                // Cập nhật lên preview trong dialog
+                currentEditDialogBinding?.let { dBinding ->
+                    dBinding.ivEditAvatarPreview.visibility = View.VISIBLE
+                    dBinding.tvEditAvatarPreview.visibility = View.GONE
+                    Glide.with(this)
+                        .load(scaledBitmap)
+                        .circleCrop()
+                        .into(dBinding.ivEditAvatarPreview)
+
+                    // Bỏ chọn radio group emoji
+                    dBinding.rgAvatars.clearCheck()
+                }
+                Toast.makeText(this, "📷 Đã chọn ảnh đại diện!", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Không thể đọc ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /** Mở BottomSheet Sổ Địa Chỉ Nhận Hàng */
@@ -253,7 +398,6 @@ class ProfileActivity : AppCompatActivity() {
 
         val addressAdapter = AddressBookAdapter(
             onSelectClick = { address ->
-                // Khi bấm vào địa chỉ: hỏi muốn đặt làm mặc định không
                 if (!address.isDefault) {
                     setDefaultAddressAction(uid, address.addressId)
                 }
@@ -294,9 +438,11 @@ class ProfileActivity : AppCompatActivity() {
         bottomSheet.show()
     }
 
-    /** Mở dialog thêm mới địa chỉ */
+    /** Mở dialog thêm mới địa chỉ — có tích hợp GPS và kéo bản đồ để chọn */
     private fun showAddAddressDialog(uid: String) {
         val dialogBinding = DialogEditAddressBinding.inflate(LayoutInflater.from(this))
+        currentAddressDialogBinding = dialogBinding
+
         val dialog = AlertDialog.Builder(this)
             .setView(dialogBinding.root)
             .create()
@@ -310,6 +456,12 @@ class ProfileActivity : AppCompatActivity() {
         // Tự động điền tên và SĐT của user nếu có
         dialogBinding.etReceiverName.setText(currentUserData?.name ?: "")
         dialogBinding.etReceiverPhone.setText(currentUserData?.phone ?: "")
+
+        // NÚT MỞ BẢN ĐỒ LẤY GPS VÀ KÉO CHỌN ĐỊA CHỈ
+        dialogBinding.btnPickLocationOnMap.setOnClickListener {
+            val intent = Intent(this, SelectLocationActivity::class.java)
+            selectLocationLauncher.launch(intent)
+        }
 
         dialogBinding.btnCancelAddress.setOnClickListener { dialog.dismiss() }
 

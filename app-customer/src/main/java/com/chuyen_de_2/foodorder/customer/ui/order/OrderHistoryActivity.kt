@@ -162,7 +162,12 @@ class OrderHistoryActivity : AppCompatActivity() {
      */
     private fun updateTabBadgeCounts(orders: List<Order>) {
         val countWarning = orders.count { it.note.contains("cảnh báo", ignoreCase = true) || it.note.contains("gọi", ignoreCase = true) }
-        val countActive = orders.count { it.status == Order.Status.DELIVERING }
+        val countActive = orders.count {
+            it.status == Order.Status.DELIVERING ||
+            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+            it.status == Order.Status.ARRIVED_AT_SHOP ||
+            it.status == Order.Status.ASSIGNED
+        }
         val countCancelled = orders.count { it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM }
         val countUnpaid = orders.count { it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L }
         val countConfirming = orders.count { (it.status == Order.Status.PENDING || it.status == Order.Status.PREPARING || it.status == Order.Status.READY) && !it.note.contains("cảnh báo", ignoreCase = true) }
@@ -187,7 +192,12 @@ class OrderHistoryActivity : AppCompatActivity() {
     private fun applyFilter() {
         val filtered = when (currentFilterTab) {
             "WARNING" -> allOrders.filter { it.note.contains("cảnh báo", ignoreCase = true) || it.note.contains("gọi", ignoreCase = true) }
-            "ACTIVE" -> allOrders.filter { it.status == Order.Status.DELIVERING }
+            "ACTIVE" -> allOrders.filter {
+                it.status == Order.Status.DELIVERING ||
+                it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                it.status == Order.Status.ARRIVED_AT_SHOP ||
+                it.status == Order.Status.ASSIGNED
+            }
             "CANCELLED" -> allOrders.filter { it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM }
             "UNPAID" -> allOrders.filter { it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L }
             "CONFIRMING" -> allOrders.filter { it.status == Order.Status.PENDING || it.status == Order.Status.PREPARING || it.status == Order.Status.READY }

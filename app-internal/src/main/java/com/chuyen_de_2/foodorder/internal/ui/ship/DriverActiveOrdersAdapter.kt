@@ -44,8 +44,12 @@ class DriverActiveOrdersAdapter(
             val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
             binding.tvActiveOrderFee.text = "(+${fee.toVndCurrency()})"
 
-            val isDelivering = order.status == Order.Status.DELIVERING
-            binding.tvActiveOrderStatusTag.text = if (isDelivering) "Đang giao khách" else "Đang lấy món"
+            binding.tvActiveOrderStatusTag.text = when (order.status) {
+                Order.Status.ARRIVED_AT_SHOP -> "Đã đến quán"
+                Order.Status.DELIVERING -> "Đang giao khách"
+                Order.Status.ARRIVED_AT_CUSTOMER -> "Đã đến nhà khách"
+                else -> "Đang lấy món"
+            }
 
             val cusName = order.customerName.ifBlank { "Khách hàng" }
             val address = order.address.ifBlank { "Quận 1, TP.HCM" }

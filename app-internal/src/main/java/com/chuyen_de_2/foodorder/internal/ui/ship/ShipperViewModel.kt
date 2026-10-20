@@ -50,9 +50,13 @@ class ShipperViewModel @Inject constructor(
                 val myOrders = orders.filter { it.shipperId == shipperId }
                 _assignedOrders.value = myOrders
 
-                // Tìm đơn đang giao (chỉ ASSIGNED hoặc DELIVERING)
-                val delivering = myOrders.find { it.status == Order.Status.DELIVERING }
-                    ?: myOrders.find { it.status == Order.Status.ASSIGNED }
+                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER)
+                val delivering = myOrders.find {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED
+                }
                 _currentDeliveryOrderId.value = delivering?.orderId
             }
         }
@@ -78,7 +82,10 @@ class ShipperViewModel @Inject constructor(
     /** Nhận đơn mới từ quán (ghép chuyến) */
     fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
         val currentActiveCount = _assignedOrders.value?.count {
-            it.status == Order.Status.DELIVERING || it.status == Order.Status.ASSIGNED
+            it.status == Order.Status.DELIVERING ||
+            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+            it.status == Order.Status.ARRIVED_AT_SHOP ||
+            it.status == Order.Status.ASSIGNED
         } ?: 0
 
         if (currentActiveCount >= 3) {

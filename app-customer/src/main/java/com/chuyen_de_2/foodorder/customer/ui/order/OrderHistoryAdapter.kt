@@ -194,25 +194,57 @@ class OrderHistoryAdapter(
                     binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
                 }
 
-                Order.Status.DELIVERING -> {
-                    // ĐƠN ĐANG ĐẾN (Shipper đang giao)
+                Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP, Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
                     binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
                     binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
 
-                    binding.tvOrderStatusBadge.text = "🚚 Đang giao hàng"
-                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
+                    val badgeText: String
+                    val badgeColor: Int
+                    val badgeBg: Int
+                    val shipperDesc: String
 
-                    val shipper = order.shipperName.ifBlank { "Tài xế giao hàng" }
+                    val shipper = order.shipperName.ifBlank { "Tài xế" }
+                    when (order.status) {
+                        Order.Status.ARRIVED_AT_SHOP -> {
+                            badgeText = "🏪 Tài xế đã đến quán"
+                            badgeColor = Color.parseColor("#2563EB")
+                            badgeBg = R.drawable.bg_tab_badge_blue
+                            shipperDesc = "🛵 Shipper: $shipper đã có mặt tại quán"
+                        }
+                        Order.Status.ARRIVED_AT_CUSTOMER -> {
+                            badgeText = "📍 Tài xế đã đến nơi"
+                            badgeColor = Color.parseColor("#EA580C")
+                            badgeBg = R.drawable.bg_voucher_chip
+                            shipperDesc = "🔔 Shipper: $shipper đang chờ trước cửa"
+                        }
+                        Order.Status.DELIVERING -> {
+                            badgeText = "🚚 Đã lấy hàng, đang giao"
+                            badgeColor = Color.parseColor("#2563EB")
+                            badgeBg = R.drawable.bg_tab_badge_blue
+                            shipperDesc = "🛵 Shipper: $shipper đang giao tới bạn"
+                        }
+                        else -> {
+                            badgeText = "🛵 Tài xế đang đến quán"
+                            badgeColor = Color.parseColor("#2563EB")
+                            badgeBg = R.drawable.bg_tab_badge_blue
+                            shipperDesc = "🛵 Shipper: $shipper đang di chuyển đến quán"
+                        }
+                    }
+
+                    binding.tvOrderStatusBadge.text = badgeText
+                    binding.tvOrderStatusBadge.setTextColor(badgeColor)
+                    binding.tvOrderStatusBadge.setBackgroundResource(badgeBg)
+
                     binding.tvShipperInfo.visibility = View.VISIBLE
-                    binding.tvShipperInfo.text = "🛵 Shipper: $shipper đang di chuyển"
-                    binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
+                    binding.tvShipperInfo.text = shipperDesc
+                    binding.tvShipperInfo.setTextColor(badgeColor)
 
                     binding.layoutAlertBox.visibility = View.GONE
 
                     binding.btnActionSecondary.visibility = View.VISIBLE
                     binding.btnActionSecondary.text = "📞 Gọi Shipper"
-                    binding.btnActionSecondary.setOnClickListener { onCallClick("0909555888") }
+                    val phone = if (order.shipperName.isNotBlank()) "0909555888" else "19001000"
+                    binding.btnActionSecondary.setOnClickListener { onCallClick(phone) }
 
                     binding.btnActionPrimary.text = "Theo Dõi Trực Tiếp ➔"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)

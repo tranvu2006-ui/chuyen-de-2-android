@@ -99,8 +99,9 @@ class DeliveryTripActivity : AppCompatActivity() {
         setupWebViews()
         setupSwipeToConfirm()
         setupListeners()
+        val initialStep = getSavedStep(currentOrderId)
+        updateStepUI(initialStep)
         observeOrderDetails()
-        updateStepUI(1)
         checkAndRequestLocation()
     }
 
@@ -178,6 +179,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                                 v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 Toast.makeText(this, "✓ ĐÃ ĐẾN QUÁN ĂN!", Toast.LENGTH_SHORT).show()
                                 updateStepUI(2)
+                                lifecycleScope.launch {
+                                    firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.ARRIVED_AT_SHOP)
+                                }
                                 thumb.translationX = 0f
                                 label.alpha = 1f
                                 isConfirmed = false
@@ -204,12 +208,39 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
     }
 
+    private fun getSavedStep(orderId: String): Int {
+        if (orderId.isBlank()) return 1
+        val sp = getSharedPreferences("delivery_trip_state", Context.MODE_PRIVATE)
+        return sp.getInt("step_$orderId", 1)
+    }
+
+    private fun saveStep(orderId: String, step: Int) {
+        if (orderId.isBlank()) return
+        val sp = getSharedPreferences("delivery_trip_state", Context.MODE_PRIVATE)
+        sp.edit().putInt("step_$orderId", step).apply()
+    }
+
+    private fun syncStepFromOrderStatus(status: String) {
+        val targetStep = when (status) {
+            Order.Status.ARRIVED_AT_CUSTOMER -> 4
+            Order.Status.DELIVERING -> 3
+            Order.Status.ARRIVED_AT_SHOP -> 2
+            else -> 1
+        }
+        val saved = getSavedStep(currentOrderId)
+        val finalStep = maxOf(targetStep, saved)
+        if (finalStep != currentStep) {
+            updateStepUI(finalStep)
+        }
+    }
+
     private fun observeOrderDetails() {
         lifecycleScope.launch {
             firebaseRepository.observeOrder(currentOrderId).collectLatest { order ->
                 if (order != null) {
                     currentOrder = order
                     bindOrderData(order)
+                    syncStepFromOrderStatus(order.status)
                 }
             }
         }
@@ -360,6 +391,10 @@ class DeliveryTripActivity : AppCompatActivity() {
         // Bước 3: Nút "Đã đến điểm giao khách" -> sang Bước 4
         binding.btnArrivedAtCustomer.setOnClickListener {
             updateStepUI(4)
+            lifecycleScope.launch {
+                firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.ARRIVED_AT_CUSTOMER)
+                Toast.makeText(this@DeliveryTripActivity, "📍 Đã đến nhà khách! Chờ khách đối soát mã nhận món", Toast.LENGTH_SHORT).show()
+            }
         }
 
         // Bước 4: Nút quét mã QR
@@ -375,6 +410,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun updateStepUI(step: Int) {
         currentStep = step
+        saveStep(currentOrderId, step)
 
         binding.layoutStep1.visibility = if (step == 1) View.VISIBLE else View.GONE
         binding.layoutStep2.visibility = if (step == 2) View.VISIBLE else View.GONE
@@ -445,6 +481,8 @@ class DeliveryTripActivity : AppCompatActivity() {
             try {
                 firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.COMPLETED)
                 firebaseRepository.clearTracking(currentOrderId)
+                getSharedPreferences("delivery_trip_state", Context.MODE_PRIVATE)
+                    .edit().remove("step_$currentOrderId").apply()
 
                 AlertDialog.Builder(this@DeliveryTripActivity)
                     .setTitle("🎉 Giao Hàng Thành Công!")

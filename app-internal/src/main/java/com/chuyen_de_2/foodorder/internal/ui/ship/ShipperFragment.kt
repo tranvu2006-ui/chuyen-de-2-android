@@ -132,7 +132,10 @@ class ShipperFragment : Fragment() {
         viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
             val currentUid = authRepository.currentUser?.uid ?: ""
             val activeOrders = orders.filter {
-                (it.status == Order.Status.DELIVERING || it.status == Order.Status.ASSIGNED) &&
+                (it.status == Order.Status.DELIVERING ||
+                 it.status == Order.Status.ASSIGNED ||
+                 it.status == Order.Status.ARRIVED_AT_SHOP ||
+                 it.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
                         it.shipperId == currentUid
             }
 

@@ -34,6 +34,9 @@ class ShipperViewModel @Inject constructor(
     val messageEvent: LiveData<String> = _messageEvent
 
     init {
+        viewModelScope.launch {
+            firebaseRepository.cleanupOrphanedData()
+        }
         observeShipperOrders()
         observePendingStoreOrders()
     }

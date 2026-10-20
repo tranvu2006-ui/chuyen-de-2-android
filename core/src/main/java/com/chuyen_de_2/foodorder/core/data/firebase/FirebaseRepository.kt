@@ -3,8 +3,10 @@ package com.chuyen_de_2.foodorder.core.data.firebase
 import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
 import com.chuyen_de_2.foodorder.core.data.model.CartPayload
+import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.data.model.TrackingLocation
+import com.chuyen_de_2.foodorder.core.data.model.TrustScoreLog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -609,12 +611,169 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Xóa tài xế khỏi đội ngũ của quán */
+    /** Xóa tài xế khỏi đội ngũ của quán và thu hồi các đơn đang gán */
     suspend fun deleteDriver(driverId: String): Result<Unit> {
         return try {
             database.getReference("drivers").child(driverId).removeValue().await()
             database.getReference("users").child(driverId).removeValue().await()
+
+            // Thu hồi các đơn hàng đang giao của tài xế này về trạng thái READY để tài xế khác nhận
+            val ordersSnap = database.getReference("orders")
+                .orderByChild("shipperId")
+                .equalTo(driverId)
+                .get()
+                .await()
+
+            for (child in ordersSnap.children) {
+                val order = child.getValue(Order::class.java) ?: continue
+                if (order.status != Order.Status.COMPLETED &&
+                    order.status != Order.Status.CANCELLED &&
+                    order.status != Order.Status.BOOM
+                ) {
+                    val updates = mapOf<String, Any?>(
+                        "shipperId" to null,
+                        "shipperName" to "",
+                        "status" to Order.Status.READY
+                    )
+                    database.getReference("orders").child(order.orderId).updateChildren(updates).await()
+                    database.getReference("tracking").child(order.orderId).removeValue().await()
+                }
+            }
+
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Dọn dẹp toàn bộ dữ liệu của các tài khoản đã bị xóa:
+     * 1. Xóa giỏ hàng mồ côi (carts)
+     * 2. Xóa hồ sơ tài xế mồ côi (drivers)
+     * 3. Xóa hồ sơ khách hàng mồ côi (customers)
+     * 4. Xóa đơn hàng của khách đã bị xóa tài khoản
+     * 5. Thu hồi đơn hàng đang bị gán bởi tài xế đã bị xóa (trả về READY)
+     * 6. Xóa tracking GPS mồ côi
+     */
+    suspend fun cleanupOrphanedData(): Result<Int> {
+        return try {
+            val usersSnap = database.getReference("users").get().await()
+            val validUserIds = usersSnap.children.mapNotNull { it.key }.toSet()
+
+            var cleanedCount = 0
+
+            // 1. Dọn dẹp giỏ hàng mồ côi (carts)
+            try {
+                val cartsSnap = database.getReference("carts").get().await()
+                for (cartChild in cartsSnap.children) {
+                    val userId = cartChild.key ?: continue
+                    if (!validUserIds.contains(userId)) {
+                        database.getReference("carts").child(userId).removeValue().await()
+                        cleanedCount++
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 2. Dọn dẹp hồ sơ khách hàng mồ côi (customers)
+            try {
+                val customersSnap = database.getReference("customers").get().await()
+                for (cusChild in customersSnap.children) {
+                    val cusId = cusChild.key ?: continue
+                    if (!validUserIds.contains(cusId)) {
+                        database.getReference("customers").child(cusId).removeValue().await()
+                        cleanedCount++
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 3. Dọn dẹp node drivers mồ côi
+            try {
+                val driversSnap = database.getReference("drivers").get().await()
+                for (driverChild in driversSnap.children) {
+                    val driverId = driverChild.key ?: continue
+                    if (!validUserIds.contains(driverId)) {
+                        database.getReference("drivers").child(driverId).removeValue().await()
+                        cleanedCount++
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 4. Dọn dẹp đơn hàng (orders) và tracking
+            val validOrderIds = mutableSetOf<String>()
+            try {
+                val ordersSnap = database.getReference("orders").get().await()
+                for (orderChild in ordersSnap.children) {
+                    val order = orderChild.getValue(Order::class.java) ?: continue
+                    val orderId = orderChild.key ?: order.orderId
+
+                    // Khách hàng đặt đơn không còn tồn tại trong users -> xóa đơn mồ côi
+                    if (order.customerId.isNotBlank() && !validUserIds.contains(order.customerId)) {
+                        database.getReference("orders").child(orderId).removeValue().await()
+                        database.getReference("tracking").child(orderId).removeValue().await()
+                        cleanedCount++
+                        continue
+                    }
+
+                    validOrderIds.add(orderId)
+
+                    // Đơn đang bị gán bởi tài xế đã bị xóa -> thu hồi đơn, đưa về READY để tài xế khác nhận
+                    val shipperId = order.shipperId
+                    if (!shipperId.isNullOrBlank() && shipperId != "null" && !validUserIds.contains(shipperId)) {
+                        if (order.status != Order.Status.COMPLETED &&
+                            order.status != Order.Status.CANCELLED &&
+                            order.status != Order.Status.BOOM
+                        ) {
+                            val updates = mapOf<String, Any?>(
+                                "shipperId" to null,
+                                "shipperName" to "",
+                                "status" to Order.Status.READY
+                            )
+                            database.getReference("orders").child(orderId).updateChildren(updates).await()
+                            database.getReference("tracking").child(orderId).removeValue().await()
+                            cleanedCount++
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 5. Dọn dẹp tracking mồ côi không thuộc về đơn nào
+            try {
+                val trackingSnap = database.getReference("tracking").get().await()
+                for (trackChild in trackingSnap.children) {
+                    val trackOrderId = trackChild.key ?: continue
+                    if (!validOrderIds.contains(trackOrderId)) {
+                        database.getReference("tracking").child(trackOrderId).removeValue().await()
+                        cleanedCount++
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 6. Dọn dẹp đánh giá (dish_reviews) và lịch sử điểm uy tín (trust_score_logs) mồ côi
+            try {
+                val reviewsSnap = database.getReference("dish_reviews").get().await()
+                for (revChild in reviewsSnap.children) {
+                    val rev = revChild.getValue(DishReview::class.java) ?: continue
+                    val revKey = revChild.key ?: rev.reviewId
+                    if (rev.customerId.isNotBlank() && !validUserIds.contains(rev.customerId)) {
+                        database.getReference("dish_reviews").child(revKey).removeValue().await()
+                        cleanedCount++
+                    }
+                }
+            } catch (_: Exception) {}
+
+            try {
+                val logsSnap = database.getReference("trust_score_logs").get().await()
+                for (logChild in logsSnap.children) {
+                    val log = logChild.getValue(TrustScoreLog::class.java) ?: continue
+                    val logKey = logChild.key ?: log.logId
+                    if (log.customerId.isNotBlank() && !validUserIds.contains(log.customerId)) {
+                        database.getReference("trust_score_logs").child(logKey).removeValue().await()
+                        cleanedCount++
+                    }
+                }
+            } catch (_: Exception) {}
+
+            Result.success(cleanedCount)
         } catch (e: Exception) {
             Result.failure(e)
         }

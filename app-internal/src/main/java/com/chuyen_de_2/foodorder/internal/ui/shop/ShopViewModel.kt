@@ -65,8 +65,19 @@ class ShopViewModel @Inject constructor(
     private var previousOrderCount = 0
 
     init {
+        viewModelScope.launch {
+            firebaseRepository.cleanupOrphanedData()
+        }
         observeOrders()
         observeShippers()
+    }
+
+    /** Chủ động quét dọn dữ liệu rác/mồ côi của các tài khoản đã xóa */
+    fun cleanupOrphanedData(onResult: ((Int) -> Unit)? = null) {
+        viewModelScope.launch {
+            val result = firebaseRepository.cleanupOrphanedData()
+            onResult?.invoke(result.getOrDefault(0))
+        }
     }
 
     fun selectTab(tab: TabType) {

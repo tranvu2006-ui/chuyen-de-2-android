@@ -43,9 +43,6 @@ class HomeViewModel @Inject constructor(
     private var currentNearbyOnly: Boolean = false
 
     init {
-        viewModelScope.launch {
-            firebaseRepository.cleanupOrphanedData()
-        }
         loadStores()
     }
 

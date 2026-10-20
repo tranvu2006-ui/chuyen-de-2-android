@@ -698,22 +698,13 @@ class FirebaseRepository @Inject constructor(
                 }
             } catch (_: Exception) {}
 
-            // 4. Dọn dẹp đơn hàng (orders) và tracking
+            // 4. Kiểm tra đơn hàng (orders) và thu hồi đơn nếu tài xế bị xóa tài khoản (TUYỆT ĐỐI KHÔNG XÓA ĐƠN HÀNG)
             val validOrderIds = mutableSetOf<String>()
             try {
                 val ordersSnap = database.getReference("orders").get().await()
                 for (orderChild in ordersSnap.children) {
                     val order = orderChild.getValue(Order::class.java) ?: continue
                     val orderId = orderChild.key ?: order.orderId
-
-                    // Khách hàng đặt đơn không còn tồn tại trong users -> xóa đơn mồ côi
-                    if (order.customerId.isNotBlank() && !validUserIds.contains(order.customerId)) {
-                        database.getReference("orders").child(orderId).removeValue().await()
-                        database.getReference("tracking").child(orderId).removeValue().await()
-                        cleanedCount++
-                        continue
-                    }
-
                     validOrderIds.add(orderId)
 
                     // Đơn đang bị gán bởi tài xế đã bị xóa -> thu hồi đơn, đưa về READY để tài xế khác nhận

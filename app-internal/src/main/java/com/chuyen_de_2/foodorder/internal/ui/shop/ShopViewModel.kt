@@ -65,9 +65,6 @@ class ShopViewModel @Inject constructor(
     private var previousOrderCount = 0
 
     init {
-        viewModelScope.launch {
-            firebaseRepository.cleanupOrphanedData()
-        }
         observeOrders()
         observeShippers()
     }

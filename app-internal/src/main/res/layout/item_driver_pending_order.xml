@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     style="@style/Widget.Material3.CardView.Elevated"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -28,7 +29,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="#ORD_OISHI_88292"
+                tools:text="#ORD_OISHI_88292"
                 android:textColor="@color/text_primary"
                 android:textSize="13.5sp"
                 android:textStyle="bold" />
@@ -37,7 +38,7 @@
                 android:id="@+id/tvPendingOrderFee"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="+20.000 đ"
+                tools:text="+20.000 đ"
                 android:textColor="@color/brand_green"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -48,7 +49,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="2x Hồng Trà Sữa Trân Châu (Size L) • Đã đóng túi niêm phong"
+            tools:text="2x Hồng Trà Sữa Trân Châu (Size L) • Đã đóng túi niêm phong"
             android:textColor="@color/text_secondary"
             android:textSize="11.5sp" />
 
@@ -57,7 +58,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="📍 Giao đến: Minh Khang - 18 Lê Duẩn, Q.1 (5.4 km)"
+            tools:text="📍 Giao đến: Minh Khang - 18 Lê Duẩn, Q.1 (5.4 km)"
             android:textColor="#1E293B"
             android:textSize="12sp" />
 

@@ -39,14 +39,20 @@ class ShipperViewModel @Inject constructor(
     }
 
     private fun observeShipperOrders() {
-        val shipperId = auth.currentUser?.uid ?: "default_driver"
+        val shipperId = auth.currentUser?.uid
+        if (shipperId.isNullOrBlank()) {
+            _assignedOrders.value = emptyList()
+            return
+        }
         viewModelScope.launch {
             firebaseRepository.observeOrdersByShipper(shipperId).collectLatest { orders ->
-                _assignedOrders.value = orders
+                // Chỉ nhận những đơn có đúng shipperId của tài xế này
+                val myOrders = orders.filter { it.shipperId == shipperId }
+                _assignedOrders.value = myOrders
 
-                // Tìm đơn đang giao
-                val delivering = orders.find { it.status == Order.Status.DELIVERING }
-                    ?: orders.find { it.status == Order.Status.ASSIGNED || it.status == Order.Status.READY }
+                // Tìm đơn đang giao (chỉ ASSIGNED hoặc DELIVERING)
+                val delivering = myOrders.find { it.status == Order.Status.DELIVERING }
+                    ?: myOrders.find { it.status == Order.Status.ASSIGNED }
                 _currentDeliveryOrderId.value = delivering?.orderId
             }
         }
@@ -72,7 +78,7 @@ class ShipperViewModel @Inject constructor(
     /** Nhận đơn mới từ quán (ghép chuyến) */
     fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
         val currentActiveCount = _assignedOrders.value?.count {
-            it.status == Order.Status.DELIVERING || it.status == Order.Status.ASSIGNED || it.status == Order.Status.READY
+            it.status == Order.Status.DELIVERING || it.status == Order.Status.ASSIGNED
         } ?: 0
 
         if (currentActiveCount >= 3) {
@@ -81,6 +87,10 @@ class ShipperViewModel @Inject constructor(
         }
 
         val shipperId = auth.currentUser?.uid ?: ""
+        if (shipperId.isBlank()) {
+            onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
+            return
+        }
         val shipperName = auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
 
         viewModelScope.launch {

@@ -129,13 +129,12 @@ class ShipperFragment : Fragment() {
     }
 
     private fun observeData() {
-        // Lắng nghe các đơn đang nhận giao của tài xế
+        // Lắng nghe các đơn đang nhận giao của tài xế (chỉ ASSIGNED hoặc DELIVERING do chính tài xế nhận)
         viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
+            val currentUid = authRepository.currentUser?.uid ?: ""
             val activeOrders = orders.filter {
-                it.status == Order.Status.DELIVERING ||
-                        it.status == Order.Status.ASSIGNED ||
-                        it.status == Order.Status.READY ||
-                        it.status == Order.Status.PREPARING
+                (it.status == Order.Status.DELIVERING || it.status == Order.Status.ASSIGNED) &&
+                        it.shipperId == currentUid
             }
 
             activeAdapter.submitList(activeOrders)
@@ -143,14 +142,10 @@ class ShipperFragment : Fragment() {
             binding.tvStatActiveCount.text = "${activeOrders.size} đơn"
             binding.tvEmptyActive.visibility = if (activeOrders.isEmpty()) View.VISIBLE else View.GONE
 
-            // Thống kê đơn hoàn thành & thu nhập
-            val completed = orders.filter { it.status == Order.Status.COMPLETED }
-            val completedCount = if (completed.isNotEmpty()) completed.size else 12
-            val earnings = if (completed.isNotEmpty()) {
-                completed.sumOf { if (it.shippingFee > 0) it.shippingFee else 25000L }
-            } else {
-                385000L
-            }
+            // Thống kê đơn hoàn thành & thu nhập thực tế
+            val completed = orders.filter { it.status == Order.Status.COMPLETED && it.shipperId == currentUid }
+            val completedCount = completed.size
+            val earnings = completed.sumOf { if (it.shippingFee > 0) it.shippingFee else 25000L }
 
             binding.tvStatCompletedCount.text = "$completedCount cuốc"
             binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"

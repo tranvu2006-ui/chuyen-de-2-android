@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     style="@style/Widget.Material3.CardView.Elevated"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -28,7 +29,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="#ORD_OISHI_88291"
+                tools:text="#ORD_OISHI_88291"
                 android:textColor="@color/text_primary"
                 android:textSize="13.5sp"
                 android:textStyle="bold" />
@@ -38,7 +39,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:text="(+25.000 đ)"
+                tools:text="(+25.000 đ)"
                 android:textColor="@color/brand_green"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -50,7 +51,7 @@
                 android:background="#DBEAFE"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:text="Đang lấy món"
+                tools:text="Đang lấy món"
                 android:textColor="#1D4ED8"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />

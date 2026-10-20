@@ -185,7 +185,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="+385.000 đ"
+                        android:text="0 đ"
+                        tools:text="+385.000 đ"
                         android:textColor="@color/brand_green"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -223,7 +224,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="12 cuốc"
+                        android:text="0 cuốc"
+                        tools:text="12 cuốc"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -261,7 +263,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="1 đơn"
+                        android:text="0 đơn"
+                        tools:text="1 đơn"
                         android:textColor="@color/brand_blue"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -293,7 +296,8 @@
                 android:background="@drawable/bg_badge_blue"
                 android:paddingHorizontal="7dp"
                 android:paddingVertical="2dp"
-                android:text="1 đơn"
+                android:text="0 đơn"
+                tools:text="1 đơn"
                 android:textColor="#FFFFFF"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />
@@ -355,7 +359,8 @@
                 android:background="@drawable/bg_badge_orange"
                 android:paddingHorizontal="7dp"
                 android:paddingVertical="2dp"
-                android:text="2 đơn"
+                android:text="0 đơn"
+                tools:text="2 đơn"
                 android:textColor="#FFFFFF"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />

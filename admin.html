@@ -425,16 +425,10 @@
 
     .tab-pane {
       display: none;
-      animation: fadeIn 0.2s ease-out;
     }
 
     .tab-pane.active {
       display: block;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
     }
 
     /* ====== KPI STATS CARDS ====== */
@@ -829,13 +823,12 @@
       flex-direction: column;
       gap: 12px;
       position: relative;
-      transition: all 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .category-card:hover {
-      border-color: var(--primary-border);
-      box-shadow: var(--shadow);
-      transform: translateY(-2px);
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
     .cat-header {
@@ -1878,7 +1871,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </div>
         <span>Quản Lý Danh Mục</span>
-        <span class="nav-badge" id="badge-cat-count">8</span>
+        <span class="nav-badge" id="badge-cat-count">0</span>
       </a>
 
       <a class="nav-item" data-tab="customers" onclick="switchTab('customers')">
@@ -1886,7 +1879,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         </div>
         <span>Quản Lý Khách Hàng</span>
-        <span class="nav-badge" id="badge-customer-count">12</span>
+        <span class="nav-badge" id="badge-customer-count">0</span>
       </a>
 
       <a class="nav-item" data-tab="stores" onclick="switchTab('stores')">
@@ -1894,7 +1887,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
         </div>
         <span>Quản Lý Cửa Hàng</span>
-        <span class="nav-badge danger" id="badge-locked-store" title="Số cửa hàng bị khóa">1 Khóa</span>
+        <span class="nav-badge danger" id="badge-locked-store" style="display:none;" title="Số cửa hàng bị khóa">0</span>
       </a>
 
       <a class="nav-item" data-tab="orders" onclick="switchTab('orders')">
@@ -1913,7 +1906,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
         </div>
         <span>Xử Lý Khiếu Nại</span>
-        <span class="nav-badge danger" id="badge-complaints-count">3 Mới</span>
+        <span class="nav-badge danger" id="badge-complaints-count" style="display:none;">0</span>
       </a>
 
       <div class="nav-label">Cài Đặt & Tài Khoản</div>
@@ -1965,17 +1958,17 @@
         <!-- Global Search -->
         <div class="global-search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="global-search-input" placeholder="Tìm kiếm nhanh toàn hệ thống..." oninput="handleGlobalSearch(this.value)">
+          <input type="text" id="global-search-input" placeholder="Tìm kiếm nhanh toàn hệ thống (Nhấn Enter)..." onkeydown="if(event.key==='Enter') handleGlobalSearch(this.value)">
         </div>
 
         <!-- Admin Profile Box with dropdown -->
         <div class="admin-profile-box" onclick="toggleAdminDropdown(event)">
           <div class="admin-avatar">
-            <span id="admin-avatar-char">L</span>
+            <span id="admin-avatar-char">A</span>
             <span class="status-dot-online" title="Trực tuyến"></span>
           </div>
           <div class="admin-info">
-            <div class="admin-name" id="display-admin-name">Admin Nguyễn Hoàng Long</div>
+            <div class="admin-name" id="display-admin-name">Admin Hệ Thống</div>
             <div class="admin-role">Quản Trị Viên Cấp Cao</div>
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
@@ -2018,8 +2011,8 @@
           <div class="stat-card" onclick="switchTab('categories')">
             <div class="stat-meta">
               <span class="stat-label">Tổng Danh Mục</span>
-              <span class="stat-value" id="kpi-total-cats">8</span>
-              <span class="stat-sub positive">↑ Đang hoạt động 100%</span>
+              <span class="stat-value" id="kpi-total-cats">0</span>
+              <span class="stat-sub positive">Đồng bộ từ Firebase</span>
             </div>
             <div class="stat-icon-wrap icon-purple">🏷️</div>
           </div>
@@ -2027,8 +2020,8 @@
           <div class="stat-card" onclick="switchTab('customers')">
             <div class="stat-meta">
               <span class="stat-label">Tổng Khách Hàng</span>
-              <span class="stat-value" id="kpi-total-customers">12</span>
-              <span class="stat-sub" id="kpi-active-customers">11 đang hoạt động</span>
+              <span class="stat-value" id="kpi-total-customers">0</span>
+              <span class="stat-sub" id="kpi-active-customers">0 đang hoạt động</span>
             </div>
             <div class="stat-icon-wrap icon-blue">👥</div>
           </div>
@@ -2036,8 +2029,8 @@
           <div class="stat-card" onclick="switchTab('stores')">
             <div class="stat-meta">
               <span class="stat-label">Đối Tác Cửa Hàng</span>
-              <span class="stat-value" id="kpi-total-stores">8</span>
-              <span class="stat-sub danger" id="kpi-locked-stores">⚠️ 1 cửa hàng bị khóa</span>
+              <span class="stat-value" id="kpi-total-stores">0</span>
+              <span class="stat-sub danger" id="kpi-locked-stores">0 cửa hàng bị khóa</span>
             </div>
             <div class="stat-icon-wrap icon-orange">🏪</div>
           </div>
@@ -2046,8 +2039,8 @@
           <div class="stat-card" onclick="switchTab('complaints')">
             <div class="stat-meta">
               <span class="stat-label">Khiếu Nại Chờ Duyệt</span>
-              <span class="stat-value" id="kpi-pending-complaints" style="color: var(--danger);">3</span>
-              <span class="stat-sub warning" id="kpi-complaint-sub">⚠️ 1 khiếu nại khẩn cấp</span>
+              <span class="stat-value" id="kpi-pending-complaints" style="color: var(--danger);">0</span>
+              <span class="stat-sub warning" id="kpi-complaint-sub">0 khiếu nại chờ xử lý</span>
             </div>
             <div class="stat-icon-wrap icon-red">🚨</div>
           </div>
@@ -2055,8 +2048,8 @@
           <div class="stat-card" onclick="switchTab('orders')">
             <div class="stat-meta">
               <span class="stat-label">Tổng Đơn Đặt Hàng</span>
-              <span class="stat-value" id="kpi-total-orders">15</span>
-              <span class="stat-sub positive" id="kpi-orders-sub">↑ Đồng bộ Realtime</span>
+              <span class="stat-value" id="kpi-total-orders">0</span>
+              <span class="stat-sub positive" id="kpi-orders-sub">Đồng bộ Realtime</span>
             </div>
             <div class="stat-icon-wrap icon-green">📦</div>
           </div>
@@ -2402,7 +2395,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('PENDING')">
             <div class="stat-meta">
               <span class="stat-label">Chờ Xử Lý</span>
-              <span class="stat-value" id="kpi-c-pending" style="color: var(--danger);">3</span>
+              <span class="stat-value" id="kpi-c-pending" style="color: var(--danger);">0</span>
               <span class="stat-sub danger">Cần Admin can thiệp ngay</span>
             </div>
             <div class="stat-icon-wrap icon-red">⏳</div>
@@ -2410,7 +2403,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('IN_PROGRESS')">
             <div class="stat-meta">
               <span class="stat-label">Đang Điều Tra</span>
-              <span class="stat-value" id="kpi-c-progress" style="color: var(--warning);">2</span>
+              <span class="stat-value" id="kpi-c-progress" style="color: var(--warning);">0</span>
               <span class="stat-sub warning">Đang đối soát 2 bên</span>
             </div>
             <div class="stat-icon-wrap icon-yellow">🔍</div>
@@ -2418,7 +2411,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('RESOLVED')">
             <div class="stat-meta">
               <span class="stat-label">Đã Giải Quyết</span>
-              <span class="stat-value" id="kpi-c-resolved" style="color: var(--success);">8</span>
+              <span class="stat-value" id="kpi-c-resolved" style="color: var(--success);">0</span>
               <span class="stat-sub positive">Đã xử lý xong</span>
             </div>
             <div class="stat-icon-wrap icon-green">✅</div>
@@ -2426,7 +2419,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('REJECTED')">
             <div class="stat-meta">
               <span class="stat-label">Đã Từ Chối</span>
-              <span class="stat-value" id="kpi-c-rejected" style="color: var(--text-muted);">1</span>
+              <span class="stat-value" id="kpi-c-rejected" style="color: var(--text-muted);">0</span>
               <span class="stat-sub">Không đủ bằng chứng</span>
             </div>
             <div class="stat-icon-wrap icon-blue">❌</div>
@@ -2523,11 +2516,11 @@
             <form style="padding: 24px;" onsubmit="saveAdminSettings(event)">
               <div class="form-group" style="margin-bottom: 16px;">
                 <label class="form-label">Tên hiển thị Admin <span class="req">*</span></label>
-                <input type="text" class="form-control" id="setting-admin-name" required value="Admin Nguyễn Hoàng Long">
+                <input type="text" class="form-control" id="setting-admin-name" required value="Admin Hệ Thống">
               </div>
               <div class="form-group" style="margin-bottom: 16px;">
                 <label class="form-label">Email Admin</label>
-                <input type="email" class="form-control" id="setting-admin-email" value="admin.long@oishifood.vn">
+                <input type="email" class="form-control" id="setting-admin-email" value="admin@oishifood.vn">
               </div>
               <div class="form-group" style="margin-bottom: 16px;">
                 <label class="form-label">Chức vụ / Vai trò</label>
@@ -2535,7 +2528,7 @@
               </div>
               <div class="form-group" style="margin-bottom: 20px;">
                 <label class="form-label">Số điện thoại liên hệ</label>
-                <input type="text" class="form-control" id="setting-admin-phone" value="0988.123.456">
+                <input type="text" class="form-control" id="setting-admin-phone" value="">
               </div>
               <button type="submit" class="btn btn-primary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -2851,7 +2844,7 @@
           <div class="complaint-detail-box">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <span class="badge badge-info" id="detail-c-code">#KN-101</span>
+                <span class="badge badge-info" id="detail-c-code">#---</span>
                 <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;" id="detail-c-time"></span>
               </div>
               <div id="detail-c-priority-badge"></div>
@@ -2861,20 +2854,20 @@
             <div class="complaint-parties-grid">
               <div class="party-card">
                 <div class="party-title">Người gửi khiếu nại (Nguồn)</div>
-                <div class="party-name" id="detail-c-sender-name">Trần Minh Anh</div>
-                <div class="party-sub" id="detail-c-sender-contact">0901.234.567 • Khách hàng</div>
+                <div class="party-name" id="detail-c-sender-name">---</div>
+                <div class="party-sub" id="detail-c-sender-contact">---</div>
               </div>
               <div class="party-card" style="border-color: #FECACA; background: #FFF8F8;">
                 <div class="party-title" style="color: var(--danger);">Đối tượng bị khiếu nại</div>
-                <div class="party-name" id="detail-c-target-name">Quán Ốc Đêm 77 Cầu Muối</div>
-                <div class="party-sub" id="detail-c-target-contact">Chủ quán: Trịnh Tấn Lực • 0942.334.455</div>
+                <div class="party-name" id="detail-c-target-name">---</div>
+                <div class="party-sub" id="detail-c-target-contact">---</div>
               </div>
             </div>
 
             <!-- Đơn hàng & sự cố -->
             <div style="font-size: 13px; line-height: 1.5; padding-top: 6px; border-top: 1px dashed var(--border);">
               <div style="margin-bottom: 4px;">
-                Đơn hàng: <strong id="detail-c-order" style="color: #2563EB;">#ORD-7712</strong> • Chủ đề: <strong id="detail-c-type">Vệ sinh an toàn thực phẩm</strong>
+                Đơn hàng: <strong id="detail-c-order" style="color: #2563EB;">---</strong> • Chủ đề: <strong id="detail-c-type">---</strong>
               </div>
               <div style="background: #FFF; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px;">
                 <strong>Nội dung phản ánh:</strong>
@@ -3022,14 +3015,14 @@
         <!-- Header tóm tắt đối tác -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 18px; margin-bottom: 16px;">
           <div>
-            <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="cccd-view-store-name">Phở Bò Thăng Long Xưa</div>
+            <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="cccd-view-store-name">---</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-              Chủ quán: <strong id="cccd-view-owner" style="color: var(--text-main);">Nguyễn Văn Định</strong> • SĐT: <strong id="cccd-view-phone">0908.112.233</strong>
+              Chủ quán: <strong id="cccd-view-owner" style="color: var(--text-main);">---</strong> • SĐT: <strong id="cccd-view-phone">---</strong>
             </div>
           </div>
           <div style="text-align: right;">
             <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Số Căn Cước Công Dân (CCCD):</div>
-            <div style="font-size: 17px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #2563EB;" id="cccd-view-number">079088012456</div>
+            <div style="font-size: 17px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #2563EB;" id="cccd-view-number">---</div>
             <div id="cccd-view-status-badge" style="margin-top: 4px;"></div>
           </div>
         </div>
@@ -3111,12 +3104,12 @@
                 </div>
                 <div class="cccd-chip-box"></div>
                 <div class="cccd-details-col">
-                  <div class="cccd-id-num" id="cccd-front-num">079088012456</div>
-                  <div class="cccd-info-line">Họ và tên: <strong id="cccd-front-name">NGUYỄN VĂN ĐỊNH</strong></div>
-                  <div class="cccd-info-line">Ngày sinh: <span id="cccd-front-dob">15/04/1988</span> • GT: <span id="cccd-front-gender">Nam</span></div>
-                  <div class="cccd-info-line">Quê quán: <span id="cccd-front-hometown">Nam Định</span></div>
-                  <div class="cccd-info-line">Thường trú: <span id="cccd-front-residence">Quận 1, TP.HCM</span></div>
-                  <div class="cccd-info-line" style="margin-top: 2px;">Giá trị đến: <strong id="cccd-front-expiry">15/04/2048</strong></div>
+                  <div class="cccd-id-num" id="cccd-front-num">---</div>
+                  <div class="cccd-info-line">Họ và tên: <strong id="cccd-front-name">---</strong></div>
+                  <div class="cccd-info-line">Ngày sinh: <span id="cccd-front-dob">---</span> • GT: <span id="cccd-front-gender">---</span></div>
+                  <div class="cccd-info-line">Quê quán: <span id="cccd-front-hometown">---</span></div>
+                  <div class="cccd-info-line">Thường trú: <span id="cccd-front-residence">---</span></div>
+                  <div class="cccd-info-line" style="margin-top: 2px;">Giá trị đến: <strong id="cccd-front-expiry">---</strong></div>
                 </div>
               </div>
             </div>
@@ -3132,8 +3125,8 @@
               <div class="cccd-back-top">
                 <div class="cccd-back-desc">
                   <div style="font-weight: 800; font-size: 8.5px; color: #065F46;">ĐẶC ĐIỂM NHẬN DẠNG VÀ VÂN TAY:</div>
-                  <div style="margin-top: 2px;">Nốt ruồi C.1cm dưới dái tai phải</div>
-                  <div style="margin-top: 4px; font-weight: 700;">Ngày cấp: <span id="cccd-back-issuedate">10/06/2021</span></div>
+                  <div style="margin-top: 2px;">Nốt ruồi / Dấu vết nhận dạng</div>
+                  <div style="margin-top: 4px; font-weight: 700;">Ngày cấp: <span id="cccd-back-issuedate">---</span></div>
                   <div style="font-size: 7.5px; color: #64748B;">Nơi cấp: Cục Cảnh sát QLHC về TTXH</div>
                 </div>
                 <div class="cccd-back-stamp">
@@ -3146,9 +3139,9 @@
                   <div style="font-size: 7.5px; color: #16A34A; font-weight: 700;">✓ CHÍNH CHỦ</div>
                 </div>
                 <div class="cccd-mrz-code" id="cccd-back-mrz">
-                  IDVNM0790880124560<<<<<<<<<<<<<<br>
-                  8804155M4804152VNM<<<<<<<<<<<8<br>
-                  NGUYEN<<VAN<DINH<<<<<<<<<<<<<<<
+                  IDVNM<<<<<<<<<<<<<<<<<<<<<<<<br>
+                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<br>
+                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 </div>
               </div>
             </div>
@@ -3163,15 +3156,15 @@
             <div class="cccd-selfie-mockup">
               <div class="selfie-face-box">
                 <div class="selfie-scan-line"></div>
-                <div class="selfie-avatar-circle" id="cccd-selfie-char">Đ</div>
+                <div class="selfie-avatar-circle" id="cccd-selfie-char">-</div>
                 <div style="font-size: 8px; color: #10B981; font-weight: 800;">FACE MATCH</div>
               </div>
               <div style="margin-top: 6px; font-size: 10px; color: #A7F3D0; font-weight: 700;" id="cccd-ekyc-score-label">
-                ✓ Khớp khuôn mặt: 99.4%
+                ✓ Khớp khuôn mặt: ---
               </div>
               <div class="selfie-timestamp-bar">
                 <span>📸 Camera eKYC</span>
-                <span id="cccd-selfie-time">09:15 15/03/2026</span>
+                <span id="cccd-selfie-time">---</span>
               </div>
             </div>
           </div>
@@ -3210,264 +3203,14 @@
     /* ========================================================
        1. INITIAL MOCK DATA (PERSISTED IN LOCALSTORAGE)
        ======================================================== */
-    const DEFAULT_CATEGORIES = [
-      { id: 'cat-1', name: 'Cơm & Món Việt', icon: '🍚', desc: 'Cơm tấm, cơm gà, cơm sườn, món ngon truyền thống', count: 48, status: 'ACTIVE' },
-      { id: 'cat-2', name: 'Bún, Phở & Mì Nóng', icon: '🍜', desc: 'Phở bò Hà Nội, bún bò Huế, hủ tiếu Nam Vang', count: 35, status: 'ACTIVE' },
-      { id: 'cat-3', name: 'Trà Sữa & Cà Phê', icon: '🧋', desc: 'Trà sữa trân châu, cà phê muối, trà trái cây thanh nhiệt', count: 62, status: 'ACTIVE' },
-      { id: 'cat-4', name: 'Đồ Ăn Vặt & Xiên Que', icon: '🍢', desc: 'Bánh tráng trộn, cá viên chiên, khoai tây lắc phô mai', count: 42, status: 'ACTIVE' },
-      { id: 'cat-5', name: 'Pizza, Burger & Fastfood', icon: '🍕', desc: 'Pizza phô mai, hamburger bò, gà rán giòn rụm', count: 28, status: 'ACTIVE' },
-      { id: 'cat-6', name: 'Món Chay Thanh Tịnh', icon: '🥗', desc: 'Cơm chay dưỡng sinh, bún xào chay, lẩu nấm', count: 18, status: 'ACTIVE' },
-      { id: 'cat-7', name: 'Bánh Ngọt & Tráng Miệng', icon: '🍰', desc: 'Bánh tiramisu, chè sầu riêng, sữa chua dẻo', count: 22, status: 'ACTIVE' },
-      { id: 'cat-8', name: 'Hải Sản Tươi Sống', icon: '🦀', desc: 'Ốc hương rang muối, cua sốt me, tôm hùm nướng', count: 15, status: 'HIDDEN' }
-    ];
+    const DEFAULT_CATEGORIES = [];
 
-    const DEFAULT_CUSTOMERS = [
-      { id: 'cust-1', name: 'Trần Minh Anh', phone: '0901.234.567', email: 'minhanh.tran@gmail.com', orders: 24, area: 'Quận 1, TP.HCM', trustScore: 98, status: 'ACTIVE', joined: '15/05/2026' },
-      { id: 'cust-2', name: 'Lê Hoàng Yến', phone: '0918.765.432', email: 'hoangyen.le@yahoo.com', orders: 18, area: 'Quận 3, TP.HCM', trustScore: 95, status: 'ACTIVE', joined: '02/06/2026' },
-      { id: 'cust-3', name: 'Vũ Đức Thịnh', phone: '0983.111.222', email: 'ducthinh.vu@hotmail.com', orders: 2, area: 'Quận 3, TP.HCM', trustScore: 32, status: 'LOCKED', lockReason: 'Bùng đơn hàng 3 lần liên tiếp tại Quận 3', joined: '10/08/2026' },
-      { id: 'cust-4', name: 'Nguyễn Thảo Vy', phone: '0934.888.777', email: 'thaovy.ng@gmail.com', orders: 45, area: 'Quận 5, TP.HCM', trustScore: 100, status: 'ACTIVE', joined: '12/01/2026' },
-      { id: 'cust-5', name: 'Phạm Gia Bảo', phone: '0977.555.444', email: 'giabao.pham@gmail.com', orders: 9, area: 'Bình Thạnh, TP.HCM', trustScore: 90, status: 'ACTIVE', joined: '18/07/2026' },
-      { id: 'cust-6', name: 'Đỗ Hải Đăng', phone: '0922.333.444', email: 'haidang.do@outlook.com', orders: 31, area: 'Thủ Đức, TP.HCM', trustScore: 96, status: 'ACTIVE', joined: '25/03/2026' },
-      { id: 'cust-7', name: 'Hoàng Kim Ngân', phone: '0944.222.111', email: 'kimngan.hoang@gmail.com', orders: 14, area: 'Quận 7, TP.HCM', trustScore: 88, status: 'ACTIVE', joined: '30/08/2026' },
-      { id: 'cust-8', name: 'Bùi Anh Tuấn', phone: '0966.777.999', email: 'anhtuan.bui@gmail.com', orders: 5, area: 'Quận 10, TP.HCM', trustScore: 92, status: 'ACTIVE', joined: '05/09/2026' }
-    ];
+    const DEFAULT_CUSTOMERS = [];
 
-        const DEFAULT_STORES = [
-      { 
-        id: 'store-1', 
-        name: 'Phở Bò Thăng Long Xưa', 
-        owner: 'Nguyễn Văn Định', 
-        phone: '0908.112.233', 
-        category: 'Bún, Phở & Mì Nóng', 
-        rating: '4.9 ⭐', 
-        itemCount: 28, 
-        status: 'OPEN', // Đang hoạt động
-        address: '12 Lê Thánh Tôn, Q.1',
-        cccdNumber: '079088012456', 
-        cccdFront: 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-        dob: '15/04/1988', gender: 'Nam', hometown: 'Nam Định', residence: '12 Lê Thánh Tôn, Bến Nghé, Quận 1',
-        issueDate: '10/06/2021', expireDate: '15/04/2048', cccdStatus: 'VERIFIED', registerTime: '09:15 15/03/2026', ekycScore: '99.4%'
-      },
-      { 
-        id: 'store-2', 
-        name: 'Trà Sữa Oishi Cha Tea', 
-        owner: 'Lê Thanh Thảo', 
-        phone: '0919.445.566', 
-        category: 'Trà Sữa & Cà Phê', 
-        rating: '4.8 ⭐', 
-        itemCount: 35, 
-        status: 'OPEN', // Đang hoạt động
-        address: '88 Nguyễn Trãi, Q.5',
-        cccdNumber: '079192004889', 
-        cccdFront: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
-        dob: '22/09/1992', gender: 'Nữ', hometown: 'Bến Tre', residence: '88 Nguyễn Trãi, Phường 3, Quận 5',
-        issueDate: '20/11/2021', expireDate: '22/09/2052', cccdStatus: 'VERIFIED', registerTime: '14:30 18/03/2026', ekycScore: '98.8%'
-      },
-      { 
-        id: 'store-3', 
-        name: 'Cơm Tấm Sườn Cọng Ba Ghiền', 
-        owner: 'Võ Minh Trí', 
-        phone: '0938.776.655', 
-        category: 'Cơm & Món Việt', 
-        rating: '4.7 ⭐', 
-        itemCount: 22, 
-        status: 'PENDING', // Chờ duyệt
-        address: '241 Đặng Văn Bi, Thủ Đức',
-        cccdNumber: '079085006712', 
-        cccdFront: 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-        dob: '08/12/1985', gender: 'Nam', hometown: 'Long An', residence: '241 Đặng Văn Bi, Trường Thọ, Thủ Đức',
-        issueDate: '05/04/2022', expireDate: '08/12/2045', cccdStatus: 'PENDING', registerTime: '11:20 22/03/2026', ekycScore: '99.1%'
-      },
-      { 
-        id: 'store-4', 
-        name: 'Gà Rán Chợ Lớn Crispy', 
-        owner: 'Huỳnh Hải Triều', 
-        phone: '0988.990.011', 
-        category: 'Pizza, Burger & Fastfood', 
-        rating: '4.6 ⭐', 
-        itemCount: 19, 
-        status: 'PENDING', // Chờ duyệt
-        address: '55 Hùng Vương, Q.5',
-        cccdNumber: '079196001234', 
-        cccdFront: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80',
-        dob: '14/07/1996', gender: 'Nam', hometown: 'TP. Hồ Chí Minh', residence: '55 Hùng Vương, Phường 4, Quận 5',
-        issueDate: '18/09/2022', expireDate: '14/07/2036', cccdStatus: 'PENDING', registerTime: '16:45 10/08/2026', ekycScore: '96.5%'
-      },
-      { 
-        id: 'store-5', 
-        name: 'Ốc Đêm 77 Cầu Muối', 
-        owner: 'Trịnh Tấn Lực', 
-        phone: '0942.334.455', 
-        category: 'Hải Sản Tươi Sống', 
-        rating: '3.5 ⭐', 
-        itemCount: 26, 
-        status: 'LOCKED', // Bị khóa
-        lockReason: 'Vi phạm an toàn thực phẩm & khiếu nại khách hàng chưa xử lý', 
-        address: '77 Nguyễn Thái Học, Q.1',
-        cccdNumber: '079080003344', 
-        cccdFront: 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop&q=80',
-        dob: '03/03/1980', gender: 'Nam', hometown: 'Bình Định', residence: '77 Nguyễn Thái Học, Cầu Ông Lãnh, Quận 1',
-        issueDate: '12/01/2021', expireDate: '03/03/2040', cccdStatus: 'REJECTED', registerTime: '08:10 05/02/2026', ekycScore: '89.0%'
-      },
-      { 
-        id: 'store-6', 
-        name: 'Bánh Tráng & Trà Tắc Cô Ba', 
-        owner: 'Phan Thị Diệu', 
-        phone: '0971.223.344', 
-        category: 'Đồ Ăn Vặt & Xiên Que', 
-        rating: '4.9 ⭐', 
-        itemCount: 18, 
-        status: 'OPEN', // Đang hoạt động
-        address: '18 Cô Bắc, Q.1',
-        cccdNumber: '079193005566', 
-        cccdFront: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&auto=format&fit=crop&q=80',
-        dob: '19/11/1993', gender: 'Nữ', hometown: 'Tây Ninh', residence: '18 Cô Bắc, Cầu Ông Lãnh, Quận 1',
-        issueDate: '25/08/2021', expireDate: '19/11/2033', cccdStatus: 'VERIFIED', registerTime: '13:15 28/05/2026', ekycScore: '98.9%'
-      },
-      { 
-        id: 'store-7', 
-        name: 'Bếp Chay Thiền Tâm', 
-        owner: 'Thích Huệ Nhã', 
-        phone: '0933.121.212', 
-        category: 'Món Chay Thanh Tịnh', 
-        rating: '4.9 ⭐', 
-        itemCount: 16, 
-        status: 'CLOSED', // Tạm nghỉ
-        address: '104 Điện Biên Phủ, Bình Thạnh',
-        cccdNumber: '079075008899', 
-        cccdFront: 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&auto=format&fit=crop&q=80',
-        dob: '05/08/1975', gender: 'Nam', hometown: 'Huế', residence: '104 Điện Biên Phủ, Phường 15, Bình Thạnh',
-        issueDate: '14/03/2022', expireDate: '05/08/2035', cccdStatus: 'VERIFIED', registerTime: '15:50 14/06/2026', ekycScore: '99.5%'
-      },
-      { 
-        id: 'store-8', 
-        name: 'Tiệm Bánh Ngọt Sweet Home', 
-        owner: 'Đỗ Mỹ Linh', 
-        phone: '0903.654.321', 
-        category: 'Bánh Ngọt & Tráng Miệng', 
-        rating: '4.8 ⭐', 
-        itemCount: 24, 
-        status: 'CLOSED', // Tạm nghỉ
-        address: '36 Pasteur, Q.1',
-        cccdNumber: '079195007788', 
-        cccdFront: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?w=600&auto=format&fit=crop&q=80',
-        cccdBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
-        registerPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-        dob: '28/02/1995', gender: 'Nữ', hometown: 'Hà Nội', residence: '36 Pasteur, Bến Nghé, Quận 1',
-        issueDate: '11/10/2021', expireDate: '28/02/2035', cccdStatus: 'VERIFIED', registerTime: '10:05 20/07/2026', ekycScore: '99.0%'
-      }
-    ];
+    const DEFAULT_STORES = [];
 
-    // DỮ LIỆU MẪU KHIẾU NẠI TỪ CẢ QUÁN VÀ KHÁCH HÀNG
-    const DEFAULT_COMPLAINTS = [
-      {
-        id: 'KN-201',
-        senderType: 'CUSTOMER', // Khách khiếu nại quán
-        senderName: 'Trần Minh Anh',
-        senderContact: '0901.234.567',
-        targetName: 'Ốc Đêm 77 Cầu Muối',
-        targetContact: 'Trịnh Tấn Lực (0942.334.455)',
-        orderId: 'ORD-7712',
-        type: 'Chất lượng món & ATTP',
-        content: 'Món sò huyết và ốc hương có mùi hôi ươn thối rất nặng, khách ăn vào bị đau bụng tiêu chảy sau 1 tiếng. Yêu cầu kiểm tra vệ sinh an toàn thực phẩm của quán và tạm dừng hoạt động quán gấp!',
-                priority: 'CRITICAL',
-        status: 'PENDING',
-        time: '15 phút trước'
-      },
-      {
-        id: 'KN-202',
-        senderType: 'STORE', // Quán khiếu nại khách
-        senderName: 'Cơm Tấm Sườn Cọng Ba Ghiền',
-        senderContact: 'Võ Minh Trí (0938.776.655)',
-        targetName: 'Vũ Đức Thịnh',
-        targetContact: '0983.111.222 (Khách hàng)',
-        orderId: 'ORD-6623',
-        type: 'Boom hàng / Bùng đơn',
-        content: 'Khách đặt 5 phần cơm sườn cọng bì chả đặc biệt trị giá 350.000₫. Khi tài xế mang tới địa chỉ giao thì khách khóa máy không nghe, shipper đứng chờ 25 phút phải mang cơm trả lại. Quán yêu cầu khóa tài khoản khách hàng để tránh tái diễn bùng đơn.',
-                priority: 'HIGH',
-        status: 'PENDING',
-        time: '45 phút trước'
-      },
-      {
-        id: 'KN-203',
-        senderType: 'CUSTOMER',
-        senderName: 'Lê Hoàng Yến',
-        senderContact: '0918.765.432',
-        targetName: 'Trà Sữa Oishi Cha Tea',
-        targetContact: 'Lê Thanh Thảo (0919.445.566)',
-        orderId: 'ORD-8819',
-        type: 'Giao thiếu món',
-        content: 'Đơn hàng đặt 4 ly nước, nhưng shipper giao tới túi chỉ có 2 ly trà sữa truyền thống, bị thiếu mất 2 ly trà sữa matcha đậu đỏ. Quán đùn đẩy trách nhiệm cho shipper, yêu cầu xử lý quán.',
-                priority: 'MEDIUM',
-        status: 'IN_PROGRESS',
-        time: '2 giờ trước'
-      },
-      {
-        id: 'KN-204',
-        senderType: 'STORE',
-        senderName: 'Phở Bò Thăng Long Xưa',
-        senderContact: 'Nguyễn Văn Định (0908.112.233)',
-        targetName: 'Tài xế Nguyễn Văn Tuấn (TX-34)',
-        targetContact: '0933.998.877 (Shipper)',
-        orderId: 'ORD-5541',
-        type: 'Thái độ phục vụ / Shipper',
-        content: 'Tài xế nhận đơn lấy 3 tô phở mang đi nhưng để nghiêng thùng làm đổ tràn nước dùng ra túi, đến nơi lại đổ lỗi cho quán gói không kỹ khiến khách chấm 1 sao và đòi trả hàng. Quán yêu cầu nền tảng xem lại hành vi tài xế.',
-                priority: 'MEDIUM',
-        status: 'IN_PROGRESS',
-        time: '4 giờ trước'
-      },
-      {
-        id: 'KN-205',
-        senderType: 'CUSTOMER',
-        senderName: 'Nguyễn Thảo Vy',
-        senderContact: '0934.888.777',
-        targetName: 'Gà Rán Chợ Lớn Crispy',
-        targetContact: 'Huỳnh Hải Triều (0988.990.011)',
-        orderId: 'ORD-4412',
-        type: 'Giao thiếu món',
-        content: 'Quán không cho tương ớt cay và sốt phô mai đi kèm dù đã ghi chú rất rõ trong đơn.',
-                priority: 'MEDIUM',
-        status: 'RESOLVED',
-        adminNote: 'Đã cảnh cáo quán ăn về việc kiểm tra kỹ đơn trước khi giao.',
-        time: 'Hôm qua'
-      },
-      {
-        id: 'KN-206',
-        senderType: 'STORE',
-        senderName: 'Tiệm Bánh Ngọt Sweet Home',
-        senderContact: 'Đỗ Mỹ Linh (0903.654.321)',
-        targetName: 'Khách hàng Hoàng Kim Ngân',
-        targetContact: '0944.222.111',
-        orderId: 'ORD-3321',
-        type: 'Thanh toán & Chiết khấu',
-        content: 'Khách báo hủy đơn sau khi tiệm đã hoàn thiện bánh kem có viết chữ riêng theo yêu cầu.',
-                priority: 'HIGH',
-        status: 'RESOLVED',
-        adminNote: 'Đã gửi cảnh cáo nhắc nhở tài khoản khách hàng không được tự ý hủy đơn làm theo yêu cầu.',
-        time: '2 ngày trước'
-      }
-    ];
-
-    const DEFAULT_LOGS = [
-      { time: '10 phút trước', action: 'Khóa cửa hàng "Ốc Đêm 77 Cầu Muối"', admin: 'Admin Long', type: 'danger' },
-      { time: '1 giờ trước', action: 'Cấp lại mật khẩu cho khách "Nguyễn Thảo Vy"', admin: 'Admin Long', type: 'info' },
-      { time: '3 giờ trước', action: 'Thêm mới danh mục "Hải Sản Tươi Sống"', admin: 'Admin Long', type: 'success' },
-      { time: 'Hôm qua', action: 'Khóa tài khoản khách "Vũ Đức Thịnh"', admin: 'Admin Long', type: 'danger' }
-    ];
+    const DEFAULT_COMPLAINTS = [];
+    const DEFAULT_LOGS = [];
 
     /* ========================================================
        2. FIREBASE REALTIME DATABASE & STATE CONTROLLER
@@ -3494,20 +3237,35 @@
     let rawFbOrders = {};
     let rawFbComplaints = {};
 
-    let categories = JSON.parse(localStorage.getItem('oishi_admin_categories')) || DEFAULT_CATEGORIES;
-    let customers = JSON.parse(localStorage.getItem('oishi_admin_customers')) || DEFAULT_CUSTOMERS;
-    let stores = JSON.parse(localStorage.getItem('oishi_admin_stores')) || DEFAULT_STORES;
-    let complaints = JSON.parse(localStorage.getItem('oishi_admin_complaints')) || DEFAULT_COMPLAINTS;
+    // Dọn dẹp cache localStorage demo cũ (nếu chứa id giả lập như store-1, cust-, KN-20, v.v.)
+    (function cleanupDemoLocalStorage() {
+      try {
+        const demoKeywords = ['store-1', 'store-2', 'cust-1', 'KN-201', 'Admin Long'];
+        ['oishi_admin_stores', 'oishi_admin_customers', 'oishi_admin_complaints', 'oishi_admin_categories', 'oishi_admin_logs'].forEach(k => {
+          const val = localStorage.getItem(k);
+          if (val && demoKeywords.some(w => val.includes(w))) {
+            localStorage.removeItem(k);
+          }
+        });
+      } catch (e) {
+        console.warn('cleanupDemoLocalStorage error', e);
+      }
+    })();
+
+    let categories = JSON.parse(localStorage.getItem('oishi_admin_categories')) || [];
+    let customers = JSON.parse(localStorage.getItem('oishi_admin_customers')) || [];
+    let stores = JSON.parse(localStorage.getItem('oishi_admin_stores')) || [];
+    let complaints = JSON.parse(localStorage.getItem('oishi_admin_complaints')) || [];
     let liveOrders = [];
     let liveDrivers = [];
 
     let adminProfile = JSON.parse(localStorage.getItem('oishi_admin_profile')) || {
-      name: 'Admin Nguyễn Hoàng Long',
-      email: 'admin.long@oishifood.vn',
-      phone: '0988.123.456',
+      name: 'Admin Hệ Thống',
+      email: 'admin@oishifood.vn',
+      phone: '',
       role: 'Super Administrator'
     };
-    let systemLogs = JSON.parse(localStorage.getItem('oishi_admin_logs')) || DEFAULT_LOGS;
+    let systemLogs = JSON.parse(localStorage.getItem('oishi_admin_logs')) || [];
 
     function formatTimeAgo(ts) {
       if (!ts) return 'Vừa xong';
@@ -3599,7 +3357,6 @@
     }
 
     function normalizeStoreRecord(id, s, idx = 0) {
-      const def = DEFAULT_STORES[idx % DEFAULT_STORES.length] || DEFAULT_STORES[0];
       let normStatus = s.storeStatus || s.status || (s.open === false ? 'CLOSED' : 'OPEN');
       if (normStatus === 'HIDDEN') normStatus = 'CLOSED';
       if (s.penaltyTier === 'LOCK') normStatus = 'LOCKED';
@@ -3607,43 +3364,43 @@
 
       const dishesObj = s.dishes && typeof s.dishes === 'object' ? s.dishes : {};
       const dishCount = Object.keys(dishesObj).length;
-      const ratingNum = s.ratingAvg !== undefined ? Number(s.ratingAvg).toFixed(1) : (s.rating ? String(s.rating).replace('⭐', '').trim() : '4.9');
+      const ratingNum = s.ratingAvg !== undefined ? Number(s.ratingAvg).toFixed(1) : (s.rating ? String(s.rating).replace('⭐', '').trim() : '5.0');
 
       return {
         ...s,
         id: id,
         storeId: id,
-        name: s.name || def.name || ('Cửa hàng #' + id),
-        owner: s.ownerName || s.owner || def.owner || 'Chủ quán Oishi',
-        ownerName: s.ownerName || s.owner || def.owner || 'Chủ quán Oishi',
-        phone: s.phone || def.phone || '0908.112.233',
-        cccdNumber: s.cccdNumber || def.cccdNumber || ('07908800' + (1000 + idx)),
-        cccdFront: s.cccdFrontUrl || s.cccdFront || def.cccdFront,
-        cccdFrontUrl: s.cccdFrontUrl || s.cccdFront || def.cccdFront,
-        cccdBack: s.cccdBackUrl || s.cccdBack || def.cccdBack,
-        cccdBackUrl: s.cccdBackUrl || s.cccdBack || def.cccdBack,
-        registerPhoto: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || def.registerPhoto,
-        cccdPortraitUrl: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || def.registerPhoto,
+        name: s.name || s.storeName || ('Cửa hàng #' + id.slice(0, 6)),
+        owner: s.ownerName || s.owner || 'Chưa cập nhật',
+        ownerName: s.ownerName || s.owner || 'Chưa cập nhật',
+        phone: s.phone || s.ownerPhone || 'Chưa cập nhật',
+        cccdNumber: s.cccdNumber || 'Chưa xác thực',
+        cccdFront: s.cccdFrontUrl || s.cccdFront || '',
+        cccdFrontUrl: s.cccdFrontUrl || s.cccdFront || '',
+        cccdBack: s.cccdBackUrl || s.cccdBack || '',
+        cccdBackUrl: s.cccdBackUrl || s.cccdBack || '',
+        registerPhoto: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || '',
+        cccdPortraitUrl: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || '',
         cccdStatus: s.cccdStatus || (normStatus === 'OPEN' ? 'VERIFIED' : 'PENDING'),
-        dob: s.dob || def.dob || '15/04/1988',
-        gender: s.gender || def.gender || 'Nam',
-        hometown: s.hometown || def.hometown || 'TP.HCM',
-        residence: s.residence || s.address || def.residence || 'TP.HCM',
-        issueDate: s.issueDate || def.issueDate || '10/06/2021',
-        expireDate: s.expireDate || def.expireDate || '15/04/2048',
-        registerTime: s.registerTime || (s.createdAt ? formatTimeAgo(s.createdAt) : '10:00 15/03/2026'),
-        ekycScore: s.ekycScore || def.ekycScore || '99.2%',
-        category: s.category || def.category || 'Món Nước & Phở',
+        dob: s.dob || '',
+        gender: s.gender || '',
+        hometown: s.hometown || '',
+        residence: s.residence || s.address || '',
+        issueDate: s.issueDate || '',
+        expireDate: s.expireDate || '',
+        registerTime: s.registerTime || (s.createdAt ? formatTimeAgo(s.createdAt) : ''),
+        ekycScore: s.ekycScore || '100%',
+        category: s.category || 'Món ăn',
         rating: `${ratingNum} ⭐`,
-        ratingAvg: parseFloat(ratingNum) || 4.9,
-        itemCount: dishCount > 0 ? dishCount : (s.itemCount || 10),
+        ratingAvg: parseFloat(ratingNum) || 5.0,
+        itemCount: dishCount > 0 ? dishCount : (s.itemCount || 0),
         dishes: dishesObj,
         status: normStatus,
         storeStatus: normStatus,
         open: normStatus === 'OPEN',
         penaltyTier: s.penaltyTier || (normStatus === 'LOCKED' ? 'LOCK' : 'NONE'),
         lockReason: s.lockReason || s.penaltyReason || '',
-        address: s.address || def.address || 'TP. Hồ Chí Minh'
+        address: s.address || 'TP. Hồ Chí Minh'
       };
     }
 
@@ -3668,11 +3425,11 @@
             id: uid,
             uid: uid,
             name: u.fullName || u.name || cNode.name || 'Khách hàng Oishi',
-            phone: u.phone || cNode.phone || '0900.000.000',
-            email: u.email || cNode.email || `${uid.slice(0, 6)}@oishi.com`,
+            phone: u.phone || cNode.phone || '',
+            email: u.email || cNode.email || '',
             orders: custOrderCounts[uid] !== undefined ? custOrderCounts[uid] : (cNode.orders || u.orders || 0),
             joined: u.joined || cNode.joined || (u.createdAt ? formatTimeAgo(u.createdAt) : 'Thành viên App'),
-            area: u.address || cNode.address || cNode.area || 'TP. Hồ Chí Minh',
+            area: u.address || cNode.address || cNode.area || '',
             trustScore: cNode.trustScore !== undefined ? Number(cNode.trustScore) : (u.trustScore !== undefined ? Number(u.trustScore) : 100),
             status: status,
             lockReason: u.lockReason || cNode.lockReason || ''
@@ -3687,22 +3444,20 @@
           id: cid,
           uid: cid,
           name: c.name || c.fullName || 'Khách hàng',
-          phone: c.phone || '0900.000.000',
-          email: c.email || `${cid}@oishi.com`,
+          phone: c.phone || '',
+          email: c.email || '',
           orders: custOrderCounts[cid] !== undefined ? custOrderCounts[cid] : (c.orders || 0),
           joined: c.joined || 'Thành viên App',
-          area: c.area || c.address || 'TP. Hồ Chí Minh',
-          trustScore: c.trustScore !== undefined ? Number(c.trustScore) : 95,
+          area: c.area || c.address || '',
+          trustScore: c.trustScore !== undefined ? Number(c.trustScore) : 100,
           status: c.status || 'ACTIVE',
           lockReason: c.lockReason || ''
         };
       });
 
       const custList = Object.values(mergedCustMap);
-      if (custList.length > 0) {
-        customers = custList;
-        localStorage.setItem('oishi_admin_customers', JSON.stringify(customers));
-      }
+      customers = custList;
+      localStorage.setItem('oishi_admin_customers', JSON.stringify(customers));
 
       // Build liveDrivers from drivers node + users with role DRIVER/SHIPPER
       const driverMap = {};
@@ -3712,13 +3467,14 @@
         const isDelivering = liveOrders.some(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
         const activeOrder = liveOrders.find(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
         const st = isDelivering ? 'DELIVERING' : (d.isOnline === false || d.status === 'OFFLINE' ? 'OFFLINE' : 'AVAILABLE');
+        const dRating = d.rating !== undefined ? `${Number(d.rating).toFixed(1)} ⭐` : '5.0 ⭐';
         driverMap[did] = {
           id: did,
           name: d.name || d.fullName || u.fullName || 'Tài xế Oishi',
-          phone: d.phone || u.phone || '0909.000.111',
-          bike: d.vehiclePlate || d.licensePlate || d.bike || 'Honda Wave (59X1-888.99)',
-          ordersCount: driverOrderCounts[did] !== undefined ? driverOrderCounts[did] : (d.totalDeliveries || d.ordersCount || 15),
-          rating: `${Number(d.rating || 4.9).toFixed(1)} ⭐`,
+          phone: d.phone || u.phone || '',
+          bike: d.vehiclePlate || d.licensePlate || d.bike || 'Xe máy',
+          ordersCount: driverOrderCounts[did] !== undefined ? driverOrderCounts[did] : (d.totalDeliveries || d.ordersCount || 0),
+          rating: dRating,
           status: st,
           isActive: u.isActive !== false && d.status !== 'LOCKED',
           statusText: activeOrder ? `Đang giao đơn #${activeOrder.id.slice(-6)}` : (st === 'AVAILABLE' ? 'Đang trực tuyến nhận đơn' : 'Đang nghỉ ca'),
@@ -3732,13 +3488,14 @@
         const role = (u.role || '').toUpperCase();
         if (role === 'DRIVER' || role === 'SHIPPER') {
           const isDelivering = liveOrders.some(o => o.shipperId === uid && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+          const uRating = u.rating !== undefined ? `${Number(u.rating).toFixed(1)} ⭐` : '5.0 ⭐';
           driverMap[uid] = {
             id: uid,
             name: u.fullName || u.name || 'Tài xế Oishi',
-            phone: u.phone || '0909.111.222',
-            bike: u.vehiclePlate || 'Honda AirBlade (59P1-123.45)',
-            ordersCount: driverOrderCounts[uid] || 10,
-            rating: '4.9 ⭐',
+            phone: u.phone || '',
+            bike: u.vehiclePlate || 'Xe máy',
+            ordersCount: driverOrderCounts[uid] || 0,
+            rating: uRating,
             status: isDelivering ? 'DELIVERING' : 'AVAILABLE',
             isActive: u.isActive !== false && u.status !== 'LOCKED',
             statusText: isDelivering ? 'Đang giao đơn' : 'Đang sẵn sàng nhận đơn',
@@ -3781,8 +3538,8 @@
           storeName: o.storeName || storeObj.name || storeId || 'Quán Oishi',
           customerId: o.customerId || '',
           customer: o.customerName || custUser.fullName || custUser.name || 'Khách đặt món',
-          phone: o.customerPhone || custUser.phone || '0901.234.567',
-          address: o.deliveryAddress || o.address || custUser.address || 'TP.HCM',
+          phone: o.customerPhone || custUser.phone || '',
+          address: o.deliveryAddress || o.address || custUser.address || '',
           items: itemsSummary,
           totalAmount: totalAmount,
           shipperId: o.shipperId || '',
@@ -3845,15 +3602,15 @@
         }
       });
 
-      if (list.length > 0) {
-        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        complaints = list;
-        localStorage.setItem('oishi_admin_complaints', JSON.stringify(complaints));
-      }
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      complaints = list;
+      localStorage.setItem('oishi_admin_complaints', JSON.stringify(complaints));
     }
 
+    let _isFbListenersAttached = false;
     function attachRealtimeListeners() {
-      if (!fbDb) return;
+      if (!fbDb || _isFbListenersAttached) return;
+      _isFbListenersAttached = true;
 
       // 1. STORES listener
       fbDb.ref('stores').on('value', snap => {
@@ -3861,15 +3618,18 @@
         if (val && typeof val === 'object') {
           rawFbStores = val;
           stores = Object.entries(val).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
-          localStorage.setItem('oishi_admin_stores', JSON.stringify(stores));
-          rebuildOrders();
-          rebuildComplaints();
-          renderStores();
-          renderOverviewStores();
-          renderKPIs();
-          populateGlobalOrderStoreFilter();
-          if (currentDetailStoreId) refreshOpenStoreDetailModal();
+        } else {
+          rawFbStores = {};
+          stores = [];
         }
+        localStorage.setItem('oishi_admin_stores', JSON.stringify(stores));
+        rebuildOrders();
+        rebuildComplaints();
+        renderStores();
+        renderOverviewStores();
+        renderKPIs();
+        populateGlobalOrderStoreFilter();
+        if (currentDetailStoreId) refreshOpenStoreDetailModal();
       });
 
       // 2. USERS listener
@@ -3919,15 +3679,12 @@
         const val = snap.val();
         if (val && typeof val === 'object') {
           rawFbComplaints = val;
-          rebuildComplaints();
-          renderComplaints();
-          renderKPIs();
-        } else if (isFirebaseReady) {
-          // Seed initial complaints to Firebase if empty
-          const seedObj = {};
-          DEFAULT_COMPLAINTS.forEach(c => { seedObj[c.id] = { ...c, createdAt: Date.now() }; });
-          fbDb.ref('complaints').update(seedObj).catch(() => {});
+        } else {
+          rawFbComplaints = {};
         }
+        rebuildComplaints();
+        renderComplaints();
+        renderKPIs();
       });
 
       // 7. CATEGORIES listener (menus/categories)
@@ -3940,18 +3697,16 @@
             name: c.name || 'Danh mục',
             icon: c.icon || '🍲',
             desc: c.desc || c.description || '',
-            count: c.count || 15,
+            count: c.count || 0,
             status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE')
           }));
-          localStorage.setItem('oishi_admin_categories', JSON.stringify(categories));
-          renderCategories();
-          renderKPIs();
-          populateStoreCategoryDropdowns();
-        } else if (isFirebaseReady) {
-          const seedCats = {};
-          DEFAULT_CATEGORIES.forEach(c => { seedCats[c.id] = c; });
-          fbDb.ref('menus/categories').update(seedCats).catch(() => {});
+        } else {
+          categories = [];
         }
+        localStorage.setItem('oishi_admin_categories', JSON.stringify(categories));
+        renderCategories();
+        renderKPIs();
+        populateStoreCategoryDropdowns();
       });
 
       // 8. ADMIN LOGS listener (menus/admin_logs)
@@ -4153,22 +3908,14 @@
     }
 
     async function resetDefaultData() {
-      if (confirm('Đồng bộ / Khởi tạo bổ sung dữ liệu mẫu chuẩn lên Firebase Realtime Database?')) {
-        if (fbDb && isFirebaseReady) {
-          const catUpdates = {};
-          DEFAULT_CATEGORIES.forEach(c => { catUpdates[c.id] = c; });
-          const compUpdates = {};
-          DEFAULT_COMPLAINTS.forEach(c => { compUpdates[c.id] = { ...c, createdAt: Date.now() }; });
-          await Promise.all([
-            fbDb.ref('menus/categories').update(catUpdates),
-            fbDb.ref('complaints').update(compUpdates)
-          ]);
-          showToast('Đã đồng bộ dữ liệu mẫu lên Firebase!', 'success');
-          syncFromFirebaseNow();
-        } else {
-          localStorage.clear();
-          location.reload();
-        }
+      if (confirm('Làm mới và đồng bộ lại toàn bộ dữ liệu thực tế từ Firebase Realtime Database?')) {
+        localStorage.removeItem('oishi_admin_stores');
+        localStorage.removeItem('oishi_admin_customers');
+        localStorage.removeItem('oishi_admin_complaints');
+        localStorage.removeItem('oishi_admin_categories');
+        localStorage.removeItem('oishi_admin_logs');
+        await syncFromFirebaseNow();
+        showToast('Đã làm mới dữ liệu từ Firebase thành công!', 'success');
       }
     }
 
@@ -4217,8 +3964,14 @@
        ======================================================== */
     function renderKPIs() {
       // Categories
-      document.getElementById('kpi-total-cats').textContent = categories.length;
-      document.getElementById('badge-cat-count').textContent = categories.length;
+      const catCountEl = document.getElementById('kpi-total-cats');
+      if (catCountEl && catCountEl.textContent !== String(categories.length)) {
+        catCountEl.textContent = categories.length;
+      }
+      const catBadgeEl = document.getElementById('badge-cat-count');
+      if (catBadgeEl && catBadgeEl.textContent !== String(categories.length)) {
+        catBadgeEl.textContent = categories.length;
+      }
 
       // Customers
       document.getElementById('kpi-total-customers').textContent = customers.length;
@@ -4310,6 +4063,11 @@
         return 0;
       }).slice(0, 6);
       
+      if (sorted.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px; font-size: 13px;">Chưa có cửa hàng nào trên hệ thống Firebase</td></tr>`;
+        return;
+      }
+      
       sorted.forEach(s => {
         const tr = document.createElement('tr');
         let statusBadge = '';
@@ -4395,14 +4153,42 @@
       const searchVal = (document.getElementById('filter-cat-search')?.value || '').toLowerCase().trim();
       const statusVal = document.getElementById('filter-cat-status')?.value || 'ALL';
 
+      // Đếm số món thực tế từ các quán trong Firebase
+      const realDishCounts = {};
+      stores.forEach(s => {
+        if (s.dishes && typeof s.dishes === 'object') {
+          Object.values(s.dishes).forEach(d => {
+            const catName = (d.categoryId || d.category || 'Món chính').trim();
+            realDishCounts[catName] = (realDishCounts[catName] || 0) + 1;
+          });
+        }
+      });
+
       const filtered = categories.filter(c => {
         const matchSearch = c.name.toLowerCase().includes(searchVal) || (c.desc && c.desc.toLowerCase().includes(searchVal));
         const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
         return matchSearch && matchStatus;
       });
 
-      if (counter) counter.textContent = filtered.length;
-      container.innerHTML = '';
+      // Cập nhật text số lượng mượt mà, không giật layout
+      if (counter && counter.textContent !== String(filtered.length)) {
+        counter.textContent = filtered.length;
+      }
+
+      // Kiểm tra chữ ký nội dung: nếu dữ liệu không thay đổi -> không đụng vào DOM, triệt tiêu 100% hiện tượng nháy
+      const currentSignature = JSON.stringify(filtered.map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        desc: c.desc,
+        status: c.status,
+        count: realDishCounts[c.name] !== undefined ? realDishCounts[c.name] : (c.count || 0)
+      })));
+
+      if (container.dataset.renderedSig === currentSignature) {
+        return;
+      }
+      container.dataset.renderedSig = currentSignature;
 
       if (filtered.length === 0) {
         container.innerHTML = `
@@ -4415,41 +4201,43 @@
         return;
       }
 
-      filtered.forEach(c => {
+      const htmlCards = filtered.map(c => {
         const isHidden = c.status === 'HIDDEN';
-        const card = document.createElement('div');
-        card.className = 'category-card';
-        card.innerHTML = `
-          <div class="cat-header">
-            <div class="cat-icon-box">${c.icon || '🍲'}</div>
-            <div class="cat-info">
-              <h3>${c.name}</h3>
-              <p>${c.desc || 'Chưa có mô tả chi tiết'}</p>
+        const displayCount = realDishCounts[c.name] !== undefined ? realDishCounts[c.name] : (c.count || 0);
+        return `
+          <div class="category-card">
+            <div class="cat-header">
+              <div class="cat-icon-box">${c.icon || '🍲'}</div>
+              <div class="cat-info">
+                <h3>${c.name}</h3>
+                <p>${c.desc || 'Chưa có mô tả chi tiết'}</p>
+              </div>
             </div>
-          </div>
-          <div class="cat-stats">
-            <div>Số món: <strong>${c.count || 0} món</strong></div>
-            <div>
-              ${isHidden 
-                ? '<span class="badge badge-warning"><span class="badge-dot"></span>Tạm ẩn</span>'
-                : '<span class="badge badge-active"><span class="badge-dot"></span>Hiển thị</span>'
-              }
+            <div class="cat-stats">
+              <div>Số món: <strong>${displayCount} món</strong></div>
+              <div>
+                ${isHidden 
+                  ? '<span class="badge badge-warning"><span class="badge-dot"></span>Tạm ẩn</span>'
+                  : '<span class="badge badge-active"><span class="badge-dot"></span>Hiển thị</span>'
+                }
+              </div>
             </div>
-          </div>
-          <div class="cat-actions">
-            <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị' : 'Ẩn khỏi menu'}">
-              ${isHidden ? '👁️ Bật' : '🚫 Ẩn'}
-            </button>
-            <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')">
-              ✏️ Sửa
-            </button>
-            <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')">
-              🗑️ Xóa
-            </button>
+            <div class="cat-actions">
+              <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị' : 'Ẩn khỏi menu'}">
+                ${isHidden ? '👁️ Bật' : '🚫 Ẩn'}
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')">
+                ✏️ Sửa
+              </button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')">
+                🗑️ Xóa
+              </button>
+            </div>
           </div>
         `;
-        container.appendChild(card);
-      });
+      }).join('');
+
+      container.innerHTML = htmlCards;
     }
 
     function openAddCategoryModal() {
@@ -4955,11 +4743,7 @@
     /* ========================================================
        15. STORE ORDERS, MENU DISHES & DRIVERS DETAIL + GLOBAL ORDERS
        ======================================================== */
-    const STORE_DRIVERS_DATA = {
-      'store-1': [
-        { id: 'TX-34', name: 'Nguyễn Văn Tuấn', phone: '0933.998.877', bike: 'Yamaha Sirius (59X1-345.67)', ordersCount: 148, rating: '4.9 ⭐', status: 'DELIVERING', statusText: 'Đang giao đơn #ORD-5541', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' }
-      ]
-    };
+    const STORE_DRIVERS_DATA = {};
     const STORE_ORDERS_DATA = {};
 
     let currentDetailStoreId = null;
@@ -5017,7 +4801,7 @@
           d.shopId === storeId ||
           liveOrders.some(o => o.shopId === storeId && o.shipperId === d.id)
         );
-        return storeSpecific.length > 0 ? storeSpecific : liveDrivers;
+        return storeSpecific;
       }
       return STORE_DRIVERS_DATA[storeId] || [];
     }
@@ -6592,12 +6376,12 @@
         <!-- Store Banner Profile Summary -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%); border: 1px solid #BFDBFE; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px;">
           <div>
-            <div style="font-size: 17px; font-weight: 800; color: #1E40AF;" id="detail-store-name">Phở Bò Thăng Long Xưa</div>
+            <div style="font-size: 17px; font-weight: 800; color: #1E40AF;" id="detail-store-name">---</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
-              📍 Địa chỉ: <span id="detail-store-address" style="color: var(--text-main); font-weight: 600;">12 Lê Thánh Tôn, Q.1</span> • Chủ quán: <span id="detail-store-owner" style="font-weight: 700; color: var(--text-main);">Nguyễn Văn Định</span> (📞 <span id="detail-store-phone" style="font-family: monospace;">0908.112.233</span>)
+              📍 Địa chỉ: <span id="detail-store-address" style="color: var(--text-main); font-weight: 600;">---</span> • Chủ quán: <span id="detail-store-owner" style="font-weight: 700; color: var(--text-main);">---</span> (📞 <span id="detail-store-phone" style="font-family: monospace;">---</span>)
             </div>
             <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-              🪪 Số CCCD: <strong id="detail-store-cccd" style="font-family: monospace; color: #2563EB;">079088012456</strong> • Đánh giá: <strong id="detail-store-rating" style="color: #D97706;">4.9 ⭐</strong> • Món bán: <strong id="detail-store-items" style="color: #2563EB;">28 món</strong>
+              🪪 Số CCCD: <strong id="detail-store-cccd" style="font-family: monospace; color: #2563EB;">---</strong> • Đánh giá: <strong id="detail-store-rating" style="color: #D97706;">---</strong> • Món bán: <strong id="detail-store-items" style="color: #2563EB;">0 món</strong>
             </div>
           </div>
           <div style="text-align: right;">
@@ -6611,7 +6395,7 @@
           <button class="store-subnav-btn active" id="btn-subtab-orders" onclick="switchStoreDetailTab('orders')">
             <span>📦</span>
             <span>Lịch Sử Đơn Hàng Của Quán</span>
-            <span id="detail-orders-count-badge" style="background: #2563EB; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">5</span>
+            <span id="detail-orders-count-badge" style="background: #2563EB; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
           </button>
           <button class="store-subnav-btn" id="btn-subtab-dishes" onclick="switchStoreDetailTab('dishes')">
             <span>🍲</span>
@@ -6621,7 +6405,7 @@
           <button class="store-subnav-btn" id="btn-subtab-drivers" onclick="switchStoreDetailTab('drivers')">
             <span>🛵</span>
             <span>Đội Ngũ Tài Xế Thuộc Quán</span>
-            <span id="detail-drivers-count-badge" style="background: #059669; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">4</span>
+            <span id="detail-drivers-count-badge" style="background: #059669; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
           </button>
         </div>
 

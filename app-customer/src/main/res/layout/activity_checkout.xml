@@ -379,11 +379,12 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/tvBankingDetails"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:lineSpacingExtra="3dp"
-                            android:text="• Ngân hàng: MB Bank (TMCP Quân Đội)\n• Số tài khoản: 0988 888 888\n• Chủ tài khoản: OISHI FOOD VIETNAM\n• Cú pháp CK: OISHI [SĐT của bạn]"
+                            android:text="• Ngân hàng: MB Bank (TMCP Quân Đội)\n• Số tài khoản: 0988 888 888\n• Chủ tài khoản: OISHI FOOD VIETNAM\n• Cú pháp CK: OISHI [Mã đơn hàng]"
                             android:textColor="#334155"
                             android:textSize="12sp" />
 

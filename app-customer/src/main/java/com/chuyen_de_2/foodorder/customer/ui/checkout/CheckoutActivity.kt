@@ -55,6 +55,8 @@ class CheckoutActivity : AppCompatActivity() {
 
     private var savedAddressList: List<CustomerAddress> = emptyList()
     private var hasAutoFilledDefaultAddress = false
+    private var currentTargetShopId: String = ""
+    private var currentStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
 
     private var currentSubtotal = 0L
     private var currentShippingFee = 15000L
@@ -117,9 +119,11 @@ class CheckoutActivity : AppCompatActivity() {
         binding = ActivityCheckoutBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val targetShopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID)
-        if (!targetShopId.isNullOrBlank()) {
-            viewModel.loadCarts(targetShopId)
+        val targetShopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID).orEmpty()
+        currentTargetShopId = targetShopId
+        if (currentTargetShopId.isNotBlank()) {
+            viewModel.loadCarts(currentTargetShopId)
+            observeShopInfo(currentTargetShopId)
         }
 
         InsetUtils.setLightStatusBar(this, false)
@@ -447,6 +451,11 @@ class CheckoutActivity : AppCompatActivity() {
             if (!shopName.isNullOrBlank()) {
                 supportActionBar?.title = shopName
             }
+            if (currentTargetShopId.isBlank() && carts.isNotEmpty()) {
+                currentTargetShopId = carts[0].shopId
+                observeShopInfo(currentTargetShopId)
+            }
+
             currentSubtotal = carts.sumOf { it.totalAmount }
             binding.tvSubtotal.text = currentSubtotal.toVndCurrency()
             binding.tvItemCount.text = "${carts.sumOf { it.items.size }} món"
@@ -479,9 +488,10 @@ class CheckoutActivity : AppCompatActivity() {
                 val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: supportActionBar?.title?.toString() ?: "Phở Hà Nội 36"
 
                 if (binding.rbBanking.isChecked) {
-                    // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng
+                    // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng (với thông tin tài khoản của Quán)
                     val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
                         putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                        putExtra(Constants.EXTRA_SHOP_ID, currentTargetShopId)
                         putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
                         putExtra("extra_address", fullAddress)
                         putExtra("extra_amount", finalTotal)
@@ -489,6 +499,10 @@ class CheckoutActivity : AppCompatActivity() {
                         putExtra("extra_shipping_fee", currentShippingFee)
                         putExtra("extra_discount", currentDiscount)
                         putExtra("extra_channel", "bank")
+                        putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
+                        putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
+                        putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
+                        putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
                     }
                     startActivity(intent)
                 } else {
@@ -508,6 +522,23 @@ class CheckoutActivity : AppCompatActivity() {
                 finish()
             }.onFailure { error ->
                 Toast.makeText(this, error.message ?: "Lỗi đặt đơn", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** Lắng nghe thông tin tài khoản ngân hàng của quán để hiển thị cho khách xem trước */
+    private fun observeShopInfo(shopId: String) {
+        if (shopId.isBlank()) return
+        lifecycleScope.launch {
+            firebaseRepository.observeStore(shopId).collectLatest { store ->
+                if (store != null) {
+                    currentStore = store
+                    if (store.bankAccountNumber.isNotBlank()) {
+                        val bankDisplay = store.bankName.ifBlank { "MB Bank (Quân Đội)" }
+                        val ownerDisplay = store.bankAccountName.ifBlank { store.name }
+                        binding.tvBankingDetails.text = "• Ngân hàng: $bankDisplay\n• Số tài khoản: ${store.bankAccountNumber}\n• Chủ tài khoản: $ownerDisplay\n• Cú pháp CK: OISHI [Mã đơn hàng]"
+                    }
+                }
             }
         }
     }

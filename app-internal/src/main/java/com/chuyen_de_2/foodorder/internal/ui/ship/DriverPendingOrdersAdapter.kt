@@ -48,9 +48,9 @@ class DriverPendingOrdersAdapter(
             binding.tvPendingOrderDest.text = "📍 Giao đến: $cusName - $address"
 
             val dishSummary = if (order.items.isNotEmpty()) {
-                order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName}" }
+                order.items.values.joinToString(", ") { "${it.quantity}x ${it.name}" }
             } else {
-                "2x Hồng Trà Sữa Trân Châu (L) • Đã đóng túi niêm phong"
+                "1x Món ăn theo đơn • Đã đóng túi niêm phong"
             }
             binding.tvPendingOrderDishes.text = dishSummary
 

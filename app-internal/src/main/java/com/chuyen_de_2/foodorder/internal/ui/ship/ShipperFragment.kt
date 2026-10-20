@@ -37,7 +37,6 @@ class ShipperFragment : Fragment() {
     private lateinit var pendingAdapter: DriverPendingOrdersAdapter
 
     private var isOnline = true
-    private var lastPromptedOrderId: String? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -151,62 +150,12 @@ class ShipperFragment : Fragment() {
             binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
         }
 
-        // Lắng nghe các đơn chờ nhận của quán
+        // Lắng nghe các đơn chờ nhận của quán (hiển thị trực tiếp trong danh sách theo chuẩn ship/2.html)
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
             pendingAdapter.submitList(pendingOrders)
             binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
             binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
-
-            // Pop-up nhận đơn mới theo ship/3.html khi có đơn chờ mới và tài xế đang trực
-            if (isOnline && pendingOrders.isNotEmpty()) {
-                val newest = pendingOrders.first()
-                if (newest.orderId != lastPromptedOrderId && isResumed) {
-                    lastPromptedOrderId = newest.orderId
-                    showNewOrderPopup(newest)
-                }
-            }
         }
-    }
-
-    private fun showNewOrderPopup(order: Order) {
-        val dialogBinding = DialogNewOrderPopupBinding.inflate(layoutInflater)
-        val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
-        val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
-        dialogBinding.tvPopupFee.text = "+${fee.toVndCurrency()}"
-
-        val storeName = order.shopName.ifBlank { "Quán ăn" }
-        dialogBinding.tvPopupStore.text = "🏪 Lấy tại: $storeName"
-
-        val dest = order.address.ifBlank { "Địa chỉ giao hàng" }
-        dialogBinding.tvPopupCustomerDest.text = "📍 Giao đến: $dest"
-
-        val dishesText = if (order.items.isNotEmpty()) {
-            order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName}" }
-        } else {
-            "Món ăn theo đơn"
-        }
-        dialogBinding.tvPopupDishes.text = "📦 Món: $dishesText"
-
-        val dialog = AlertDialog.Builder(requireContext())
-            .setView(dialogBinding.root)
-            .create()
-
-        dialogBinding.btnPopupDecline.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialogBinding.btnPopupAccept.setOnClickListener {
-            dialog.dismiss()
-            viewModel.acceptOrder(order.orderId) { success, msg ->
-                if (success) {
-                    Toast.makeText(requireContext(), "🛵 Đã nhận đơn #$shortCode thành công!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        dialog.show()
     }
 
     private fun showCancelModal(order: Order) {

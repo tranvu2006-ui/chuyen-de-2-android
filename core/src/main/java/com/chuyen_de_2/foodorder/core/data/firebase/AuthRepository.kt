@@ -248,26 +248,66 @@ class AuthRepository @Inject constructor(
         awaitClose { auth.removeAuthStateListener(listener) }
     }
 
-    /** Lấy role của user hiện tại (chuẩn hóa RBAC và có fallback thông minh) */
+    /** Lấy role của user hiện tại (chuẩn hóa RBAC và có tra cứu chéo stores/drivers) */
     suspend fun getUserRole(): String? {
+        val uid = auth.currentUser?.uid ?: return null
+
         return try {
             val userData = getCurrentUserData().getOrNull()
             val rawRole = userData?.role?.trim()?.uppercase()
             val roleId = userData?.roleId
 
-            when {
-                rawRole == "MERCHANT" || rawRole == "MANAGER" || roleId == 3 -> User.Role.MERCHANT
-                rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4 -> User.Role.DRIVER
-                rawRole == "ADMIN" || roleId == 1 -> User.Role.ADMIN
-                rawRole == "CUSTOMER" || roleId == 2 -> User.Role.CUSTOMER
-                // Fallback theo email nếu DB chưa có role
-                auth.currentUser?.email?.contains("manager", ignoreCase = true) == true -> User.Role.MERCHANT
-                auth.currentUser?.email?.contains("merchant", ignoreCase = true) == true -> User.Role.MERCHANT
-                auth.currentUser?.email?.contains("shipper", ignoreCase = true) == true -> User.Role.DRIVER
-                auth.currentUser?.email?.contains("driver", ignoreCase = true) == true -> User.Role.DRIVER
-                auth.currentUser?.email?.contains("admin", ignoreCase = true) == true -> User.Role.ADMIN
-                else -> userData?.role ?: User.Role.CUSTOMER
+            // 1. Kiểm tra nếu đã có role rõ ràng là Quán hoặc Tài xế hoặc Admin
+            if (rawRole == "MERCHANT" || rawRole == "MANAGER" || roleId == 3) return User.Role.MERCHANT
+            if (rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4) return User.Role.DRIVER
+            if (rawRole == "ADMIN" || roleId == 1) return User.Role.ADMIN
+
+            // 2. Tra cứu chéo: Người dùng có sở hữu cửa hàng nào không?
+            if (!userData?.storeId.isNullOrBlank()) {
+                // Tự động đồng bộ lại role thành MERCHANT cho tài khoản
+                database.getReference("users").child(uid).updateChildren(
+                    mapOf("role" to User.Role.MERCHANT, "roleId" to 3)
+                ).await()
+                return User.Role.MERCHANT
             }
+
+            try {
+                val storesSnap = database.getReference("stores").get().await()
+                for (child in storesSnap.children) {
+                    val merchantId = child.child("merchantId").getValue(String::class.java)
+                        ?: child.child("ownerId").getValue(String::class.java)
+                    if (merchantId == uid) {
+                        val storeId = child.key ?: "shop_01"
+                        database.getReference("users").child(uid).updateChildren(
+                            mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to storeId)
+                        ).await()
+                        return User.Role.MERCHANT
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 3. Tra cứu chéo: Người dùng có hồ sơ tài xế không?
+            try {
+                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                if (driverSnap.exists()) {
+                    database.getReference("users").child(uid).updateChildren(
+                        mapOf("role" to User.Role.DRIVER, "roleId" to 4)
+                    ).await()
+                    return User.Role.DRIVER
+                }
+            } catch (_: Exception) {}
+
+            // 4. Fallback theo email nếu email có chứa từ khóa
+            val email = auth.currentUser?.email
+            if (email != null) {
+                when {
+                    email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> return User.Role.MERCHANT
+                    email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> return User.Role.DRIVER
+                    email.contains("admin", ignoreCase = true) -> return User.Role.ADMIN
+                }
+            }
+
+            userData?.role ?: User.Role.CUSTOMER
         } catch (e: Exception) {
             val email = auth.currentUser?.email ?: return null
             when {
@@ -276,6 +316,72 @@ class AuthRepository @Inject constructor(
                 email.contains("admin", ignoreCase = true) -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
+        }
+    }
+
+    /** Thiết lập hoặc chuyển đổi vai trò cho tài khoản hiện tại */
+    suspend fun setUserRole(newRole: String): Result<Unit> {
+        val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Chưa đăng nhập"))
+        return try {
+            val normalizedRole = when (newRole.uppercase()) {
+                "MERCHANT", "MANAGER" -> User.Role.MERCHANT
+                "DRIVER", "SHIPPER" -> User.Role.DRIVER
+                "ADMIN" -> User.Role.ADMIN
+                else -> User.Role.CUSTOMER
+            }
+            val roleId = when (normalizedRole) {
+                User.Role.ADMIN -> 1
+                User.Role.MERCHANT -> 3
+                User.Role.DRIVER -> 4
+                else -> 2
+            }
+
+            val updates = mutableMapOf<String, Any>(
+                "role" to normalizedRole,
+                "roleId" to roleId
+            )
+
+            if (normalizedRole == User.Role.MERCHANT) {
+                val storeSnap = database.getReference("stores").get().await()
+                var foundStoreId: String? = null
+                for (child in storeSnap.children) {
+                    val mId = child.child("merchantId").getValue(String::class.java)
+                        ?: child.child("ownerId").getValue(String::class.java)
+                    if (mId == uid) {
+                        foundStoreId = child.key
+                        break
+                    }
+                }
+
+                val finalStoreId = foundStoreId ?: "store_${uid.take(8)}"
+                updates["storeId"] = finalStoreId
+
+                if (foundStoreId == null) {
+                    val store = com.chuyen_de_2.foodorder.core.data.model.Store(
+                        id = finalStoreId,
+                        merchantId = uid,
+                        name = auth.currentUser?.displayName?.ifBlank { "Quán Ăn Của Tôi" } ?: "Quán Ăn Của Tôi",
+                        storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
+                    )
+                    database.getReference("stores").child(finalStoreId).setValue(store).await()
+                }
+            } else if (normalizedRole == User.Role.DRIVER) {
+                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                if (!driverSnap.exists()) {
+                    val driver = Driver(
+                        driverId = uid,
+                        storeId = "shop_01",
+                        driverCode = "TX-" + (10..99).random(),
+                        dutyStatus = Driver.DutyStatus.AVAILABLE
+                    )
+                    database.getReference("drivers").child(uid).setValue(driver).await()
+                }
+            }
+
+            database.getReference("users").child(uid).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

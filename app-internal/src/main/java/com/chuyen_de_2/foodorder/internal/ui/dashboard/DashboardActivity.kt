@@ -123,18 +123,25 @@ class DashboardActivity : AppCompatActivity() {
                     setupShipperNavigation()
                 }
                 else -> {
+                    // Nếu tài khoản chưa có vai trò đối tác, cho phép người dùng chọn Quán ăn hoặc Tài xế để kích hoạt ngay
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                        .setTitle("⚠️ Tài khoản Khách Hàng")
-                        .setMessage("Tài khoản của bạn là Khách hàng (Customer).\n\nỨng dụng này chỉ dành cho Cửa Hàng và Tài Xế. Vui lòng mở ứng dụng 'Oishi Customer' để đặt món!")
-                        .setPositiveButton("Mở Oishi Customer") { _, _ ->
-                            authRepository.logout()
-                            val launchIntent = packageManager.getLaunchIntentForPackage("com.chuyen_de_2.foodorder.customer")
-                            if (launchIntent != null) {
-                                startActivity(launchIntent)
+                        .setTitle("🏪 Kích Hoạt Vai Trò Đối Tác")
+                        .setMessage("Tài khoản của bạn hiện tại chưa được kích hoạt vai trò Đối Tác trên ứng dụng Oishi Internal.\n\nBạn muốn sử dụng tài khoản này với vai trò gì?")
+                        .setPositiveButton("🏪 Tôi là Quán Ăn") { _, _ ->
+                            lifecycleScope.launch {
+                                authRepository.setUserRole(User.Role.MERCHANT)
+                                Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
+                                setupMerchantNavigation()
                             }
-                            finish()
                         }
-                        .setNegativeButton("Đăng xuất") { _, _ ->
+                        .setNegativeButton("🛵 Tôi là Tài Xế") { _, _ ->
+                            lifecycleScope.launch {
+                                authRepository.setUserRole(User.Role.DRIVER)
+                                Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Tài Xế thành công!", Toast.LENGTH_SHORT).show()
+                                setupShipperNavigation()
+                            }
+                        }
+                        .setNeutralButton("🚪 Đăng xuất") { _, _ ->
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

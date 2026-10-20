@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_rounded"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Header bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <View
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@drawable/bg_badge_green" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvChatCustomerName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Chat với Khách hàng"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🟢 Khách đang trực tuyến"
+                android:textColor="#059669"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnCloseChatDialog"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="@drawable/bg_badge_duty_off"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="@color/text_secondary" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginVertical="10dp"
+        android:background="#F1F5F9" />
+
+    <!-- Khu vực tin nhắn -->
+    <ScrollView
+        android:id="@+id/scrollChatMessages"
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:background="#F8FAFC"
+        android:padding="10dp">
+
+        <LinearLayout
+            android:id="@+id/layoutChatMessagesContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="8dp"
+                android:text="🔒 Cuộc trò chuyện được mã hóa bảo mật"
+                android:textColor="#94A3B8"
+                android:textSize="10sp" />
+
+            <!-- Bubble Driver -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginBottom="6dp"
+                android:background="@drawable/bg_choice_card_active"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
+                android:text="Chào bạn, tài xế Oishi Food đang giao hàng đến bạn! 🛵"
+                android:textColor="@color/primary"
+                android:textSize="11.5sp" />
+
+            <!-- Bubble Customer -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start"
+                android:layout_marginBottom="6dp"
+                android:background="@drawable/bg_choice_card_idle"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
+                android:text="Dạ vâng anh ơi, khoảng mấy phút nữa anh tới ạ?"
+                android:textColor="@color/text_primary"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Gợi ý trả lời nhanh (Quick replies chips) -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/chipReply1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_blue"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="Sắp đến nơi 🛵"
+                android:textColor="@color/brand_blue"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/chipReply2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_blue"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="Đang đợi trước cổng 🏠"
+                android:textColor="@color/brand_blue"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/chipReply3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_blue"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="Mở sẵn mã QR Token nhé 📱"
+                android:textColor="@color/brand_blue"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Khung nhập tin nhắn -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/etChatMessageInput"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_rounded_spinner_border"
+            android:hint="Nhập tin nhắn cho khách..."
+            android:paddingHorizontal="12dp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSendChatMessage"
+            android:layout_width="44dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:backgroundTint="@color/primary"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            android:text="➤"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            app:cornerRadius="8dp" />
+    </LinearLayout>
+
+</LinearLayout>

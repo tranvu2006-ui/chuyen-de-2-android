@@ -37,14 +37,35 @@
                 android:layout_weight="1"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/tvTripOrderCode"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Đơn #ORD-88291"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvTripOrderCode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Đơn #ORD-88291"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvTripBundleBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_badge_bundle"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="1dp"
+                        android:text="Ghép 2 đơn"
+                        android:textColor="#B45309"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/tvTripStoreBadge"
@@ -72,7 +93,7 @@
         </LinearLayout>
     </com.google.android.material.appbar.MaterialToolbar>
 
-    <!-- Stepper 2 Chặng Chuẩn (4.html: trip-stepper) -->
+    <!-- Stepper 2 Chặng Chuẩn (4.html: trip-stepper) dành cho đơn đơn lẻ -->
     <LinearLayout
         android:id="@+id/layoutTripStepper"
         android:layout_width="match_parent"
@@ -135,6 +156,174 @@
             android:text="Giao cho khách"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Stepper 3 Chặng Chuẩn (6.html: trip-stepper-wrap) dành riêng cho ĐƠN GỘP -->
+    <LinearLayout
+        android:id="@+id/layoutTripStepperBundle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:elevation="2dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/toolbarTrip">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp">
+
+            <!-- Chặng 1: Quán -->
+            <LinearLayout
+                android:id="@+id/stepBundleShop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/stepBundleShopBadge"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:background="@drawable/bg_badge_green"
+                    android:gravity="center"
+                    android:text="✓"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/stepBundleShopText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="Lấy Quán"
+                    android:textColor="@color/brand_green"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/stepBundleDivider1"
+                android:layout_width="0dp"
+                android:layout_height="1.5dp"
+                android:layout_marginHorizontal="6dp"
+                android:layout_weight="1"
+                android:background="#10B981" />
+
+            <!-- Chặng 2: Khách 1 -->
+            <LinearLayout
+                android:id="@+id/stepBundleCust1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp"
+                android:paddingVertical="2dp">
+
+                <TextView
+                    android:id="@+id/stepBundleCust1Badge"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:gravity="center"
+                    android:text="1"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/stepBundleCust1Text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="Khách 1"
+                    android:textColor="@color/primary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/stepBundleDivider2"
+                android:layout_width="0dp"
+                android:layout_height="1.5dp"
+                android:layout_marginHorizontal="6dp"
+                android:layout_weight="1"
+                android:background="#CBD5E1" />
+
+            <!-- Chặng 3: Khách 2 -->
+            <LinearLayout
+                android:id="@+id/stepBundleCust2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp"
+                android:paddingVertical="2dp">
+
+                <TextView
+                    android:id="@+id/stepBundleCust2Badge"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:background="@drawable/bg_badge_duty_off"
+                    android:gravity="center"
+                    android:text="2"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/stepBundleCust2Text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="Khách 2"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Tip bar hướng dẫn đổi tuyến (6.html) -->
+        <LinearLayout
+            android:id="@+id/layoutStepperTipBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#F0FDF4"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp">
+
+            <TextView
+                android:id="@+id/tvStepperTipText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="👆 Nhấn vào tên khách để tự chọn ai giao trước"
+                android:textColor="#047857"
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvStepperTipTag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_green"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="1dp"
+                android:text="Tự do đổi thứ tự"
+                android:textColor="#FFFFFF"
+                android:textSize="9.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- CONTAINER CHÍNH -->
@@ -483,6 +672,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- Thông báo đến quán lấy đơn gộp (5.html: arrived-alert-card) -->
                 <com.google.android.material.card.MaterialCardView
                     style="@style/Widget.Material3.CardView.Elevated"
                     android:layout_width="match_parent"
@@ -514,26 +704,232 @@
                             android:orientation="vertical">
 
                             <TextView
+                                android:id="@+id/tvStep2HeaderTitle"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Đã đến quán nhận món"
+                                android:text="Đã đến quán • Sẵn sàng lấy đơn"
                                 android:textColor="#065F46"
                                 android:textSize="13.5sp"
                                 android:textStyle="bold" />
 
                             <TextView
+                                android:id="@+id/tvStep2HeaderSubtitle"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Vui lòng đối chiếu checklist món trước khi xuất phát giao"
+                                android:text="Vui lòng đối chiếu checklist từng đơn trước khi xuất phát giao"
                                 android:textColor="#047857"
                                 android:textSize="11sp" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Checklist món ăn -->
+                <!-- Quán Card + Thống kê đơn gộp (5.html: shop-card-bundle) -->
                 <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardShopBundleMetrics"
+                    style="@style/Widget.Material3.CardView.Elevated"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardCornerRadius="14dp"
+                    app:cardElevation="2dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <!-- Quán header -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:id="@+id/tvStep2ShopName"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Quán ăn Oishi Food"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="14sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/tvStep2ShopAddress"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:text="28 Tô Vĩnh Diện, P. Linh Chiểu, Thủ Đức"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="11sp" />
+                            </LinearLayout>
+
+                            <FrameLayout
+                                android:id="@+id/btnCallStoreStep2"
+                                android:layout_width="36dp"
+                                android:layout_height="36dp"
+                                android:background="@drawable/bg_call_round"
+                                android:clickable="true"
+                                android:focusable="true">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="center"
+                                    android:text="📞"
+                                    android:textColor="#059669"
+                                    android:textSize="16sp" />
+                            </FrameLayout>
+                        </LinearLayout>
+
+                        <!-- Bảng thống kê 3 cột đơn gộp (5.html: bundle-metric-grid) -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:background="#F8FAFC"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="8dp">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Thu nhập gộp"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp" />
+
+                                <TextView
+                                    android:id="@+id/tvBundleTotalFee"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:text="+42.000 đ"
+                                    android:textColor="#059669"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="1dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginHorizontal="6dp"
+                                android:background="#E2E8F0" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="0.8"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Số đơn gộp"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp" />
+
+                                <TextView
+                                    android:id="@+id/tvBundleOrderCount"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:text="2 đơn"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="1dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginHorizontal="6dp"
+                                android:background="#E2E8F0" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Tổng COD cần thu"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp" />
+
+                                <TextView
+                                    android:id="@+id/tvBundleTotalCod"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:text="72.000 đ"
+                                    android:textColor="@color/primary"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Toolbar danh sách đơn gộp (5.html: list-toolbar) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvStep2ListTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📦 DANH SÁCH MÓN CẦN LẤY"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCheckAllDishes"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:text="✓ Kiểm đủ tất cả"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <!-- Container danh sách các thẻ đơn gộp (5.html: list-order-card) -->
+                <LinearLayout
+                    android:id="@+id/layoutBundleCardsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
+                <!-- Fallback checklist cho đơn đơn lẻ -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardSingleChecklist"
                     style="@style/Widget.Material3.CardView.Elevated"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -549,31 +945,6 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:padding="16dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Kiểm tra món ăn của đơn"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnCheckAllDishes"
-                                style="@style/Widget.Material3.Button.TextButton"
-                                android:layout_width="wrap_content"
-                                android:layout_height="36dp"
-                                android:text="✓ Chọn tất cả"
-                                android:textColor="@color/brand_blue"
-                                android:textSize="11sp" />
-                        </LinearLayout>
 
                         <CheckBox
                             android:id="@+id/cbDish1"
@@ -605,13 +976,14 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Nút xác nhận lấy hàng -->
+                <!-- Nút xác nhận lấy hàng (5.html: bottom-sheet-fixed) -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnConfirmPickDishes"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
+                    android:layout_marginBottom="16dp"
                     android:backgroundTint="@color/primary"
-                    android:text="🛵 XÁC NHẬN ĐÃ LẤY HÀNG &amp; BẮT ĐẦU GIAO ➔"
+                    android:text="🛵 XÁC NHẬN ĐÃ LẤY TẤT CẢ ĐƠN GỘP ➔"
                     android:textColor="#FFFFFF"
                     android:textSize="13sp"
                     android:textStyle="bold"
@@ -627,6 +999,31 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone">
+
+            <!-- Toast Thông Báo Khi Đổi Tuyến Giao (6.html: toast-route-switch) -->
+            <FrameLayout
+                android:id="@+id/layoutRouteToast"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_card_summary_dark"
+                android:elevation="20dp"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <TextView
+                    android:id="@+id/tvRouteToastText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛵 Đã chọn giao cho An Nguyễn trước!"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
 
             <!-- Map View Step 3 -->
             <FrameLayout
@@ -685,6 +1082,7 @@
                                 android:textStyle="bold" />
 
                             <TextView
+                                android:id="@+id/tvStep3NavSubtext"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="1dp"
@@ -711,7 +1109,7 @@
                 </com.google.android.material.card.MaterialCardView>
             </FrameLayout>
 
-            <!-- Bottom Sheet Thông Tin Khách Hàng -->
+            <!-- Bottom Sheet Thông Tin Khách Hàng (6.html: spf-bottom-sheet) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/bottomSheetCustStep3"
                 style="@style/Widget.Material3.CardView.Elevated"
@@ -737,6 +1135,188 @@
                         android:layout_marginBottom="10dp"
                         android:background="#CBD5E1" />
 
+                    <!-- THANH CHỌN NHANH KHÁCH HÀNG (6.html: customer-quick-switch) -->
+                    <LinearLayout
+                        android:id="@+id/layoutCustomerQuickSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="10dp"
+                        android:background="#F8FAFC"
+                        android:orientation="vertical"
+                        android:padding="8dp"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="🎯 TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC:"
+                                android:textColor="#475569"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_badge_blue"
+                                android:paddingHorizontal="6dp"
+                                android:paddingVertical="1dp"
+                                android:text="Chạm để chọn"
+                                android:textColor="@color/brand_blue"
+                                android:textSize="9.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- 2 nút chọn nhanh Khách 1 & Khách 2 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:orientation="horizontal">
+
+                            <!-- Khách 1 Choice -->
+                            <LinearLayout
+                                android:id="@+id/btnChoiceCust1"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="4dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/bg_choice_card_active"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:orientation="vertical"
+                                android:padding="8dp">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:id="@+id/choiceBadge1"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:background="@drawable/bg_badge_orange"
+                                        android:paddingHorizontal="4dp"
+                                        android:paddingVertical="1dp"
+                                        android:text="⚡ Giao trước"
+                                        android:textColor="#FFFFFF"
+                                        android:textSize="9sp"
+                                        android:textStyle="bold" />
+
+                                    <View
+                                        android:layout_width="0dp"
+                                        android:layout_height="1dp"
+                                        android:layout_weight="1" />
+
+                                    <TextView
+                                        android:id="@+id/choicePayment1"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="0 đ (MoMo)"
+                                        android:textColor="#059669"
+                                        android:textSize="9.5sp"
+                                        android:textStyle="bold" />
+                                </LinearLayout>
+
+                                <TextView
+                                    android:id="@+id/choiceName1"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:text="1. An Nguyễn"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/choiceAddr1"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:text="104 Hai Bà Trưng, Q.1"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp" />
+                            </LinearLayout>
+
+                            <!-- Khách 2 Choice -->
+                            <LinearLayout
+                                android:id="@+id/btnChoiceCust2"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="4dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/bg_choice_card_idle"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:orientation="vertical"
+                                android:padding="8dp">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:id="@+id/choiceBadge2"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:background="@drawable/bg_badge_duty_off"
+                                        android:paddingHorizontal="4dp"
+                                        android:paddingVertical="1dp"
+                                        android:text="Giao sau"
+                                        android:textColor="@color/text_secondary"
+                                        android:textSize="9sp"
+                                        android:textStyle="bold" />
+
+                                    <View
+                                        android:layout_width="0dp"
+                                        android:layout_height="1dp"
+                                        android:layout_weight="1" />
+
+                                    <TextView
+                                        android:id="@+id/choicePayment2"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="COD 72k"
+                                        android:textColor="@color/primary"
+                                        android:textSize="9.5sp"
+                                        android:textStyle="bold" />
+                                </LinearLayout>
+
+                                <TextView
+                                    android:id="@+id/choiceName2"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:text="2. Minh Khang"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/choiceAddr2"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:text="18 Lê Duẩn, Q.1"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="10sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Header Tên khách & Hành động (Gọi, Chat, Báo cáo sự cố) -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -753,9 +1333,9 @@
                                 android:id="@+id/tvStep3CustomerName"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="An Nguyễn"
+                                android:text="An Nguyễn (⭐ 98/100)"
                                 android:textColor="@color/text_primary"
-                                android:textSize="15.5sp"
+                                android:textSize="14.5sp"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -765,13 +1345,14 @@
                                 android:layout_marginTop="2dp"
                                 android:text="0938 112 233"
                                 android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
+                                android:textSize="11.5sp" />
                         </LinearLayout>
 
+                        <!-- Nút Gọi điện 📞 -->
                         <FrameLayout
                             android:id="@+id/btnCallCustomerStep3"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:background="@drawable/bg_call_round"
                             android:clickable="true"
                             android:focusable="true">
@@ -782,13 +1363,14 @@
                                 android:layout_gravity="center"
                                 android:text="📞"
                                 android:textColor="#059669"
-                                android:textSize="18sp" />
+                                android:textSize="16sp" />
                         </FrameLayout>
 
+                        <!-- Nút Nhắn tin 💬 -->
                         <FrameLayout
                             android:id="@+id/btnMessageCustomerStep3"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:layout_marginStart="8dp"
                             android:background="@drawable/bg_badge_shop_tag"
                             android:clickable="true"
@@ -800,27 +1382,61 @@
                                 android:layout_gravity="center"
                                 android:text="💬"
                                 android:textColor="@color/brand_blue"
-                                android:textSize="18sp" />
+                                android:textSize="16sp" />
+                        </FrameLayout>
+
+                        <!-- Nút Báo cáo sự cố / Hủy đơn / Khách bom ⚠️ (6.html) -->
+                        <FrameLayout
+                            android:id="@+id/btnReportIncidentStep3"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_card_warning"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:text="⚠️"
+                                android:textColor="@color/danger"
+                                android:textSize="16sp" />
                         </FrameLayout>
                     </LinearLayout>
 
+                    <!-- Địa chỉ giao hàng -->
                     <TextView
                         android:id="@+id/tvStep3DeliveryAddress"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="8dp"
                         android:background="@drawable/bg_badge_duty_off"
-                        android:padding="10dp"
+                        android:padding="8dp"
                         android:text="📍 Địa chỉ: 104 Hai Bà Trưng, P. Đa Kao, Q.1"
                         android:textColor="#1E293B"
-                        android:textSize="12sp" />
+                        android:textSize="11.5sp" />
 
+                    <!-- Ghi chú khách (6.html) -->
+                    <TextView
+                        android:id="@+id/tvStep3CustomerNote"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="#FFFBEB"
+                        android:padding="6dp"
+                        android:text="📝 Ghi chú: Xin thêm 2 ống hút to nha quán"
+                        android:textColor="#92400E"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+
+                    <!-- Badge Thu COD / Đã thanh toán -->
                     <TextView
                         android:id="@+id/tvStep3PaymentMethodBadge"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:layout_marginBottom="14dp"
+                        android:layout_marginBottom="12dp"
                         android:background="#FEF2F2"
                         android:padding="8dp"
                         android:text="💵 Thu tiền mặt COD: 95.000 đ"
@@ -828,6 +1444,7 @@
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
+                    <!-- Nút xác nhận đã đến điểm giao -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnArrivedAtCustomer"
                         android:layout_width="match_parent"

@@ -36,6 +36,14 @@ class FirebaseRepository @Inject constructor(
     private val database: FirebaseDatabase,
     private val auth: FirebaseAuth
 ) {
+    init {
+        try {
+            // Giữ kết nối socket và cache sync liên tục để tránh độ trễ khi chuyển màn hình
+            database.getReference("orders").keepSynced(true)
+            database.getReference("tracking").keepSynced(true)
+        } catch (_: Exception) {}
+    }
+
     // ==================== GIỎ HÀNG (CART) ====================
 
     /**
@@ -210,18 +218,25 @@ class FirebaseRepository @Inject constructor(
 
         dbRef.runTransaction(object : Transaction.Handler {
             override fun doTransaction(currentData: MutableData): Transaction.Result {
-                val order = currentData.getValue(Order::class.java)
-                    ?: return Transaction.abort()
-
-                // Kỹ thuật Lock: Đơn phải ở trạng thái READY (quán đã nấu xong) và CHƯA có shipper nào nhận
-                if (!order.shipperId.isNullOrBlank() || order.status != Order.Status.READY) {
-                    return Transaction.abort() // Xung đột, tài xế khác đã nhận hoặc quán chưa nấu xong
+                // Nếu cache cục bộ chưa có dữ liệu, tiếp tục để Firebase tải từ server về
+                if (currentData.value == null) {
+                    return Transaction.success(currentData)
                 }
 
-                order.shipperId = shipperId
-                order.shipperName = shipperName
-                order.status = Order.Status.ASSIGNED
-                currentData.value = order
+                val currentShipperId = currentData.child("shipperId").getValue(String::class.java)
+
+                // Kiểm tra xem đơn đã bị tài xế khác nhận chưa
+                if (!currentShipperId.isNullOrBlank() && currentShipperId != "null") {
+                    return Transaction.abort() // Xung đột, tài xế khác đã nhận
+                }
+
+                val now = System.currentTimeMillis()
+                currentData.child("shipperId").value = shipperId
+                currentData.child("driverId").value = shipperId
+                currentData.child("shipperName").value = shipperName
+                currentData.child("status").value = Order.Status.ASSIGNED
+                currentData.child("orderStatus").value = Order.Status.ASSIGNED
+                currentData.child("updatedAt").value = now
 
                 return Transaction.success(currentData)
             }
@@ -252,7 +267,9 @@ class FirebaseRepository @Inject constructor(
             "shipperId" to null,
             "shipperName" to "",
             "driverId" to null,
-            "status" to Order.Status.READY
+            "status" to Order.Status.READY,
+            "orderStatus" to Order.Status.READY,
+            "updatedAt" to System.currentTimeMillis()
         )
         dbRef.updateChildren(updates).addOnCompleteListener { task ->
             if (task.isSuccessful) {
@@ -263,12 +280,16 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Cập nhật trạng thái đơn hàng */
+    /** Cập nhật trạng thái đơn hàng (đồng bộ tức thì cả status, orderStatus và timestamp) */
     suspend fun updateOrderStatus(orderId: String, status: String) {
+        val updates = mapOf<String, Any?>(
+            "status" to status,
+            "orderStatus" to status,
+            "updatedAt" to System.currentTimeMillis()
+        )
         database.getReference("orders")
             .child(orderId)
-            .child("status")
-            .setValue(status)
+            .updateChildren(updates)
             .await()
     }
 

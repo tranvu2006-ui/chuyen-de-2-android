@@ -149,8 +149,16 @@ class ShopViewModel @Inject constructor(
         }
     }
 
+    private fun updateLocalOrderStatus(orderId: String, newStatus: String) {
+        val currentList = _allOrders.value ?: return
+        _allOrders.value = currentList.map {
+            if (it.orderId == orderId) it.copy(status = newStatus, orderStatus = newStatus) else it
+        }
+    }
+
     /** Bước 1: Quán xác nhận đơn của khách -> Chuyển sang PREPARING (bếp đang nấu) */
     fun confirmCustomerOrder(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.PREPARING)
         viewModelScope.launch {
             firebaseRepository.updateOrderStatus(orderId, Order.Status.PREPARING)
         }
@@ -158,6 +166,7 @@ class ShopViewModel @Inject constructor(
 
     /** Bước 2: Bếp nấu xong -> Chuyển sang READY (sẵn sàng giao tài xế) */
     fun markCookingDone(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.READY)
         viewModelScope.launch {
             firebaseRepository.updateOrderStatus(orderId, Order.Status.READY)
         }
@@ -165,6 +174,7 @@ class ShopViewModel @Inject constructor(
 
     /** Bước 3: Xác nhận đã giao món cho tài xế đến lấy -> Chuyển sang DELIVERING */
     fun handoverToDriver(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.DELIVERING)
         viewModelScope.launch {
             firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
         }

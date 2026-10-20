@@ -244,6 +244,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    private var lastGeocodedAddress: String = ""
+
     private fun updateOrderUI(order: Order) {
         // Cập nhật tên quán & số điện thoại
         if (order.shopName.isNotBlank()) {
@@ -269,41 +271,44 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Cập nhật chi tiết các món ăn & thanh toán
         bindOrderItems(order)
 
-        // Geocode địa chỉ khách hàng & quán ăn lên bản đồ Google Maps
-        lifecycleScope.launch {
-            val map = googleMap ?: return@launch
-            val cLatLng = GoogleMapUtils.geocodeAddress(this@TrackingActivity, order.address)
-            customerLatLng = cLatLng
+        // Geocode địa chỉ khách hàng & quán ăn lên bản đồ Google Maps (chỉ chạy 1 lần khi địa chỉ mới)
+        if (customerLatLng == null || lastGeocodedAddress != order.address) {
+            lastGeocodedAddress = order.address
+            lifecycleScope.launch {
+                val map = googleMap ?: return@launch
+                val cLatLng = GoogleMapUtils.geocodeAddress(this@TrackingActivity, order.address)
+                customerLatLng = cLatLng
 
-            val sLatLng = GoogleMapUtils.STORE_COORDINATES[order.shopId]
-                ?: GoogleMapUtils.findFallbackDistrict(order.shopName)
-            storeLatLng = sLatLng
+                val sLatLng = GoogleMapUtils.STORE_COORDINATES[order.shopId]
+                    ?: GoogleMapUtils.findFallbackDistrict(order.shopName)
+                storeLatLng = sLatLng
 
-            if (storeMarker == null) {
-                storeMarker = map.addMarker(
-                    MarkerOptions()
-                        .position(sLatLng)
-                        .title("Quán ăn: ${order.shopName}")
-                        .snippet("Điểm nhận món")
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
-                )
-            } else {
-                storeMarker?.position = sLatLng
+                if (storeMarker == null) {
+                    storeMarker = map.addMarker(
+                        MarkerOptions()
+                            .position(sLatLng)
+                            .title("Quán ăn: ${order.shopName}")
+                            .snippet("Điểm nhận món")
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
+                    )
+                } else {
+                    storeMarker?.position = sLatLng
+                }
+
+                if (customerMarker == null) {
+                    customerMarker = map.addMarker(
+                        MarkerOptions()
+                            .position(cLatLng)
+                            .title("Điểm giao hàng")
+                            .snippet(order.address)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+                    )
+                } else {
+                    customerMarker?.position = cLatLng
+                }
+
+                updateRouteAndCamera()
             }
-
-            if (customerMarker == null) {
-                customerMarker = map.addMarker(
-                    MarkerOptions()
-                        .position(cLatLng)
-                        .title("Điểm giao hàng")
-                        .snippet(order.address)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
-                )
-            } else {
-                customerMarker?.position = cLatLng
-            }
-
-            updateRouteAndCamera()
         }
     }
 

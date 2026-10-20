@@ -93,10 +93,34 @@ class ShipperViewModel @Inject constructor(
         }
         val shipperName = auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
 
+        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
+        // Optimistic UI: Cập nhật ngay danh sách để giao diện phản hồi 0ms
+        if (acceptedOrder != null) {
+            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
+            val updatedOrder = acceptedOrder.copy(
+                shipperId = shipperId,
+                driverId = shipperId,
+                shipperName = shipperName,
+                status = Order.Status.ASSIGNED,
+                orderStatus = Order.Status.ASSIGNED
+            )
+            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
+            if (currentAssigned.none { it.orderId == orderId }) {
+                currentAssigned.add(0, updatedOrder)
+                _assignedOrders.value = currentAssigned
+            }
+            _currentDeliveryOrderId.value = orderId
+        }
+
         viewModelScope.launch {
             firebaseRepository.assignShipper(orderId, shipperId, shipperName) { success, msg ->
                 if (success) {
                     _currentDeliveryOrderId.value = orderId
+                } else {
+                    // Nếu thất bại (xung đột tài xế khác), khôi phục lại danh sách
+                    if (acceptedOrder != null) {
+                        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+                    }
                 }
                 onResult(success, msg)
             }
@@ -105,8 +129,17 @@ class ShipperViewModel @Inject constructor(
 
     /** Hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán) */
     fun cancelAssignedOrder(orderId: String, reason: String, onResult: (Boolean, String) -> Unit) {
+        val removedOrder = _assignedOrders.value?.find { it.orderId == orderId }
+        // Optimistic UI: Xóa khỏi danh sách nhận ngay lập tức
+        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+
         viewModelScope.launch {
             firebaseRepository.unassignShipper(orderId) { success, msg ->
+                if (!success && removedOrder != null) {
+                    val current = _assignedOrders.value.orEmpty().toMutableList()
+                    current.add(removedOrder)
+                    _assignedOrders.value = current
+                }
                 onResult(success, msg)
             }
         }
@@ -114,6 +147,10 @@ class ShipperViewModel @Inject constructor(
 
     /** Shipper xác nhận lấy hàng thành công tại quán */
     fun confirmPickedUpAtShop(orderId: String) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.DELIVERING, orderStatus = Order.Status.DELIVERING) else it
+        }
         viewModelScope.launch {
             firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
         }
@@ -121,6 +158,10 @@ class ShipperViewModel @Inject constructor(
 
     /** Shipper xác nhận hoàn thành giao hàng */
     fun completeDelivery(orderId: String, onResult: ((Boolean) -> Unit)? = null) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.COMPLETED, orderStatus = Order.Status.COMPLETED) else it
+        }
         viewModelScope.launch {
             try {
                 firebaseRepository.updateOrderStatus(orderId, Order.Status.COMPLETED)

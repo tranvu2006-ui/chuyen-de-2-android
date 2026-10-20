@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@drawable/bg_bottom_sheet">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📍 Sổ Địa Chỉ Nhận Hàng"
+            android:textColor="@color/text_primary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <!-- Nút Đóng -->
+        <TextView
+            android:id="@+id/btnCloseAddressBook"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            android:text="✕"
+            android:textColor="@color/text_muted"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="14dp"
+        android:text="Lưu sẵn địa chỉ quen thuộc để chọn nhanh khi đặt đơn"
+        android:textColor="@color/text_muted"
+        android:textSize="12sp" />
+
+    <!-- Nút Thêm Địa Chỉ Mới -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnAddNewAddress"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:text="➕ Thêm Địa Chỉ Nhận Hàng Mới"
+        android:textColor="@color/primary"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        app:strokeColor="@color/primary"
+        app:strokeWidth="1.5dp"
+        app:cornerRadius="10dp" />
+
+    <!-- Danh Sách Địa Chỉ -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvAddressBook"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:maxHeight="360dp"
+        android:nestedScrollingEnabled="false" />
+
+    <!-- Empty State -->
+    <TextView
+        android:id="@+id/tvEmptyAddress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="24dp"
+        android:gravity="center"
+        android:text="Chưa có địa chỉ lưu sẵn nào.\nHãy thêm địa chỉ Nhà riêng hoặc Công ty nhé! 🏠"
+        android:textColor="@color/text_muted"
+        android:textSize="13sp"
+        android:visibility="gone" />
+</LinearLayout>

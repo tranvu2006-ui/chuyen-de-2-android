@@ -14,6 +14,9 @@ data class CustomerAddress(
     @SerializedName("customerId")
     val customerId: String = "",
 
+    @SerializedName("label")
+    val label: String = "Nhà riêng",
+
     @SerializedName("receiverName")
     val receiverName: String = "",
 
@@ -22,6 +25,9 @@ data class CustomerAddress(
 
     @SerializedName("streetAddress", alternate = ["address"])
     val streetAddress: String = "",
+
+    @SerializedName("district")
+    val district: String = "Quận 1",
 
     @SerializedName("latitude")
     val latitude: Double = 0.0,
@@ -33,5 +39,11 @@ data class CustomerAddress(
     val isDefault: Boolean = false
 ) {
     /** Trả về địa chỉ đầy đủ dạng hiển thị */
-    fun fullAddress(): String = streetAddress
+    fun fullAddress(): String {
+        return if (district.isNotBlank() && !streetAddress.contains(district)) {
+            "$streetAddress, $district, TP.HCM"
+        } else {
+            streetAddress
+        }
+    }
 }

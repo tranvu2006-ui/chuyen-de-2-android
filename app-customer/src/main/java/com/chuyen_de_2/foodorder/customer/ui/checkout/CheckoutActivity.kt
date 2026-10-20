@@ -15,22 +15,46 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
+import android.view.LayoutInflater
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.CustomerAddress
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityCheckoutBinding
+import com.chuyen_de_2.foodorder.customer.databinding.DialogAddressBookBinding
+import com.chuyen_de_2.foodorder.customer.ui.profile.AddressBookAdapter
 import com.google.android.gms.location.LocationServices
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.chip.Chip
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.Locale
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class CheckoutActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityCheckoutBinding
     private val viewModel: CheckoutViewModel by viewModels()
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var firebaseAuth: FirebaseAuth
+
+    private var savedAddressList: List<CustomerAddress> = emptyList()
+    private var hasAutoFilledDefaultAddress = false
 
     private var currentSubtotal = 0L
     private var currentShippingFee = 15000L
@@ -118,6 +142,13 @@ class CheckoutActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
+        // Thiết lập sổ địa chỉ lưu sẵn & chọn nhanh
+        setupSavedAddresses()
+
+        binding.btnOpenSavedAddresses.setOnClickListener {
+            showSelectAddressBottomSheet()
+        }
+
         // Dropdown quận huyện theo b8.html
         val districtAdapter = ArrayAdapter(
             this,
@@ -182,6 +213,7 @@ class CheckoutActivity : AppCompatActivity() {
         // Đặt hàng
         binding.btnPlaceOrder.setOnClickListener {
             val streetAddress = binding.etAddress.text.toString().trim()
+            val phone = binding.etPhone.text.toString().trim()
             val note = binding.etNote.text.toString().trim()
 
             if (streetAddress.isBlank()) {
@@ -190,6 +222,13 @@ class CheckoutActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             binding.tilAddress.error = null
+
+            if (phone.isBlank()) {
+                binding.tilPhone.error = "Vui lòng nhập số điện thoại người nhận"
+                binding.etPhone.requestFocus()
+                return@setOnClickListener
+            }
+            binding.tilPhone.error = null
 
             val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
             val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
@@ -204,9 +243,124 @@ class CheckoutActivity : AppCompatActivity() {
                 note = note,
                 shippingFee = currentShippingFee,
                 discount = currentDiscount,
-                paymentMethod = paymentMethod
+                paymentMethod = paymentMethod,
+                customerPhone = phone
             )
         }
+    }
+
+    /** Nạp danh sách địa chỉ lưu sẵn & thông tin liên hệ của khách hàng */
+    private fun setupSavedAddresses() {
+        val uid = firebaseAuth.currentUser?.uid ?: return
+
+        // 1. Tự động điền SĐT nếu tài khoản đã có
+        lifecycleScope.launch {
+            val userResult = authRepository.getCurrentUserData()
+            userResult.onSuccess { user ->
+                if (user.phone.isNotBlank() && binding.etPhone.text.isNullOrBlank()) {
+                    binding.etPhone.setText(user.phone)
+                }
+            }
+        }
+
+        // 2. Lắng nghe danh sách địa chỉ đã lưu
+        lifecycleScope.launch {
+            firebaseRepository.observeCustomerAddresses(uid).collectLatest { list ->
+                savedAddressList = list
+                binding.cgSavedAddresses.removeAllViews()
+
+                if (list.isEmpty()) {
+                    binding.layoutSavedAddressBar.visibility = View.GONE
+                    return@collectLatest
+                }
+
+                binding.layoutSavedAddressBar.visibility = View.VISIBLE
+
+                for (addr in list) {
+                    val chip = Chip(this@CheckoutActivity).apply {
+                        text = if (addr.isDefault) "⭐ ${addr.label}" else addr.label
+                        isCheckable = false
+                        isClickable = true
+                        setOnClickListener {
+                            applyAddress(addr)
+                        }
+                    }
+                    binding.cgSavedAddresses.addView(chip)
+                }
+
+                // Tự động điền địa chỉ mặc định lần đầu nếu người dùng chưa nhập gì
+                if (!hasAutoFilledDefaultAddress && binding.etAddress.text.isNullOrBlank()) {
+                    val defaultAddr = list.firstOrNull { it.isDefault } ?: list.firstOrNull()
+                    if (defaultAddr != null) {
+                        applyAddress(defaultAddr)
+                        hasAutoFilledDefaultAddress = true
+                    }
+                }
+            }
+        }
+    }
+
+    /** Áp dụng địa chỉ đã lưu vào form checkout và tính cước phí */
+    private fun applyAddress(addr: CustomerAddress) {
+        if (addr.streetAddress.isNotBlank()) {
+            binding.etAddress.setText(addr.streetAddress)
+        }
+
+        val district = addr.district
+        if (district.isNotBlank()) {
+            val index = districts.indexOfFirst { it.contains(district, ignoreCase = true) }
+            if (index != -1) {
+                binding.spDistrict.setSelection(index)
+            }
+        }
+
+        if (addr.receiverPhone.isNotBlank()) {
+            binding.etPhone.setText(addr.receiverPhone)
+        }
+
+        updateLocationAndFee()
+        Toast.makeText(this, "📍 Đã chọn: ${addr.label} (${addr.fullAddress()})", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Mở BottomSheet chọn từ Sổ Địa Chỉ đã lưu */
+    private fun showSelectAddressBottomSheet() {
+        val uid = firebaseAuth.currentUser?.uid ?: return
+        if (savedAddressList.isEmpty()) {
+            Toast.makeText(this, "Bạn chưa có địa chỉ lưu sẵn nào. Hãy vào Hồ Sơ để thêm nhé!", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val sheetBinding = DialogAddressBookBinding.inflate(LayoutInflater.from(this))
+        val bottomSheet = BottomSheetDialog(this)
+        bottomSheet.setContentView(sheetBinding.root)
+
+        val adapter = AddressBookAdapter(
+            onSelectClick = { selectedAddr ->
+                applyAddress(selectedAddr)
+                bottomSheet.dismiss()
+            },
+            onSetDefaultClick = { selectedAddr ->
+                lifecycleScope.launch {
+                    firebaseRepository.setDefaultAddress(uid, selectedAddr.addressId)
+                }
+            },
+            onDeleteClick = { selectedAddr ->
+                lifecycleScope.launch {
+                    firebaseRepository.deleteCustomerAddress(uid, selectedAddr.addressId)
+                }
+            }
+        )
+
+        sheetBinding.rvAddressBook.apply {
+            layoutManager = LinearLayoutManager(this@CheckoutActivity)
+            this.adapter = adapter
+        }
+
+        adapter.submitList(savedAddressList)
+        sheetBinding.btnAddNewAddress.visibility = View.GONE // Trong checkout chỉ tập trung chọn nhanh
+        sheetBinding.btnCloseAddressBook.setOnClickListener { bottomSheet.dismiss() }
+
+        bottomSheet.show()
     }
 
     /** Lấy toạ độ GPS hiện tại và tự động điền địa chỉ */

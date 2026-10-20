@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@drawable/bg_bottom_sheet">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Chỉnh Sửa Thông Tin Cá Nhân"
+        android:textColor="@color/text_primary"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="Cập nhật tên, ảnh đại diện và số điện thoại liên hệ"
+        android:textColor="@color/text_muted"
+        android:textSize="12sp" />
+
+    <!-- Chọn Avatar Emoji -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"
+        android:text="Chọn Biểu Tượng Đại Diện:"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
+
+        <RadioGroup
+            android:id="@+id/rgAvatars"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rbAvatar1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="👤"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🦊"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🐱"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🐼"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar5"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🐰"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar6"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🛵"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar7"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🍕"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar8"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🍜"
+                android:textSize="22sp"
+                android:layout_marginEnd="6dp" />
+
+            <RadioButton
+                android:id="@+id/rbAvatar9"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="👑"
+                android:textSize="22sp" />
+        </RadioGroup>
+    </HorizontalScrollView>
+
+    <!-- Tên Người Dùng -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilEditName"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        app:boxCornerRadiusBottomEnd="10dp"
+        app:boxCornerRadiusBottomStart="10dp"
+        app:boxCornerRadiusTopEnd="10dp"
+        app:boxCornerRadiusTopStart="10dp"
+        app:boxStrokeColor="@color/primary"
+        android:hint="Họ và Tên">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etEditName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPersonName"
+            android:textSize="14sp" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Số Điện Thoại -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilEditPhone"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        app:boxCornerRadiusBottomEnd="10dp"
+        app:boxCornerRadiusBottomStart="10dp"
+        app:boxCornerRadiusTopEnd="10dp"
+        app:boxCornerRadiusTopStart="10dp"
+        app:boxStrokeColor="@color/primary"
+        android:hint="Số Điện Thoại">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etEditPhone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="phone"
+            android:textSize="14sp" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCancelEdit"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Hủy"
+            android:textColor="@color/text_muted" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSaveProfile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="@color/primary"
+            android:text="Lưu Thay Đổi"
+            app:cornerRadius="10dp" />
+    </LinearLayout>
+</LinearLayout>

@@ -39,6 +39,7 @@
 
             <!-- Profile Info Card -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardProfileInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="14dp"
@@ -55,14 +56,16 @@
                     android:orientation="horizontal"
                     android:padding="16dp">
 
-                    <!-- Avatar Box -->
+                    <!-- Avatar Box (Bấm để đổi avatar) -->
                     <FrameLayout
+                        android:id="@+id/flAvatar"
                         android:layout_width="60dp"
                         android:layout_height="60dp"
                         android:background="@drawable/bg_badge_orange"
-                        android:padding="12dp">
+                        android:padding="10dp">
 
                         <TextView
+                            android:id="@+id/tvUserAvatar"
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:gravity="center"
@@ -104,6 +107,20 @@
                             android:textColor="@color/text_muted"
                             android:textSize="12sp" />
                     </LinearLayout>
+
+                    <!-- Nút Chỉnh sửa thông tin -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnEditProfile"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="38dp"
+                        android:text="Sửa ✏️"
+                        android:textSize="12sp"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="0dp"
+                        app:strokeColor="#CBD5E1"
+                        app:strokeWidth="1dp"
+                        app:cornerRadius="8dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

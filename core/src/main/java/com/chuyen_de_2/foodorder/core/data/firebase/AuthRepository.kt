@@ -454,11 +454,42 @@ class AuthRepository @Inject constructor(
                 }
             } catch (_: Exception) {}
 
-            // 4. Xóa khỏi users
+            // 4. Xóa khỏi users & sổ địa chỉ
+            try { database.getReference("customer_addresses").child(uid).removeValue().await() } catch (_: Exception) {}
             try { database.getReference("users").child(uid).removeValue().await() } catch (_: Exception) {}
 
             // 5. Xóa tài khoản Firebase Authentication
             user.delete().await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Cập nhật thông tin hồ sơ: Tên, SĐT, Avatar */
+    suspend fun updateUserProfile(name: String, phone: String, avatarUrl: String): Result<Unit> {
+        val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Chưa đăng nhập"))
+        return try {
+            val updates = mutableMapOf<String, Any>()
+            if (name.isNotBlank()) updates["name"] = name
+            updates["phone"] = phone
+            if (avatarUrl.isNotBlank()) updates["avatarUrl"] = avatarUrl
+
+            database.getReference("users").child(uid).updateChildren(updates).await()
+
+            // Cập nhật customer node nếu có
+            if (avatarUrl.isNotBlank()) {
+                database.getReference("customers").child(uid).child("avatarUrl").setValue(avatarUrl).await()
+            }
+
+            // Cập nhật Firebase Auth profile displayName
+            if (name.isNotBlank()) {
+                val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                    .setDisplayName(name)
+                    .build()
+                auth.currentUser?.updateProfile(profileUpdates)?.await()
+            }
 
             Result.success(Unit)
         } catch (e: Exception) {

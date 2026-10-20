@@ -66,7 +66,9 @@ class CheckoutViewModel @Inject constructor(
         note: String,
         shippingFee: Long = 15000L,
         discount: Long = 0L,
-        paymentMethod: String = Order.PaymentMethod.COD
+        paymentMethod: String = Order.PaymentMethod.COD,
+        customerPhone: String = "",
+        customerName: String = ""
     ) {
         val userId = auth.currentUser?.uid ?: return
         val cartList = _carts.value ?: return
@@ -88,6 +90,8 @@ class CheckoutViewModel @Inject constructor(
 
                     val order = Order(
                         customerId = userId,
+                        customerName = customerName.ifBlank { auth.currentUser?.displayName ?: "Khách hàng" },
+                        customerPhone = customerPhone,
                         shopId = cart.shopId,
                         shopName = cart.shopName,
                         status = Order.Status.PENDING,
@@ -108,6 +112,7 @@ class CheckoutViewModel @Inject constructor(
                             )
                         },
                         address = address,
+                        deliveryAddress = address,
                         note = note,
                         createdAt = System.currentTimeMillis()
                     )

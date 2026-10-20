@@ -3,6 +3,7 @@ package com.chuyen_de_2.foodorder.core.data.firebase
 import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
 import com.chuyen_de_2.foodorder.core.data.model.CartPayload
+import com.chuyen_de_2.foodorder.core.data.model.CustomerAddress
 import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.data.model.TrackingLocation
@@ -794,5 +795,107 @@ class FirebaseRepository @Inject constructor(
     /** Khởi tạo tài xế mẫu nếu cần (đã tắt để ưu tiên dữ liệu thật do quán tự tạo) */
     suspend fun seedDefaultDriversIfEmpty(storeId: String) {
         // Tắt seed tự động để bảo toàn dữ liệu thật của quán
+    }
+
+    // ==================== SỔ ĐỊA CHỈ KHÁCH HÀNG (CUSTOMER ADDRESSES) ====================
+
+    /** Lắng nghe danh sách địa chỉ đã lưu của khách hàng */
+    fun observeCustomerAddresses(customerId: String): Flow<List<CustomerAddress>> = callbackFlow {
+        if (customerId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val ref = database.getReference("customer_addresses").child(customerId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<CustomerAddress>()
+                for (child in snapshot.children) {
+                    val addr = child.getValue(CustomerAddress::class.java)
+                    if (addr != null) {
+                        list.add(addr.copy(addressId = child.key ?: addr.addressId, customerId = customerId))
+                    }
+                }
+                // Sắp xếp: địa chỉ mặc định lên đầu
+                list.sortByDescending { it.isDefault }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                trySend(emptyList())
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lấy danh sách địa chỉ 1 lần */
+    suspend fun getCustomerAddresses(customerId: String): List<CustomerAddress> {
+        if (customerId.isBlank()) return emptyList()
+        return try {
+            val snapshot = database.getReference("customer_addresses").child(customerId).get().await()
+            val list = mutableListOf<CustomerAddress>()
+            for (child in snapshot.children) {
+                val addr = child.getValue(CustomerAddress::class.java)
+                if (addr != null) {
+                    list.add(addr.copy(addressId = child.key ?: addr.addressId, customerId = customerId))
+                }
+            }
+            list.sortedByDescending { it.isDefault }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /** Thêm hoặc cập nhật địa chỉ đã lưu */
+    suspend fun saveCustomerAddress(customerId: String, address: CustomerAddress): Result<String> {
+        if (customerId.isBlank()) return Result.failure(Exception("Chưa đăng nhập"))
+        return try {
+            val ref = database.getReference("customer_addresses").child(customerId)
+            val addrId = if (address.addressId.isNotBlank()) address.addressId else ref.push().key ?: "addr_${System.currentTimeMillis()}"
+
+            // Nếu đặt làm mặc định -> bỏ mặc định của các địa chỉ khác
+            if (address.isDefault) {
+                val snapshot = ref.get().await()
+                for (child in snapshot.children) {
+                    if (child.key != addrId) {
+                        child.ref.child("isDefault").setValue(false).await()
+                    }
+                }
+            }
+
+            val toSave = address.copy(addressId = addrId, customerId = customerId)
+            ref.child(addrId).setValue(toSave).await()
+            Result.success(addrId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa địa chỉ */
+    suspend fun deleteCustomerAddress(customerId: String, addressId: String): Result<Unit> {
+        if (customerId.isBlank() || addressId.isBlank()) return Result.failure(Exception("Tham số không hợp lệ"))
+        return try {
+            database.getReference("customer_addresses").child(customerId).child(addressId).removeValue().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Đặt làm địa chỉ mặc định */
+    suspend fun setDefaultAddress(customerId: String, addressId: String): Result<Unit> {
+        if (customerId.isBlank() || addressId.isBlank()) return Result.failure(Exception("Tham số không hợp lệ"))
+        return try {
+            val ref = database.getReference("customer_addresses").child(customerId)
+            val snapshot = ref.get().await()
+            for (child in snapshot.children) {
+                val isTarget = (child.key == addressId)
+                child.ref.child("isDefault").setValue(isTarget).await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

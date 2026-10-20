@@ -368,6 +368,7 @@ class FirebaseRepository @Inject constructor(
     // ==================== HỒ SƠ QUÁN ĂN (STORES - Quán/8.html) ====================
 
     /** Lấy danh sách tất cả các quán ăn theo thời gian thực (cho Khách hàng mua món) */
+    /** Lấy danh sách tất cả các quán ăn theo thời gian thực (cho Khách hàng mua món) */
     fun observeAllStores(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Store>> = callbackFlow {
         val ref = database.getReference("stores")
         val listener = object : ValueEventListener {
@@ -376,7 +377,34 @@ class FirebaseRepository @Inject constructor(
                 for (child in snapshot.children) {
                     val store = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
                     if (store != null) {
-                        val finalStore = if (store.id.isBlank()) store.copy(id = child.key ?: "") else store
+                        val storeId = if (store.id.isBlank()) child.key ?: "" else store.id
+
+                        // Đọc danh sách món ăn từ child "dishes" để tránh lỗi deserialization Map
+                        val dishesMap = mutableMapOf<String, com.chuyen_de_2.foodorder.core.data.model.Dish>()
+                        for (dChild in child.child("dishes").children) {
+                            try {
+                                val d = dChild.getValue(com.chuyen_de_2.foodorder.core.data.model.Dish::class.java)
+                                if (d != null) {
+                                    val dId = if (d.id.isBlank()) dChild.key ?: "" else d.id
+                                    dishesMap[dId] = d.copy(id = dId, storeId = storeId)
+                                }
+                            } catch (e: Exception) {
+                                val dName = dChild.child("name").getValue(String::class.java) ?: ""
+                                val dPrice = dChild.child("basePrice").getValue(Long::class.java)
+                                    ?: dChild.child("price").getValue(Long::class.java)
+                                    ?: 0L
+                                val dImg = dChild.child("imageUrl").getValue(String::class.java) ?: ""
+                                val dCat = dChild.child("category").getValue(String::class.java) ?: ""
+                                if (dName.isNotBlank()) {
+                                    val dId = dChild.key ?: ""
+                                    dishesMap[dId] = com.chuyen_de_2.foodorder.core.data.model.Dish(
+                                        id = dId, storeId = storeId, name = dName, basePrice = dPrice, imageUrl = dImg, category = dCat
+                                    )
+                                }
+                            }
+                        }
+                        val finalDishes = if (dishesMap.isNotEmpty()) dishesMap else store.dishes
+                        val finalStore = store.copy(id = storeId, dishes = finalDishes)
                         list.add(finalStore)
                     }
                 }

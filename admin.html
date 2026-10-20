@@ -1838,6 +1838,52 @@
       0%, 100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(1.25); opacity: 0.65; }
     }
+
+    /* ====== DISH REVIEWS MODERATION STYLES ====== */
+    .star-rating {
+      color: #F59E0B;
+      letter-spacing: 2px;
+      font-size: 13.5px;
+    }
+    .review-bubble {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--text-main);
+      margin-top: 4px;
+    }
+    .review-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid #CBD5E1;
+      cursor: pointer;
+      margin-top: 6px;
+      display: inline-block;
+      transition: transform 0.2s;
+    }
+    .review-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    .review-admin-reply-box {
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: #ECFDF5;
+      border-left: 3px solid #10B981;
+      border-radius: 4px;
+      font-size: 11.5px;
+      color: #065F46;
+    }
+    .badge-status-hidden {
+      background: #FEF2F2;
+      color: #B91C1C;
+      border: 1px solid #FECACA;
+    }
   </style>
   <!-- Firebase Realtime Database & Auth Web SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -1907,6 +1953,15 @@
         </div>
         <span>Xử Lý Khiếu Nại</span>
         <span class="nav-badge danger" id="badge-complaints-count" style="display:none;">0</span>
+      </a>
+
+      <!-- NEW: MỤC KIỂM DUYỆT ĐÁNH GIÁ MÓN ĂN -->
+      <a class="nav-item" data-tab="reviews" onclick="switchTab('reviews')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <span>Kiểm Duyệt Đánh Giá</span>
+        <span class="nav-badge" id="badge-reviews-count" style="display:none; background: #FEF3C7; color: #B45309;">0</span>
       </a>
 
       <div class="nav-label">Cài Đặt & Tài Khoản</div>
@@ -2495,6 +2550,115 @@
                 </tr>
               </thead>
               <tbody id="tbody-complaints">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 6: DISH REVIEWS MODERATION ==================== -->
+      <section id="tab-reviews" class="tab-pane">
+        <!-- Review KPI Stats -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Điểm TB Đánh Giá</span>
+              <span class="stat-value" id="kpi-rev-avg" style="color: #D97706;">5.0 ⭐</span>
+              <span class="stat-sub positive" id="kpi-rev-avg-sub">Toàn hệ sinh thái Oishi Food</span>
+            </div>
+            <div class="stat-icon-wrap icon-orange">⭐</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Đánh Giá Món</span>
+              <span class="stat-value" id="kpi-rev-total">0</span>
+              <span class="stat-sub positive">Từ khách hàng hoàn tất đơn</span>
+            </div>
+            <div class="stat-icon-wrap icon-blue">💬</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Đánh Giá Kém (1-2 ⭐)</span>
+              <span class="stat-value" id="kpi-rev-low" style="color: var(--danger);">0</span>
+              <span class="stat-sub danger" id="kpi-rev-low-sub">Cần rà soát chất lượng</span>
+            </div>
+            <div class="stat-icon-wrap icon-red">⚠️</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Đã Ẩn Kiểm Duyệt</span>
+              <span class="stat-value" id="kpi-rev-hidden" style="color: var(--text-muted);">0</span>
+              <span class="stat-sub">Vi phạm tiêu chuẩn cộng đồng</span>
+            </div>
+            <div class="stat-icon-wrap icon-purple">🚫</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Trung Tâm Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)</h2>
+              <p>Giám sát chất lượng ẩm thực từ khách hàng, chủ động ẩn các bình luận phản cảm/ác ý hoặc giải đáp khiếu nại</p>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" onclick="seedSampleReviews()" title="Khởi tạo 3 đánh giá mẫu demo nếu Firebase chưa có dữ liệu">
+                <span>🧪 Tạo Đánh Giá Demo</span>
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="openAddReviewModal()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                <span>+ Thêm Đánh Giá Mới</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter Bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-review-search" placeholder="Tìm tên món, tên quán, khách hàng, nội dung..." oninput="filterReviews()">
+              </div>
+              <select class="select-filter" id="filter-review-rating" onchange="filterReviews()">
+                <option value="ALL">Tất cả số sao</option>
+                <option value="5">⭐⭐⭐⭐⭐ 5 Sao</option>
+                <option value="4">⭐⭐⭐⭐ 4 Sao</option>
+                <option value="3">⭐⭐⭐ 3 Sao</option>
+                <option value="2">⭐⭐ 2 Sao (Kém)</option>
+                <option value="1">⭐ 1 Sao (Rất tệ)</option>
+              </select>
+              <select class="select-filter" id="filter-review-status" onchange="filterReviews()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ACTIVE">🟢 Đang hiển thị</option>
+                <option value="HIDDEN">🚫 Đã ẩn kiểm duyệt</option>
+              </select>
+              <select class="select-filter" id="filter-review-store" onchange="filterReviews()">
+                <option value="ALL">Tất cả cửa hàng</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Hiển thị <span id="review-counter" style="color: var(--primary); font-weight: 800;">0</span> đánh giá
+            </div>
+          </div>
+
+          <!-- Reviews Table -->
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 110px;">Mã ĐG & Giờ</th>
+                  <th style="min-width: 150px;">Khách Hàng</th>
+                  <th style="min-width: 170px;">Món Ăn & Cửa Hàng</th>
+                  <th style="min-width: 110px;">Số Sao</th>
+                  <th style="min-width: 250px;">Nội Dung Nhận Xét</th>
+                  <th style="min-width: 120px;">Trạng Thái</th>
+                  <th style="text-align: right; min-width: 170px;">Thao Tác Admin</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-reviews">
                 <!-- Populated dynamically -->
               </tbody>
             </table>
@@ -3194,6 +3358,97 @@
     </div>
   </div>
   </div>
+  </div>
+
+  <!-- MODAL REVIEW DETAIL & REPLY -->
+  <div class="modal-overlay" id="modal-review-detail">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3 id="modal-rev-title">Chi Tiết Đánh Giá & Phản Hồi</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-review-detail')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 14px; align-items: center; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; margin-bottom: 14px;">
+          <div id="modal-rev-stars" style="font-size: 20px; color: #F59E0B;"></div>
+          <div>
+            <div style="font-weight: 800; font-size: 14px; color: var(--text-main);" id="modal-rev-dish"></div>
+            <div style="font-size: 12px; color: var(--text-muted);" id="modal-rev-store"></div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Khách hàng:</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0F172A;" id="modal-rev-customer"></div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" id="modal-rev-time"></div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">Nội dung nhận xét:</div>
+          <div class="review-bubble" id="modal-rev-comment"></div>
+          <div id="modal-rev-img-container" style="margin-top: 8px;"></div>
+        </div>
+
+        <!-- Admin Reply Form -->
+        <form onsubmit="saveReviewReply(event)">
+          <input type="hidden" id="modal-rev-id">
+          <div class="form-group">
+            <label class="form-label">Phản hồi của Admin / Cửa Hàng:</label>
+            <textarea class="form-control" id="modal-rev-reply-text" rows="3" placeholder="Nhập lời cảm ơn hoặc giải thích khắc phục sự cố gửi tới khách hàng..."></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-review-detail')">Đóng</button>
+            <button type="submit" class="btn btn-primary">Gửi Phản Hồi Lên Firebase</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ADD REVIEW -->
+  <div class="modal-overlay" id="modal-add-review">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3>+ Thêm Đánh Giá Món Ăn Mới</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-add-review')">&times;</button>
+      </div>
+      <form onsubmit="saveNewReview(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Cửa Hàng & Món Ăn <span class="req">*</span></label>
+            <select class="form-control" id="new-rev-dish-select" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tên khách hàng <span class="req">*</span></label>
+            <input type="text" class="form-control" id="new-rev-customer-name" placeholder="VD: Nguyễn Hoàng Phúc" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Số sao đánh giá <span class="req">*</span></label>
+            <select class="form-control" id="new-rev-rating" required>
+              <option value="5">⭐⭐⭐⭐⭐ 5 Sao - Xuất sắc</option>
+              <option value="4">⭐⭐⭐⭐ 4 Sao - Hài lòng</option>
+              <option value="3">⭐⭐⭐ 3 Sao - Bình thường</option>
+              <option value="2">⭐⭐ 2 Sao - Kém / Không ngon</option>
+              <option value="1">⭐ 1 Sao - Rất tệ / Không hài lòng</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nội dung nhận xét <span class="req">*</span></label>
+            <textarea class="form-control" id="new-rev-comment" rows="3" placeholder="Nhập cảm nhận về hương vị, bao bì, nhiệt độ món ăn..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Link ảnh minh họa (tùy chọn):</label>
+            <input type="url" class="form-control" id="new-rev-image" placeholder="https://images.unsplash.com/...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-review')">Hủy bỏ</button>
+          <button type="submit" class="btn btn-primary">Lưu Đánh Giá Lên Firebase</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toast-container"></div>
@@ -3256,6 +3511,8 @@
     let customers = JSON.parse(localStorage.getItem('oishi_admin_customers')) || [];
     let stores = JSON.parse(localStorage.getItem('oishi_admin_stores')) || [];
     let complaints = JSON.parse(localStorage.getItem('oishi_admin_complaints')) || [];
+    let reviews = JSON.parse(localStorage.getItem('oishi_admin_reviews')) || [];
+    let rawFbReviews = {};
     let liveOrders = [];
     let liveDrivers = [];
 
@@ -3718,6 +3975,16 @@
           renderLogs();
         }
       });
+
+      // 9. DISH REVIEWS listener (dish_reviews)
+      fbDb.ref('dish_reviews').on('value', snap => {
+        const val = snap.val();
+        rawFbReviews = (val && typeof val === 'object') ? val : {};
+        rebuildReviews();
+        renderReviews();
+        renderReviewKPIs();
+        populateReviewStoreFilter();
+      });
     }
 
     async function syncFromFirebaseNow() {
@@ -3727,20 +3994,23 @@
       }
       setFirebaseConnectionUI('connecting', 'Đang đồng bộ...');
       try {
-        const [stSnap, usSnap, odSnap, cpSnap] = await Promise.all([
+        const [stSnap, usSnap, odSnap, cpSnap, rvSnap] = await Promise.all([
           fbDb.ref('stores').once('value'),
           fbDb.ref('users').once('value'),
           fbDb.ref('orders').once('value'),
-          fbDb.ref('complaints').once('value')
+          fbDb.ref('complaints').once('value'),
+          fbDb.ref('dish_reviews').once('value')
         ]);
         rawFbStores = stSnap.val() || {};
         rawFbUsers = usSnap.val() || {};
         rawFbOrders = odSnap.val() || {};
         rawFbComplaints = cpSnap.val() || {};
+        rawFbReviews = rvSnap.val() || {};
         stores = Object.entries(rawFbStores).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
         rebuildOrders();
         rebuildCustomersAndDrivers();
         rebuildComplaints();
+        rebuildReviews();
         renderKPIs();
         renderOverviewStores();
         renderCategories();
@@ -3749,6 +4019,9 @@
         renderGlobalOrders();
         renderGlobalDrivers();
         renderComplaints();
+        renderReviews();
+        renderReviewKPIs();
+        populateReviewStoreFilter();
         setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
         showToast(`Đã đồng bộ trực tiếp: ${stores.length} quán, ${customers.length} khách, ${liveOrders.length} đơn hàng!`, 'success');
       } catch (e) {
@@ -3762,6 +4035,7 @@
       localStorage.setItem('oishi_admin_customers', JSON.stringify(customers));
       localStorage.setItem('oishi_admin_stores', JSON.stringify(stores));
       localStorage.setItem('oishi_admin_complaints', JSON.stringify(complaints));
+      localStorage.setItem('oishi_admin_reviews', JSON.stringify(reviews));
       localStorage.setItem('oishi_admin_profile', JSON.stringify(adminProfile));
       localStorage.setItem('oishi_admin_logs', JSON.stringify(systemLogs));
     }
@@ -3795,7 +4069,9 @@
       renderCustomers();
       renderStores();
       renderComplaints();
+      renderReviews();
       populateStoreCategoryDropdowns();
+      populateReviewStoreFilter();
       initFirebaseRealtime();
     });
 
@@ -3912,6 +4188,7 @@
         localStorage.removeItem('oishi_admin_stores');
         localStorage.removeItem('oishi_admin_customers');
         localStorage.removeItem('oishi_admin_complaints');
+        localStorage.removeItem('oishi_admin_reviews');
         localStorage.removeItem('oishi_admin_categories');
         localStorage.removeItem('oishi_admin_logs');
         await syncFromFirebaseNow();
@@ -3945,6 +4222,7 @@
       else if (tabId === 'stores') titleEl.textContent = 'Quản Lý Đối Tác Cửa Hàng';
       else if (tabId === 'orders') titleEl.textContent = 'Điều Phối Đơn Hàng & Đội Ngũ Tài Xế (Realtime)';
       else if (tabId === 'complaints') titleEl.textContent = 'Xử Lý Khiếu Nại & Báo Cáo Vi Phạm';
+      else if (tabId === 'reviews') titleEl.textContent = 'Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)';
       else if (tabId === 'settings') titleEl.textContent = 'Cài Đặt & Tài Khoản Admin';
 
       renderKPIs();
@@ -3957,6 +4235,11 @@
         renderGlobalDrivers();
       }
       if (tabId === 'complaints') renderComplaints();
+      if (tabId === 'reviews') {
+        populateReviewStoreFilter();
+        renderReviews();
+        renderReviewKPIs();
+      }
     }
 
     /* ========================================================
@@ -6111,6 +6394,442 @@
     }
 
     /* ========================================================
+       12. DISH REVIEWS MODERATION CONTROLLER (dish_reviews)
+       ======================================================== */
+    function rebuildReviews() {
+      const list = [];
+      Object.entries(rawFbReviews).forEach(([rid, r]) => {
+        if (!r || typeof r !== 'object') return;
+        const cust = rawFbUsers[r.customerId] || rawFbCustomers[r.customerId] || {};
+        
+        let dishName = r.dishName || '';
+        let storeName = r.storeName || '';
+        let storeId = r.shopId || r.storeId || '';
+        
+        if (r.dishId) {
+          for (const s of stores) {
+            if (s.dishes && typeof s.dishes === 'object') {
+              if (s.dishes[r.dishId]) {
+                if (!dishName) dishName = s.dishes[r.dishId].name;
+                if (!storeName) storeName = s.name;
+                if (!storeId) storeId = s.id;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!dishName || !storeName) {
+          const matchedOrder = liveOrders.find(o => o.id === r.orderId);
+          if (matchedOrder) {
+            if (!storeName) storeName = matchedOrder.storeName;
+            if (!storeId) storeId = matchedOrder.shopId;
+          }
+        }
+        
+        if (!dishName) dishName = 'Món ăn Oishi';
+        if (!storeName) storeName = 'Quán Oishi';
+
+        const status = (r.status || (r.isHidden ? 'HIDDEN' : 'ACTIVE')).toUpperCase();
+        
+        list.push({
+          id: rid,
+          reviewId: r.reviewId || rid,
+          orderId: r.orderId || '',
+          dishId: r.dishId || '',
+          dishName: dishName,
+          storeId: storeId,
+          storeName: storeName,
+          customerId: r.customerId || '',
+          customerName: r.customerName || cust.fullName || cust.name || 'Khách hàng Oishi',
+          customerPhone: cust.phone || '',
+          customerTrustScore: cust.trustScore !== undefined ? cust.trustScore : 100,
+          rating: Number(r.rating || 5),
+          comment: r.comment || 'Khách hàng không để lại nhận xét chi tiết.',
+          imageUrl: r.imageUrl || '',
+          status: status,
+          isHidden: (status === 'HIDDEN' || r.isHidden === true),
+          adminReply: r.adminReply || '',
+          adminReplyTime: r.adminReplyTime || '',
+          createdAt: Number(r.createdAt || r.timestamp || Date.now())
+        });
+      });
+
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      reviews = list;
+      localStorage.setItem('oishi_admin_reviews', JSON.stringify(reviews));
+    }
+
+    function filterReviews() {
+      renderReviews();
+    }
+
+    function populateReviewStoreFilter() {
+      const select = document.getElementById('filter-review-store');
+      if (select) {
+        const current = select.value;
+        select.innerHTML = '<option value="ALL">Tất cả cửa hàng</option>';
+        stores.forEach(s => {
+          select.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+        });
+        select.value = current || 'ALL';
+      }
+
+      const dishSelect = document.getElementById('new-rev-dish-select');
+      if (dishSelect) {
+        dishSelect.innerHTML = '';
+        stores.forEach(s => {
+          if (s.dishes && typeof s.dishes === 'object') {
+            Object.entries(s.dishes).forEach(([did, d]) => {
+              dishSelect.innerHTML += `<option value="${did}|${s.id}">${s.name} - ${d.name || did} (${formatVnd(d.price)})</option>`;
+            });
+          }
+        });
+        if (!dishSelect.innerHTML) {
+          dishSelect.innerHTML = '<option value="dish-demo|store_mgr3gAsX">Quán Ăn Của Tôi - Phở Bò Tái Nạm (45.000đ)</option>';
+        }
+      }
+    }
+
+    function renderReviewKPIs() {
+      const total = reviews.length;
+      const low = reviews.filter(r => r.rating <= 2).length;
+      const hidden = reviews.filter(r => r.isHidden || r.status === 'HIDDEN').length;
+      const avg = total > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / total).toFixed(1) : '5.0';
+
+      const avgEl = document.getElementById('kpi-rev-avg');
+      if (avgEl) avgEl.textContent = `${avg} ⭐`;
+      const totEl = document.getElementById('kpi-rev-total');
+      if (totEl) totEl.textContent = total;
+      const lowEl = document.getElementById('kpi-rev-low');
+      if (lowEl) lowEl.textContent = low;
+      const hidEl = document.getElementById('kpi-rev-hidden');
+      if (hidEl) hidEl.textContent = hidden;
+
+      const badge = document.getElementById('badge-reviews-count');
+      if (badge) {
+        if (low > 0) {
+          badge.textContent = `${low} Kém`;
+          badge.style.display = 'inline-block';
+        } else if (hidden > 0) {
+          badge.textContent = `${hidden} Ẩn`;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }
+
+    function renderReviews() {
+      const tbody = document.getElementById('tbody-reviews');
+      const counter = document.getElementById('review-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-review-search')?.value || '').toLowerCase().trim();
+      const ratingVal = document.getElementById('filter-review-rating')?.value || 'ALL';
+      const statusVal = document.getElementById('filter-review-status')?.value || 'ALL';
+      const storeVal = document.getElementById('filter-review-store')?.value || 'ALL';
+
+      const filtered = reviews.filter(r => {
+        const matchSearch = (r.dishName || '').toLowerCase().includes(searchVal) ||
+                            (r.storeName || '').toLowerCase().includes(searchVal) ||
+                            (r.customerName || '').toLowerCase().includes(searchVal) ||
+                            (r.comment || '').toLowerCase().includes(searchVal) ||
+                            (r.id || '').toLowerCase().includes(searchVal);
+        const matchRating = (ratingVal === 'ALL') || (String(r.rating) === ratingVal);
+        const matchStatus = (statusVal === 'ALL') || (r.status === statusVal);
+        const matchStore = (storeVal === 'ALL') || (r.storeId === storeVal);
+        return matchSearch && matchRating && matchStatus && matchStore;
+      });
+
+      if (counter) counter.textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
+              <div style="font-size: 28px; margin-bottom: 8px;">💬</div>
+              <div style="font-weight: 700; font-size: 14px;">Chưa có đánh giá nào phù hợp bộ lọc</div>
+              <div style="font-size: 12px; margin-top: 4px;">Khách hàng hoàn tất đơn sẽ hiển thị đánh giá tại đây, hoặc bấm nút "Tạo Đánh Giá Demo" phía trên để thử nghiệm.</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const rowsHtml = filtered.map(r => {
+        const isHidden = r.status === 'HIDDEN' || r.isHidden;
+        const starsText = '⭐'.repeat(Math.max(1, Math.min(5, r.rating)));
+        const timeAgo = formatTimeAgo(r.createdAt);
+        
+        let statusBadge = isHidden
+          ? `<span class="badge badge-status-hidden"><span class="badge-dot"></span>Đã ẩn kiểm duyệt</span>`
+          : `<span class="badge badge-active"><span class="badge-dot"></span>Đang hiển thị</span>`;
+
+        let photoThumb = r.imageUrl
+          ? `<a href="${r.imageUrl}" target="_blank" title="Bấm để xem ảnh phóng to"><img src="${r.imageUrl}" class="review-thumb" alt="Ảnh review" onerror="this.style.display='none'"></a>`
+          : '';
+
+        let replyHtml = r.adminReply
+          ? `<div class="review-admin-reply-box"><strong>Phản hồi của Admin:</strong> ${r.adminReply}</div>`
+          : '';
+
+        return `
+          <tr style="${isHidden ? 'background: #FFF7ED;' : ''}">
+            <td>
+              <div style="font-family: monospace; font-weight: 700; color: var(--primary);">#${r.id.slice(-6)}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${timeAgo}</div>
+            </td>
+            <td>
+              <div style="font-weight: 700; color: var(--text-main);">${r.customerName}</div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                ${r.customerPhone ? `📞 ${r.customerPhone} • ` : ''}Điểm: <strong>${r.customerTrustScore}</strong>
+              </div>
+            </td>
+            <td>
+              <div style="font-weight: 700; color: #1E40AF;">🍲 ${r.dishName}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">🏪 ${r.storeName}</div>
+            </td>
+            <td>
+              <div class="star-rating" title="${r.rating} sao">${starsText}</div>
+              <div style="font-size: 11px; font-weight: 700; color: #B45309; margin-top: 2px;">${r.rating}.0 / 5</div>
+            </td>
+            <td>
+              <div class="review-bubble">${r.comment}</div>
+              ${photoThumb}
+              ${replyHtml}
+            </td>
+            <td>${statusBadge}</td>
+            <td style="text-align: right;">
+              <div style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap;">
+                <button class="btn btn-outline btn-sm" onclick="toggleReviewStatus('${r.id}')" title="${isHidden ? 'Bật hiển thị lại lên app' : 'Tạm ẩn khỏi app do phản cảm/tiêu cực'}">
+                  ${isHidden ? '👁️ Bật lại' : '🚫 Ẩn'}
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="openReviewDetailModal('${r.id}')" title="Xem chi tiết & gửi phản hồi">
+                  💬 Phản hồi
+                </button>
+                <button class="btn btn-danger-outline btn-sm" onclick="deleteReview('${r.id}')" title="Xóa đánh giá vĩnh viễn">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.innerHTML = rowsHtml;
+    }
+
+    function toggleReviewStatus(reviewId) {
+      const rev = reviews.find(r => r.id === reviewId);
+      if (!rev) return;
+      const nextStatus = rev.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
+      rev.status = nextStatus;
+      rev.isHidden = (nextStatus === 'HIDDEN');
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${reviewId}`).update({
+          status: nextStatus,
+          isHidden: rev.isHidden
+        }).catch(() => {});
+      }
+      saveState();
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Chuyển trạng thái đánh giá #${reviewId.slice(-6)} sang ${nextStatus === 'ACTIVE' ? 'Hiển thị' : 'Đã ẩn'}`, 'info');
+      showToast(`Đã ${nextStatus === 'ACTIVE' ? 'mở hiển thị' : 'tạm ẩn'} đánh giá #${reviewId.slice(-6)}!`, 'success');
+    }
+
+    function deleteReview(reviewId) {
+      if (!confirm('Bạn có chắc chắn muốn xóa đánh giá này khỏi hệ thống Firebase?')) return;
+      reviews = reviews.filter(r => r.id !== reviewId);
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${reviewId}`).remove().catch(() => {});
+      }
+      saveState();
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Xóa vĩnh viễn đánh giá #${reviewId.slice(-6)}`, 'danger');
+      showToast('Đã xóa đánh giá khỏi Firebase!', 'info');
+    }
+
+    function openReviewDetailModal(reviewId) {
+      const rev = reviews.find(r => r.id === reviewId);
+      if (!rev) return;
+
+      document.getElementById('modal-rev-id').value = rev.id;
+      document.getElementById('modal-rev-stars').textContent = '⭐'.repeat(rev.rating);
+      document.getElementById('modal-rev-dish').textContent = `Món ăn: ${rev.dishName}`;
+      document.getElementById('modal-rev-store').textContent = `Cửa hàng: ${rev.storeName}`;
+      document.getElementById('modal-rev-customer').textContent = `${rev.customerName} (${rev.customerPhone || 'Không có SĐT'})`;
+      document.getElementById('modal-rev-time').textContent = `Thời gian: ${formatTimeAgo(rev.createdAt)}`;
+      document.getElementById('modal-rev-comment').textContent = rev.comment;
+      document.getElementById('modal-rev-reply-text').value = rev.adminReply || '';
+
+      const imgContainer = document.getElementById('modal-rev-img-container');
+      if (imgContainer) {
+        if (rev.imageUrl) {
+          imgContainer.innerHTML = `<img src="${rev.imageUrl}" style="max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid #CBD5E1; margin-top: 6px;" alt="Review photo">`;
+        } else {
+          imgContainer.innerHTML = '';
+        }
+      }
+
+      openModal('modal-review-detail');
+    }
+
+    function saveReviewReply(e) {
+      e.preventDefault();
+      const revId = document.getElementById('modal-rev-id').value;
+      const reply = document.getElementById('modal-rev-reply-text').value.trim();
+      const rev = reviews.find(r => r.id === revId);
+      if (!rev) return;
+
+      rev.adminReply = reply;
+      rev.adminReplyTime = Date.now();
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${revId}`).update({
+          adminReply: reply,
+          adminReplyTime: rev.adminReplyTime
+        }).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-review-detail');
+      renderReviews();
+      addLog(`Phản hồi đánh giá #${revId.slice(-6)}: "${reply.slice(0, 30)}..."`, 'success');
+      showToast('Đã lưu phản hồi của Admin lên Firebase!', 'success');
+    }
+
+    function openAddReviewModal() {
+      populateReviewStoreFilter();
+      document.getElementById('new-rev-customer-name').value = '';
+      document.getElementById('new-rev-rating').value = '5';
+      document.getElementById('new-rev-comment').value = '';
+      document.getElementById('new-rev-image').value = '';
+      openModal('modal-add-review');
+    }
+
+    function saveNewReview(e) {
+      e.preventDefault();
+      const dishVal = document.getElementById('new-rev-dish-select').value;
+      const [dishId, storeId] = dishVal.split('|');
+      const custName = document.getElementById('new-rev-customer-name').value.trim();
+      const rating = parseInt(document.getElementById('new-rev-rating').value);
+      const comment = document.getElementById('new-rev-comment').value.trim();
+      const image = document.getElementById('new-rev-image').value.trim();
+
+      const newId = 'REV-' + Date.now().toString().slice(-6);
+      const storeObj = stores.find(s => s.id === storeId) || {};
+      const dishObj = storeObj.dishes ? storeObj.dishes[dishId] : {};
+
+      const newRev = {
+        reviewId: newId,
+        dishId: dishId,
+        dishName: dishObj.name || 'Món ăn Oishi',
+        storeId: storeId,
+        storeName: storeObj.name || 'Quán Oishi',
+        customerId: 'cust-demo',
+        customerName: custName,
+        rating: rating,
+        comment: comment,
+        imageUrl: image,
+        status: 'ACTIVE',
+        createdAt: Date.now()
+      };
+
+      reviews.unshift({ ...newRev, id: newId, isHidden: false, customerTrustScore: 100 });
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${newId}`).set(newRev).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-add-review');
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Tạo đánh giá mới cho món "${newRev.dishName}" (${rating}⭐)`, 'success');
+      showToast(`Đã thêm đánh giá món ăn lên Firebase!`, 'success');
+    }
+
+    function seedSampleReviews() {
+      if (!confirm('Khởi tạo 3 đánh giá mẫu demo (5⭐ ngon, 4⭐ tốt, 2⭐ kém cần ẩn) lên Firebase Realtime Database?')) return;
+      
+      const firstStore = stores[0] || {};
+      let dishId = 'dish-1';
+      let dishName = 'Phở Bò Tái Nạm Đặc Biệt';
+      if (firstStore.dishes && typeof firstStore.dishes === 'object') {
+        const entries = Object.entries(firstStore.dishes);
+        if (entries.length > 0) {
+          dishId = entries[0][0];
+          dishName = entries[0][1].name || dishName;
+        }
+      }
+
+      const samples = [
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-1',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-phuc',
+          customerName: 'Nguyễn Hoàng Phúc',
+          rating: 5,
+          comment: 'Nước dùng phở cực kỳ thanh ngọt và đậm đà, thịt bò mềm tươi, rau thơm đi kèm rất sạch sẽ. Chắc chắn sẽ ủng hộ quán lâu dài!',
+          imageUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500&auto=format&fit=crop&q=80',
+          status: 'ACTIVE',
+          createdAt: Date.now() - 3600000
+        },
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-2',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-tam',
+          customerName: 'Trần Minh Tâm',
+          rating: 4,
+          comment: 'Đồ ăn giao nhanh, đóng gói hộp giấy thân thiện môi trường. Hương vị ổn, giá cả hợp lý với phần ăn sinh viên.',
+          imageUrl: '',
+          status: 'ACTIVE',
+          createdAt: Date.now() - 7200000
+        },
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-3',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-bad',
+          customerName: 'Lê Hoàng Nam',
+          rating: 2,
+          comment: 'Món ăn bị nguội ngắt khi giao đến, quán lại quên cho tương ớt và chanh. Đề nghị cải thiện chất lượng phục vụ!',
+          imageUrl: '',
+          status: 'HIDDEN',
+          isHidden: true,
+          adminReply: 'Admin Oishi đã liên hệ quán gửi bù voucher và nhắc nhở bộ phận đóng gói.',
+          createdAt: Date.now() - 14400000
+        }
+      ];
+
+      const updates = {};
+      samples.forEach(s => {
+        updates[s.reviewId] = s;
+      });
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref('dish_reviews').update(updates).catch(() => {});
+      } else {
+        samples.forEach(s => { rawFbReviews[s.reviewId] = s; });
+        rebuildReviews();
+        renderReviews();
+        renderReviewKPIs();
+      }
+
+      showToast('Đã khởi tạo 3 đánh giá mẫu lên Firebase!', 'success');
+      addLog('Khởi tạo bộ dữ liệu mẫu đánh giá món ăn (dish_reviews)', 'info');
+    }
+
+    /* ========================================================
        12. GLOBAL SEARCH CONTROLLER
        ======================================================== */
     function handleGlobalSearch(query) {
@@ -6122,6 +6841,7 @@
       const matchStore = stores.some(s => (s.name || '').toLowerCase().includes(query) || (s.phone || '').includes(query));
       const matchCust = customers.some(c => (c.name || '').toLowerCase().includes(query) || (c.phone || '').includes(query));
       const matchCat = categories.some(c => (c.name || '').toLowerCase().includes(query));
+      const matchReview = reviews.some(r => (r.comment || '').toLowerCase().includes(query) || (r.dishName || '').toLowerCase().includes(query) || (r.customerName || '').toLowerCase().includes(query));
 
       if (matchStore) {
         switchTab('stores');
@@ -6143,6 +6863,10 @@
         switchTab('categories');
         const input = document.getElementById('filter-cat-search');
         if (input) { input.value = query; filterCategories(); }
+      } else if (matchReview) {
+        switchTab('reviews');
+        const input = document.getElementById('filter-review-search');
+        if (input) { input.value = query; filterReviews(); }
       }
     }
 

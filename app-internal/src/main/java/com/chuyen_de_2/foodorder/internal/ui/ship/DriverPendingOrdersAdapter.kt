@@ -12,10 +12,12 @@ class DriverPendingOrdersAdapter(
 ) : RecyclerView.Adapter<DriverPendingOrdersAdapter.PendingOrderViewHolder>() {
 
     private val orders = mutableListOf<Order>()
+    private var hasActiveOrders: Boolean = false
 
-    fun submitList(list: List<Order>) {
+    fun submitList(list: List<Order>, hasActive: Boolean = false) {
         orders.clear()
         orders.addAll(list)
+        this.hasActiveOrders = hasActive
         notifyDataSetChanged()
     }
 
@@ -53,6 +55,13 @@ class DriverPendingOrdersAdapter(
                 "1x Món ăn theo đơn • Đã đóng túi niêm phong"
             }
             binding.tvPendingOrderDishes.text = dishSummary
+
+            // Khi chưa có đơn nào đang giao thì chỉ hiện "NHẬN ĐƠN NÀY", chỉ khi đã có đơn mới hiện "(GHÉP CHẠY CÙNG)"
+            if (hasActiveOrders) {
+                binding.btnAcceptOrder.text = "🛵 NHẬN ĐƠN NÀY (GHÉP CHẠY CÙNG)"
+            } else {
+                binding.btnAcceptOrder.text = "🛵 NHẬN ĐƠN NÀY"
+            }
 
             binding.btnAcceptOrder.setOnClickListener {
                 onAcceptOrder(order)

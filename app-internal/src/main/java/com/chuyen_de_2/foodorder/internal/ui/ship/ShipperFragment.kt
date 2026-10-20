@@ -136,10 +136,17 @@ class ShipperFragment : Fragment() {
                         it.shipperId == currentUid
             }
 
+            val hasActive = activeOrders.isNotEmpty()
             activeAdapter.submitList(activeOrders)
             binding.lblActiveBadge.text = "${activeOrders.size} đơn"
             binding.tvStatActiveCount.text = "${activeOrders.size} đơn"
             binding.tvEmptyActive.visibility = if (activeOrders.isEmpty()) View.VISIBLE else View.GONE
+            binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
+
+            // Cập nhật lại danh sách đơn chờ với cờ hasActive
+            viewModel.storePendingOrders.value?.let { pendingOrders ->
+                pendingAdapter.submitList(pendingOrders, hasActive)
+            }
 
             // Thống kê đơn hoàn thành & thu nhập thực tế
             val completed = orders.filter { it.status == Order.Status.COMPLETED && it.shipperId == currentUid }
@@ -152,7 +159,8 @@ class ShipperFragment : Fragment() {
 
         // Lắng nghe các đơn chờ nhận của quán (hiển thị trực tiếp trong danh sách theo chuẩn ship/2.html)
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
-            pendingAdapter.submitList(pendingOrders)
+            val hasActive = activeAdapter.itemCount > 0
+            pendingAdapter.submitList(pendingOrders, hasActive)
             binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
             binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
         }

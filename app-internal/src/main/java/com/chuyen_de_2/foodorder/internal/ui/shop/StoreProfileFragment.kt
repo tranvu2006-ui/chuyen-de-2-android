@@ -109,6 +109,22 @@ class StoreProfileFragment : Fragment() {
         }
     }
 
+    data class SupportedBank(val name: String, val bin: String)
+
+    private val supportedBanks = listOf(
+        SupportedBank("MB Bank (Quân Đội)", "970422"),
+        SupportedBank("Vietcombank (Ngoại Thương)", "970436"),
+        SupportedBank("Techcombank (Kỹ Thương)", "970407"),
+        SupportedBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
+        SupportedBank("ACB (Á Châu)", "970416"),
+        SupportedBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
+        SupportedBank("Agribank (Nông Nghiệp)", "970405"),
+        SupportedBank("TPBank (Tiên Phong)", "970423"),
+        SupportedBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
+        SupportedBank("VIB (Quốc Tế)", "970441"),
+        SupportedBank("OCB (Phương Đông)", "970448")
+    )
+
     private fun bindStoreData(store: Store) {
         binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
         binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
@@ -117,6 +133,11 @@ class StoreProfileFragment : Fragment() {
         binding.tvProfilePhone.text = store.phone.ifBlank { "Chưa cập nhật" }
         binding.tvProfileOpenHours.text = store.openHours.ifBlank { "08:00 - 22:00" }
         binding.tvProfilePrepTime.text = store.prepTime.ifBlank { "15 phút" }
+
+        // Tài khoản ngân hàng
+        binding.tvProfileBankName.text = store.bankName.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileBankAccountNumber.text = store.bankAccountNumber.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileBankAccountName.text = store.bankAccountName.ifBlank { "Chưa cập nhật" }
 
         if (store.isOpen) {
             binding.tvProfileStatus.text = "🟢 ĐANG HOẠT ĐỘNG (OPEN)"
@@ -163,9 +184,31 @@ class StoreProfileFragment : Fragment() {
         val etOwner = dialog.findViewById<EditText>(R.id.etOwnerName)
         val etOpenHours = dialog.findViewById<EditText>(R.id.etOpenHours)
         val etPrepTime = dialog.findViewById<EditText>(R.id.etPrepTime)
+
+        // Các view tài khoản ngân hàng
+        val spBank = dialog.findViewById<android.widget.Spinner>(R.id.spBankName)
+        val etBankNo = dialog.findViewById<EditText>(R.id.etBankAccountNumber)
+        val etBankOwner = dialog.findViewById<EditText>(R.id.etBankAccountName)
+
         val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
         val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveStoreProfile)
+
+        // Dropdown ngân hàng
+        val bankAdapter = android.widget.ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_dropdown_item,
+            supportedBanks.map { it.name }
+        )
+        spBank.adapter = bankAdapter
+
+        val currentBankIdx = supportedBanks.indexOfFirst {
+            it.name.contains(store.bankName, ignoreCase = true) ||
+            store.bankName.contains(it.name.substringBefore(" "), ignoreCase = true)
+        }
+        if (currentBankIdx != -1) {
+            spBank.setSelection(currentBankIdx)
+        }
 
         // Điền dữ liệu hiện tại
         etName.setText(store.name)
@@ -175,6 +218,8 @@ class StoreProfileFragment : Fragment() {
         etOwner.setText(store.ownerName.ifBlank { "Ngô Quốc Huy" })
         etOpenHours.setText(store.openHours.ifBlank { "08:00 - 22:30" })
         etPrepTime.setText(store.prepTime.ifBlank { "15 phút" })
+        etBankNo.setText(store.bankAccountNumber)
+        etBankOwner.setText(store.bankAccountName)
 
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
@@ -187,6 +232,12 @@ class StoreProfileFragment : Fragment() {
             val newOwner = etOwner.text.toString().trim()
             val newOpenHours = etOpenHours.text.toString().trim().ifBlank { "08:00 - 22:30" }
             val newPrepTime = etPrepTime.text.toString().trim().ifBlank { "15 phút" }
+
+            val selectedBank = supportedBanks.getOrNull(spBank.selectedItemPosition) ?: supportedBanks[0]
+            val newBankName = selectedBank.name
+            val newBankBin = selectedBank.bin
+            val newBankNo = etBankNo.text.toString().trim()
+            val newBankOwnerName = etBankOwner.text.toString().trim().uppercase()
 
             if (newName.isBlank()) {
                 etName.error = "Vui lòng nhập tên quán"
@@ -208,14 +259,18 @@ class StoreProfileFragment : Fragment() {
                     district = newDistrict,
                     ownerName = newOwner,
                     openHours = newOpenHours,
-                    prepTime = newPrepTime
+                    prepTime = newPrepTime,
+                    bankName = newBankName,
+                    bankAccountNumber = newBankNo,
+                    bankAccountName = newBankOwnerName,
+                    bankBin = newBankBin
                 )
 
                 if (result.isSuccess) {
-                    Toast.makeText(requireContext(), "Đã cập nhật thông tin quán thành công!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "✅ Đã cập nhật thông tin quán & tài khoản ngân hàng!", Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 } else {
-                    Toast.makeText(requireContext(), "Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     btnSave.isEnabled = true
                 }
             }

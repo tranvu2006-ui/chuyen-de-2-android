@@ -90,6 +90,18 @@ data class Store(
     @SerializedName("category")
     val category: String = "",
 
+    @SerializedName("bankName")
+    val bankName: String = "MB Bank",
+
+    @SerializedName("bankAccountNumber", alternate = ["bankAccount", "bankNo"])
+    val bankAccountNumber: String = "",
+
+    @SerializedName("bankAccountName", alternate = ["bankOwner", "accountHolderName"])
+    val bankAccountName: String = "",
+
+    @SerializedName("bankBin")
+    val bankBin: String = "970422",
+
     @SerializedName("dishes")
     val dishes: Map<String, Dish> = emptyMap()
 ) {

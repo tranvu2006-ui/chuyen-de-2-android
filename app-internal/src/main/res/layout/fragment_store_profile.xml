@@ -424,6 +424,150 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Card 4: Tài Khoản Ngân Hàng Nhận Tiền (VietQR) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardBankInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                app:cardBackgroundColor="#FFFFFF"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E2E8F0"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="💳 Tài Khoản Ngân Hàng (VietQR)"
+                            android:textColor="#1E293B"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_badge_orange"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp"
+                            android:text="VietQR 24/7"
+                            android:textColor="#EE4D2D"
+                            android:textSize="10.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Tài khoản nhận tiền chuyển khoản tự động khi khách đặt đơn"
+                        android:textColor="#64748B"
+                        android:textSize="11sp" />
+
+                    <!-- Row: Ngân hàng -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Ngân hàng thụ hưởng:"
+                            android:textColor="#64748B"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvProfileBankName"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#1E293B"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            tools:text="MB Bank (Quân Đội)" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="8dp"
+                        android:background="#F8FAFC" />
+
+                    <!-- Row: Số tài khoản -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Số tài khoản:"
+                            android:textColor="#64748B"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvProfileBankAccountNumber"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:textColor="#0284C7"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            tools:text="0908889999" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="8dp"
+                        android:background="#F8FAFC" />
+
+                    <!-- Row: Chủ tài khoản -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Tên chủ tài khoản:"
+                            android:textColor="#64748B"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvProfileBankAccountName"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#1E293B"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            tools:text="NGUYEN VAN A" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Nút chỉnh sửa to -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnMainEdit"

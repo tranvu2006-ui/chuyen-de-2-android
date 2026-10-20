@@ -441,7 +441,7 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Cập nhật thông tin hồ sơ quán ăn lên Firebase */
+    /** Cập nhật thông tin hồ sơ quán ăn lên Firebase (bao gồm tài khoản ngân hàng) */
     suspend fun updateStoreProfile(
         storeId: String,
         name: String,
@@ -450,10 +450,15 @@ class FirebaseRepository @Inject constructor(
         district: String,
         ownerName: String,
         openHours: String,
-        prepTime: String
+        prepTime: String,
+        bankName: String = "",
+        bankAccountNumber: String = "",
+        bankAccountName: String = "",
+        bankBin: String = "",
+        imageUrl: String = ""
     ): Result<Unit> {
         return try {
-            val updates = mapOf<String, Any>(
+            val updates = mutableMapOf<String, Any>(
                 "name" to name,
                 "phone" to phone,
                 "address" to address,
@@ -462,6 +467,12 @@ class FirebaseRepository @Inject constructor(
                 "openHours" to openHours,
                 "prepTime" to prepTime
             )
+            if (bankName.isNotBlank()) updates["bankName"] = bankName
+            if (bankAccountNumber.isNotBlank()) updates["bankAccountNumber"] = bankAccountNumber
+            if (bankAccountName.isNotBlank()) updates["bankAccountName"] = bankAccountName
+            if (bankBin.isNotBlank()) updates["bankBin"] = bankBin
+            if (imageUrl.isNotBlank()) updates["imageUrl"] = imageUrl
+
             database.getReference("stores").child(storeId).updateChildren(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {

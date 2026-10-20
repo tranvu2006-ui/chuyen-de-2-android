@@ -213,6 +213,7 @@ class FirebaseRepository @Inject constructor(
         orderId: String,
         shipperId: String,
         shipperName: String,
+        shipperPhone: String = "",
         onResult: (Boolean, String) -> Unit
     ) {
         val dbRef = database.getReference("orders").child(orderId)
@@ -235,6 +236,9 @@ class FirebaseRepository @Inject constructor(
                 currentData.child("shipperId").value = shipperId
                 currentData.child("driverId").value = shipperId
                 currentData.child("shipperName").value = shipperName
+                if (shipperPhone.isNotBlank()) {
+                    currentData.child("shipperPhone").value = shipperPhone
+                }
                 currentData.child("status").value = Order.Status.ASSIGNED
                 currentData.child("orderStatus").value = Order.Status.ASSIGNED
                 currentData.child("updatedAt").value = now
@@ -421,34 +425,27 @@ class FirebaseRepository @Inject constructor(
 
     /** Tìm Store ID tương ứng cho tài khoản hiện tại */
     suspend fun resolveStoreIdForUser(uid: String): String {
-        if (uid.isBlank()) return "shop_01"
-        return when (uid) {
-            "whjjZ5osJhTNtMCovwgp8JXdJK73" -> "shop_01"
-            "AdBaJDWpzDYJRxVdl2qbWX8jAUR2" -> "shop_02"
-            "c3AlIlYhEDcGKC9Z4EYOlWqfeCN2" -> "shop_03"
-            "uNzJQswcLSNnuF4GpQAlMdQnS1P2" -> "shop_04"
-            "QCXRaghsICbmi1Pngptv3s0mWO32" -> "shop_05"
-            "J5Cz86Vxd8RRfwp0iK8F1b2Rslx1" -> "shop_06"
-            else -> {
-                try {
-                    // 1. Kiểm tra users/{uid}/storeId
-                    val userSnap = database.getReference("users").child(uid).get().await()
-                    val userStoreId = userSnap.child("storeId").getValue(String::class.java)
-                    if (!userStoreId.isNullOrBlank()) {
-                        return userStoreId
-                    }
-                    // 2. Kiểm tra stores với ownerId hoặc merchantId == uid
-                    val storesSnap = database.getReference("stores").get().await()
-                    for (child in storesSnap.children) {
-                        val ownerId = child.child("ownerId").getValue(String::class.java)
-                            ?: child.child("merchantId").getValue(String::class.java)
-                        if (ownerId == uid) {
-                            return child.key ?: "shop_01"
-                        }
-                    }
-                } catch (_: Exception) {}
-                "shop_01"
+        if (uid.isBlank()) return ""
+        return try {
+            // 1. Kiểm tra users/{uid}/storeId
+            val userSnap = database.getReference("users").child(uid).get().await()
+            val userStoreId = userSnap.child("storeId").getValue(String::class.java)
+            if (!userStoreId.isNullOrBlank()) {
+                return userStoreId
             }
+            // 2. Kiểm tra stores với ownerId hoặc merchantId == uid
+            val storesSnap = database.getReference("stores").get().await()
+            for (child in storesSnap.children) {
+                val ownerId = child.child("ownerId").getValue(String::class.java)
+                    ?: child.child("merchantId").getValue(String::class.java)
+                if (ownerId == uid) {
+                    return child.key ?: ""
+                }
+            }
+            // 3. Fallback lấy quán đầu tiên có trong database nếu có
+            storesSnap.children.firstOrNull()?.key ?: ""
+        } catch (_: Exception) {
+            ""
         }
     }
 

@@ -34,9 +34,9 @@ class PaymentActivity : AppCompatActivity() {
     private lateinit var binding: ActivityPaymentBinding
     private var countDownTimer: CountDownTimer? = null
 
-    private var currentBankName = "MB Bank (TMCP Quân Đội)"
-    private var currentAccountNum = "0988 888 888"
-    private var currentAccountHolder = "OISHI FOOD VIETNAM"
+    private var currentBankName = ""
+    private var currentAccountNum = ""
+    private var currentAccountHolder = ""
     private var currentBankBin = "970422"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -121,10 +121,10 @@ class PaymentActivity : AppCompatActivity() {
 
         val transferSyntax = "OISHI ${if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else "DH8888"}"
 
-        binding.tvPayTypeBadge.text = "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (${currentBankName.uppercase()})"
-        binding.tvBankName.text = currentBankName
-        binding.tvAccountNum.text = currentAccountNum
-        binding.tvAccountHolder.text = currentAccountHolder
+        binding.tvPayTypeBadge.text = if (currentBankName.isNotBlank()) "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (${currentBankName.uppercase()})" else "🏦 VIETQR LIÊN NGÂN HÀNG 24/7"
+        binding.tvBankName.text = currentBankName.ifBlank { "Chưa cập nhật" }
+        binding.tvAccountNum.text = currentAccountNum.ifBlank { "Chưa cập nhật" }
+        binding.tvAccountHolder.text = currentAccountHolder.ifBlank { "Chưa cập nhật" }
         binding.tvTransferSyntax.text = transferSyntax
 
         // Copy actions

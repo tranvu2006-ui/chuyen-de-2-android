@@ -77,7 +77,7 @@ class ShipperProfileFragment : Fragment() {
 
         binding.layoutCallManager.setOnClickListener {
             val intent = Intent(Intent.ACTION_DIAL).apply {
-                data = Uri.parse("tel:0912345678")
+                data = Uri.parse("tel:19001234")
             }
             startActivity(intent)
         }

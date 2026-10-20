@@ -321,7 +321,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         val cusName = order.customerName.ifBlank { "Khách hàng" }
         binding.tvStep3CustomerName.text = "$cusName (⭐ 98/100)"
-        binding.tvStep3CustomerPhone.text = if (order.customerPhone.isNotBlank()) order.customerPhone else "0938 112 233"
+        binding.tvStep3CustomerPhone.text = order.customerPhone.ifBlank { "Chưa cập nhật SĐT" }
 
         val dest = order.address.ifBlank { "Địa chỉ giao hàng" }
         binding.tvStep3DeliveryAddress.text = "📍 Địa chỉ: $dest"
@@ -437,7 +437,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             cardBinding.tvBundleDeliveryAddress.text = "📍 ${order.address.ifBlank { "Địa chỉ giao hàng" }}"
 
             cardBinding.btnCallBundleCustomer.setOnClickListener {
-                val phone = order.customerPhone.ifBlank { "19001000" }
+                val phone = order.customerPhone.ifBlank { "19001234" }
                 startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
             }
 
@@ -681,13 +681,13 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 1: Gọi điện cho quán
         binding.btnCallStoreStep1.setOnClickListener {
-            val phone = currentOrder?.shopPhone?.ifBlank { "19001000" } ?: "19001000"
+            val phone = currentOrder?.shopPhone?.ifBlank { "19001234" } ?: "19001234"
             startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
         }
 
         // Bước 2: Gọi quán
         binding.btnCallStoreStep2.setOnClickListener {
-            val phone = bundleOrders.firstOrNull()?.shopPhone?.ifBlank { "19001000" } ?: "19001000"
+            val phone = bundleOrders.firstOrNull()?.shopPhone?.ifBlank { "19001234" } ?: "19001234"
             startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
         }
 
@@ -732,7 +732,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         // Bước 3: Gọi khách
         binding.btnCallCustomerStep3.setOnClickListener {
             val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
-            val phone = targetOrder?.customerPhone?.ifBlank { "19001000" } ?: "19001000"
+            val phone = targetOrder?.customerPhone?.ifBlank { "19001234" } ?: "19001234"
             startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
         }
 

@@ -243,7 +243,7 @@ class OrderHistoryAdapter(
 
                     binding.btnActionSecondary.visibility = View.VISIBLE
                     binding.btnActionSecondary.text = "📞 Gọi Shipper"
-                    val phone = if (order.shipperName.isNotBlank()) "0909555888" else "19001000"
+                    val phone = order.shipperPhone.ifBlank { "19001234" }
                     binding.btnActionSecondary.setOnClickListener { onCallClick(phone) }
 
                     binding.btnActionPrimary.text = "Theo Dõi Trực Tiếp ➔"

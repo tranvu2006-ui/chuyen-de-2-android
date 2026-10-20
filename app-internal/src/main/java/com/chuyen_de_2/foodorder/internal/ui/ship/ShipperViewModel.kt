@@ -99,6 +99,7 @@ class ShipperViewModel @Inject constructor(
             return
         }
         val shipperName = auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
+        val shipperPhone = auth.currentUser?.phoneNumber ?: ""
 
         val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
         // Optimistic UI: Cập nhật ngay danh sách để giao diện phản hồi 0ms
@@ -108,6 +109,7 @@ class ShipperViewModel @Inject constructor(
                 shipperId = shipperId,
                 driverId = shipperId,
                 shipperName = shipperName,
+                shipperPhone = shipperPhone,
                 status = Order.Status.ASSIGNED,
                 orderStatus = Order.Status.ASSIGNED
             )
@@ -120,7 +122,7 @@ class ShipperViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            firebaseRepository.assignShipper(orderId, shipperId, shipperName) { success, msg ->
+            firebaseRepository.assignShipper(orderId, shipperId, shipperName, shipperPhone) { success, msg ->
                 if (success) {
                     _currentDeliveryOrderId.value = orderId
                 } else {

@@ -80,7 +80,10 @@ class OrderAdapter(
             binding.btnMainAction.setOnClickListener { onActionClick(order) }
             binding.btnDetail.setOnClickListener { onDetailClick(order) }
             binding.btnChatCustomer.setOnClickListener { onChatCustomerClick(order) }
-            binding.btnCallDriver.setOnClickListener { onCallDriverClick("0903882910") }
+            binding.btnCallDriver.setOnClickListener {
+                val driverPhone = order.shipperPhone.ifBlank { "19001234" }
+                onCallDriverClick(driverPhone)
+            }
             binding.btnWarningDetail.setOnClickListener { onWarningDetailClick(order) }
         }
 

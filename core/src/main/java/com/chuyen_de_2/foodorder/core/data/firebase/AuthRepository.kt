@@ -70,8 +70,6 @@ class AuthRepository @Inject constructor(
 
             val assignedStoreId = if (normalizedRole == User.Role.MERCHANT) {
                 "store_${firebaseUser.uid.take(8)}"
-            } else if (normalizedRole == User.Role.DRIVER) {
-                "shop_01"
             } else {
                 ""
             }
@@ -277,7 +275,7 @@ class AuthRepository @Inject constructor(
                     val merchantId = child.child("merchantId").getValue(String::class.java)
                         ?: child.child("ownerId").getValue(String::class.java)
                     if (merchantId == uid) {
-                        val storeId = child.key ?: "shop_01"
+                        val storeId = child.key ?: ""
                         database.getReference("users").child(uid).updateChildren(
                             mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to storeId)
                         ).await()
@@ -370,7 +368,7 @@ class AuthRepository @Inject constructor(
                 if (!driverSnap.exists()) {
                     val driver = Driver(
                         driverId = uid,
-                        storeId = "shop_01",
+                        storeId = "",
                         driverCode = "TX-" + (10..99).random(),
                         dutyStatus = Driver.DutyStatus.AVAILABLE
                     )

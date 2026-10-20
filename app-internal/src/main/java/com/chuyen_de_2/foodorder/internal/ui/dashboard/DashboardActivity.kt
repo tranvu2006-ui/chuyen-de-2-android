@@ -41,16 +41,12 @@ class DashboardActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        InsetUtils.initEdgeToEdge(this, true)
         binding = ActivityDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         // Tính chiều cao status bar dự phòng ban đầu
-        val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
-        statusBarHeight = if (resId > 0) {
-            resources.getDimensionPixelSize(resId)
-        } else {
-            (28 * resources.displayMetrics.density).toInt()
-        }
+        statusBarHeight = InsetUtils.getFallbackStatusBarHeight(this)
 
         // Lắng nghe Window Insets (Status bar, Tai thỏ / Notch, Navigation bar)
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
@@ -77,20 +73,14 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     private fun applyWindowPadding() {
-        if (isMerchantMode) {
-            // Chế độ Quán: Toàn bộ màn hình lùi xuống dưới thanh status bar để không bị cấn tai thỏ/camera
-            InsetUtils.setLightStatusBar(this, true)
-            binding.root.setBackgroundColor(android.graphics.Color.WHITE)
-            androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
-            binding.fragmentContainer.setPadding(0, statusBarHeight, 0, 0)
-            binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
-        } else {
-            // Chế độ Shipper: Tránh cấn tai thỏ và thanh điều hướng
-            InsetUtils.setLightStatusBar(this, true)
-            binding.root.setBackgroundColor(android.graphics.Color.WHITE)
-            binding.fragmentContainer.setPadding(0, statusBarHeight, 0, 0)
-            binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
-        }
+        InsetUtils.setLightStatusBar(this, true)
+        binding.root.setBackgroundColor(android.graphics.Color.WHITE)
+        val density = resources.displayMetrics.density
+        val extraSpacing = (10 * density).toInt() // Cách trên 1 xíu để tránh thanh pin và giờ
+        val topPadding = (if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)) + extraSpacing
+        binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
+        binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
+        binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
     }
 
     private fun setupToolbar() {

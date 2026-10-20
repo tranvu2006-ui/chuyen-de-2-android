@@ -50,8 +50,8 @@ class HomeActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Xử lý Window Insets để tránh bị trùng với Status Bar & Navigation Bar
-        InsetUtils.setLightStatusBar(this, false)
-        InsetUtils.applyStatusBarPadding(binding.headerBar)
+        InsetUtils.initEdgeToEdge(this, false)
+        InsetUtils.applyStatusBarPadding(binding.headerBar, 8)
         InsetUtils.applyNavigationBarPadding(binding.bottomNav)
 
         setupHeader()

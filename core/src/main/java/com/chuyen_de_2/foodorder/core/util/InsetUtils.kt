@@ -17,16 +17,38 @@ import androidx.core.view.updatePadding
 object InsetUtils {
 
     /**
-     * Áp dụng padding top cho Header Bar (ví dụ: LinearLayout headerBar ở Home).
-     * Giữ nguyên padding top ban đầu trong XML và cộng thêm chiều cao thanh trạng thái + cutout (tai thỏ/nốt ruồi).
+     * Bật chế độ Edge-to-Edge chuẩn và chỉnh màu icon status bar
      */
-    fun applyStatusBarPadding(view: View) {
+    fun initEdgeToEdge(activity: Activity, isLightStatusBar: Boolean = true) {
+        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+        setLightStatusBar(activity, isLightStatusBar)
+    }
+
+    /**
+     * Lấy chiều cao status bar dự phòng chuẩn xác nếu hệ thống chưa trả về Insets
+     */
+    fun getFallbackStatusBarHeight(context: android.content.Context): Int {
+        val resId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (resId > 0) {
+            context.resources.getDimensionPixelSize(resId)
+        } else {
+            (36 * context.resources.displayMetrics.density).toInt()
+        }
+    }
+
+    /**
+     * Áp dụng padding top cho Header Bar (ví dụ: LinearLayout headerBar ở Home).
+     * Giữ nguyên padding top ban đầu trong XML và cộng thêm chiều cao thanh trạng thái + cutout + extraPadding để không bị sát thanh pin và giờ.
+     */
+    fun applyStatusBarPadding(view: View, extraTopDp: Int = 8) {
         val initialPaddingTop = view.paddingTop
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, windowInsets ->
             val insets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            v.updatePadding(top = initialPaddingTop + insets.top)
+            val topInset = if (insets.top > 0) insets.top else getFallbackStatusBarHeight(v.context)
+            val extraPx = (extraTopDp * v.resources.displayMetrics.density).toInt()
+            v.updatePadding(top = initialPaddingTop + topInset + extraPx)
             windowInsets
         }
         requestApplyInsetsWhenAttached(view)
@@ -34,16 +56,19 @@ object InsetUtils {
 
     /**
      * Áp dụng Insets cho Toolbar / MaterialToolbar:
-     * - Thêm padding top bằng chiều cao status bar.
-     * - Tăng chiều cao của Toolbar = actionBarSize + insets.top để tiêu đề và nút back luôn nằm trọn vẹn bên dưới status bar.
+     * - Thêm padding top bằng chiều cao status bar + extraPadding (tránh cấn pin và giờ).
+     * - Tăng chiều cao của Toolbar = actionBarSize + insets.top + extraPadding.
      */
-    fun applyToolbarInsets(toolbar: View) {
+    fun applyToolbarInsets(toolbar: View, extraTopDp: Int = 8) {
         val initialPaddingTop = toolbar.paddingTop
         ViewCompat.setOnApplyWindowInsetsListener(toolbar) { v, windowInsets ->
             val insets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            v.updatePadding(top = initialPaddingTop + insets.top)
+            val topInset = if (insets.top > 0) insets.top else getFallbackStatusBarHeight(v.context)
+            val extraPx = (extraTopDp * v.resources.displayMetrics.density).toInt()
+
+            v.updatePadding(top = initialPaddingTop + topInset + extraPx)
 
             val context = v.context
             val typedValue = TypedValue()
@@ -53,7 +78,7 @@ object InsetUtils {
                 (56 * context.resources.displayMetrics.density).toInt()
             }
             v.updateLayoutParams {
-                height = baseHeight + insets.top
+                height = baseHeight + topInset + extraPx
             }
             windowInsets
         }

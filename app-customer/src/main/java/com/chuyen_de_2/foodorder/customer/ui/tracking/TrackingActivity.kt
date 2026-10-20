@@ -72,8 +72,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding = ActivityTrackingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
-        InsetUtils.applyToolbarInsets(binding.topHeader)
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyToolbarInsets(binding.topHeader, 8)
 
         currentOrderId = intent.getStringExtra(Constants.EXTRA_ORDER_ID) ?: ""
         if (currentOrderId.isBlank()) {

@@ -82,8 +82,10 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.chuyen_de_2.foodorder.core.util.InsetUtils.initEdgeToEdge(this, true)
         binding = ActivityDeliveryTripBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        com.chuyen_de_2.foodorder.core.util.InsetUtils.applyToolbarInsets(binding.toolbarTrip, 8)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 

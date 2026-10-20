@@ -43,8 +43,8 @@ class OrderHistoryActivity : AppCompatActivity() {
         binding = ActivityOrderHistoryBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
-        InsetUtils.applyToolbarInsets(binding.layoutTopHeader)
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyToolbarInsets(binding.layoutTopHeader, 8)
 
         setupHeader()
         setupRecyclerView()

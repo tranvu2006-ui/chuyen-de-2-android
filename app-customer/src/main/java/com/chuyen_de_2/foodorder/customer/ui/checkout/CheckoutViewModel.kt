@@ -145,6 +145,7 @@ class CheckoutViewModel @Inject constructor(
                         customerId = userId,
                         customerName = customerName.ifBlank { firebaseUser.displayName?.ifBlank { "Khách hàng" } ?: "Khách hàng" },
                         customerPhone = customerPhone,
+                        storeId = cart.shopId,
                         shopId = cart.shopId,
                         shopName = cart.shopName,
                         status = Order.Status.PENDING,

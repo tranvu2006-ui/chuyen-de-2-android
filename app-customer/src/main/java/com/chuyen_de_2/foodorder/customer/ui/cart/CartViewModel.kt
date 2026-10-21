@@ -107,19 +107,30 @@ class CartViewModel @Inject constructor(
             items[itemId]?.let { items[itemId] = it.copy(quantity = newQty) }
         }
 
-        val total = items.values.sumOf { it.price * it.quantity }
-        val updatedCart = cart.copy(totalAmount = total, items = items)
-        currentCarts[cartIndex] = updatedCart
+        if (items.isEmpty()) {
+            currentCarts.removeAt(cartIndex)
+            clearCart(shopId)
+        } else {
+            val total = items.values.sumOf { it.price * it.quantity }
+            val updatedCart = cart.copy(totalAmount = total, items = items)
+            currentCarts[cartIndex] = updatedCart
+            // Debounce sync
+            cartUpdates.tryEmit(CartPayload(userId, shopId, updatedCart))
+        }
 
         _carts.value = currentCarts
         _totalAmount.value = currentCarts.sumOf { it.totalAmount }
-
-        // Debounce sync
-        cartUpdates.tryEmit(CartPayload(userId, shopId, updatedCart))
     }
 
     fun clearCart(shopId: String) {
         val userId = auth.currentUser?.uid ?: return
+        val currentCarts = _carts.value?.toMutableList() ?: mutableListOf()
+        val index = currentCarts.indexOfFirst { it.shopId == shopId }
+        if (index >= 0) {
+            currentCarts.removeAt(index)
+            _carts.value = currentCarts
+            _totalAmount.value = currentCarts.sumOf { it.totalAmount }
+        }
         viewModelScope.launch {
             firebaseRepository.clearCart(userId, shopId)
         }

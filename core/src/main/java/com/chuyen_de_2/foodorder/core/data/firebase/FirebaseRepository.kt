@@ -53,11 +53,15 @@ class FirebaseRepository @Inject constructor(
      * Auth: Firebase Rules: auth.uid == userId
      */
     suspend fun syncCartToFirebase(payload: CartPayload) {
-        database.getReference("carts")
+        val cartRef = database.getReference("carts")
             .child(payload.userId)
             .child(payload.shopId)
-            .setValue(payload.cart)
-            .await()
+
+        if (payload.cart.items.isEmpty()) {
+            cartRef.removeValue().await()
+        } else {
+            cartRef.setValue(payload.cart).await()
+        }
     }
 
     /** Lắng nghe giỏ hàng realtime */

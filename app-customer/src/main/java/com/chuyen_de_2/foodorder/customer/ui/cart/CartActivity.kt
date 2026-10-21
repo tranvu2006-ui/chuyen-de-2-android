@@ -104,7 +104,7 @@ class CartActivity : AppCompatActivity() {
             val hasItems = carts.isNotEmpty()
             binding.tvEmpty.visibility = if (hasItems) View.GONE else View.VISIBLE
             binding.tvSubNotice.visibility = if (hasItems) View.VISIBLE else View.GONE
-            binding.rvCart.visibility = if (hasItems) View.GONE else View.VISIBLE
+            binding.rvCart.visibility = if (hasItems) View.VISIBLE else View.GONE
 
             binding.tvShopCountBadge.text = if (hasItems) "${carts.size} Quán Ăn" else ""
             binding.tvShopCountBadge.visibility = if (hasItems) View.VISIBLE else View.GONE

@@ -723,14 +723,14 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 app:srcCompat="@drawable/ic_receipt"
-                app:tint="@color/text_muted" />
+                app:tint="#64748B" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
                 android:text="Đơn hàng"
-                android:textColor="@color/text_muted"
+                android:textColor="#64748B"
                 android:textSize="11sp" />
         </LinearLayout>
 
@@ -749,14 +749,14 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 app:srcCompat="@drawable/ic_notification"
-                app:tint="@color/text_muted" />
+                app:tint="#64748B" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
                 android:text="Thông báo"
-                android:textColor="@color/text_muted"
+                android:textColor="#64748B"
                 android:textSize="11sp" />
         </LinearLayout>
 
@@ -775,14 +775,14 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 app:srcCompat="@drawable/ic_user"
-                app:tint="@color/text_muted" />
+                app:tint="#64748B" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
                 android:text="Tôi"
-                android:textColor="@color/text_muted"
+                android:textColor="#64748B"
                 android:textSize="11sp" />
         </LinearLayout>
 

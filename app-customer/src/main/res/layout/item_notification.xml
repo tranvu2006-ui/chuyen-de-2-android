@@ -79,7 +79,7 @@
                 android:lineSpacingExtra="2dp"
                 android:maxLines="2"
                 android:text="Tài xế đang giao đơn hàng đến bạn. Vui lòng chú ý điện thoại."
-                android:textColor="@color/text_muted"
+                android:textColor="#475569"
                 android:textSize="12.5sp" />
 
             <TextView
@@ -88,7 +88,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="5dp"
                 android:text="Vừa xong"
-                android:textColor="#94A3B8"
+                android:textColor="#64748B"
                 android:textSize="11sp" />
         </LinearLayout>
 

@@ -165,7 +165,7 @@
                             android:layout_width="26dp"
                             android:layout_height="wrap_content"
                             android:text="82%"
-                            android:textColor="#94A3B8"
+                            android:textColor="#64748B"
                             android:textSize="9.5sp" />
                     </LinearLayout>
 
@@ -199,7 +199,7 @@
                             android:layout_width="26dp"
                             android:layout_height="wrap_content"
                             android:text="14%"
-                            android:textColor="#94A3B8"
+                            android:textColor="#64748B"
                             android:textSize="9.5sp" />
                     </LinearLayout>
 
@@ -233,7 +233,7 @@
                             android:layout_width="26dp"
                             android:layout_height="wrap_content"
                             android:text="3%"
-                            android:textColor="#94A3B8"
+                            android:textColor="#64748B"
                             android:textSize="9.5sp" />
                     </LinearLayout>
                 </LinearLayout>

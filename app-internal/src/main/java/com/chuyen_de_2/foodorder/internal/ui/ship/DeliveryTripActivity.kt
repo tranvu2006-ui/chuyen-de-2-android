@@ -145,6 +145,12 @@ class DeliveryTripActivity : AppCompatActivity() {
         observeOrderDetails()
         observeShipperActiveOrders()
         checkAndRequestLocation()
+
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                showConfirmExitDialog()
+            }
+        })
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -303,31 +309,59 @@ class DeliveryTripActivity : AppCompatActivity() {
                      o.shipperId == uid
                 }
 
-                if (active.size >= 2) {
+                // Chuyến ghép: nếu có >= 2 đơn active hoặc chuyến đi đã là đơn ghép và vẫn còn đơn chưa hoàn tất
+                val hasUnfinishedBundle = isBundleMode && bundleOrders.any { !completedBundleOrderIds.contains(it.orderId) }
+
+                if (active.size >= 2 || hasUnfinishedBundle) {
                     isBundleMode = true
-                    // Giữ thứ tự ưu tiên: đơn currentOrderId đứng đầu nếu chưa có danh sách
                     if (bundleOrders.isEmpty()) {
                         val currentFirst = active.sortedByDescending { it.orderId == currentOrderId }
                         bundleOrders.clear()
                         bundleOrders.addAll(currentFirst)
                     } else {
                         // Cập nhật lại thông tin mới nhất của các đơn trong bundle
+                        val existingIds = bundleOrders.map { it.orderId }.toSet()
+                        val newActive = active.filter { !existingIds.contains(it.orderId) }
                         val updated = bundleOrders.map { old ->
                             active.find { it.orderId == old.orderId } ?: old
-                        }
+                        }.toMutableList()
+                        updated.addAll(newActive)
                         bundleOrders.clear()
                         bundleOrders.addAll(updated)
                     }
 
+                    // Đồng bộ các đơn đã hoàn tất
+                    orders.filter { it.status == Order.Status.COMPLETED }.forEach { done ->
+                        if (bundleOrders.any { it.orderId == done.orderId }) {
+                            completedBundleOrderIds.add(done.orderId)
+                        }
+                    }
+
                     binding.tvTripBundleBadge.visibility = View.VISIBLE
                     binding.tvTripBundleBadge.text = "Ghép ${bundleOrders.size} đơn"
-                    binding.tvTripOrderCode.text = "Đơn Gộp • ${bundleOrders.size} Đơn"
 
                     bindBundleOrdersStep2()
+                    val currentTarget = bundleOrders.getOrNull(activeBundleIndex)
+                    val activeOrder = if (currentTarget != null && !completedBundleOrderIds.contains(currentTarget.orderId)) {
+                        currentTarget
+                    } else {
+                        val firstUnfinished = bundleOrders.firstOrNull { !completedBundleOrderIds.contains(it.orderId) }
+                        if (firstUnfinished != null) {
+                            activeBundleIndex = bundleOrders.indexOf(firstUnfinished)
+                            firstUnfinished
+                        } else {
+                            currentTarget ?: bundleOrders.firstOrNull() ?: currentOrder
+                        }
+                    }
+
                     bindCustomerQuickSwitchStep3()
-                    val activeOrder = bundleOrders.getOrNull(activeBundleIndex) ?: bundleOrders[0]
-                    bindOrderData(activeOrder)
-                } else {
+
+                    if (activeOrder != null) {
+                        currentOrderId = activeOrder.orderId
+                        currentOrder = activeOrder
+                        bindOrderData(activeOrder)
+                    }
+                } else if (!isBundleMode) {
                     isBundleMode = false
                     binding.tvTripBundleBadge.visibility = View.GONE
                     binding.layoutTripStepperBundle.visibility = View.GONE
@@ -347,13 +381,22 @@ class DeliveryTripActivity : AppCompatActivity() {
         if (!isBundleMode) {
             binding.tvTripOrderCode.text = "Đơn #ORD-$shortCode"
             binding.tvTripBundleBadge.visibility = View.GONE
+            binding.tvStep1OrderCode.text = "ĐƠN CẦN LẤY: #ORD-$shortCode"
+            binding.tvStep2SingleOrderCode.text = "MÃ ĐƠN: #ORD-$shortCode"
         } else {
             val idx = bundleOrders.indexOfFirst { it.orderId == order.orderId }
             val ch = if (idx >= 0) idx + 1 else 1
-            binding.tvTripOrderCode.text = "Đơn Gộp • Chặng $ch/${bundleOrders.size}"
+            binding.tvTripOrderCode.text = "#ORD-$shortCode (Chặng $ch/${bundleOrders.size})"
             binding.tvTripBundleBadge.visibility = View.VISIBLE
             binding.tvTripBundleBadge.text = "Ghép ${bundleOrders.size} đơn"
+
+            val allCodes = bundleOrders.joinToString(", ") { "#ORD-" + QRCodeUtils.getShortOrderCode(it.orderId) }
+            binding.tvStep1OrderCode.text = "CẦN LẤY ${bundleOrders.size} ĐƠN: $allCodes"
+            binding.tvStep2SingleOrderCode.text = "MÃ ĐƠN: #ORD-$shortCode"
         }
+
+        binding.tvStep3OrderCode.text = "ĐANG GIAO: #ORD-$shortCode"
+        binding.tvStep4OrderCode.text = "XÁC MINH ĐƠN HÀNG: #ORD-$shortCode"
 
         val storeName = order.shopName.ifBlank { "Quán ăn" }
         binding.tvStep1StoreName.text = storeName
@@ -386,10 +429,10 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
 
         val phoneDisplay = if (order.customerPhone.isNotBlank()) order.customerPhone else "Khách hàng"
-        binding.tvStep4Summary.text = "$cusName • $phoneDisplay\nĐịa chỉ: $dest"
+        binding.tvStep4Summary.text = "Đơn #ORD-$shortCode\nKhách: $cusName • $phoneDisplay\nĐịa chỉ: $dest"
 
         binding.tvStep3NavInstruction.text = "Điểm đến: $dest"
-        binding.tvStep3NavSubtext.text = "Giao cho: $cusName • 1.2km (3 phút nữa đến nơi)"
+        binding.tvStep3NavSubtext.text = "Giao cho: $cusName (#ORD-$shortCode)"
 
         // Geocoding địa chỉ khách thực tế để vẽ lộ trình thật
         lifecycleScope.launch {
@@ -527,7 +570,8 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Khách 1
         if (order1 != null) {
-            binding.choiceName1.text = "1. ${order1.customerName.ifBlank { "Khách 1" }}"
+            val sc1 = QRCodeUtils.getShortOrderCode(order1.orderId)
+            binding.choiceName1.text = "1. ${order1.customerName.ifBlank { "Khách 1" }} (#ORD-$sc1)"
             binding.choiceAddr1.text = order1.address.ifBlank { "Địa chỉ 1" }
             val isCod1 = order1.paymentMethod.equals("COD", true)
             binding.choicePayment1.text = if (isCod1) "COD ${(if (order1.totalPayment > 0) order1.totalPayment else (order1.total + order1.shippingFee)).toVndCurrency()}" else "0 đ (MoMo)"
@@ -558,7 +602,8 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Khách 2
         if (order2 != null) {
-            binding.choiceName2.text = "2. ${order2.customerName.ifBlank { "Khách 2" }}"
+            val sc2 = QRCodeUtils.getShortOrderCode(order2.orderId)
+            binding.choiceName2.text = "2. ${order2.customerName.ifBlank { "Khách 2" }} (#ORD-$sc2)"
             binding.choiceAddr2.text = order2.address.ifBlank { "Địa chỉ 2" }
             val isCod2 = order2.paymentMethod.equals("COD", true)
             binding.choicePayment2.text = if (isCod2) "COD ${(if (order2.totalPayment > 0) order2.totalPayment else (order2.total + order2.shippingFee)).toVndCurrency()}" else "0 đ (MoMo)"
@@ -589,8 +634,9 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Khách 3 (Ghép 3 đơn)
         if (order3 != null) {
+            val sc3 = QRCodeUtils.getShortOrderCode(order3.orderId)
             binding.btnChoiceCust3.visibility = View.VISIBLE
-            binding.choiceName3.text = "3. ${order3.customerName.ifBlank { "Khách 3" }}"
+            binding.choiceName3.text = "3. ${order3.customerName.ifBlank { "Khách 3" }} (#ORD-$sc3)"
             binding.choiceAddr3.text = order3.address.ifBlank { "Địa chỉ 3" }
             val isCod3 = order3.paymentMethod.equals("COD", true)
             binding.choicePayment3.text = if (isCod3) "COD ${(if (order3.totalPayment > 0) order3.totalPayment else (order3.total + order3.shippingFee)).toVndCurrency()}" else "0 đ (MoMo)"
@@ -638,9 +684,11 @@ class DeliveryTripActivity : AppCompatActivity() {
         val colorGreen = ContextCompat.getColor(this, R.color.brand_green)
         val colorMuted = ContextCompat.getColor(this, R.color.text_secondary)
 
-        // Tên khách hiển thị trên Stepper
-        binding.stepBundleCust1Text.text = order1?.customerName?.take(10)?.ifBlank { "Khách 1" } ?: "Khách 1"
-        binding.stepBundleCust2Text.text = order2?.customerName?.take(10)?.ifBlank { "Khách 2" } ?: "Khách 2"
+        // Tên khách hiển thị trên Stepper kèm mã đơn
+        val sc1 = order1?.let { QRCodeUtils.getShortOrderCode(it.orderId) } ?: ""
+        val sc2 = order2?.let { QRCodeUtils.getShortOrderCode(it.orderId) } ?: ""
+        binding.stepBundleCust1Text.text = if (order1 != null) "${order1.customerName.take(6).ifBlank { "Khách 1" }} (#$sc1)" else "Khách 1"
+        binding.stepBundleCust2Text.text = if (order2 != null) "${order2.customerName.take(6).ifBlank { "Khách 2" }} (#$sc2)" else "Khách 2"
 
         val isDone1 = order1 != null && completedBundleOrderIds.contains(order1.orderId)
         val isDone2 = order2 != null && completedBundleOrderIds.contains(order2.orderId)
@@ -679,9 +727,10 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Trạng thái Khách 3 (Ghép 3 đơn)
         if (order3 != null) {
+            val sc3 = QRCodeUtils.getShortOrderCode(order3.orderId)
             binding.stepBundleDivider3.visibility = View.VISIBLE
             binding.stepBundleCust3.visibility = View.VISIBLE
-            binding.stepBundleCust3Text.text = order3.customerName.take(10).ifBlank { "Khách 3" }
+            binding.stepBundleCust3Text.text = "${order3.customerName.take(6).ifBlank { "Khách 3" }} (#$sc3)"
 
             val isDone3 = completedBundleOrderIds.contains(order3.orderId)
             if (isDone3) {
@@ -717,15 +766,30 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
 
         activeBundleIndex = index
+        currentOrderId = targetOrder.orderId
+        currentOrder = targetOrder
+        resetStep4QrUI()
         bindCustomerQuickSwitchStep3()
         bindOrderData(targetOrder)
 
+        val shortCode = QRCodeUtils.getShortOrderCode(targetOrder.orderId)
         // Toast nổi thông báo đổi tuyến theo 6.html
-        binding.tvRouteToastText.text = "🛵 Đã chọn giao cho ${targetOrder.customerName} trước!"
+        binding.tvRouteToastText.text = "🛵 Đang giao đơn #ORD-$shortCode (${targetOrder.customerName})!"
         binding.layoutRouteToast.visibility = View.VISIBLE
         binding.layoutRouteToast.postDelayed({
             binding.layoutRouteToast.visibility = View.GONE
         }, 2200)
+    }
+
+    private fun resetStep4QrUI() {
+        isQrVerified = false
+        verifiedTokenString = ""
+        binding.tvStep4QrIcon.text = "📷\nCHẠM ĐỂ QUÉT"
+        binding.tvStep4QrIcon.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+        binding.tvStep4QrStatus.text = "Chưa quét mã QR của khách hàng"
+        binding.tvStep4QrStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        binding.btnSimulateScan.text = "📷 Quét Mã QR Khách Hàng (Camera)"
+        binding.btnSimulateScan.backgroundTintList = ContextCompat.getColorStateList(this, R.color.primary)
     }
 
     private fun checkAndRequestLocation() {
@@ -769,7 +833,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         binding.btnTripBack.setOnClickListener {
-            finish()
+            showConfirmExitDialog()
         }
 
         binding.btnTripCancel.setOnClickListener {
@@ -1235,10 +1299,12 @@ class DeliveryTripActivity : AppCompatActivity() {
                     val nextIdx = bundleOrders.indexOf(nextOrder)
                     val completedCount = completedBundleOrderIds.size
                     val totalCount = bundleOrders.size
+                    val scCurrent = QRCodeUtils.getShortOrderCode(ordId)
+                    val scNext = QRCodeUtils.getShortOrderCode(nextOrder.orderId)
                     AlertDialog.Builder(this@DeliveryTripActivity)
-                        .setTitle("🎉 Giao Thành Công Đơn $completedCount/$totalCount!")
-                        .setMessage("Đơn hàng của ${targetOrder?.customerName} đã được hoàn tất thành công.\n\nTiếp tục di chuyển giao đơn tiếp theo cho khách: ${nextOrder.customerName} (Còn ${remainingOrders.size} đơn)!")
-                        .setPositiveButton("🛵 GIAO ĐƠN TIẾP THEO ➔") { _, _ ->
+                        .setTitle("🎉 ĐÃ GIAO XONG ĐƠN #ORD-$scCurrent ($completedCount/$totalCount)!")
+                        .setMessage("Đơn hàng #ORD-$scCurrent của ${targetOrder?.customerName} đã được hoàn tất thành công.\n\nTiếp tục di chuyển giao đơn tiếp theo: #ORD-$scNext cho khách: ${nextOrder.customerName} (Còn ${remainingOrders.size} đơn)!")
+                        .setPositiveButton("🛵 GIAO TIẾP ĐƠN #ORD-$scNext ➔") { _, _ ->
                             switchActiveBundleCustomer(nextIdx)
                             updateStepUI(3)
                         }
@@ -1250,11 +1316,15 @@ class DeliveryTripActivity : AppCompatActivity() {
                     } else {
                         25000L
                     }
-                    val shortCode = QRCodeUtils.getShortOrderCode(ordId)
+                    val allCodes = if (isBundleMode) {
+                        bundleOrders.joinToString(", ") { "#ORD-" + QRCodeUtils.getShortOrderCode(it.orderId) }
+                    } else {
+                        "#ORD-" + QRCodeUtils.getShortOrderCode(ordId)
+                    }
                     AlertDialog.Builder(this@DeliveryTripActivity)
-                        .setTitle("🎉 Giao Hàng & Đối Soát QR Thành Công!")
-                        .setMessage("Đơn hàng #ORD-$shortCode đã hoàn tất xuất sắc.\n\n+${totalFee.toVndCurrency()} tiền công ship đã được cộng vào Ví Thu Nhập của bạn!")
-                        .setPositiveButton("Về Trang Chủ") { _, _ ->
+                        .setTitle("🎉 Hoàn Thành Toàn Bộ Chuyến Giao Hàng!")
+                        .setMessage("Đã hoàn tất tất cả các đơn hàng ($allCodes).\n\n+${totalFee.toVndCurrency()} tiền công ship đã được cộng vào Ví Thu Nhập của bạn!")
+                        .setPositiveButton("Về Danh Sách Đơn") { _, _ ->
                             finish()
                         }
                         .setCancelable(false)
@@ -1264,6 +1334,25 @@ class DeliveryTripActivity : AppCompatActivity() {
                 Toast.makeText(this@DeliveryTripActivity, "Lỗi cập nhật: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun showConfirmExitDialog() {
+        val count = if (isBundleMode) {
+            val remain = bundleOrders.count { !completedBundleOrderIds.contains(it.orderId) }
+            if (remain > 0) remain else bundleOrders.size
+        } else 1
+
+        val currentTarget = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+        val shortCode = currentTarget?.let { QRCodeUtils.getShortOrderCode(it.orderId) } ?: ""
+
+        AlertDialog.Builder(this)
+            .setTitle("⚠️ RỜI MÀN HÌNH GIAO HÀNG?")
+            .setMessage("Bạn đang giao đơn #ORD-$shortCode (Tổng chuyến: $count đơn chưa hoàn tất).\n\nTiến trình giao hàng của bạn vẫn được lưu an toàn. Bạn có chắc muốn quay lại danh sách không?")
+            .setPositiveButton("Rời màn hình") { _, _ ->
+                finish()
+            }
+            .setNegativeButton("Ở lại giao tiếp", null)
+            .show()
     }
 
     private fun showCancelOrderDialog() {

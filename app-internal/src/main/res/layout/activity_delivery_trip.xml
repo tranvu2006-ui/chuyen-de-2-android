@@ -592,6 +592,19 @@
                                 android:textColor="#059669"
                                 android:textSize="11.5sp"
                                 android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvStep1OrderCode"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:background="@drawable/bg_badge_orange"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="2dp"
+                                android:text="ĐƠN CẦN LẤY: #ORD-88291"
+                                android:textColor="@color/white"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
                         </LinearLayout>
 
                         <!-- Nút Gọi quán 📞 -->
@@ -988,6 +1001,19 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:padding="16dp">
+
+                        <TextView
+                            android:id="@+id/tvStep2SingleOrderCode"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:background="@drawable/bg_badge_blue"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp"
+                            android:text="MÃ ĐƠN: #ORD-88291"
+                            android:textColor="@color/brand_blue"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
 
                         <CheckBox
                             android:id="@+id/cbDish1"
@@ -1441,6 +1467,19 @@
                             android:orientation="vertical">
 
                             <TextView
+                                android:id="@+id/tvStep3OrderCode"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="3dp"
+                                android:background="@drawable/bg_badge_orange"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="2dp"
+                                android:text="ĐANG GIAO: #ORD-88291"
+                                android:textColor="@color/white"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <TextView
                                 android:id="@+id/tvStep3CustomerName"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
@@ -1609,6 +1648,19 @@
                             android:text="ĐỐI SOÁT HOÀN TẤT GIAO HÀNG"
                             android:textColor="@color/brand_green"
                             android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvStep4OrderCode"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:background="@drawable/bg_badge_orange"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp"
+                            android:text="XÁC MINH ĐƠN HÀNG: #ORD-88291"
+                            android:textColor="@color/white"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
 
                         <TextView

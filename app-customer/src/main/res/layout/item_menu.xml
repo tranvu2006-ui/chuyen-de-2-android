@@ -57,7 +57,7 @@
                     android:paddingHorizontal="5dp"
                     android:paddingVertical="1.5dp"
                     android:text="HOT"
-                    android:textColor="@color/white"
+                    android:textColor="#c34738"
                     android:textSize="8.5sp"
                     android:textStyle="bold"
                     android:visibility="gone" />

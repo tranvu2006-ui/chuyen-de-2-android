@@ -66,6 +66,33 @@ class HomeActivity : AppCompatActivity() {
         checkUserRoleForBanner()
     }
 
+    override fun onResume() {
+        super.onResume()
+        checkAccountLock()
+    }
+
+    private fun checkAccountLock() {
+        lifecycleScope.launch {
+            val statusCheck = authRepository.checkAccountActiveStatus()
+            if (statusCheck.isFailure) {
+                val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                androidx.appcompat.app.AlertDialog.Builder(this@HomeActivity)
+                    .setTitle("🔒 Tài khoản bị khóa")
+                    .setMessage(reason)
+                    .setPositiveButton("Đóng") { _, _ ->
+                        val intent = Intent(this@HomeActivity, LoginActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            putExtra("LOGOUT", true)
+                        }
+                        startActivity(intent)
+                        finish()
+                    }
+                    .setCancelable(false)
+                    .show()
+            }
+        }
+    }
+
     private fun setupHeader() {
         // Nút '📍 Quán Gần Đây' ở thanh Header (b1.html: btn-nearby-header)
         binding.btnNearbyStores.setOnClickListener {

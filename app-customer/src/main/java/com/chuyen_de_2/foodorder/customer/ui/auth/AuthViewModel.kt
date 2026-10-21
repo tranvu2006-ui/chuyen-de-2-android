@@ -27,6 +27,8 @@ class AuthViewModel @Inject constructor(
 
     suspend fun getUserRole(): String? = authRepository.getUserRole()
 
+    suspend fun checkAccountActiveStatus() = authRepository.checkAccountActiveStatus()
+
     fun logout() = authRepository.logout()
 
     fun login(email: String, password: String) {
@@ -48,7 +50,8 @@ class AuthViewModel @Inject constructor(
         email: String,
         password: String,
         confirmPassword: String,
-        role: String = com.chuyen_de_2.foodorder.core.data.model.User.Role.CUSTOMER
+        role: String = com.chuyen_de_2.foodorder.core.data.model.User.Role.CUSTOMER,
+        phone: String = ""
     ) {
         when {
             name.isBlank() || email.isBlank() || password.isBlank() -> {
@@ -67,7 +70,7 @@ class AuthViewModel @Inject constructor(
 
         _isLoading.value = true
         viewModelScope.launch {
-            val result = authRepository.register(name, email, password, role)
+            val result = authRepository.register(name, email, password, role, phone)
             _registerResult.value = result.map { it.uid }
             _isLoading.value = false
         }

@@ -80,6 +80,7 @@ class OrderListFragment : Fragment() {
         val uid = auth.currentUser?.uid.orEmpty()
         viewLifecycleOwner.lifecycleScope.launch {
             currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            viewModel.setStoreId(currentStoreId)
             observeStoreProfile()
         }
     }

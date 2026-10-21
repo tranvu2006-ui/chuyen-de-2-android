@@ -14,6 +14,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
@@ -60,7 +61,7 @@ class CheckoutViewModel @Inject constructor(
             })
     }
 
-    /** Đặt hàng — tạo Order trên Firebase và xóa giỏ hàng */
+    /** Đặt hàng — tạo Order trên Firebase, đồng bộ thông tin khách hàng và xóa giỏ hàng */
     fun placeOrder(
         address: String,
         note: String,
@@ -70,7 +71,8 @@ class CheckoutViewModel @Inject constructor(
         customerPhone: String = "",
         customerName: String = ""
     ) {
-        val userId = auth.currentUser?.uid ?: return
+        val firebaseUser = auth.currentUser ?: return
+        val userId = firebaseUser.uid
         val cartList = _carts.value ?: return
 
         if (cartList.isEmpty()) {
@@ -82,6 +84,57 @@ class CheckoutViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
+                // Lấy thông tin tên, SĐT và Gmail của khách để gắn vào đơn hàng và đồng bộ lên hồ sơ
+                var customerName = firebaseUser.displayName.orEmpty().trim()
+                var customerPhone = firebaseUser.phoneNumber.orEmpty().trim()
+                val customerEmail = firebaseUser.email.orEmpty().trim()
+
+                try {
+                    val userSnap = database.getReference("users").child(userId).get().await()
+                    val status = userSnap.child("status").getValue(String::class.java).orEmpty().uppercase()
+                    val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
+                        ?: userSnap.child("active").getValue(Boolean::class.java)
+                        ?: true
+                    if (status == "LOCKED" || status == "SUSPENDED" || !isActive) {
+                        val lockReason = userSnap.child("lockReason").getValue(String::class.java)
+                            ?: "Tài khoản của bạn đã bị khóa hoặc tạm ngưng bởi Quản trị viên."
+                        _orderResult.value = Result.failure(Exception(lockReason))
+                        _isLoading.value = false
+                        return@launch
+                    }
+
+                    val trustScore = userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
+                    if (paymentMethod == Order.PaymentMethod.COD && trustScore < 50L) {
+                        _orderResult.value = Result.failure(
+                            Exception("Điểm uy tín của bạn hiện đang dưới 50 điểm ($trustScore/100). Hình thức COD bị khóa, vui lòng chọn Chuyển khoản ngân hàng (BANKING)!")
+                        )
+                        _isLoading.value = false
+                        return@launch
+                    }
+
+                    val dbName = userSnap.child("name").getValue(String::class.java).orEmpty().trim()
+                    val dbPhone = userSnap.child("phone").getValue(String::class.java).orEmpty().trim()
+                    if (dbName.isNotBlank()) customerName = dbName
+                    if (dbPhone.isNotBlank()) customerPhone = dbPhone
+
+                    val profileUpdates = mutableMapOf<String, Any>("uid" to userId)
+                    if (customerEmail.isNotBlank()) profileUpdates["email"] = customerEmail
+                    if (customerName.isBlank() && customerEmail.isNotBlank()) {
+                        customerName = customerEmail.substringBefore("@")
+                    }
+                    if (customerName.isNotBlank()) profileUpdates["name"] = customerName
+                    if (address.isNotBlank()) profileUpdates["address"] = address
+                    database.getReference("users").child(userId).updateChildren(profileUpdates)
+                    database.getReference("customers").child(userId).updateChildren(profileUpdates)
+                } catch (e: Exception) {
+                    if (e.message?.contains("khóa") == true || e.message?.contains("uy tín") == true) {
+                        _orderResult.value = Result.failure(e)
+                        _isLoading.value = false
+                        return@launch
+                    }
+                    if (customerName.isBlank()) customerName = customerEmail.substringBefore("@")
+                }
+
                 var lastCreatedOrderId = ""
                 // Tạo 1 order cho mỗi shop
                 for (cart in cartList) {
@@ -90,7 +143,7 @@ class CheckoutViewModel @Inject constructor(
 
                     val order = Order(
                         customerId = userId,
-                        customerName = customerName.ifBlank { auth.currentUser?.displayName ?: "Khách hàng" },
+                        customerName = customerName.ifBlank { firebaseUser.displayName?.ifBlank { "Khách hàng" } ?: "Khách hàng" },
                         customerPhone = customerPhone,
                         shopId = cart.shopId,
                         shopName = cart.shopName,

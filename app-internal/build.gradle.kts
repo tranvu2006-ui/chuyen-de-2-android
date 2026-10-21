@@ -92,4 +92,6 @@ dependencies {
 
     // Image loading
     implementation(libs.glide)
+    implementation(libs.zxing.core)
+    implementation(libs.zxing.android.embedded)
 }

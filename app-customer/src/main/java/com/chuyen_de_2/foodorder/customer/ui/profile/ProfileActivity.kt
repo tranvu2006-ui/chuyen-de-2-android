@@ -136,7 +136,7 @@ class ProfileActivity : AppCompatActivity() {
                 val userResult = authRepository.getCurrentUserData()
                 userResult.onSuccess { user ->
                     currentUserData = user
-                    binding.tvUserName.text = user.name.ifBlank { currentUser.displayName ?: "Người dùng Oishi" }
+                    binding.tvUserName.text = user.name.ifBlank { currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "Người dùng Oishi" }
                     binding.tvUserPhone.text = if (user.phone.isNotBlank()) user.phone else "Chưa cập nhật SĐT"
                     
                     // Hiển thị Avatar (Ảnh hoặc Emoji)
@@ -210,6 +210,7 @@ class ProfileActivity : AppCompatActivity() {
         // Quản lý Sổ địa chỉ nhận hàng
         binding.btnAddressBook.setOnClickListener {
             showAddressBookBottomSheet()
+        }
         }
 
         // Hotline

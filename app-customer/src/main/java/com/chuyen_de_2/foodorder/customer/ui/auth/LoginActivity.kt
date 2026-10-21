@@ -78,6 +78,18 @@ class LoginActivity : AppCompatActivity() {
     private fun checkRoleAndRoute() {
         binding.progressBar.visibility = View.VISIBLE
         lifecycleScope.launch {
+            val statusCheck = viewModel.checkAccountActiveStatus()
+            if (statusCheck.isFailure) {
+                binding.progressBar.visibility = View.GONE
+                val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                AlertDialog.Builder(this@LoginActivity)
+                    .setTitle("🔒 Tài khoản bị khóa")
+                    .setMessage(reason)
+                    .setPositiveButton("Đóng", null)
+                    .show()
+                return@launch
+            }
+
             val role = viewModel.getUserRole()?.trim()?.uppercase()
             binding.progressBar.visibility = View.GONE
 

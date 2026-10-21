@@ -37,7 +37,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun register(name: String, email: String, pass: String, confirmPass: String, role: String) {
+    fun register(name: String, email: String, pass: String, confirmPass: String, role: String, phone: String = "") {
         if (name.isBlank() || email.isBlank() || pass.isBlank()) {
             _registerResult.value = Result.failure(Exception("Vui lòng điền đầy đủ các thông tin bắt buộc"))
             return
@@ -53,7 +53,7 @@ class AuthViewModel @Inject constructor(
 
         _isLoading.value = true
         viewModelScope.launch {
-            val result = authRepository.register(name, email, pass, role)
+            val result = authRepository.register(name, email, pass, role, phone)
             _registerResult.value = result.map { it.uid }
             _isLoading.value = false
         }

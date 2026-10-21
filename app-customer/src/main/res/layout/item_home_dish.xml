@@ -145,9 +145,13 @@
 
                 <TextView
                     android:id="@+id/tvRatingMeta"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="⭐ 4.8 (1.2k đã bán)"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:singleLine="true"
+                    android:text="⭐ 4.8 (1.2k)"
                     android:textColor="@color/rating_star"
                     android:textSize="11sp"
                     android:textStyle="bold" />
@@ -157,7 +161,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
-                    android:text="• 📍 1.2 km"
+                    android:maxLines="1"
+                    android:singleLine="true"
+                    android:text="📍 1.2 km"
                     android:textColor="@color/brand_green"
                     android:textSize="11sp"
                     android:textStyle="bold" />

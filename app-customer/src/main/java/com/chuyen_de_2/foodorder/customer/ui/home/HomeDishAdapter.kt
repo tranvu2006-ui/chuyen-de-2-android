@@ -64,8 +64,10 @@ class HomeDishAdapter(
             binding.tvStoreName.text = if (dish.storeName.startsWith("🏪")) dish.storeName else "🏪 ${dish.storeName}"
 
             // Meta đánh giá & cự ly km
-            binding.tvRatingMeta.text = "⭐ ${dish.rating} (${dish.soldCount})"
-            binding.tvDistanceMeta.text = "• 📍 ${dish.distanceKm} km"
+            val cleanSoldCount = dish.soldCount.replace("đã bán", "").trim()
+            val soldDisplay = if (cleanSoldCount.isNotBlank()) "($cleanSoldCount)" else ""
+            binding.tvRatingMeta.text = "⭐ ${dish.rating} $soldDisplay".trim()
+            binding.tvDistanceMeta.text = "📍 ${dish.distanceKm} km"
 
             // Badge khuyến mãi
             if (dish.promoBadge.isNotBlank()) {

@@ -1618,17 +1618,51 @@
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
-                    <!-- Nút xác nhận đã đến điểm giao -->
+                    <!-- THANH TRƯỢT GẠT SANG PHẢI XÁC NHẬN ĐÃ ĐẾN ĐIỂM GIAO KHÁCH (Bước 3) -->
+                    <FrameLayout
+                        android:id="@+id/swipeTrackStep3"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_swipe_track">
+
+                        <!-- Nhãn chữ ở giữa thanh trượt -->
+                        <TextView
+                            android:id="@+id/tvSwipeLabelStep3"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:text="Gạt sang phải ĐÃ ĐẾN NHÀ KHÁCH ›››"
+                            android:textColor="@color/primary"
+                            android:textSize="12.5sp"
+                            android:textStyle="bold" />
+
+                        <!-- Nút tròn gạt màu cam đỏ (Handle / Thumb) -->
+                        <FrameLayout
+                            android:id="@+id/swipeThumbStep3"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:layout_gravity="start|center_vertical"
+                            android:layout_marginStart="4dp"
+                            android:background="@drawable/bg_swipe_thumb"
+                            android:elevation="4dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:text="➔"
+                                android:textColor="#FFFFFF"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+                        </FrameLayout>
+                    </FrameLayout>
+
+                    <!-- Nút cũ giữ lại ẩn để tương thích -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnArrivedAtCustomer"
                         android:layout_width="match_parent"
-                        android:layout_height="50dp"
-                        android:backgroundTint="#059669"
-                        android:text="👉 ĐÃ ĐẾN ĐIỂM GIAO KHÁCH ➔"
-                        android:textColor="#FFFFFF"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="12dp" />
+                        android:layout_height="wrap_content"
+                        android:visibility="gone" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

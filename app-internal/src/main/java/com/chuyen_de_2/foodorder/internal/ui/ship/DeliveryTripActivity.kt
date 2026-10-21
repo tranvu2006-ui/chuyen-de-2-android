@@ -141,6 +141,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         setupWebViews()
         setupSwipeToConfirm()
         setupSwipeToConfirmStep2()
+        setupSwipeToConfirmStep3()
         setupListeners()
         val initialStep = getSavedStep(currentOrderId)
         updateStepUI(initialStep)
@@ -261,6 +262,72 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.swipeTrackStep2.alpha = 0.55f
             binding.tvSwipeLabelStep2.text = "⚠️ Tích đủ các món để mở khóa quẹt"
             binding.tvSwipeLabelStep2.setTextColor(Color.parseColor("#94A3B8"))
+        }
+    }
+
+    private fun setupSwipeToConfirmStep3() {
+        val track = binding.swipeTrackStep3
+        val thumb = binding.swipeThumbStep3
+        val label = binding.tvSwipeLabelStep3
+        var startX = 0f
+        var isConfirmed = false
+
+        thumb.setOnTouchListener { v, event ->
+            if (isConfirmed) return@setOnTouchListener true
+            val maxDrag = (track.width - thumb.width - 16).toFloat()
+            if (maxDrag <= 0) return@setOnTouchListener false
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.rawX - thumb.translationX
+                    thumb.animate().cancel()
+                    label.animate().cancel()
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val newX = (event.rawX - startX).coerceIn(0f, maxDrag)
+                    thumb.translationX = newX
+                    label.alpha = (1f - (newX / maxDrag)).coerceIn(0.1f, 1f)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (thumb.translationX >= maxDrag * 0.65f) {
+                        isConfirmed = true
+                        thumb.animate()
+                            .translationX(maxDrag)
+                            .setDuration(120)
+                            .withEndAction {
+                                v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                updateStepUI(4)
+                                val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+                                targetOrder?.let {
+                                    lifecycleScope.launch {
+                                        firebaseRepository.updateOrderStatus(it.orderId, Order.Status.ARRIVED_AT_CUSTOMER)
+                                        Toast.makeText(this@DeliveryTripActivity, "📍 Đã đến nhà khách! Chờ khách đối soát mã nhận món", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                launchCameraQrScanner()
+                                thumb.translationX = 0f
+                                label.alpha = 1f
+                                isConfirmed = false
+                            }
+                            .start()
+                    } else {
+                        thumb.animate()
+                            .translationX(0f)
+                            .setDuration(220)
+                            .setInterpolator(DecelerateInterpolator())
+                            .start()
+                        label.animate().alpha(1f).setDuration(220).start()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+
+        track.setOnClickListener {
+            Toast.makeText(this, "Gạt nút tròn sang phải để xác nhận đã đến nhà khách!", Toast.LENGTH_SHORT).show()
         }
     }
 

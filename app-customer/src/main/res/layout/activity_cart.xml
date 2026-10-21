@@ -19,7 +19,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/surface"
-            app:navigationIcon="@android:drawable/ic_menu_revert"
+            app:navigationIcon="@drawable/ic_arrow_left"
             app:navigationIconTint="@color/on_background">
 
             <androidx.constraintlayout.widget.ConstraintLayout

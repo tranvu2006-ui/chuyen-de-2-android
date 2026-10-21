@@ -23,7 +23,7 @@
             android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Quay lại"
-            android:src="@android:drawable/ic_menu_revert"
+            android:src="@drawable/ic_arrow_left"
             app:tint="@color/text_primary" />
 
         <!-- Logo Oishi Food -->
@@ -176,7 +176,7 @@
                         android:layout_height="24dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="Đóng"
-                        android:src="@android:drawable/ic_menu_close_clear_cancel"
+                        android:src="@drawable/ic_close"
                         app:tint="#991B1B" />
                 </LinearLayout>
             </LinearLayout>
@@ -810,7 +810,7 @@
                         android:layout_height="40dp"
                         android:background="@drawable/bg_call_round"
                         android:contentDescription="Gọi tài xế"
-                        android:src="@android:drawable/stat_sys_phone_call"
+                        android:src="@drawable/ic_phone"
                         app:tint="#10B981" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

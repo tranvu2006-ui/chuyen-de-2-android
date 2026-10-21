@@ -20,7 +20,7 @@
             android:layout_height="?attr/actionBarSize"
             app:title="Tài Khoản Của Tôi"
             app:titleTextColor="@color/text_primary"
-            app:navigationIcon="@android:drawable/ic_menu_revert"
+            app:navigationIcon="@drawable/ic_arrow_left"
             app:navigationIconTint="@color/text_primary" />
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -247,11 +247,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🧾"
-                            android:textSize="20sp" />
+                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_receipt" app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -263,13 +259,7 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="›"
-                            android:textColor="@color/text_muted"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
 
                     <View
@@ -287,11 +277,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="⚖️"
-                            android:textSize="20sp" />
+                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_shield" app:tint="#6366F1" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -303,13 +289,7 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="›"
-                            android:textColor="@color/text_muted"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -349,11 +329,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="📍"
-                            android:textSize="20sp" />
+                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_map_pin" app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -365,13 +341,7 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="›"
-                            android:textColor="@color/text_muted"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
 
                     <View
@@ -389,11 +359,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="📞"
-                            android:textSize="20sp" />
+                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -405,13 +371,7 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="›"
-                            android:textColor="@color/text_muted"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -419,6 +379,9 @@
             <!-- Nút Đăng Xuất -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLogout"
+                app:icon="@drawable/ic_log_out"
+                app:iconTint="#EF4444"
+                app:iconGravity="textStart"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:text="Đăng Xuất Tài Khoản"

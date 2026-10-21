@@ -60,7 +60,7 @@
             android:layout_height="28dp"
             android:background="@drawable/bg_btn_circle_nav"
             android:contentDescription="Đóng"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="@drawable/ic_close"
             app:tint="#64748B" />
     </LinearLayout>
 

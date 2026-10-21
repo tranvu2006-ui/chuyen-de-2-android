@@ -91,7 +91,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:hint="Họ và tên"
-                    app:startIconDrawable="@android:drawable/ic_menu_myplaces">
+                    app:startIconDrawable="@drawable/ic_user">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etRegisterName"
@@ -109,7 +109,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:hint="Số điện thoại liên hệ"
-                    app:startIconDrawable="@android:drawable/stat_sys_phone_call">
+                    app:startIconDrawable="@drawable/ic_phone">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etRegisterPhone"
@@ -127,7 +127,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:hint="@string/email_hint"
-                    app:startIconDrawable="@android:drawable/sym_action_email">
+                    app:startIconDrawable="@drawable/ic_mail">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etRegisterEmail"
@@ -146,7 +146,7 @@
                     android:layout_marginTop="12dp"
                     android:hint="@string/password_hint"
                     app:passwordToggleEnabled="true"
-                    app:startIconDrawable="@android:drawable/ic_lock_lock">
+                    app:startIconDrawable="@drawable/ic_lock">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etRegisterPassword"
@@ -165,7 +165,7 @@
                     android:layout_marginTop="12dp"
                     android:hint="Xác nhận lại mật khẩu"
                     app:passwordToggleEnabled="true"
-                    app:startIconDrawable="@android:drawable/ic_lock_lock">
+                    app:startIconDrawable="@drawable/ic_lock">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etRegisterConfirmPassword"

@@ -25,7 +25,7 @@
             android:layout_height="36dp"
             android:background="@drawable/bg_btn_circle_nav"
             android:contentDescription="Quay lại"
-            android:src="@android:drawable/ic_menu_revert"
+            android:src="@drawable/ic_arrow_left"
             app:tint="#1E293B" />
 
         <LinearLayout
@@ -64,7 +64,7 @@
             android:layout_marginEnd="6dp"
             android:background="@drawable/bg_btn_circle_nav"
             android:contentDescription="Chia sẻ"
-            android:src="@android:drawable/ic_menu_share"
+            android:src="@drawable/ic_share"
             app:tint="#475569" />
 
         <ImageButton
@@ -73,7 +73,7 @@
             android:layout_height="36dp"
             android:background="@drawable/bg_btn_circle_nav"
             android:contentDescription="Yêu thích"
-            android:src="@android:drawable/btn_star_big_off"
+            android:src="@drawable/ic_star"
             app:tint="@color/primary" />
     </LinearLayout>
 

@@ -101,6 +101,11 @@
             android:name=".ui.complaint.ComplaintActivity"
             android:theme="@style/Theme.FoodOrder.Customer" />
 
+        <!-- Notifications -->
+        <activity
+            android:name=".ui.notification.NotificationActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
         <!-- FCM Service -->
         <service
             android:name=".service.CustomerFCMService"

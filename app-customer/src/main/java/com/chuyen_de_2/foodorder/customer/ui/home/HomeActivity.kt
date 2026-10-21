@@ -260,7 +260,7 @@ class HomeActivity : AppCompatActivity() {
         }
 
         binding.tabNotifications.setOnClickListener {
-            startActivity(Intent(this, com.chuyen_de_2.foodorder.customer.ui.complaint.ComplaintActivity::class.java))
+            startActivity(Intent(this, com.chuyen_de_2.foodorder.customer.ui.notification.NotificationActivity::class.java))
         }
 
         binding.tabProfile.setOnClickListener {

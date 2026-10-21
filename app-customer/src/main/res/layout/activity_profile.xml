@@ -70,13 +70,13 @@
                             android:scaleType="centerCrop"
                             android:visibility="gone" />
 
-                        <TextView
-                            android:id="@+id/tvUserAvatar"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:gravity="center"
-                            android:text="👤"
-                            android:textSize="26sp" />
+                        <ImageView
+                            android:id="@+id/ivUserAvatarPlaceholder"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_gravity="center"
+                            app:srcCompat="@drawable/ic_user"
+                            app:tint="@color/primary" />
                     </FrameLayout>
 
                     <LinearLayout

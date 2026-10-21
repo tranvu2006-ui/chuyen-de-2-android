@@ -178,7 +178,7 @@ class ProfileActivity : AppCompatActivity() {
     private fun displayAvatar(avatarUrl: String) {
         if (avatarUrl.startsWith("data:image") || avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) {
             binding.ivUserAvatar.visibility = View.VISIBLE
-            binding.tvUserAvatar.visibility = View.GONE
+            binding.ivUserAvatarPlaceholder.visibility = View.GONE
             Glide.with(this)
                 .load(avatarUrl)
                 .circleCrop()
@@ -187,8 +187,7 @@ class ProfileActivity : AppCompatActivity() {
                 .into(binding.ivUserAvatar)
         } else {
             binding.ivUserAvatar.visibility = View.GONE
-            binding.tvUserAvatar.visibility = View.VISIBLE
-            binding.tvUserAvatar.text = avatarUrl.ifBlank { "👤" }
+            binding.ivUserAvatarPlaceholder.visibility = View.VISIBLE
         }
     }
 
@@ -249,7 +248,7 @@ class ProfileActivity : AppCompatActivity() {
 
         val currentName = currentUserData?.name ?: binding.tvUserName.text.toString()
         val currentPhone = currentUserData?.phone ?: if (binding.tvUserPhone.text.toString().startsWith("0")) binding.tvUserPhone.text.toString() else ""
-        val currentAvatar = currentUserData?.avatarUrl ?: "👤"
+        val currentAvatar = currentUserData?.avatarUrl.orEmpty()
 
         dialogBinding.etEditName.setText(currentName)
         dialogBinding.etEditPhone.setText(currentPhone)
@@ -257,37 +256,16 @@ class ProfileActivity : AppCompatActivity() {
         // Hiển thị Preview avatar hiện tại
         if (currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http")) {
             dialogBinding.ivEditAvatarPreview.visibility = View.VISIBLE
-            dialogBinding.tvEditAvatarPreview.visibility = View.GONE
+            dialogBinding.ivEditAvatarPlaceholder.visibility = View.GONE
             Glide.with(this).load(currentAvatar).circleCrop().into(dialogBinding.ivEditAvatarPreview)
         } else {
             dialogBinding.ivEditAvatarPreview.visibility = View.GONE
-            dialogBinding.tvEditAvatarPreview.visibility = View.VISIBLE
-            dialogBinding.tvEditAvatarPreview.text = currentAvatar.ifBlank { "👤" }
-        }
-
-        // Đánh dấu emoji hiện tại trong RadioGroup nếu có
-        for (i in 0 until dialogBinding.rgAvatars.childCount) {
-            val rb = dialogBinding.rgAvatars.getChildAt(i) as? RadioButton
-            if (rb?.text?.toString() == currentAvatar) {
-                rb.isChecked = true
-                break
-            }
+            dialogBinding.ivEditAvatarPlaceholder.visibility = View.VISIBLE
         }
 
         // Nút chọn ảnh từ thiết bị
         dialogBinding.btnPickImage.setOnClickListener {
             pickAvatarLauncher.launch("image/*")
-        }
-
-        // Khi người dùng bấm chọn biểu tượng emoji thì hủy ảnh upload tạm
-        dialogBinding.rgAvatars.setOnCheckedChangeListener { group, checkedId ->
-            val rb = group.findViewById<RadioButton>(checkedId)
-            if (rb != null && rb.isChecked) {
-                pendingAvatarBase64 = null
-                dialogBinding.ivEditAvatarPreview.visibility = View.GONE
-                dialogBinding.tvEditAvatarPreview.visibility = View.VISIBLE
-                dialogBinding.tvEditAvatarPreview.text = rb.text.toString()
-            }
         }
 
         dialogBinding.btnCancelEdit.setOnClickListener { dialog.dismiss() }
@@ -302,15 +280,11 @@ class ProfileActivity : AppCompatActivity() {
             }
             dialogBinding.tilEditName.error = null
 
-            // Xác định Avatar cuối cùng: Ảnh vừa upload > Ảnh cũ nếu là ảnh > Emoji được chọn
+            // Xác định Avatar cuối cùng: Ảnh vừa upload > Ảnh cũ nếu là ảnh > rỗng
             val finalAvatar = when {
                 pendingAvatarBase64 != null -> pendingAvatarBase64!!
-                dialogBinding.rgAvatars.checkedRadioButtonId != -1 -> {
-                    val selectedRb = dialogBinding.rgAvatars.findViewById<RadioButton>(dialogBinding.rgAvatars.checkedRadioButtonId)
-                    selectedRb?.text?.toString() ?: "👤"
-                }
                 currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http") -> currentAvatar
-                else -> "👤"
+                else -> ""
             }
 
             dialogBinding.btnSaveProfile.isEnabled = false
@@ -369,14 +343,11 @@ class ProfileActivity : AppCompatActivity() {
                 // Cập nhật lên preview trong dialog
                 currentEditDialogBinding?.let { dBinding ->
                     dBinding.ivEditAvatarPreview.visibility = View.VISIBLE
-                    dBinding.tvEditAvatarPreview.visibility = View.GONE
+                    dBinding.ivEditAvatarPlaceholder.visibility = View.GONE
                     Glide.with(this)
                         .load(scaledBitmap)
                         .circleCrop()
                         .into(dBinding.ivEditAvatarPreview)
-
-                    // Bỏ chọn radio group emoji
-                    dBinding.rgAvatars.clearCheck()
                 }
                 Toast.makeText(this, "📷 Đã chọn ảnh đại diện!", Toast.LENGTH_SHORT).show()
             }

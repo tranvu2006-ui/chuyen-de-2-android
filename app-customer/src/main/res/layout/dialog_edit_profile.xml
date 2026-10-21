@@ -46,13 +46,13 @@
                 android:scaleType="centerCrop"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/tvEditAvatarPreview"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:gravity="center"
-                android:text="👤"
-                android:textSize="30sp" />
+            <ImageView
+                android:id="@+id/ivEditAvatarPlaceholder"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center"
+                app:srcCompat="@drawable/ic_user"
+                app:tint="@color/primary" />
         </FrameLayout>
 
         <LinearLayout
@@ -67,11 +67,14 @@
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
-                android:text="📷 Chọn ảnh từ máy"
+                android:text="Chọn ảnh từ máy"
                 android:textColor="@color/primary"
                 android:textSize="12.5sp"
                 android:paddingHorizontal="12dp"
                 android:paddingVertical="0dp"
+                app:icon="@drawable/ic_camera"
+                app:iconTint="@color/primary"
+                app:iconGravity="textStart"
                 app:strokeColor="@color/primary"
                 app:strokeWidth="1.2dp"
                 app:cornerRadius="10dp" />
@@ -80,106 +83,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Hỗ trợ ảnh JPG, PNG từ thư viện"
+                android:text="Hỗ trợ ảnh JPG, PNG từ thư viện máy"
                 android:textColor="@color/text_muted"
                 android:textSize="11sp" />
         </LinearLayout>
     </LinearLayout>
-
-    <!-- Hoặc Chọn Avatar Emoji -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:layout_marginBottom="6dp"
-        android:text="Hoặc chọn biểu tượng đại diện:"
-        android:textColor="@color/text_primary"
-        android:textSize="12.5sp"
-        android:textStyle="bold" />
-
-    <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:scrollbars="none">
-
-        <RadioGroup
-            android:id="@+id/rgAvatars"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <RadioButton
-                android:id="@+id/rbAvatar1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="👤"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🦊"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar3"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🐱"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar4"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🐼"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar5"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🐰"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar6"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🛵"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar7"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🍕"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar8"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🍜"
-                android:textSize="22sp"
-                android:layout_marginEnd="6dp" />
-
-            <RadioButton
-                android:id="@+id/rbAvatar9"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="👑"
-                android:textSize="22sp" />
-        </RadioGroup>
-    </HorizontalScrollView>
 
     <!-- Tên Người Dùng -->
     <com.google.android.material.textfield.TextInputLayout
@@ -187,19 +95,24 @@
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        app:boxCornerRadiusBottomEnd="10dp"
-        app:boxCornerRadiusBottomStart="10dp"
-        app:boxCornerRadiusTopEnd="10dp"
-        app:boxCornerRadiusTopStart="10dp"
+        android:layout_marginTop="16dp"
+        android:hint="Họ và tên *"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusTopStart="12dp"
         app:boxStrokeColor="@color/primary"
-        android:hint="Họ và Tên">
+        app:hintTextColor="@color/primary"
+        app:startIconDrawable="@drawable/ic_user"
+        app:startIconTint="@color/text_muted">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etEditName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="textPersonName"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
             android:textSize="14sp" />
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -209,44 +122,58 @@
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        app:boxCornerRadiusBottomEnd="10dp"
-        app:boxCornerRadiusBottomStart="10dp"
-        app:boxCornerRadiusTopEnd="10dp"
-        app:boxCornerRadiusTopStart="10dp"
+        android:layout_marginTop="12dp"
+        android:hint="Số điện thoại nhận hàng"
+        app:boxCornerRadiusBottomEnd="12dp"
+        app:boxCornerRadiusBottomStart="12dp"
+        app:boxCornerRadiusTopEnd="12dp"
+        app:boxCornerRadiusTopStart="12dp"
         app:boxStrokeColor="@color/primary"
-        android:hint="Số Điện Thoại">
+        app:hintTextColor="@color/primary"
+        app:startIconDrawable="@drawable/ic_phone"
+        app:startIconTint="@color/text_muted">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etEditPhone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="phone"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
             android:textSize="14sp" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- Nút Hành Động -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
-        android:gravity="end"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCancelEdit"
             style="@style/Widget.MaterialComponents.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
             android:text="Hủy"
-            android:textColor="@color/text_muted" />
+            android:textColor="@color/text_muted"
+            android:textSize="14sp"
+            app:cornerRadius="12dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSaveProfile"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1.6"
             android:layout_marginStart="8dp"
-            android:backgroundTint="@color/primary"
             android:text="Lưu Thay Đổi"
-            app:cornerRadius="10dp" />
+            android:textColor="@color/on_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            app:backgroundTint="@color/primary"
+            app:cornerRadius="12dp" />
     </LinearLayout>
+
 </LinearLayout>

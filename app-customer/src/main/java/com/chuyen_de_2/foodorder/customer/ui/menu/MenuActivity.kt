@@ -35,6 +35,7 @@ class MenuActivity : AppCompatActivity() {
 
         InsetUtils.setLightStatusBar(this, true)
         InsetUtils.applyToolbarInsets(binding.layoutTopNav)
+        InsetUtils.applyNavigationBarPadding(binding.layoutBottomCheckoutBar)
 
         val shopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: run {
             Toast.makeText(this, "Lỗi: không tìm thấy nhà hàng", Toast.LENGTH_SHORT).show()

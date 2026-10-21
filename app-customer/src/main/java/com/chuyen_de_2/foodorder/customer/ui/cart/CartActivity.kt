@@ -27,6 +27,7 @@ class CartActivity : AppCompatActivity() {
 
         InsetUtils.setLightStatusBar(this, true)
         InsetUtils.applyToolbarInsets(binding.toolbar)
+        InsetUtils.applyNavigationBarPadding(binding.rvCart)
 
         setupToolbar()
         setupRecyclerView()

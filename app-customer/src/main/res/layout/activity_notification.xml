@@ -131,7 +131,7 @@
                 android:layout_marginTop="6dp"
                 android:gravity="center"
                 android:text="Các cập nhật trạng thái đơn hàng và ưu đãi dành riêng cho bạn sẽ hiển thị tại đây."
-                android:textColor="@color/text_muted"
+                android:textColor="#475569"
                 android:textSize="13sp" />
         </LinearLayout>
 

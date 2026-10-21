@@ -21,7 +21,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:text="Cập nhật tên, ảnh đại diện và số điện thoại liên hệ"
-        android:textColor="@color/text_muted"
+        android:textColor="#475569"
         android:textSize="12sp" />
 
     <!-- Khu vực Tải ảnh đại diện -->

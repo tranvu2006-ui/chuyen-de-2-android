@@ -101,7 +101,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="0912 345 678"
-                            android:textColor="@color/text_muted"
+                            android:textColor="@color/text_primary"
                             android:textSize="13sp" />
 
                         <TextView
@@ -110,7 +110,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="1dp"
                             android:text="customer@oishifood.vn"
-                            android:textColor="@color/text_muted"
+                            android:textColor="#334155"
                             android:textSize="12sp" />
                     </LinearLayout>
 
@@ -121,6 +121,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="38dp"
                         android:text="Sửa "
+                        android:textColor="@color/primary"
+                        android:textStyle="bold"
                         android:textSize="12sp"
                         android:paddingHorizontal="10dp"
                         android:paddingVertical="0dp"
@@ -158,7 +160,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="ĐIỂM UY TÍN (TRUSTSCORE)"
-                            android:textColor="#94A3B8"
+                            android:textColor="#334155"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
@@ -187,7 +189,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="98"
-                            android:textColor="#FACC15"
+                            android:textColor="#D97706"
                             android:textSize="36sp"
                             android:textStyle="bold" />
 
@@ -196,7 +198,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="4dp"
                             android:text="/ 100"
-                            android:textColor="#94A3B8"
+                            android:textColor="#475569"
                             android:textSize="14sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -206,7 +208,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:text="Tài khoản có tỷ lệ nhận hàng thành công 99%. Đạt điều kiện thanh toán COD tiền mặt không giới hạn giá trị."
-                        android:textColor="#E2E8F0"
+                        android:textColor="@color/text_primary"
                         android:textSize="12sp"
                         android:lineSpacingExtra="2dp" />
                 </LinearLayout>
@@ -218,7 +220,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="ĐƠN HÀNG &amp; KHIẾU NẠI"
-                android:textColor="@color/text_muted"
+                android:textColor="#475569"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 
@@ -300,7 +302,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="THÔNG TIN &amp; TIỆN ÍCH"
-                android:textColor="@color/text_muted"
+                android:textColor="#475569"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 

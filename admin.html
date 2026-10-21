@@ -425,16 +425,10 @@
 
     .tab-pane {
       display: none;
-      animation: fadeIn 0.2s ease-out;
     }
 
     .tab-pane.active {
       display: block;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
     }
 
     /* ====== KPI STATS CARDS ====== */
@@ -829,13 +823,12 @@
       flex-direction: column;
       gap: 12px;
       position: relative;
-      transition: all 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .category-card:hover {
-      border-color: var(--primary-border);
-      box-shadow: var(--shadow);
-      transform: translateY(-2px);
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
     .cat-header {
@@ -2177,6 +2170,52 @@
       font-weight: 500;
     }
 
+
+    /* ====== DISH REVIEWS MODERATION STYLES ====== */
+    .star-rating {
+      color: #F59E0B;
+      letter-spacing: 2px;
+      font-size: 13.5px;
+    }
+    .review-bubble {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--text-main);
+      margin-top: 4px;
+    }
+    .review-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid #CBD5E1;
+      cursor: pointer;
+      margin-top: 6px;
+      display: inline-block;
+      transition: transform 0.2s;
+    }
+    .review-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    .review-admin-reply-box {
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: #ECFDF5;
+      border-left: 3px solid #10B981;
+      border-radius: 4px;
+      font-size: 11.5px;
+      color: #065F46;
+    }
+    .badge-status-hidden {
+      background: #FEF2F2;
+      color: #B91C1C;
+      border: 1px solid #FECACA;
+    }
   </style>
   <!-- Firebase Realtime Database & Auth Web SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -2248,6 +2287,15 @@
         <span class="nav-badge danger" id="badge-complaints-count" style="display:none;">0 Mới</span>
       </a>
 
+      <!-- NEW: MỤC KIỂM DUYỆT ĐÁNH GIÁ MÓN ĂN -->
+      <a class="nav-item" data-tab="reviews" onclick="switchTab('reviews')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <span>Kiểm Duyệt Đánh Giá</span>
+        <span class="nav-badge" id="badge-reviews-count" style="display:none; background: #FEF3C7; color: #B45309;">0</span>
+      </a>
+
       <div class="nav-label">Cài Đặt & Tài Khoản</div>
 
       <a class="nav-item" data-tab="settings" onclick="switchTab('settings')">
@@ -2297,17 +2345,17 @@
         <!-- Global Search -->
         <div class="global-search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="global-search-input" placeholder="Tìm kiếm nhanh toàn hệ thống..." oninput="handleGlobalSearch(this.value)">
+          <input type="text" id="global-search-input" placeholder="Tìm kiếm nhanh toàn hệ thống (Nhấn Enter)..." onkeydown="if(event.key==='Enter') handleGlobalSearch(this.value)">
         </div>
 
         <!-- Admin Profile Box with dropdown -->
         <div class="admin-profile-box" onclick="toggleAdminDropdown(event)">
           <div class="admin-avatar">
-            <span id="admin-avatar-char">L</span>
+            <span id="admin-avatar-char">A</span>
             <span class="status-dot-online" title="Trực tuyến"></span>
           </div>
           <div class="admin-info">
-            <div class="admin-name" id="display-admin-name">Admin Nguyễn Hoàng Long</div>
+            <div class="admin-name" id="display-admin-name">Admin Hệ Thống</div>
             <div class="admin-role">Quản Trị Viên Cấp Cao</div>
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
@@ -2736,7 +2784,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('PENDING')">
             <div class="stat-meta">
               <span class="stat-label">Chờ Xử Lý</span>
-              <span class="stat-value" id="kpi-c-pending" style="color: var(--danger);">3</span>
+              <span class="stat-value" id="kpi-c-pending" style="color: var(--danger);">0</span>
               <span class="stat-sub danger">Cần Admin can thiệp ngay</span>
             </div>
             <div class="stat-icon-wrap icon-red"></div>
@@ -2744,7 +2792,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('IN_PROGRESS')">
             <div class="stat-meta">
               <span class="stat-label">Đang Điều Tra</span>
-              <span class="stat-value" id="kpi-c-progress" style="color: var(--warning);">2</span>
+              <span class="stat-value" id="kpi-c-progress" style="color: var(--warning);">0</span>
               <span class="stat-sub warning">Đang đối soát 2 bên</span>
             </div>
             <div class="stat-icon-wrap icon-yellow"></div>
@@ -2752,7 +2800,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('RESOLVED')">
             <div class="stat-meta">
               <span class="stat-label">Đã Giải Quyết</span>
-              <span class="stat-value" id="kpi-c-resolved" style="color: var(--success);">8</span>
+              <span class="stat-value" id="kpi-c-resolved" style="color: var(--success);">0</span>
               <span class="stat-sub positive">Đã xử lý xong</span>
             </div>
             <div class="stat-icon-wrap icon-green"></div>
@@ -2760,7 +2808,7 @@
           <div class="stat-card" onclick="filterComplaintsByStatus('REJECTED')">
             <div class="stat-meta">
               <span class="stat-label">Đã Từ Chối</span>
-              <span class="stat-value" id="kpi-c-rejected" style="color: var(--text-muted);">1</span>
+              <span class="stat-value" id="kpi-c-rejected" style="color: var(--text-muted);">0</span>
               <span class="stat-sub">Không đủ bằng chứng</span>
             </div>
             <div class="stat-icon-wrap icon-blue">❌</div>
@@ -2843,6 +2891,115 @@
         </div>
       </section>
 
+      <!-- ==================== TAB 6: DISH REVIEWS MODERATION ==================== -->
+      <section id="tab-reviews" class="tab-pane">
+        <!-- Review KPI Stats -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Điểm TB Đánh Giá</span>
+              <span class="stat-value" id="kpi-rev-avg" style="color: #D97706;">5.0 ⭐</span>
+              <span class="stat-sub positive" id="kpi-rev-avg-sub">Toàn hệ sinh thái Oishi Food</span>
+            </div>
+            <div class="stat-icon-wrap icon-orange">⭐</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Đánh Giá Món</span>
+              <span class="stat-value" id="kpi-rev-total">0</span>
+              <span class="stat-sub positive">Từ khách hàng hoàn tất đơn</span>
+            </div>
+            <div class="stat-icon-wrap icon-blue">💬</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Đánh Giá Kém (1-2 ⭐)</span>
+              <span class="stat-value" id="kpi-rev-low" style="color: var(--danger);">0</span>
+              <span class="stat-sub danger" id="kpi-rev-low-sub">Cần rà soát chất lượng</span>
+            </div>
+            <div class="stat-icon-wrap icon-red">⚠️</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Đã Ẩn Kiểm Duyệt</span>
+              <span class="stat-value" id="kpi-rev-hidden" style="color: var(--text-muted);">0</span>
+              <span class="stat-sub">Vi phạm tiêu chuẩn cộng đồng</span>
+            </div>
+            <div class="stat-icon-wrap icon-purple">🚫</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Trung Tâm Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)</h2>
+              <p>Giám sát chất lượng ẩm thực từ khách hàng, chủ động ẩn các bình luận phản cảm/ác ý hoặc giải đáp khiếu nại</p>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" onclick="seedSampleReviews()" title="Khởi tạo 3 đánh giá mẫu demo nếu Firebase chưa có dữ liệu">
+                <span>🧪 Tạo Đánh Giá Demo</span>
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="openAddReviewModal()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                <span>+ Thêm Đánh Giá Mới</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter Bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-review-search" placeholder="Tìm tên món, tên quán, khách hàng, nội dung..." oninput="filterReviews()">
+              </div>
+              <select class="select-filter" id="filter-review-rating" onchange="filterReviews()">
+                <option value="ALL">Tất cả số sao</option>
+                <option value="5">⭐⭐⭐⭐⭐ 5 Sao</option>
+                <option value="4">⭐⭐⭐⭐ 4 Sao</option>
+                <option value="3">⭐⭐⭐ 3 Sao</option>
+                <option value="2">⭐⭐ 2 Sao (Kém)</option>
+                <option value="1">⭐ 1 Sao (Rất tệ)</option>
+              </select>
+              <select class="select-filter" id="filter-review-status" onchange="filterReviews()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ACTIVE">🟢 Đang hiển thị</option>
+                <option value="HIDDEN">🚫 Đã ẩn kiểm duyệt</option>
+              </select>
+              <select class="select-filter" id="filter-review-store" onchange="filterReviews()">
+                <option value="ALL">Tất cả cửa hàng</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Hiển thị <span id="review-counter" style="color: var(--primary); font-weight: 800;">0</span> đánh giá
+            </div>
+          </div>
+
+          <!-- Reviews Table -->
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 110px;">Mã ĐG & Giờ</th>
+                  <th style="min-width: 150px;">Khách Hàng</th>
+                  <th style="min-width: 170px;">Món Ăn & Cửa Hàng</th>
+                  <th style="min-width: 110px;">Số Sao</th>
+                  <th style="min-width: 250px;">Nội Dung Nhận Xét</th>
+                  <th style="min-width: 120px;">Trạng Thái</th>
+                  <th style="text-align: right; min-width: 170px;">Thao Tác Admin</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-reviews">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- ==================== TAB 6: ADMIN SETTINGS ==================== -->
       <section id="tab-settings" class="tab-pane">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px;">
@@ -2857,11 +3014,11 @@
             <form style="padding: 24px;" onsubmit="saveAdminSettings(event)">
               <div class="form-group" style="margin-bottom: 16px;">
                 <label class="form-label">Tên hiển thị Admin <span class="req">*</span></label>
-                <input type="text" class="form-control" id="setting-admin-name" required value="Admin Nguyễn Hoàng Long">
+                <input type="text" class="form-control" id="setting-admin-name" required value="Admin Hệ Thống">
               </div>
               <div class="form-group" style="margin-bottom: 16px;">
                 <label class="form-label">Email Admin</label>
-                <input type="email" class="form-control" id="setting-admin-email" value="admin.long@oishifood.vn">
+                <input type="email" class="form-control" id="setting-admin-email" value="admin@oishifood.vn">
               </div>
               <div class="form-group" style="margin-bottom: 16px;">
                 <label class="form-label">Chức vụ / Vai trò</label>
@@ -2869,7 +3026,7 @@
               </div>
               <div class="form-group" style="margin-bottom: 20px;">
                 <label class="form-label">Số điện thoại liên hệ</label>
-                <input type="text" class="form-control" id="setting-admin-phone" value="0988.123.456">
+                <input type="text" class="form-control" id="setting-admin-phone" value="">
               </div>
               <button type="submit" class="btn btn-primary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -3226,7 +3383,7 @@
           <div class="complaint-detail-box">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <span class="badge badge-info" id="detail-c-code">#KN-101</span>
+                <span class="badge badge-info" id="detail-c-code">#---</span>
                 <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;" id="detail-c-time"></span>
               </div>
               <div id="detail-c-priority-badge"></div>
@@ -3236,20 +3393,20 @@
             <div class="complaint-parties-grid">
               <div class="party-card">
                 <div class="party-title">Người gửi khiếu nại (Nguồn)</div>
-                <div class="party-name" id="detail-c-sender-name">Trần Minh Anh</div>
-                <div class="party-sub" id="detail-c-sender-contact">0901.234.567 • Khách hàng</div>
+                <div class="party-name" id="detail-c-sender-name">---</div>
+                <div class="party-sub" id="detail-c-sender-contact">---</div>
               </div>
               <div class="party-card" style="border-color: #FECACA; background: #FFF8F8;">
                 <div class="party-title" style="color: var(--danger);">Đối tượng bị khiếu nại</div>
-                <div class="party-name" id="detail-c-target-name">Quán Ốc Đêm 77 Cầu Muối</div>
-                <div class="party-sub" id="detail-c-target-contact">Chủ quán: Trịnh Tấn Lực • 0942.334.455</div>
+                <div class="party-name" id="detail-c-target-name">---</div>
+                <div class="party-sub" id="detail-c-target-contact">---</div>
               </div>
             </div>
 
             <!-- Đơn hàng & sự cố -->
             <div style="font-size: 13px; line-height: 1.5; padding-top: 6px; border-top: 1px dashed var(--border);">
               <div style="margin-bottom: 4px;">
-                Đơn hàng: <strong id="detail-c-order" style="color: #2563EB;">#ORD-7712</strong> • Chủ đề: <strong id="detail-c-type">Vệ sinh an toàn thực phẩm</strong>
+                Đơn hàng: <strong id="detail-c-order" style="color: #2563EB;">---</strong> • Chủ đề: <strong id="detail-c-type">---</strong>
               </div>
               <div style="background: #FFF; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px;">
                 <strong>Nội dung phản ánh:</strong>
@@ -3396,14 +3553,14 @@
         <!-- Header tóm tắt đối tác -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 18px; margin-bottom: 16px;">
           <div>
-            <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="cccd-view-store-name">Phở Bò Thăng Long Xưa</div>
+            <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="cccd-view-store-name">---</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-              Chủ quán: <strong id="cccd-view-owner" style="color: var(--text-main);">Nguyễn Văn Định</strong> • SĐT: <strong id="cccd-view-phone">0908.112.233</strong>
+              Chủ quán: <strong id="cccd-view-owner" style="color: var(--text-main);">---</strong> • SĐT: <strong id="cccd-view-phone">---</strong>
             </div>
           </div>
           <div style="text-align: right;">
             <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Số Căn Cước Công Dân (CCCD):</div>
-            <div style="font-size: 17px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #2563EB;" id="cccd-view-number">079088012456</div>
+            <div style="font-size: 17px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #2563EB;" id="cccd-view-number">---</div>
             <div id="cccd-view-status-badge" style="margin-top: 4px;"></div>
           </div>
         </div>
@@ -3485,12 +3642,12 @@
                 </div>
                 <div class="cccd-chip-box"></div>
                 <div class="cccd-details-col">
-                  <div class="cccd-id-num" id="cccd-front-num">079088012456</div>
-                  <div class="cccd-info-line">Họ và tên: <strong id="cccd-front-name">NGUYỄN VĂN ĐỊNH</strong></div>
-                  <div class="cccd-info-line">Ngày sinh: <span id="cccd-front-dob">15/04/1988</span> • GT: <span id="cccd-front-gender">Nam</span></div>
-                  <div class="cccd-info-line">Quê quán: <span id="cccd-front-hometown">Nam Định</span></div>
-                  <div class="cccd-info-line">Thường trú: <span id="cccd-front-residence">Quận 1, TP.HCM</span></div>
-                  <div class="cccd-info-line" style="margin-top: 2px;">Giá trị đến: <strong id="cccd-front-expiry">15/04/2048</strong></div>
+                  <div class="cccd-id-num" id="cccd-front-num">---</div>
+                  <div class="cccd-info-line">Họ và tên: <strong id="cccd-front-name">---</strong></div>
+                  <div class="cccd-info-line">Ngày sinh: <span id="cccd-front-dob">---</span> • GT: <span id="cccd-front-gender">---</span></div>
+                  <div class="cccd-info-line">Quê quán: <span id="cccd-front-hometown">---</span></div>
+                  <div class="cccd-info-line">Thường trú: <span id="cccd-front-residence">---</span></div>
+                  <div class="cccd-info-line" style="margin-top: 2px;">Giá trị đến: <strong id="cccd-front-expiry">---</strong></div>
                 </div>
               </div>
             </div>
@@ -3506,8 +3663,8 @@
               <div class="cccd-back-top">
                 <div class="cccd-back-desc">
                   <div style="font-weight: 800; font-size: 8.5px; color: #065F46;">ĐẶC ĐIỂM NHẬN DẠNG VÀ VÂN TAY:</div>
-                  <div style="margin-top: 2px;">Nốt ruồi C.1cm dưới dái tai phải</div>
-                  <div style="margin-top: 4px; font-weight: 700;">Ngày cấp: <span id="cccd-back-issuedate">10/06/2021</span></div>
+                  <div style="margin-top: 2px;">Nốt ruồi / Dấu vết nhận dạng</div>
+                  <div style="margin-top: 4px; font-weight: 700;">Ngày cấp: <span id="cccd-back-issuedate">---</span></div>
                   <div style="font-size: 7.5px; color: #64748B;">Nơi cấp: Cục Cảnh sát QLHC về TTXH</div>
                 </div>
                 <div class="cccd-back-stamp">
@@ -3520,9 +3677,9 @@
                   <div style="font-size: 7.5px; color: #16A34A; font-weight: 700;">✓ CHÍNH CHỦ</div>
                 </div>
                 <div class="cccd-mrz-code" id="cccd-back-mrz">
-                  IDVNM0790880124560<<<<<<<<<<<<<<br>
-                  8804155M4804152VNM<<<<<<<<<<<8<br>
-                  NGUYEN<<VAN<DINH<<<<<<<<<<<<<<<
+                  IDVNM<<<<<<<<<<<<<<<<<<<<<<<<br>
+                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<br>
+                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 </div>
               </div>
             </div>
@@ -3537,15 +3694,15 @@
             <div class="cccd-selfie-mockup">
               <div class="selfie-face-box">
                 <div class="selfie-scan-line"></div>
-                <div class="selfie-avatar-circle" id="cccd-selfie-char">Đ</div>
+                <div class="selfie-avatar-circle" id="cccd-selfie-char">-</div>
                 <div style="font-size: 8px; color: #10B981; font-weight: 800;">FACE MATCH</div>
               </div>
               <div style="margin-top: 6px; font-size: 10px; color: #A7F3D0; font-weight: 700;" id="cccd-ekyc-score-label">
-                ✓ Khớp khuôn mặt: 99.4%
+                ✓ Khớp khuôn mặt: ---
               </div>
               <div class="selfie-timestamp-bar">
-                <span>Camera eKYC</span>
-                <span id="cccd-selfie-time">09:15 15/03/2026</span>
+                <span>📸 Camera eKYC</span>
+                <span id="cccd-selfie-time">---</span>
               </div>
             </div>
           </div>
@@ -3575,6 +3732,97 @@
     </div>
   </div>
   </div>
+  </div>
+
+  <!-- MODAL REVIEW DETAIL & REPLY -->
+  <div class="modal-overlay" id="modal-review-detail">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3 id="modal-rev-title">Chi Tiết Đánh Giá & Phản Hồi</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-review-detail')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 14px; align-items: center; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; margin-bottom: 14px;">
+          <div id="modal-rev-stars" style="font-size: 20px; color: #F59E0B;"></div>
+          <div>
+            <div style="font-weight: 800; font-size: 14px; color: var(--text-main);" id="modal-rev-dish"></div>
+            <div style="font-size: 12px; color: var(--text-muted);" id="modal-rev-store"></div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Khách hàng:</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0F172A;" id="modal-rev-customer"></div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" id="modal-rev-time"></div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">Nội dung nhận xét:</div>
+          <div class="review-bubble" id="modal-rev-comment"></div>
+          <div id="modal-rev-img-container" style="margin-top: 8px;"></div>
+        </div>
+
+        <!-- Admin Reply Form -->
+        <form onsubmit="saveReviewReply(event)">
+          <input type="hidden" id="modal-rev-id">
+          <div class="form-group">
+            <label class="form-label">Phản hồi của Admin / Cửa Hàng:</label>
+            <textarea class="form-control" id="modal-rev-reply-text" rows="3" placeholder="Nhập lời cảm ơn hoặc giải thích khắc phục sự cố gửi tới khách hàng..."></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-review-detail')">Đóng</button>
+            <button type="submit" class="btn btn-primary">Gửi Phản Hồi Lên Firebase</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ADD REVIEW -->
+  <div class="modal-overlay" id="modal-add-review">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3>+ Thêm Đánh Giá Món Ăn Mới</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-add-review')">&times;</button>
+      </div>
+      <form onsubmit="saveNewReview(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Cửa Hàng & Món Ăn <span class="req">*</span></label>
+            <select class="form-control" id="new-rev-dish-select" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tên khách hàng <span class="req">*</span></label>
+            <input type="text" class="form-control" id="new-rev-customer-name" placeholder="VD: Nguyễn Hoàng Phúc" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Số sao đánh giá <span class="req">*</span></label>
+            <select class="form-control" id="new-rev-rating" required>
+              <option value="5">⭐⭐⭐⭐⭐ 5 Sao - Xuất sắc</option>
+              <option value="4">⭐⭐⭐⭐ 4 Sao - Hài lòng</option>
+              <option value="3">⭐⭐⭐ 3 Sao - Bình thường</option>
+              <option value="2">⭐⭐ 2 Sao - Kém / Không ngon</option>
+              <option value="1">⭐ 1 Sao - Rất tệ / Không hài lòng</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nội dung nhận xét <span class="req">*</span></label>
+            <textarea class="form-control" id="new-rev-comment" rows="3" placeholder="Nhập cảm nhận về hương vị, bao bì, nhiệt độ món ăn..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Link ảnh minh họa (tùy chọn):</label>
+            <input type="url" class="form-control" id="new-rev-image" placeholder="https://images.unsplash.com/...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-review')">Hủy bỏ</button>
+          <button type="submit" class="btn btn-primary">Lưu Đánh Giá Lên Firebase</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toast-container"></div>
@@ -3591,7 +3839,7 @@
     const DEFAULT_LOGS = [];
 
     // Xóa cache dữ liệu mẫu cũ trong trình duyệt để chỉ hiển thị dữ liệu thực từ Firebase
-    ['oishi_admin_categories', 'oishi_admin_customers', 'oishi_admin_stores', 'oishi_admin_complaints', 'oishi_admin_logs'].forEach(k => {
+    ['oishi_admin_categories', 'oishi_admin_customers', 'oishi_admin_stores', 'oishi_admin_complaints', 'oishi_admin_reviews', 'oishi_admin_logs'].forEach(k => {
       try { localStorage.removeItem(k); } catch (_) {}
     });
 
@@ -3624,13 +3872,15 @@
     let customers = [];
     let stores = [];
     let complaints = [];
+    let reviews = [];
+    let rawFbReviews = {};
     let liveOrders = [];
     let liveDrivers = [];
 
     let adminProfile = JSON.parse(localStorage.getItem('oishi_admin_profile')) || {
-      name: 'Admin Nguyễn Hoàng Long',
-      email: 'admin.long@oishifood.vn',
-      phone: '0988.123.456',
+      name: 'Admin Hệ Thống',
+      email: 'admin@oishifood.vn',
+      phone: '',
       role: 'Super Administrator'
     };
     let systemLogs = [];
@@ -3732,16 +3982,16 @@
 
       const dishesObj = s.dishes && typeof s.dishes === 'object' ? s.dishes : {};
       const dishCount = Object.keys(dishesObj).length;
-      const ratingNum = s.ratingAvg !== undefined ? Number(s.ratingAvg).toFixed(1) : (s.rating ? String(s.rating).trim() : '5.0');
+      const ratingNum = s.ratingAvg !== undefined ? Number(s.ratingAvg).toFixed(1) : (s.rating ? String(s.rating).replace('⭐', '').trim() : '5.0');
 
       return {
         ...s,
         id: id,
         storeId: id,
-        name: s.name || ('Cửa hàng #' + id),
+        name: s.name || s.storeName || ('Cửa hàng #' + id),
         owner: s.ownerName || s.owner || 'Chưa cập nhật',
         ownerName: s.ownerName || s.owner || 'Chưa cập nhật',
-        phone: s.phone || 'Chưa cập nhật',
+        phone: s.phone || s.ownerPhone || 'Chưa cập nhật',
         cccdNumber: s.cccdNumber || 'Chưa cập nhật',
         cccdFront: s.cccdFrontUrl || s.cccdFront || '',
         cccdFrontUrl: s.cccdFrontUrl || s.cccdFront || '',
@@ -3930,6 +4180,7 @@
         const isDelivering = liveOrders.some(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
         const activeOrder = liveOrders.find(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
         const st = isDelivering ? 'DELIVERING' : (d.isOnline === false || d.status === 'OFFLINE' ? 'OFFLINE' : 'AVAILABLE');
+        const dRating = d.rating !== undefined ? `${Number(d.rating).toFixed(1)} ⭐` : '5.0 ⭐';
         driverMap[did] = {
           id: did,
           name: d.name || d.fullName || u.fullName || u.name || `Tài xế #${did.slice(0, 6)}`,
@@ -3951,6 +4202,7 @@
         const role = (u.role || '').toUpperCase();
         if (role === 'DRIVER' || role === 'SHIPPER') {
           const isDelivering = liveOrders.some(o => o.shipperId === uid && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+          const uRating = u.rating !== undefined ? `${Number(u.rating).toFixed(1)} ⭐` : '5.0 ⭐';
           driverMap[uid] = {
             id: uid,
             name: u.fullName || u.name || `Tài xế #${uid.slice(0, 6)}`,
@@ -4075,8 +4327,10 @@
       'cust-1', 'cust-2', 'cust-3', 'cust-4', 'cust-5', 'cust-6', 'cust-7', 'cust-8'
     ]);
 
+    let _isFbListenersAttached = false;
     function attachRealtimeListeners() {
-      if (!fbDb) return;
+      if (!fbDb || _isFbListenersAttached) return;
+      _isFbListenersAttached = true;
 
       // 1. STORES listener
       fbDb.ref('stores').on('value', snap => {
@@ -4203,6 +4457,16 @@
         }
         renderLogs();
       });
+
+      // 9. DISH REVIEWS listener (dish_reviews)
+      fbDb.ref('dish_reviews').on('value', snap => {
+        const val = snap.val();
+        rawFbReviews = (val && typeof val === 'object') ? val : {};
+        rebuildReviews();
+        renderReviews();
+        renderReviewKPIs();
+        populateReviewStoreFilter();
+      });
     }
 
     async function syncFromFirebaseNow() {
@@ -4212,7 +4476,7 @@
       }
       setFirebaseConnectionUI('connecting', 'Đang đồng bộ...');
       try {
-        const [stSnap, usSnap, cuSnap, drSnap, odSnap, cpSnap, catSnap, logSnap] = await Promise.all([
+        const [stSnap, usSnap, cuSnap, drSnap, odSnap, cpSnap, catSnap, logSnap, rvSnap] = await Promise.all([
           fbDb.ref('stores').once('value'),
           fbDb.ref('users').once('value'),
           fbDb.ref('customers').once('value'),
@@ -4220,7 +4484,8 @@
           fbDb.ref('orders').once('value'),
           fbDb.ref('complaints').once('value'),
           fbDb.ref('menus/categories').once('value'),
-          fbDb.ref('menus/admin_logs').limitToLast(25).once('value')
+          fbDb.ref('menus/admin_logs').limitToLast(25).once('value'),
+          fbDb.ref('dish_reviews').once('value')
         ]);
         rawFbStores = stSnap.val() || {};
         rawFbUsers = usSnap.val() || {};
@@ -4244,10 +4509,12 @@
         systemLogs = (logVal && typeof logVal === 'object')
           ? Object.values(logVal).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
           : [];
+        rawFbReviews = rvSnap ? (rvSnap.val() || {}) : {};
         stores = Object.entries(rawFbStores).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
         rebuildOrders();
         rebuildCustomersAndDrivers();
         rebuildComplaints();
+        rebuildReviews();
         renderKPIs();
         renderOverviewStores();
         renderLogs();
@@ -4257,6 +4524,9 @@
         renderGlobalOrders();
         renderGlobalDrivers();
         renderComplaints();
+        renderReviews();
+        renderReviewKPIs();
+        populateReviewStoreFilter();
         setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
         showToast(`Đã đồng bộ trực tiếp: ${stores.length} quán, ${customers.length} khách, ${liveOrders.length} đơn hàng!`, 'success');
       } catch (e) {
@@ -4297,7 +4567,9 @@
       renderCustomers();
       renderStores();
       renderComplaints();
+      renderReviews();
       populateStoreCategoryDropdowns();
+      populateReviewStoreFilter();
       initFirebaseRealtime();
     });
 
@@ -4409,6 +4681,20 @@
       }
     }
 
+    async function resetDefaultData() {
+      if (confirm('Làm mới và đồng bộ lại toàn bộ dữ liệu thực tế từ Firebase Realtime Database?')) {
+        localStorage.removeItem('oishi_admin_stores');
+        localStorage.removeItem('oishi_admin_customers');
+        localStorage.removeItem('oishi_admin_complaints');
+        localStorage.removeItem('oishi_admin_reviews');
+        localStorage.removeItem('oishi_admin_categories');
+        localStorage.removeItem('oishi_admin_logs');
+        await syncFromFirebaseNow();
+        showToast('Đã làm mới dữ liệu từ Firebase thành công!', 'success');
+      }
+    }
+
+
     /* ========================================================
        5. TABS & NAVIGATION CONTROLLER
        ======================================================== */
@@ -4435,6 +4721,7 @@
       else if (tabId === 'stores') titleEl.textContent = 'Quản Lý Đối Tác Cửa Hàng';
       else if (tabId === 'orders') titleEl.textContent = 'Điều Phối Đơn Hàng & Đội Ngũ Tài Xế (Realtime)';
       else if (tabId === 'complaints') titleEl.textContent = 'Xử Lý Khiếu Nại & Báo Cáo Vi Phạm';
+      else if (tabId === 'reviews') titleEl.textContent = 'Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)';
       else if (tabId === 'settings') titleEl.textContent = 'Cài Đặt & Tài Khoản Admin';
 
       renderKPIs();
@@ -4447,6 +4734,11 @@
         renderGlobalDrivers();
       }
       if (tabId === 'complaints') renderComplaints();
+      if (tabId === 'reviews') {
+        populateReviewStoreFilter();
+        renderReviews();
+        renderReviewKPIs();
+      }
     }
 
     /* ========================================================
@@ -4454,8 +4746,14 @@
        ======================================================== */
     function renderKPIs() {
       // Categories
-      document.getElementById('kpi-total-cats').textContent = categories.length;
-      document.getElementById('badge-cat-count').textContent = categories.length;
+      const catCountEl = document.getElementById('kpi-total-cats');
+      if (catCountEl && catCountEl.textContent !== String(categories.length)) {
+        catCountEl.textContent = categories.length;
+      }
+      const catBadgeEl = document.getElementById('badge-cat-count');
+      if (catBadgeEl && catBadgeEl.textContent !== String(categories.length)) {
+        catBadgeEl.textContent = categories.length;
+      }
 
       // Customers
       document.getElementById('kpi-total-customers').textContent = customers.length;
@@ -4552,6 +4850,11 @@
         return 0;
       }).slice(0, 6);
       
+      if (sorted.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px; font-size: 13px;">Chưa có cửa hàng nào trên hệ thống Firebase</td></tr>`;
+        return;
+      }
+      
       sorted.forEach(s => {
         const tr = document.createElement('tr');
         let statusBadge = '';
@@ -4637,14 +4940,42 @@
       const searchVal = (document.getElementById('filter-cat-search')?.value || '').toLowerCase().trim();
       const statusVal = document.getElementById('filter-cat-status')?.value || 'ALL';
 
+      // Đếm số món thực tế từ các quán trong Firebase
+      const realDishCounts = {};
+      stores.forEach(s => {
+        if (s.dishes && typeof s.dishes === 'object') {
+          Object.values(s.dishes).forEach(d => {
+            const catName = (d.categoryId || d.category || 'Món chính').trim();
+            realDishCounts[catName] = (realDishCounts[catName] || 0) + 1;
+          });
+        }
+      });
+
       const filtered = categories.filter(c => {
         const matchSearch = c.name.toLowerCase().includes(searchVal) || (c.desc && c.desc.toLowerCase().includes(searchVal));
         const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
         return matchSearch && matchStatus;
       });
 
-      if (counter) counter.textContent = filtered.length;
-      container.innerHTML = '';
+      // Cập nhật text số lượng mượt mà, không giật layout
+      if (counter && counter.textContent !== String(filtered.length)) {
+        counter.textContent = filtered.length;
+      }
+
+      // Kiểm tra chữ ký nội dung: nếu dữ liệu không thay đổi -> không đụng vào DOM, triệt tiêu 100% hiện tượng nháy
+      const currentSignature = JSON.stringify(filtered.map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        desc: c.desc,
+        status: c.status,
+        count: realDishCounts[c.name] !== undefined ? realDishCounts[c.name] : (c.count || 0)
+      })));
+
+      if (container.dataset.renderedSig === currentSignature) {
+        return;
+      }
+      container.dataset.renderedSig = currentSignature;
 
       if (filtered.length === 0) {
         container.innerHTML = `
@@ -4657,41 +4988,43 @@
         return;
       }
 
-      filtered.forEach(c => {
+      const htmlCards = filtered.map(c => {
         const isHidden = c.status === 'HIDDEN';
-        const card = document.createElement('div');
-        card.className = 'category-card';
-        card.innerHTML = `
-          <div class="cat-header">
-            <div class="cat-icon-box">${(c.name || 'DM').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}</div>
-            <div class="cat-info">
-              <h3>${c.name}</h3>
-              <p>${c.desc || 'Chưa có mô tả chi tiết'}</p>
+        const displayCount = realDishCounts[c.name] !== undefined ? realDishCounts[c.name] : (c.count || 0);
+        return `
+          <div class="category-card">
+            <div class="cat-header">
+              <div class="cat-icon-box">${(c.name || 'DM').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}</div>
+              <div class="cat-info">
+                <h3>${c.name}</h3>
+                <p>${c.desc || 'Chưa có mô tả chi tiết'}</p>
+              </div>
             </div>
-          </div>
-          <div class="cat-stats">
-            <div>Số món: <strong>${c.count || 0} món</strong></div>
-            <div>
-              ${isHidden 
-                ? '<span class="badge badge-warning"><span class="badge-dot"></span>Tạm ẩn</span>'
-                : '<span class="badge badge-active"><span class="badge-dot"></span>Hiển thị</span>'
-              }
+            <div class="cat-stats">
+              <div>Số món: <strong>${displayCount} món</strong></div>
+              <div>
+                ${isHidden 
+                  ? '<span class="badge badge-warning"><span class="badge-dot"></span>Tạm ẩn</span>'
+                  : '<span class="badge badge-active"><span class="badge-dot"></span>Hiển thị</span>'
+                }
+              </div>
             </div>
-          </div>
-          <div class="cat-actions">
-            <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị' : 'Ẩn khỏi menu'}">
-              ${isHidden ? 'Bật' : 'Ẩn'}
-            </button>
-            <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')">
-              Sửa
-            </button>
-            <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')">
-              Xóa
-            </button>
+            <div class="cat-actions">
+              <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị' : 'Ẩn khỏi menu'}">
+                ${isHidden ? '👁️ Bật' : '🚫 Ẩn'}
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')">
+                ✏️ Sửa
+              </button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')">
+                🗑️ Xóa
+              </button>
+            </div>
           </div>
         `;
-        container.appendChild(card);
-      });
+      }).join('');
+
+      container.innerHTML = htmlCards;
     }
 
     function openAddCategoryModal() {
@@ -5376,7 +5709,7 @@
           d.shopId === storeId ||
           liveOrders.some(o => o.shopId === storeId && o.shipperId === d.id)
         );
-        return storeSpecific.length > 0 ? storeSpecific : liveDrivers;
+        return storeSpecific;
       }
       return STORE_DRIVERS_DATA[storeId] || [];
     }
@@ -6679,6 +7012,442 @@
     }
 
     /* ========================================================
+       12. DISH REVIEWS MODERATION CONTROLLER (dish_reviews)
+       ======================================================== */
+    function rebuildReviews() {
+      const list = [];
+      Object.entries(rawFbReviews).forEach(([rid, r]) => {
+        if (!r || typeof r !== 'object') return;
+        const cust = rawFbUsers[r.customerId] || rawFbCustomers[r.customerId] || {};
+        
+        let dishName = r.dishName || '';
+        let storeName = r.storeName || '';
+        let storeId = r.shopId || r.storeId || '';
+        
+        if (r.dishId) {
+          for (const s of stores) {
+            if (s.dishes && typeof s.dishes === 'object') {
+              if (s.dishes[r.dishId]) {
+                if (!dishName) dishName = s.dishes[r.dishId].name;
+                if (!storeName) storeName = s.name;
+                if (!storeId) storeId = s.id;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!dishName || !storeName) {
+          const matchedOrder = liveOrders.find(o => o.id === r.orderId);
+          if (matchedOrder) {
+            if (!storeName) storeName = matchedOrder.storeName;
+            if (!storeId) storeId = matchedOrder.shopId;
+          }
+        }
+        
+        if (!dishName) dishName = 'Món ăn Oishi';
+        if (!storeName) storeName = 'Quán Oishi';
+
+        const status = (r.status || (r.isHidden ? 'HIDDEN' : 'ACTIVE')).toUpperCase();
+        
+        list.push({
+          id: rid,
+          reviewId: r.reviewId || rid,
+          orderId: r.orderId || '',
+          dishId: r.dishId || '',
+          dishName: dishName,
+          storeId: storeId,
+          storeName: storeName,
+          customerId: r.customerId || '',
+          customerName: r.customerName || cust.fullName || cust.name || 'Khách hàng Oishi',
+          customerPhone: cust.phone || '',
+          customerTrustScore: cust.trustScore !== undefined ? cust.trustScore : 100,
+          rating: Number(r.rating || 5),
+          comment: r.comment || 'Khách hàng không để lại nhận xét chi tiết.',
+          imageUrl: r.imageUrl || '',
+          status: status,
+          isHidden: (status === 'HIDDEN' || r.isHidden === true),
+          adminReply: r.adminReply || '',
+          adminReplyTime: r.adminReplyTime || '',
+          createdAt: Number(r.createdAt || r.timestamp || Date.now())
+        });
+      });
+
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      reviews = list;
+      localStorage.setItem('oishi_admin_reviews', JSON.stringify(reviews));
+    }
+
+    function filterReviews() {
+      renderReviews();
+    }
+
+    function populateReviewStoreFilter() {
+      const select = document.getElementById('filter-review-store');
+      if (select) {
+        const current = select.value;
+        select.innerHTML = '<option value="ALL">Tất cả cửa hàng</option>';
+        stores.forEach(s => {
+          select.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+        });
+        select.value = current || 'ALL';
+      }
+
+      const dishSelect = document.getElementById('new-rev-dish-select');
+      if (dishSelect) {
+        dishSelect.innerHTML = '';
+        stores.forEach(s => {
+          if (s.dishes && typeof s.dishes === 'object') {
+            Object.entries(s.dishes).forEach(([did, d]) => {
+              dishSelect.innerHTML += `<option value="${did}|${s.id}">${s.name} - ${d.name || did} (${formatVnd(d.price)})</option>`;
+            });
+          }
+        });
+        if (!dishSelect.innerHTML) {
+          dishSelect.innerHTML = '<option value="dish-demo|store_mgr3gAsX">Quán Ăn Của Tôi - Phở Bò Tái Nạm (45.000đ)</option>';
+        }
+      }
+    }
+
+    function renderReviewKPIs() {
+      const total = reviews.length;
+      const low = reviews.filter(r => r.rating <= 2).length;
+      const hidden = reviews.filter(r => r.isHidden || r.status === 'HIDDEN').length;
+      const avg = total > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / total).toFixed(1) : '5.0';
+
+      const avgEl = document.getElementById('kpi-rev-avg');
+      if (avgEl) avgEl.textContent = `${avg} ⭐`;
+      const totEl = document.getElementById('kpi-rev-total');
+      if (totEl) totEl.textContent = total;
+      const lowEl = document.getElementById('kpi-rev-low');
+      if (lowEl) lowEl.textContent = low;
+      const hidEl = document.getElementById('kpi-rev-hidden');
+      if (hidEl) hidEl.textContent = hidden;
+
+      const badge = document.getElementById('badge-reviews-count');
+      if (badge) {
+        if (low > 0) {
+          badge.textContent = `${low} Kém`;
+          badge.style.display = 'inline-block';
+        } else if (hidden > 0) {
+          badge.textContent = `${hidden} Ẩn`;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }
+
+    function renderReviews() {
+      const tbody = document.getElementById('tbody-reviews');
+      const counter = document.getElementById('review-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-review-search')?.value || '').toLowerCase().trim();
+      const ratingVal = document.getElementById('filter-review-rating')?.value || 'ALL';
+      const statusVal = document.getElementById('filter-review-status')?.value || 'ALL';
+      const storeVal = document.getElementById('filter-review-store')?.value || 'ALL';
+
+      const filtered = reviews.filter(r => {
+        const matchSearch = (r.dishName || '').toLowerCase().includes(searchVal) ||
+                            (r.storeName || '').toLowerCase().includes(searchVal) ||
+                            (r.customerName || '').toLowerCase().includes(searchVal) ||
+                            (r.comment || '').toLowerCase().includes(searchVal) ||
+                            (r.id || '').toLowerCase().includes(searchVal);
+        const matchRating = (ratingVal === 'ALL') || (String(r.rating) === ratingVal);
+        const matchStatus = (statusVal === 'ALL') || (r.status === statusVal);
+        const matchStore = (storeVal === 'ALL') || (r.storeId === storeVal);
+        return matchSearch && matchRating && matchStatus && matchStore;
+      });
+
+      if (counter) counter.textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
+              <div style="font-size: 28px; margin-bottom: 8px;">💬</div>
+              <div style="font-weight: 700; font-size: 14px;">Chưa có đánh giá nào phù hợp bộ lọc</div>
+              <div style="font-size: 12px; margin-top: 4px;">Khách hàng hoàn tất đơn sẽ hiển thị đánh giá tại đây, hoặc bấm nút "Tạo Đánh Giá Demo" phía trên để thử nghiệm.</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const rowsHtml = filtered.map(r => {
+        const isHidden = r.status === 'HIDDEN' || r.isHidden;
+        const starsText = '⭐'.repeat(Math.max(1, Math.min(5, r.rating)));
+        const timeAgo = formatTimeAgo(r.createdAt);
+        
+        let statusBadge = isHidden
+          ? `<span class="badge badge-status-hidden"><span class="badge-dot"></span>Đã ẩn kiểm duyệt</span>`
+          : `<span class="badge badge-active"><span class="badge-dot"></span>Đang hiển thị</span>`;
+
+        let photoThumb = r.imageUrl
+          ? `<a href="${r.imageUrl}" target="_blank" title="Bấm để xem ảnh phóng to"><img src="${r.imageUrl}" class="review-thumb" alt="Ảnh review" onerror="this.style.display='none'"></a>`
+          : '';
+
+        let replyHtml = r.adminReply
+          ? `<div class="review-admin-reply-box"><strong>Phản hồi của Admin:</strong> ${r.adminReply}</div>`
+          : '';
+
+        return `
+          <tr style="${isHidden ? 'background: #FFF7ED;' : ''}">
+            <td>
+              <div style="font-family: monospace; font-weight: 700; color: var(--primary);">#${r.id.slice(-6)}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${timeAgo}</div>
+            </td>
+            <td>
+              <div style="font-weight: 700; color: var(--text-main);">${r.customerName}</div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                ${r.customerPhone ? `📞 ${r.customerPhone} • ` : ''}Điểm: <strong>${r.customerTrustScore}</strong>
+              </div>
+            </td>
+            <td>
+              <div style="font-weight: 700; color: #1E40AF;">🍲 ${r.dishName}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">🏪 ${r.storeName}</div>
+            </td>
+            <td>
+              <div class="star-rating" title="${r.rating} sao">${starsText}</div>
+              <div style="font-size: 11px; font-weight: 700; color: #B45309; margin-top: 2px;">${r.rating}.0 / 5</div>
+            </td>
+            <td>
+              <div class="review-bubble">${r.comment}</div>
+              ${photoThumb}
+              ${replyHtml}
+            </td>
+            <td>${statusBadge}</td>
+            <td style="text-align: right;">
+              <div style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap;">
+                <button class="btn btn-outline btn-sm" onclick="toggleReviewStatus('${r.id}')" title="${isHidden ? 'Bật hiển thị lại lên app' : 'Tạm ẩn khỏi app do phản cảm/tiêu cực'}">
+                  ${isHidden ? '👁️ Bật lại' : '🚫 Ẩn'}
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="openReviewDetailModal('${r.id}')" title="Xem chi tiết & gửi phản hồi">
+                  💬 Phản hồi
+                </button>
+                <button class="btn btn-danger-outline btn-sm" onclick="deleteReview('${r.id}')" title="Xóa đánh giá vĩnh viễn">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.innerHTML = rowsHtml;
+    }
+
+    function toggleReviewStatus(reviewId) {
+      const rev = reviews.find(r => r.id === reviewId);
+      if (!rev) return;
+      const nextStatus = rev.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
+      rev.status = nextStatus;
+      rev.isHidden = (nextStatus === 'HIDDEN');
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${reviewId}`).update({
+          status: nextStatus,
+          isHidden: rev.isHidden
+        }).catch(() => {});
+      }
+      saveState();
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Chuyển trạng thái đánh giá #${reviewId.slice(-6)} sang ${nextStatus === 'ACTIVE' ? 'Hiển thị' : 'Đã ẩn'}`, 'info');
+      showToast(`Đã ${nextStatus === 'ACTIVE' ? 'mở hiển thị' : 'tạm ẩn'} đánh giá #${reviewId.slice(-6)}!`, 'success');
+    }
+
+    function deleteReview(reviewId) {
+      if (!confirm('Bạn có chắc chắn muốn xóa đánh giá này khỏi hệ thống Firebase?')) return;
+      reviews = reviews.filter(r => r.id !== reviewId);
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${reviewId}`).remove().catch(() => {});
+      }
+      saveState();
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Xóa vĩnh viễn đánh giá #${reviewId.slice(-6)}`, 'danger');
+      showToast('Đã xóa đánh giá khỏi Firebase!', 'info');
+    }
+
+    function openReviewDetailModal(reviewId) {
+      const rev = reviews.find(r => r.id === reviewId);
+      if (!rev) return;
+
+      document.getElementById('modal-rev-id').value = rev.id;
+      document.getElementById('modal-rev-stars').textContent = '⭐'.repeat(rev.rating);
+      document.getElementById('modal-rev-dish').textContent = `Món ăn: ${rev.dishName}`;
+      document.getElementById('modal-rev-store').textContent = `Cửa hàng: ${rev.storeName}`;
+      document.getElementById('modal-rev-customer').textContent = `${rev.customerName} (${rev.customerPhone || 'Không có SĐT'})`;
+      document.getElementById('modal-rev-time').textContent = `Thời gian: ${formatTimeAgo(rev.createdAt)}`;
+      document.getElementById('modal-rev-comment').textContent = rev.comment;
+      document.getElementById('modal-rev-reply-text').value = rev.adminReply || '';
+
+      const imgContainer = document.getElementById('modal-rev-img-container');
+      if (imgContainer) {
+        if (rev.imageUrl) {
+          imgContainer.innerHTML = `<img src="${rev.imageUrl}" style="max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid #CBD5E1; margin-top: 6px;" alt="Review photo">`;
+        } else {
+          imgContainer.innerHTML = '';
+        }
+      }
+
+      openModal('modal-review-detail');
+    }
+
+    function saveReviewReply(e) {
+      e.preventDefault();
+      const revId = document.getElementById('modal-rev-id').value;
+      const reply = document.getElementById('modal-rev-reply-text').value.trim();
+      const rev = reviews.find(r => r.id === revId);
+      if (!rev) return;
+
+      rev.adminReply = reply;
+      rev.adminReplyTime = Date.now();
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${revId}`).update({
+          adminReply: reply,
+          adminReplyTime: rev.adminReplyTime
+        }).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-review-detail');
+      renderReviews();
+      addLog(`Phản hồi đánh giá #${revId.slice(-6)}: "${reply.slice(0, 30)}..."`, 'success');
+      showToast('Đã lưu phản hồi của Admin lên Firebase!', 'success');
+    }
+
+    function openAddReviewModal() {
+      populateReviewStoreFilter();
+      document.getElementById('new-rev-customer-name').value = '';
+      document.getElementById('new-rev-rating').value = '5';
+      document.getElementById('new-rev-comment').value = '';
+      document.getElementById('new-rev-image').value = '';
+      openModal('modal-add-review');
+    }
+
+    function saveNewReview(e) {
+      e.preventDefault();
+      const dishVal = document.getElementById('new-rev-dish-select').value;
+      const [dishId, storeId] = dishVal.split('|');
+      const custName = document.getElementById('new-rev-customer-name').value.trim();
+      const rating = parseInt(document.getElementById('new-rev-rating').value);
+      const comment = document.getElementById('new-rev-comment').value.trim();
+      const image = document.getElementById('new-rev-image').value.trim();
+
+      const newId = 'REV-' + Date.now().toString().slice(-6);
+      const storeObj = stores.find(s => s.id === storeId) || {};
+      const dishObj = storeObj.dishes ? storeObj.dishes[dishId] : {};
+
+      const newRev = {
+        reviewId: newId,
+        dishId: dishId,
+        dishName: dishObj.name || 'Món ăn Oishi',
+        storeId: storeId,
+        storeName: storeObj.name || 'Quán Oishi',
+        customerId: 'cust-demo',
+        customerName: custName,
+        rating: rating,
+        comment: comment,
+        imageUrl: image,
+        status: 'ACTIVE',
+        createdAt: Date.now()
+      };
+
+      reviews.unshift({ ...newRev, id: newId, isHidden: false, customerTrustScore: 100 });
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${newId}`).set(newRev).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-add-review');
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Tạo đánh giá mới cho món "${newRev.dishName}" (${rating}⭐)`, 'success');
+      showToast(`Đã thêm đánh giá món ăn lên Firebase!`, 'success');
+    }
+
+    function seedSampleReviews() {
+      if (!confirm('Khởi tạo 3 đánh giá mẫu demo (5⭐ ngon, 4⭐ tốt, 2⭐ kém cần ẩn) lên Firebase Realtime Database?')) return;
+      
+      const firstStore = stores[0] || {};
+      let dishId = 'dish-1';
+      let dishName = 'Phở Bò Tái Nạm Đặc Biệt';
+      if (firstStore.dishes && typeof firstStore.dishes === 'object') {
+        const entries = Object.entries(firstStore.dishes);
+        if (entries.length > 0) {
+          dishId = entries[0][0];
+          dishName = entries[0][1].name || dishName;
+        }
+      }
+
+      const samples = [
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-1',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-phuc',
+          customerName: 'Nguyễn Hoàng Phúc',
+          rating: 5,
+          comment: 'Nước dùng phở cực kỳ thanh ngọt và đậm đà, thịt bò mềm tươi, rau thơm đi kèm rất sạch sẽ. Chắc chắn sẽ ủng hộ quán lâu dài!',
+          imageUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500&auto=format&fit=crop&q=80',
+          status: 'ACTIVE',
+          createdAt: Date.now() - 3600000
+        },
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-2',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-tam',
+          customerName: 'Trần Minh Tâm',
+          rating: 4,
+          comment: 'Đồ ăn giao nhanh, đóng gói hộp giấy thân thiện môi trường. Hương vị ổn, giá cả hợp lý với phần ăn sinh viên.',
+          imageUrl: '',
+          status: 'ACTIVE',
+          createdAt: Date.now() - 7200000
+        },
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-3',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-bad',
+          customerName: 'Lê Hoàng Nam',
+          rating: 2,
+          comment: 'Món ăn bị nguội ngắt khi giao đến, quán lại quên cho tương ớt và chanh. Đề nghị cải thiện chất lượng phục vụ!',
+          imageUrl: '',
+          status: 'HIDDEN',
+          isHidden: true,
+          adminReply: 'Admin Oishi đã liên hệ quán gửi bù voucher và nhắc nhở bộ phận đóng gói.',
+          createdAt: Date.now() - 14400000
+        }
+      ];
+
+      const updates = {};
+      samples.forEach(s => {
+        updates[s.reviewId] = s;
+      });
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref('dish_reviews').update(updates).catch(() => {});
+      } else {
+        samples.forEach(s => { rawFbReviews[s.reviewId] = s; });
+        rebuildReviews();
+        renderReviews();
+        renderReviewKPIs();
+      }
+
+      showToast('Đã khởi tạo 3 đánh giá mẫu lên Firebase!', 'success');
+      addLog('Khởi tạo bộ dữ liệu mẫu đánh giá món ăn (dish_reviews)', 'info');
+    }
+
+    /* ========================================================
        12. GLOBAL SEARCH CONTROLLER
        ======================================================== */
     function handleGlobalSearch(query) {
@@ -6690,6 +7459,7 @@
       const matchStore = stores.some(s => (s.name || '').toLowerCase().includes(query) || (s.phone || '').includes(query));
       const matchCust = customers.some(c => (c.name || '').toLowerCase().includes(query) || (c.phone || '').includes(query));
       const matchCat = categories.some(c => (c.name || '').toLowerCase().includes(query));
+      const matchReview = reviews.some(r => (r.comment || '').toLowerCase().includes(query) || (r.dishName || '').toLowerCase().includes(query) || (r.customerName || '').toLowerCase().includes(query));
 
       if (matchStore) {
         switchTab('stores');
@@ -6711,6 +7481,10 @@
         switchTab('categories');
         const input = document.getElementById('filter-cat-search');
         if (input) { input.value = query; filterCategories(); }
+      } else if (matchReview) {
+        switchTab('reviews');
+        const input = document.getElementById('filter-review-search');
+        if (input) { input.value = query; filterReviews(); }
       }
     }
 
@@ -6941,12 +7715,12 @@
         <!-- Store Banner Profile Summary -->
         <div style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%); border: 1px solid #BFDBFE; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px;">
           <div>
-            <div style="font-size: 17px; font-weight: 800; color: #1E40AF;" id="detail-store-name">Phở Bò Thăng Long Xưa</div>
+            <div style="font-size: 17px; font-weight: 800; color: #1E40AF;" id="detail-store-name">---</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
-              Địa chỉ: <span id="detail-store-address" style="color: var(--text-main); font-weight: 600;">12 Lê Thánh Tôn, Q.1</span> • Chủ quán: <span id="detail-store-owner" style="font-weight: 700; color: var(--text-main);">Nguyễn Văn Định</span> (<span id="detail-store-phone" style="font-family: monospace;">0908.112.233</span>)
+              📍 Địa chỉ: <span id="detail-store-address" style="color: var(--text-main); font-weight: 600;">---</span> • Chủ quán: <span id="detail-store-owner" style="font-weight: 700; color: var(--text-main);">---</span> (📞 <span id="detail-store-phone" style="font-family: monospace;">---</span>)
             </div>
             <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-              Số CCCD: <strong id="detail-store-cccd" style="font-family: monospace; color: #2563EB;">079088012456</strong> • Đánh giá: <strong id="detail-store-rating" style="color: #D97706;">4.9</strong> • Món bán: <strong id="detail-store-items" style="color: #2563EB;">28 món</strong>
+              🪪 Số CCCD: <strong id="detail-store-cccd" style="font-family: monospace; color: #2563EB;">---</strong> • Đánh giá: <strong id="detail-store-rating" style="color: #D97706;">---</strong> • Món bán: <strong id="detail-store-items" style="color: #2563EB;">0 món</strong>
             </div>
           </div>
           <div style="text-align: right;">
@@ -6959,7 +7733,7 @@
         <div class="store-subnav">
           <button class="store-subnav-btn active" id="btn-subtab-orders" onclick="switchStoreDetailTab('orders')">
             <span>Lịch Sử Đơn Hàng Của Quán</span>
-            <span id="detail-orders-count-badge" style="background: #2563EB; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">5</span>
+            <span id="detail-orders-count-badge" style="background: #2563EB; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
           </button>
           <button class="store-subnav-btn" id="btn-subtab-dishes" onclick="switchStoreDetailTab('dishes')">
             <span>Thực Đơn Quán (Menu)</span>
@@ -6967,7 +7741,7 @@
           </button>
           <button class="store-subnav-btn" id="btn-subtab-drivers" onclick="switchStoreDetailTab('drivers')">
             <span>Đội Ngũ Tài Xế Thuộc Quán</span>
-            <span id="detail-drivers-count-badge" style="background: #059669; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">4</span>
+            <span id="detail-drivers-count-badge" style="background: #059669; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
           </button>
         </div>
 

@@ -27,6 +27,9 @@ class ShipperViewModel @Inject constructor(
     private val _currentDeliveryOrderId = MutableLiveData<String?>()
     val currentDeliveryOrderId: LiveData<String?> = _currentDeliveryOrderId
 
+    private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
+    val shipperStore: LiveData<Pair<String, String>> = _shipperStore
+
     private val _isOnline = MutableLiveData(true)
     val isOnline: LiveData<Boolean> = _isOnline
 
@@ -34,8 +37,17 @@ class ShipperViewModel @Inject constructor(
     val messageEvent: LiveData<String> = _messageEvent
 
     init {
-        observeShipperOrders()
-        observePendingStoreOrders()
+        loadShipperStoreAndOrders()
+    }
+
+    private fun loadShipperStoreAndOrders() {
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        viewModelScope.launch {
+            val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
+            _shipperStore.value = storeInfo
+            observeShipperOrders()
+            observePendingStoreOrders(storeInfo.first)
+        }
     }
 
     private fun observeShipperOrders() {
@@ -62,15 +74,22 @@ class ShipperViewModel @Inject constructor(
         }
     }
 
-    private fun observePendingStoreOrders() {
+    private fun observePendingStoreOrders(storeId: String) {
         viewModelScope.launch {
             firebaseRepository.observeAllOrders().collectLatest { allOrders ->
-                // Chỉ phát các đơn Quán đã nấu xong (READY) và CHƯA có shipper nhận
-                val pending = allOrders.filter { order ->
-                    (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
-                            order.status == Order.Status.READY
+                // Phân quyền chuẩn: Chỉ nhận đơn thuộc đúng QUÁN CỦA SHIPPER NÀY, đã READY và CHƯA có shipper nhận
+                if (storeId.isNotBlank()) {
+                    val pending = allOrders.filter { order ->
+                        (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
+                                order.status == Order.Status.READY &&
+                                order.storeId.isNotBlank() &&
+                                order.storeId == storeId
+                    }
+                    _storePendingOrders.value = pending
+                } else {
+                    // Tài xế chưa được gán vào quán ăn nào -> không nhận đơn của quán khác
+                    _storePendingOrders.value = emptyList()
                 }
-                _storePendingOrders.value = pending
             }
         }
     }
@@ -98,10 +117,25 @@ class ShipperViewModel @Inject constructor(
             onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
             return
         }
+
+        val myStoreId = _shipperStore.value?.first.orEmpty()
+        val myStoreName = _shipperStore.value?.second.orEmpty()
+
+        if (myStoreId.isBlank()) {
+            onResult(false, "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Chủ quán để được thêm vào đội ngũ giao hàng!")
+            return
+        }
+
+        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
+        if (acceptedOrder != null && acceptedOrder.storeId.isNotBlank() && acceptedOrder.storeId != myStoreId) {
+            val storeDisplay = if (myStoreName.isNotBlank()) myStoreName else myStoreId
+            onResult(false, "Phân quyền: Bạn chỉ có thể nhận đơn từ quán của mình ($storeDisplay)!")
+            return
+        }
+
         val shipperName = auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
         val shipperPhone = auth.currentUser?.phoneNumber ?: ""
 
-        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
         // Optimistic UI: Cập nhật ngay danh sách để giao diện phản hồi 0ms
         if (acceptedOrder != null) {
             _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }

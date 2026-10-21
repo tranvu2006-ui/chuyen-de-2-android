@@ -496,6 +496,60 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /**
+     * Xác định Quán ăn mà Tài xế (Shipper) trực thuộc.
+     * Đảm bảo tài xế chỉ nhận đơn từ đúng quán đó theo phân quyền.
+     * Trả về Pair(storeId, storeName).
+     */
+    suspend fun resolveStoreForDriver(driverUid: String): Pair<String, String> {
+        if (driverUid.isBlank()) return Pair("", "")
+        return try {
+            var storeId = ""
+            // 1. Kiểm tra users/{driverUid}/storeId
+            val userSnap = database.getReference("users").child(driverUid).get().await()
+            storeId = userSnap.child("storeId").getValue(String::class.java).orEmpty()
+
+            // 2. Kiểm tra drivers/{driverUid}/storeId
+            if (storeId.isBlank()) {
+                val driverSnap = database.getReference("drivers").child(driverUid).get().await()
+                storeId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
+            }
+
+            // 3. Tìm kiếm theo email hoặc phone trong danh sách drivers
+            val userEmail = userSnap.child("email").getValue(String::class.java).orEmpty()
+            val userPhone = userSnap.child("phone").getValue(String::class.java).orEmpty()
+            if (storeId.isBlank() && (userEmail.isNotBlank() || userPhone.isNotBlank())) {
+                val allDriversSnap = database.getReference("drivers").get().await()
+                for (dSnap in allDriversSnap.children) {
+                    val dEmail = dSnap.child("email").getValue(String::class.java).orEmpty()
+                    val dPhone = dSnap.child("phone").getValue(String::class.java).orEmpty()
+                    val sId = dSnap.child("storeId").getValue(String::class.java).orEmpty()
+                    if (sId.isNotBlank() && ((userEmail.isNotBlank() && dEmail.equals(userEmail, ignoreCase = true)) ||
+                                (userPhone.isNotBlank() && dPhone == userPhone))) {
+                        storeId = sId
+                        try {
+                            database.getReference("users").child(driverUid).child("storeId").setValue(storeId)
+                        } catch (_: Exception) {}
+                        break
+                    }
+                }
+            }
+
+            var storeName = ""
+            if (storeId.isNotBlank()) {
+                val storeSnap = database.getReference("stores").child(storeId).get().await()
+                storeName = storeSnap.child("name").getValue(String::class.java).orEmpty()
+                if (storeName.isBlank()) {
+                    storeName = storeSnap.child("storeName").getValue(String::class.java).orEmpty()
+                }
+            }
+
+            Pair(storeId, storeName)
+        } catch (_: Exception) {
+            Pair("", "")
+        }
+    }
+
     /** Lắng nghe thông tin hồ sơ quán theo thời gian thực */
     fun observeStore(storeId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Store?> = callbackFlow {
         val ref = database.getReference("stores").child(storeId)

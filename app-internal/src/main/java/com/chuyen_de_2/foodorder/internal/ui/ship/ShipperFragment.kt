@@ -160,12 +160,31 @@ class ShipperFragment : Fragment() {
             binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
         }
 
+        // Hiển thị tên quán trực thuộc của tài xế
+        viewModel.shipperStore.observe(viewLifecycleOwner) { (storeId, storeName) ->
+            if (storeName.isNotBlank()) {
+                binding.tvShopBadge.text = "🏪 $storeName"
+            } else if (storeId.isNotBlank()) {
+                binding.tvShopBadge.text = "🏪 Quán $storeId"
+            } else {
+                binding.tvShopBadge.text = "⚠️ Chưa gán quán"
+            }
+        }
+
         // Lắng nghe các đơn chờ nhận của quán (hiển thị trực tiếp trong danh sách theo chuẩn ship/2.html)
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
             val hasActive = activeAdapter.itemCount > 0
             pendingAdapter.submitList(pendingOrders, hasActive)
             binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
             binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
+
+            val currentStore = viewModel.shipperStore.value
+            val storeTitle = currentStore?.second?.ifBlank { currentStore.first } ?: ""
+            if (storeTitle.isNotBlank()) {
+                binding.tvEmptyPending.text = "Hiện tại $storeTitle chưa có đơn mới cần giao."
+            } else {
+                binding.tvEmptyPending.text = "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Quán để được thêm vào danh sách tài xế nội bộ."
+            }
         }
     }
 

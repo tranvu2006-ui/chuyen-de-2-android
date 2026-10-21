@@ -1,22 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     style="@style/Widget.FoodOrder.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp">
+    android:layout_marginBottom="10dp"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="1dp"
+    app:strokeColor="@color/border_light"
+    app:strokeWidth="1dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp">
 
-        <!-- Thumbnail món ăn 54x54 (theo b7.html: cart-thumb) -->
-        <FrameLayout
+        <!-- Thumbnail món ăn 54x54 -->
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/thumbBox"
             android:layout_width="54dp"
             android:layout_height="54dp"
-            android:background="@drawable/bg_badge_orange"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/cat_orange_bg"
+            app:strokeWidth="0dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
@@ -27,7 +35,7 @@
                 android:layout_gravity="center"
                 android:text="🍲"
                 android:textSize="24sp" />
-        </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- Tên món ăn -->
         <TextView
@@ -41,6 +49,7 @@
             android:textColor="@color/text_primary"
             android:textSize="14sp"
             android:textStyle="bold"
+            tools:text="Phở Tái Nạm Gầu"
             app:layout_constraintEnd_toStartOf="@id/tvSubtotal"
             app:layout_constraintStart_toEndOf="@id/thumbBox"
             app:layout_constraintTop_toTopOf="@id/thumbBox" />
@@ -51,8 +60,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/text_secondary"
             android:textSize="12sp"
+            tools:text="55.000₫"
             app:layout_constraintStart_toStartOf="@id/tvName"
             app:layout_constraintTop_toBottomOf="@id/tvName" />
 
@@ -62,12 +72,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/primary"
-            android:textSize="14sp"
+            android:textSize="14.5sp"
             android:textStyle="bold"
+            tools:text="110.000₫"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@id/thumbBox" />
 
-        <!-- Bộ tăng giảm số lượng (b7.html: qty-control) -->
+        <!-- Bộ tăng giảm số lượng -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="30dp"
@@ -91,7 +102,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="15sp"
                 android:textStyle="bold"
-                app:cornerRadius="6dp"
+                app:cornerRadius="8dp"
                 app:strokeColor="@color/border" />
 
             <!-- Số lượng -->
@@ -102,7 +113,8 @@
                 android:gravity="center"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                tools:text="2" />
 
             <!-- Nút cộng -->
             <com.google.android.material.button.MaterialButton
@@ -120,7 +132,7 @@
                 android:textColor="@color/on_primary"
                 android:textSize="15sp"
                 android:textStyle="bold"
-                app:cornerRadius="6dp" />
+                app:cornerRadius="8dp" />
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

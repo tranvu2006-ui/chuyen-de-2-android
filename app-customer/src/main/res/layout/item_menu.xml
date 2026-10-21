@@ -1,64 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/cardDish"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginBottom="10dp"
     android:clickable="true"
     android:focusable="true"
-    app:cardBackgroundColor="@color/white"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="1dp"
-    app:strokeColor="#E2E8F0"
-    app:strokeWidth="1.2dp">
+    app:cardBackgroundColor="@color/surface"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="1.5dp"
+    app:strokeColor="@color/border_light"
+    app:strokeWidth="1dp"
+    app:rippleColor="@color/ripple">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/layoutDishItem"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="10dp">
+        android:padding="12dp">
 
-        <!-- 1. Thumbnail món ăn (64x64dp) + Nhãn Promo (b5.html: dish-thumb-box) -->
-        <FrameLayout
+        <!-- 1. Thumbnail món ăn (68x68dp) bo góc 12dp + Nhãn Promo -->
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/flThumbBox"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="68dp"
+            android:layout_height="68dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border_light"
+            app:strokeWidth="1dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
-            <ImageView
-                android:id="@+id/ivFood"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#F1F5F9"
-                android:contentDescription="Ảnh món ăn"
-                android:scaleType="centerCrop" />
+                android:layout_height="match_parent">
 
-            <!-- Nhãn khuyến mãi / nổi bật (b5.html: dish-promo-pill) -->
-            <TextView
-                android:id="@+id/tvPromoBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|start"
-                android:layout_margin="3dp"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="4dp"
-                android:paddingVertical="1dp"
-                android:text="HOT"
-                android:textColor="@color/white"
-                android:textSize="8.5sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-        </FrameLayout>
+                <ImageView
+                    android:id="@+id/ivFood"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#F1F5F9"
+                    android:contentDescription="Ảnh món ăn"
+                    android:scaleType="centerCrop" />
 
-        <!-- 2. Nội dung chi tiết món (b5.html: dish-list-content) -->
+                <!-- Nhãn khuyến mãi / nổi bật -->
+                <TextView
+                    android:id="@+id/tvPromoBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|start"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:paddingHorizontal="5dp"
+                    android:paddingVertical="1.5dp"
+                    android:text="HOT"
+                    android:textColor="@color/white"
+                    android:textSize="8.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 2. Nội dung chi tiết món -->
         <LinearLayout
             android:id="@+id/llContent"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="12dp"
             android:layout_marginEnd="8dp"
             android:orientation="vertical"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -72,9 +83,10 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="#0F172A"
-                android:textSize="13.5sp"
-                android:textStyle="bold" />
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                tools:text="Phở Bò Tái Nạm" />
 
             <TextView
                 android:id="@+id/tvDescription"
@@ -83,8 +95,9 @@
                 android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="#64748B"
-                android:textSize="11sp" />
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                tools:text="Bò tươi mềm, nước dùng thanh ngọt" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -99,20 +112,22 @@
                     android:layout_height="wrap_content"
                     android:textColor="@color/primary"
                     android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    tools:text="55.000₫" />
 
                 <TextView
                     android:id="@+id/tvSold"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="10.5sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    tools:text="• Đã bán 2.1k" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 3. BỘ CỘNG TRỪ Ở BÊN PHẢI MÓN ĐÓ LUÔN (b5.html: dish-stepper-box) -->
+        <!-- 3. Bộ tăng giảm số lượng viên thuốc hiện đại -->
         <LinearLayout
             android:id="@+id/layoutStepper"
             android:layout_width="wrap_content"
@@ -134,18 +149,18 @@
                 android:focusable="true"
                 android:gravity="center"
                 android:text="−"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
             <!-- Số lượng ở giữa -->
             <TextView
                 android:id="@+id/tvQuantity"
-                android:layout_width="24dp"
+                android:layout_width="26dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
                 android:text="0"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -159,7 +174,7 @@
                 android:focusable="true"
                 android:gravity="center"
                 android:text="+"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>

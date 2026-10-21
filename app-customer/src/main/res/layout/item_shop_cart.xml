@@ -4,11 +4,11 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="14dp"
+    android:layout_marginBottom="16dp"
     app:cardBackgroundColor="@color/surface"
-    app:cardCornerRadius="16dp"
+    app:cardCornerRadius="18dp"
     app:cardElevation="2dp"
-    app:strokeColor="@color/border"
+    app:strokeColor="@color/border_light"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -39,8 +39,8 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:textColor="@color/on_background"
-                    android:textSize="15sp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15.5sp"
                     android:textStyle="bold"
                     tools:text="🏪 Phúc Long - Huỳnh Thúc Kháng" />
 
@@ -55,13 +55,13 @@
                     android:textColor="@color/brand_blue"
                     android:textSize="11sp"
                     android:textStyle="bold"
-                    tools:text="Vị trí: Quận 1, TP.HCM" />
+                    tools:text="📍 Quận 1, TP.HCM" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/btnDeleteShopCart"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
                 android:focusable="true"
@@ -78,8 +78,8 @@
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="12dp"
-            android:layout_marginBottom="6dp"
-            android:background="@color/border" />
+            android:layout_marginBottom="8dp"
+            android:background="@color/divider" />
 
         <!-- Danh sách các món của quán -->
         <androidx.recyclerview.widget.RecyclerView
@@ -92,9 +92,9 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:layout_marginBottom="12dp"
-            android:background="@color/border" />
+            android:background="@color/divider" />
 
         <!-- Shop Footer: Tạm tính & Nút Đặt Quán Này -->
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -115,14 +115,14 @@
                     android:layout_height="wrap_content"
                     android:text="Tạm tính:"
                     android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
+                    android:textSize="11.5sp" />
 
                 <TextView
                     android:id="@+id/tvSubtotal"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/primary"
-                    android:textSize="15sp"
+                    android:textSize="16sp"
                     android:textStyle="bold"
                     tools:text="90.000₫" />
             </LinearLayout>
@@ -134,13 +134,13 @@
                 android:backgroundTint="@color/primary"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingHorizontal="16dp"
-                android:paddingVertical="9dp"
-                android:text="Đặt Quán Này 👉"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="10dp"
+                android:text="Đặt Quán Này ➔"
                 android:textColor="@color/white"
-                android:textSize="13sp"
+                android:textSize="13.5sp"
                 android:textStyle="bold"
-                app:cornerRadius="10dp"
+                app:cornerRadius="14dp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />

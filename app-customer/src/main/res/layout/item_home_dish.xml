@@ -4,63 +4,72 @@
     android:id="@+id/cardHomeDish"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp"
+    android:layout_marginBottom="12dp"
     android:clickable="true"
     android:focusable="true"
-    app:cardBackgroundColor="@color/white"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="1dp"
-    app:strokeColor="#E2E8F0"
-    app:strokeWidth="1dp">
+    app:cardBackgroundColor="@color/surface"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:strokeColor="@color/border_light"
+    app:strokeWidth="1dp"
+    app:rippleColor="@color/ripple">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="12dp">
 
-        <!-- 1. Ảnh / Icon món ăn (78x78dp) + Badge Promo (Theo chuẩn b1.html dish-food-img) -->
-        <FrameLayout
+        <!-- 1. Ảnh / Icon món ăn (80x80dp) bo góc 12dp + Badge Promo -->
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/flDishThumb"
-            android:layout_width="78dp"
-            android:layout_height="78dp"
-            android:background="@drawable/bg_search_box"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border_light"
+            app:strokeWidth="1dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
-            <ImageView
-                android:id="@+id/ivDishThumb"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:src="@drawable/placeholder_food" />
+                android:layout_height="match_parent">
 
-            <TextView
-                android:id="@+id/tvDishEmoji"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="🍲"
-                android:textSize="36sp"
-                android:visibility="gone" />
+                <ImageView
+                    android:id="@+id/ivDishThumb"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/placeholder_food" />
 
-            <!-- Badge khuyến mãi góc trái trên (b1.html: dish-badge-promo) -->
-            <TextView
-                android:id="@+id/tvDishPromo"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|start"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="1.5dp"
-                android:text="-50%"
-                android:textColor="@color/white"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:visibility="visible" />
-        </FrameLayout>
+                <TextView
+                    android:id="@+id/tvDishEmoji"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="🍲"
+                    android:textSize="36sp"
+                    android:visibility="gone" />
 
-        <!-- 2. Thông tin chi tiết món ăn (b1.html: dish-food-info) -->
+                <!-- Badge khuyến mãi góc trái trên -->
+                <TextView
+                    android:id="@+id/tvDishPromo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|start"
+                    android:background="@drawable/bg_badge_orange"
+                    android:paddingHorizontal="6dp"
+                    android:paddingVertical="2dp"
+                    android:text="-50%"
+                    android:textColor="@color/white"
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:visibility="visible" />
+            </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 2. Thông tin chi tiết món ăn -->
         <LinearLayout
             android:id="@+id/llDishInfo"
             android:layout_width="0dp"
@@ -81,8 +90,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Hồng Trà Sữa Trân Châu Hoàng Kim"
-                android:textColor="#1E293B"
-                android:textSize="13.5sp"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <!-- Hàng giá tiền: Giá bán cam + Giá cũ gạch ngang -->
@@ -99,7 +108,7 @@
                     android:layout_height="wrap_content"
                     android:text="28.000 đ"
                     android:textColor="@color/primary"
-                    android:textSize="14sp"
+                    android:textSize="14.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -108,7 +117,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
                     android:text="56.000 đ"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="11sp"
                     android:visibility="visible" />
             </LinearLayout>
@@ -122,8 +131,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text=""
-                android:textColor="#64748B"
-                android:textSize="11sp"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
                 android:textStyle="bold" />
 
             <!-- Meta: Đánh giá + Cự ly km -->
@@ -139,8 +148,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="⭐ 4.8 (1.2k đã bán)"
-                    android:textColor="#D97706"
-                    android:textSize="10.5sp"
+                    android:textColor="@color/rating_star"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -149,8 +158,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
                     android:text="• 📍 1.2 km"
-                    android:textColor="#047857"
-                    android:textSize="10.5sp"
+                    android:textColor="@color/brand_green"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -159,42 +168,42 @@
                 android:id="@+id/layoutTags"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="5dp"
                 android:orientation="horizontal">
 
                 <TextView
                     android:id="@+id/tvTag1"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:background="#FFF0ED"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="1.5dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="2dp"
                     android:text="Bán Chạy Nhất"
                     android:textColor="@color/primary"
-                    android:textSize="9.5sp"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvTag2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:background="#ECFDF5"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="1.5dp"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_light_green"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="2dp"
                     android:text="Freeship Extra"
-                    android:textColor="#10B981"
-                    android:textSize="9.5sp"
+                    android:textColor="@color/brand_green"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
         </LinearLayout>
 
-        <!-- 3. Nút tròn '+' màu cam gradient để thêm món (b1.html: btn-dish-add) -->
+        <!-- 3. Nút tròn '+' màu cam gradient để thêm món -->
         <FrameLayout
             android:id="@+id/btnAddDish"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:background="@drawable/bg_floating_cart"
             android:clickable="true"
             android:elevation="2dp"

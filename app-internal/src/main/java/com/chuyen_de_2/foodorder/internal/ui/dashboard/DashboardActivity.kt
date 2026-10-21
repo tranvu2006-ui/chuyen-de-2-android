@@ -201,7 +201,7 @@ class DashboardActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_reports -> {
-                    Toast.makeText(this, "Tính năng Báo cáo Doanh thu & Đơn hàng", Toast.LENGTH_SHORT).show()
+                    loadFragment(com.chuyen_de_2.foodorder.internal.ui.shop.StoreReportFragment())
                     true
                 }
                 else -> false

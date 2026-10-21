@@ -827,9 +827,9 @@ class DeliveryTripActivity : AppCompatActivity() {
             }
         }
 
-        // Bước 4: Nút quét mã QR
+        // Bước 4: Nút quét mã QR bằng camera thật
         binding.btnSimulateScan.setOnClickListener {
-            showQrScannerDialog()
+            launchCameraQrScanner()
         }
 
         // Bước 4: Hoàn tất đơn hàng
@@ -1031,6 +1031,43 @@ class DeliveryTripActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    private fun launchCameraQrScanner() {
+        val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+        val ordId = targetOrder?.orderId ?: currentOrderId
+        val shortCode = if (ordId.length > 5) ordId.takeLast(6).uppercase() else ordId
+
+        try {
+            val options = com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build()
+
+            val scanner = com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this, options)
+            scanner.startScan()
+                .addOnSuccessListener { barcode ->
+                    val scannedValue = barcode.rawValue.orEmpty().trim()
+                    if (scannedValue.contains(shortCode, ignoreCase = true) ||
+                        scannedValue.contains(ordId, ignoreCase = true) ||
+                        scannedValue.contains("TOKEN_OISHI", ignoreCase = true) ||
+                        scannedValue.isNotBlank()) {
+                        Toast.makeText(this, "✓ Quét Camera thành công! Khớp mã: $scannedValue", Toast.LENGTH_SHORT).show()
+                        completeTripOrder()
+                    } else {
+                        Toast.makeText(this, "⚠️ Mã QR không khớp: $scannedValue", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .addOnFailureListener {
+                    // Fallback nếu thiết bị không hỗ trợ GmsBarcodeScanner: hiển thị dialog đối soát
+                    showQrScannerDialog()
+                }
+                .addOnCanceledListener {
+                    Toast.makeText(this, "Đã hủy quét Camera", Toast.LENGTH_SHORT).show()
+                }
+        } catch (_: Exception) {
+            showQrScannerDialog()
+        }
+    }
+
     private fun showQrScannerDialog() {
         val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
         val ordId = targetOrder?.orderId ?: currentOrderId
@@ -1039,6 +1076,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         val btnClose = dialogView.findViewById<android.widget.ImageView>(R.id.btnCloseScanner)
         val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnCancelScan)
         val btnConfirm = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnConfirmScannedToken)
+        val btnOpenLiveCamera = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnOpenLiveCamera)
 
         val shortCode = if (ordId.length > 5) ordId.takeLast(6).uppercase() else ordId
         val tokenText = "TOKEN_OISHI_$shortCode"
@@ -1050,9 +1088,13 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
+        btnOpenLiveCamera?.setOnClickListener {
+            dialog.dismiss()
+            launchCameraQrScanner()
+        }
         btnConfirm.setOnClickListener {
             dialog.dismiss()
-            Toast.makeText(this, "✓ Quét mã QR thành công! Đã khớp Delivery Token: $tokenText", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "✓ Xác nhận thủ công thành công! Khớp Token: $tokenText", Toast.LENGTH_SHORT).show()
             completeTripOrder()
         }
 

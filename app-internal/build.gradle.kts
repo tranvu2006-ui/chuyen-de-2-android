@@ -85,9 +85,10 @@ dependencies {
     implementation(libs.firebase.crashlytics)
     implementation(libs.firebase.analytics)
 
-    // Google Maps & Location
+    // Google Maps & Location & Code Scanner
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     // Image loading
     implementation(libs.glide)

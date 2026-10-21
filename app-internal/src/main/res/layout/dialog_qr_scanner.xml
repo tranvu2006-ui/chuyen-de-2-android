@@ -112,6 +112,18 @@
             android:textStyle="bold" />
     </LinearLayout>
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnOpenLiveCamera"
+        style="@style/Widget.Material3.Button"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="10dp"
+        android:backgroundTint="@color/primary"
+        android:text="📷 Mở Camera Quét Thực Tế"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        app:cornerRadius="10dp" />
+
     <!-- Action Buttons -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -135,10 +147,10 @@
             style="@style/Widget.Material3.Button"
             android:layout_width="0dp"
             android:layout_height="46dp"
-            android:layout_weight="1"
+            android:layout_weight="1.2"
             android:layout_marginStart="8dp"
             android:backgroundTint="#10B981"
-            android:text="✓ Khớp &amp; Hoàn Tất"
+            android:text="✓ Xác Nhận Thủ Công"
             android:textColor="@color/white"
             android:textStyle="bold"
             app:cornerRadius="10dp" />

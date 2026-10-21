@@ -1680,9 +1680,9 @@
                             android:layout_height="40dp"
                             android:layout_marginTop="12dp"
                             android:backgroundTint="@color/primary"
-                            android:text="📸 Quét Mã QR Thành Công"
+                            android:text="📷 Mở Camera Quét Mã QR"
                             android:textColor="#FFFFFF"
-                            android:textSize="12sp"
+                            android:textSize="12.5sp"
                             android:textStyle="bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

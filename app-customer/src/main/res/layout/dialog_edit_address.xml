@@ -43,7 +43,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="🏠 Nhà riêng"
+                android:text="Nhà riêng"
                 android:textSize="13sp"
                 android:layout_marginEnd="12dp" />
 
@@ -51,7 +51,7 @@
                 android:id="@+id/rbLabelWork"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🏢 Công ty"
+                android:text="Công ty"
                 android:textSize="13sp"
                 android:layout_marginEnd="12dp" />
 
@@ -59,7 +59,7 @@
                 android:id="@+id/rbLabelOther"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="📍 Khác"
+                android:text="Khác"
                 android:textSize="13sp" />
         </RadioGroup>
 
@@ -120,11 +120,11 @@
             android:orientation="horizontal"
             android:paddingHorizontal="12dp">
 
-            <TextView
+            <ImageView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🗺️"
-                android:textSize="15sp" />
+               
+                app:srcCompat="@drawable/ic_map" app:tint="@color/primary" />
 
             <TextView
                 android:layout_width="wrap_content"

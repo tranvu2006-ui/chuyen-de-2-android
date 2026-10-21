@@ -148,7 +148,7 @@
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="14dp"
-                android:text="📞 Liên hệ"
+                android:text="Liên hệ"
                 android:textColor="#10B981"
                 android:textSize="11.5sp"
                 android:textStyle="bold"

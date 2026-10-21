@@ -31,7 +31,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="⚙️ Hồ Sơ &amp; Cài Đặt Quán"
+            android:text="Hồ Sơ &amp; Cài Đặt Quán"
             android:textColor="#1E293B"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -45,7 +45,7 @@
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:paddingHorizontal="12dp"
-            android:text="✏️ Chỉnh Sửa"
+            android:text="Chỉnh Sửa"
             android:textColor="#EE4D2D"
             android:textSize="12sp"
             android:textStyle="bold"
@@ -84,13 +84,13 @@
                     android:orientation="horizontal"
                     android:padding="16dp">
 
-                    <TextView
+                    <ImageView
                         android:layout_width="54dp"
                         android:layout_height="54dp"
                         android:background="@drawable/bg_badge_orange"
                         android:gravity="center"
-                        android:text="🍲"
-                        android:textSize="28sp" />
+                       
+                        app:srcCompat="@drawable/ic_soup" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -125,7 +125,7 @@
                             android:background="@drawable/bg_badge_free"
                             android:paddingHorizontal="8dp"
                             android:paddingVertical="3dp"
-                            android:text="✓ ĐÃ XÁC MINH HỒ SƠ"
+                            android:text="ĐÃ XÁC MINH HỒ SƠ"
                             android:textColor="#10B981"
                             android:textSize="10.5sp"
                             android:textStyle="bold" />
@@ -153,7 +153,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🪪 Thông Tin Pháp Lý &amp; Chủ Quán (Admin)"
+                        android:text="Thông Tin Pháp Lý &amp; Chủ Quán (Admin)"
                         android:textColor="#1E293B"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -272,7 +272,7 @@
                             android:id="@+id/tvProfileStatus"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="🟢 ĐANG HOẠT ĐỘNG (OPEN)"
+                            android:text="ĐANG HOẠT ĐỘNG (OPEN)"
                             android:textColor="#10B981"
                             android:textSize="12sp"
                             android:textStyle="bold" />
@@ -452,7 +452,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="💳 Tài Khoản Ngân Hàng (VietQR)"
+                            android:text="Tài Khoản Ngân Hàng (VietQR)"
                             android:textColor="#1E293B"
                             android:textSize="13sp"
                             android:textStyle="bold" />
@@ -574,7 +574,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:backgroundTint="#EE4D2D"
-                android:text="✏️ Chỉnh Sửa Thông Tin Quán"
+                android:text="Chỉnh Sửa Thông Tin Quán"
                 android:textColor="#FFFFFF"
                 android:textSize="14sp"
                 android:textStyle="bold"
@@ -588,7 +588,7 @@
                 android:layout_height="48dp"
                 android:layout_marginTop="12dp"
                 android:backgroundTint="#FEE2E2"
-                android:text="🚪 Đăng Xuất Khỏi Quán"
+                android:text="Đăng Xuất Khỏi Quán"
                 android:textColor="#DC2626"
                 android:textSize="14sp"
                 android:textStyle="bold"

@@ -14,11 +14,11 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
+        <ImageView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⚠️"
-            android:textSize="22sp" />
+           
+            app:srcCompat="@drawable/ic_alert_triangle" app:tint="#F59E0B" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -166,7 +166,7 @@
         android:layout_height="48dp"
         android:layout_marginTop="16dp"
         android:backgroundTint="@color/danger"
-        android:text="🚫 XÁC NHẬN BÁO CÁO &amp; HỦY ĐƠN NÀY"
+        android:text="XÁC NHẬN BÁO CÁO &amp; HỦY ĐƠN NÀY"
         android:textColor="#FFFFFF"
         android:textSize="12.5sp"
         android:textStyle="bold"

@@ -35,13 +35,13 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
+            <ImageView
                 android:layout_width="30dp"
                 android:layout_height="30dp"
                 android:background="@drawable/bg_badge_orange"
                 android:gravity="center"
-                android:text="🍲"
-                android:textSize="16sp" />
+               
+                app:srcCompat="@drawable/ic_soup" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -66,7 +66,7 @@
             android:insetBottom="0dp"
             android:paddingHorizontal="8dp"
             android:paddingVertical="0dp"
-            android:text="🚨 Cảnh Báo"
+            android:text="Cảnh Báo"
             android:textColor="@color/white"
             android:textSize="11sp"
             android:textStyle="bold"
@@ -125,11 +125,11 @@
                     android:gravity="top"
                     android:orientation="horizontal">
 
-                    <TextView
+                    <ImageView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🚫"
-                        android:textSize="22sp" />
+                       
+                        app:srcCompat="@drawable/ic_close" app:tint="#EF4444" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -164,7 +164,7 @@
                             android:background="@drawable/bg_banner_warning"
                             android:paddingHorizontal="10dp"
                             android:paddingVertical="5dp"
-                            android:text="📄 Xem mục Đã Hủy &amp; Biên bản ➔"
+                            android:text="📄 Xem mục Đã Hủy &amp; Biên bản "
                             android:textColor="#DC2626"
                             android:textSize="11sp"
                             android:textStyle="bold" />
@@ -462,7 +462,7 @@
                             android:backgroundTint="#F8FAFC"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
-                            android:text="📞 Gọi Cho Quán (028.3822.9999)"
+                            android:text="Gọi Cho Quán (028.3822.9999)"
                             android:textColor="@color/primary"
                             android:textSize="12sp"
                             android:textStyle="bold"
@@ -479,7 +479,7 @@
                             android:backgroundTint="#EFF6FF"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
-                            android:text="💬 Nhắn Tin Cho Quán"
+                            android:text="Nhắn Tin Cho Quán"
                             android:textColor="#2563EB"
                             android:textSize="12sp"
                             android:textStyle="bold"
@@ -505,11 +505,11 @@
                             android:gravity="center_vertical"
                             android:orientation="horizontal">
 
-                            <TextView
+                            <ImageView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="🚨"
-                                android:textSize="16sp" />
+                               
+                                app:srcCompat="@drawable/ic_alert_triangle" app:tint="#EF4444" />
 
                             <TextView
                                 android:layout_width="0dp"
@@ -575,7 +575,7 @@
                                 android:backgroundTint="@color/white"
                                 android:insetTop="0dp"
                                 android:insetBottom="0dp"
-                                android:text="🚨 Chi Tiết Cảnh Báo"
+                                android:text="Chi Tiết Cảnh Báo"
                                 android:textColor="#DC2626"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
@@ -617,7 +617,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="📍 Vị trí Shipper &amp; Lộ trình di chuyển"
+                            android:text="Vị trí Shipper &amp; Lộ trình di chuyển"
                             android:textColor="#0F172A"
                             android:textSize="12sp"
                             android:textStyle="bold" />
@@ -916,7 +916,7 @@
                         android:backgroundTint="#10B981"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
-                        android:text="✓ Gửi Đánh Giá &amp; Nhận 50 Điểm"
+                        android:text="Gửi Đánh Giá &amp; Nhận 50 Điểm"
                         android:textColor="@color/white"
                         android:textSize="12sp"
                         android:textStyle="bold"
@@ -1046,7 +1046,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="💳 Hình thức: Chuyển khoản VietQR (Đã thanh toán)"
+                        android:text="Hình thức: Chuyển khoản VietQR (Đã thanh toán)"
                         android:textColor="#64748B"
                         android:textSize="11sp" />
                 </LinearLayout>

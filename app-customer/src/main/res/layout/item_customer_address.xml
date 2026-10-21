@@ -31,7 +31,7 @@
                 android:background="@drawable/bg_badge_orange"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:text="🏠 Nhà riêng"
+                android:text="Nhà riêng"
                 android:textColor="@color/primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -55,14 +55,14 @@
                 android:layout_weight="1" />
 
             <!-- Nút Xóa địa chỉ -->
-            <TextView
+            <ImageView
                 android:id="@+id/btnDeleteAddress"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:padding="4dp"
-                android:text="🗑️"
-                android:textSize="14sp" />
+               
+                app:srcCompat="@drawable/ic_trash" app:tint="#EF4444" />
         </LinearLayout>
 
         <TextView

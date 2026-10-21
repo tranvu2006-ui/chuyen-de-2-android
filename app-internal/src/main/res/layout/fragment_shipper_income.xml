@@ -37,7 +37,7 @@
                 android:background="@drawable/bg_badge_shop_tag"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="4dp"
-                android:text="🏪 Tài xế nội bộ"
+                android:text="Tài xế nội bộ"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold" />
@@ -207,7 +207,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="📋 Các Chuyến Đã Giao Thành Công"
+            android:text="Các Chuyến Đã Giao Thành Công"
             android:textColor="@color/text_primary"
             android:textSize="14sp"
             android:textStyle="bold" />

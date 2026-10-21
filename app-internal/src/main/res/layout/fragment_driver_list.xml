@@ -21,7 +21,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🛵 Đội Tài Xế Của Quán"
+            android:text="Đội Tài Xế Của Quán"
             android:textColor="#1E293B"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -125,7 +125,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="🟢 Đang rảnh"
+                            android:text="Đang rảnh"
                             android:textColor="#64748B"
                             android:textSize="11sp" />
                     </LinearLayout>
@@ -156,7 +156,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="🚚 Đang giao"
+                            android:text="Đang giao"
                             android:textColor="#64748B"
                             android:textSize="11sp" />
                     </LinearLayout>

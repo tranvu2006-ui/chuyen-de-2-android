@@ -51,7 +51,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="📍 Vị trí đã chọn:"
+                    android:text="Vị trí đã chọn:"
                     android:textColor="#64748B"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -94,7 +94,7 @@
                 android:layout_height="48dp"
                 android:layout_marginTop="14dp"
                 android:backgroundTint="@color/primary"
-                android:text="✅ Xác Nhận Chọn Địa Chỉ Này"
+                android:text="Xác Nhận Chọn Địa Chỉ Này"
                 android:textAllCaps="false"
                 android:textColor="@color/white"
                 android:textSize="14sp"

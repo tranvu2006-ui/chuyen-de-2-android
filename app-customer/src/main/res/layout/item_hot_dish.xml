@@ -50,7 +50,7 @@
                 android:background="@drawable/bg_badge_orange"
                 android:paddingHorizontal="7dp"
                 android:paddingVertical="3dp"
-                android:text="🔥 Hot"
+                android:text="Hot"
                 android:textColor="@color/white"
                 android:textSize="10sp"
                 android:textStyle="bold" />

@@ -134,7 +134,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🏪 QUÁN TRỰC THUỘC DUY NHẤT"
+                    android:text="QUÁN TRỰC THUỘC DUY NHẤT"
                     android:textColor="@color/brand_blue"
                     android:textSize="10.5sp"
                     android:textStyle="bold" />
@@ -165,7 +165,7 @@
                     android:background="@drawable/bg_badge_shop_tag"
                     android:paddingHorizontal="10dp"
                     android:paddingVertical="5dp"
-                    android:text="✓ Tài xế chuyên quán nội bộ • Độc quyền giao đơn"
+                    android:text="Tài xế chuyên quán nội bộ • Độc quyền giao đơn"
                     android:textColor="#1E40AF"
                     android:textSize="11sp"
                     android:textStyle="bold" />
@@ -325,7 +325,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="📍 Định vị GPS Nền (Foreground)"
+                            android:text="Định vị GPS Nền (Foreground)"
                             android:textColor="@color/text_primary"
                             android:textSize="13.5sp"
                             android:textStyle="bold" />
@@ -397,7 +397,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="📞 Hỗ trợ Quản lý Quán"
+                        android:text="Hỗ trợ Quản lý Quán"
                         android:textColor="@color/text_primary"
                         android:textSize="13.5sp"
                         android:textStyle="bold" />
@@ -419,7 +419,7 @@
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:text="🚪 Đăng Xuất Tài Khoản"
+            android:text="Đăng Xuất Tài Khoản"
             android:textColor="@color/danger"
             app:strokeColor="@color/danger" />
 

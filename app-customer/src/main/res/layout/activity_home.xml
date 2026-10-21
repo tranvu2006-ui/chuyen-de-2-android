@@ -30,12 +30,12 @@
                 android:layout_height="32dp"
                 android:background="@drawable/bg_search_box">
 
-                <TextView
+                <ImageView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:text="🍲"
-                    android:textSize="18sp" />
+                   
+                    app:srcCompat="@drawable/ic_soup" />
             </FrameLayout>
 
             <TextView
@@ -148,7 +148,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🏪 Tài khoản Quán: Chế độ xem trước khách hàng"
+            android:text="Tài khoản Quán: Chế độ xem trước khách hàng"
             android:textColor="#E65100"
             android:textStyle="bold"
             android:textSize="12sp" />
@@ -160,7 +160,7 @@
             android:background="@drawable/bg_badge_orange"
             android:backgroundTint="#FF9800"
             android:textColor="@color/white"
-            android:text="Mở App Quán ➔"
+            android:text="Mở App Quán "
             android:textStyle="bold"
             android:textSize="12sp"
             android:paddingHorizontal="12dp"
@@ -201,7 +201,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="🔥 Top Món Hot Bán Chạy"
+                        android:text="Top Món Hot Bán Chạy"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -530,7 +530,7 @@
                         android:focusable="true"
                         android:paddingHorizontal="8dp"
                         android:paddingVertical="3dp"
-                        android:text="✕ Xóa lọc"
+                        android:text="Xóa lọc"
                         android:textColor="#047857"
                         android:textSize="10.5sp"
                         android:textStyle="bold" />
@@ -647,7 +647,7 @@
             android:id="@+id/tvCartAmount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="0 đ ➔"
+            android:text="0 đ "
             android:textColor="@color/on_primary"
             android:textSize="13sp"
             android:textStyle="bold"

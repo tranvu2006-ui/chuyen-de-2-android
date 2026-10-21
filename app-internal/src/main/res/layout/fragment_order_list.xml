@@ -22,13 +22,13 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
+            <ImageView
                 android:layout_width="28dp"
                 android:layout_height="28dp"
                 android:background="@drawable/bg_badge_orange"
                 android:gravity="center"
-                android:text="🍲"
-                android:textSize="15sp" />
+               
+                app:srcCompat="@drawable/ic_soup" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -66,7 +66,7 @@
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
-                android:text="⚙️ Hồ Sơ"
+                android:text="Hồ Sơ"
                 android:textColor="#2563EB"
                 android:textSize="11sp"
                 android:textStyle="bold"
@@ -84,7 +84,7 @@
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="8dp"
-                android:text="🚪 Đăng xuất"
+                android:text="Đăng xuất"
                 android:textColor="#DC2626"
                 android:textSize="11sp"
                 android:textStyle="bold"
@@ -127,7 +127,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
-                        android:text="✏️"
+                        android:text="️"
                         android:textSize="12sp" />
                 </LinearLayout>
 
@@ -136,7 +136,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="📍 28 Tô Vĩnh Diện, TP. Thủ Đức"
+                    android:text="28 Tô Vĩnh Diện, TP. Thủ Đức"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
@@ -278,7 +278,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="⚡ Quy Trình 3 Bước: Xác Nhận ➔ Nấu Xong ➔ Giao Tài Xế"
+                android:text="Quy Trình 3 Bước: Xác Nhận ➔ Nấu Xong ➔ Giao Tài Xế"
                 android:textColor="@color/primary_variant"
                 android:textSize="12.5sp"
                 android:textStyle="bold" />
@@ -411,7 +411,7 @@
                     android:id="@+id/tvTabHistoryTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Lịch Sử ➔"
+                    android:text="Lịch Sử "
                     android:textColor="@color/text_secondary"
                     android:textSize="10.5sp"
                     android:textStyle="bold" />
@@ -430,11 +430,11 @@
             android:padding="10dp"
             android:visibility="gone">
 
-            <TextView
+            <ImageView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🚨"
-                android:textSize="20sp" />
+               
+                app:srcCompat="@drawable/ic_alert_triangle" app:tint="#EF4444" />
 
             <LinearLayout
                 android:layout_width="0dp"

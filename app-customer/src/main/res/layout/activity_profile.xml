@@ -120,7 +120,7 @@
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                         android:layout_width="wrap_content"
                         android:layout_height="38dp"
-                        android:text="Sửa ✏️"
+                        android:text="Sửa "
                         android:textSize="12sp"
                         android:paddingHorizontal="10dp"
                         android:paddingVertical="0dp"
@@ -157,7 +157,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="🛡️ ĐIỂM UY TÍN (TRUSTSCORE)"
+                            android:text="ĐIỂM UY TÍN (TRUSTSCORE)"
                             android:textColor="#94A3B8"
                             android:textSize="11sp"
                             android:textStyle="bold" />
@@ -169,7 +169,7 @@
                             android:background="@drawable/bg_badge_orange"
                             android:paddingHorizontal="10dp"
                             android:paddingVertical="3dp"
-                            android:text="Hạng Vàng 👑"
+                            android:text="Hạng Vàng "
                             android:textColor="@color/primary"
                             android:textSize="11sp"
                             android:textStyle="bold" />

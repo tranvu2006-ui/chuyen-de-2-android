@@ -26,7 +26,7 @@
             android:layout_marginEnd="12dp"
             android:paddingHorizontal="10dp"
             android:paddingVertical="0dp"
-            android:text="🏠 Trang chủ"
+            android:text="Trang chủ"
             android:textColor="@color/text_primary"
             android:textSize="11sp"
             android:textStyle="bold"
@@ -71,7 +71,7 @@
                         android:background="@drawable/bg_badge_light_blue"
                         android:paddingHorizontal="12dp"
                         android:paddingVertical="4dp"
-                        android:text="🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (MB BANK)"
+                        android:text="VIETQR LIÊN NGÂN HÀNG 24/7 (MB BANK)"
                         android:textColor="@color/brand_blue"
                         android:textSize="11sp"
                         android:textStyle="bold" />
@@ -102,7 +102,7 @@
                         android:background="@drawable/bg_blue_info_box"
                         android:paddingHorizontal="10dp"
                         android:paddingVertical="6dp"
-                        android:text="✓ Đã thanh toán 100%, khi nhận hàng bạn không cần chuẩn bị tiền mặt"
+                        android:text="Đã thanh toán 100%, khi nhận hàng bạn không cần chuẩn bị tiền mặt"
                         android:textColor="@color/brand_blue"
                         android:textSize="11.5sp" />
                 </LinearLayout>
@@ -196,7 +196,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🏛️ Thông Tin Chuyển Khoản"
+                        android:text="Thông Tin Chuyển Khoản"
                         android:textColor="@color/text_primary"
                         android:textSize="13.5sp"
                         android:textStyle="bold" />
@@ -372,7 +372,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="💡 Hướng Dẫn Thanh Toán"
+                        android:text="Hướng Dẫn Thanh Toán"
                         android:textColor="#334155"
                         android:textSize="12.5sp"
                         android:textStyle="bold" />
@@ -408,7 +408,7 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:backgroundTint="#10B981"
-            android:text="✓ Tôi Đã Chuyển Khoản Xong"
+            android:text="Tôi Đã Chuyển Khoản Xong"
             android:textColor="@color/white"
             android:textSize="14sp"
             android:textStyle="bold"
@@ -421,7 +421,7 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="8dp"
             android:padding="4dp"
-            android:text="🏠 Về màn hình chính"
+            android:text="Về màn hình chính"
             android:textColor="@color/text_muted"
             android:textSize="12sp"
             android:textStyle="bold" />

@@ -227,7 +227,7 @@
                                     android:focusable="true"
                                     android:paddingHorizontal="7dp"
                                     android:paddingVertical="3dp"
-                                    android:text="⭐ Đánh giá (128) ➔"
+                                    android:text="⭐ Đánh giá (128) "
                                     android:textColor="@color/primary"
                                     android:textSize="10.5sp"
                                     android:textStyle="bold" />

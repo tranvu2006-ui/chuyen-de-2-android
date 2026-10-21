@@ -40,7 +40,7 @@
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <TextView
+        <ImageView
             android:id="@+id/btnCloseSheet"
             android:layout_width="30dp"
             android:layout_height="30dp"
@@ -48,10 +48,10 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:text="✕"
+           
             android:textColor="#64748B"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+           
+            android:textStyle="bold" app:srcCompat="@drawable/ic_close" app:tint="@color/text_muted" />
     </LinearLayout>
 
     <!-- Badge Vị trí GPS hiện tại (b1.html: current-loc-badge) -->
@@ -70,7 +70,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="📡 Vị trí hiện tại: Phường Đa Kao, Quận 1, TP.HCM"
+            android:text="Vị trí hiện tại: Phường Đa Kao, Quận 1, TP.HCM"
             android:textColor="#1E40AF"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -112,7 +112,7 @@
             android:layout_width="match_parent"
             android:layout_height="46dp"
             android:backgroundTint="#10B981"
-            android:text="⚡ Chỉ Lọc Món Các Quán Gần (&lt; 1.5 km)"
+            android:text="Chỉ Lọc Món Các Quán Gần (&lt; 1.5 km)"
             android:textAllCaps="false"
             android:textColor="@color/white"
             android:textSize="13sp"

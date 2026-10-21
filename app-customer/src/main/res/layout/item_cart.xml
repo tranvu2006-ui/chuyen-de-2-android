@@ -29,12 +29,12 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
-            <TextView
+            <ImageView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:text="🍲"
-                android:textSize="24sp" />
+               
+                app:srcCompat="@drawable/ic_soup" />
         </com.google.android.material.card.MaterialCardView>
 
         <!-- Tên món ăn -->

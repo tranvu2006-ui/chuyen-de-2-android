@@ -12,11 +12,11 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <TextView
+        <ImageView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🔔"
-            android:textSize="24sp" />
+           
+            app:srcCompat="@drawable/ic_notification" app:tint="@color/primary" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -72,7 +72,7 @@
             android:id="@+id/tvPopupStore"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🏪 Điểm lấy món"
+            android:text="Điểm lấy món"
             android:textColor="@color/text_primary"
             android:textSize="12.5sp"
             android:textStyle="bold" />
@@ -82,7 +82,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="📍 Địa chỉ giao hàng"
+            android:text="Địa chỉ giao hàng"
             android:textColor="#334155"
             android:textSize="12.5sp" />
 
@@ -91,7 +91,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="📦 Món ăn theo đơn"
+            android:text="Món ăn theo đơn"
             android:textColor="@color/text_secondary"
             android:textSize="11.5sp" />
     </LinearLayout>
@@ -119,7 +119,7 @@
             android:layout_height="46dp"
             android:layout_weight="1.6"
             android:backgroundTint="#059669"
-            android:text="🛵 CHẤP NHẬN ĐƠN"
+            android:text="CHẤP NHẬN ĐƠN"
             android:textColor="#FFFFFF"
             android:textStyle="bold" />
     </LinearLayout>

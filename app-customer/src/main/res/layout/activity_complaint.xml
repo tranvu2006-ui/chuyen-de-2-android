@@ -192,7 +192,7 @@
                 android:id="@+id/btnSubmitComplaint"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="Gửi Khiếu Nại Lên Hệ Thống ⚖️"
+                android:text="Gửi Khiếu Nại Lên Hệ Thống "
                 android:textColor="@color/white"
                 android:textSize="15sp"
                 android:textStyle="bold"

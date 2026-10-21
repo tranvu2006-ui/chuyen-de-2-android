@@ -183,7 +183,7 @@
                 android:background="@drawable/bg_chat_chip"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="6dp"
-                android:text="⚡ Làm nhanh giúp mình"
+                android:text="Làm nhanh giúp mình"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
                 android:textStyle="bold" />

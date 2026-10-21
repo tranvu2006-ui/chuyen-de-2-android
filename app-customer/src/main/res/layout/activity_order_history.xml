@@ -87,7 +87,7 @@
                 style="@style/Widget.Material3.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🚨 Bị cảnh báo (0)"
+                android:text="Bị cảnh báo (0)"
                 android:textColor="#DC2626"
                 android:textSize="11.5sp" />
 
@@ -106,7 +106,7 @@
                 style="@style/Widget.Material3.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🚫 Đã hủy (0)"
+                android:text="Đã hủy (0)"
                 android:textSize="11.5sp" />
 
             <!-- Tab 5: Chờ thanh toán -->
@@ -161,11 +161,11 @@
         android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/dividerTabs">
 
-        <TextView
+        <ImageView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🚨"
-            android:textSize="18sp" />
+           
+            app:srcCompat="@drawable/ic_alert_triangle" app:tint="#EF4444" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -200,7 +200,7 @@
             android:insetBottom="0dp"
             android:minWidth="0dp"
             android:paddingHorizontal="10dp"
-            android:text="Xem Ngay ➔"
+            android:text="Xem Ngay "
             android:textColor="@color/white"
             android:textSize="10.5sp"
             android:textStyle="bold"
@@ -234,11 +234,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/dividerTabs">
 
-        <TextView
+        <ImageView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📦"
-            android:textSize="48sp" />
+           
+            app:srcCompat="@drawable/ic_package" app:tint="@color/text_muted" />
 
         <TextView
             android:id="@+id/tvEmptyMessage"

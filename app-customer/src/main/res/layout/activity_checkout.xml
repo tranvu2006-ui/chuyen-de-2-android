@@ -122,7 +122,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="📍 Địa Chỉ Nhận Hàng (TP.HCM)"
+                            android:text="Địa Chỉ Nhận Hàng (TP.HCM)"
                             android:textColor="#0F172A"
                             android:textSize="15sp"
                             android:textStyle="bold" />
@@ -137,7 +137,7 @@
                             android:focusable="true"
                             android:paddingHorizontal="8dp"
                             android:paddingVertical="4dp"
-                            android:text="🎯 GPS vị trí"
+                            android:text="GPS vị trí"
                             android:textColor="#0284C7"
                             android:textSize="11sp"
                             android:textStyle="bold" />
@@ -181,7 +181,7 @@
                             android:layout_marginStart="6dp"
                             android:background="?attr/selectableItemBackground"
                             android:padding="4dp"
-                            android:text="📋 Xem tất cả"
+                            android:text="Xem tất cả"
                             android:textColor="@color/primary"
                             android:textSize="11.5sp"
                             android:textStyle="bold" />
@@ -200,11 +200,11 @@
                         android:orientation="horizontal"
                         android:paddingHorizontal="14dp">
 
-                        <TextView
+                        <ImageView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="🗺️"
-                            android:textSize="16sp" />
+                           
+                            app:srcCompat="@drawable/ic_map" app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -299,7 +299,7 @@
                         android:background="@drawable/bg_blue_info_box"
                         android:paddingHorizontal="12dp"
                         android:paddingVertical="9dp"
-                        android:text="🛵 Cước phí giao hàng đồng giá 15.000 đ cho nội thành TP.HCM"
+                        android:text="Cước phí giao hàng đồng giá 15.000 đ cho nội thành TP.HCM"
                         android:textColor="#0284C7"
                         android:textSize="12sp"
                         android:textStyle="bold" />
@@ -327,7 +327,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="💳 Phương Thức Thanh Toán"
+                        android:text="Phương Thức Thanh Toán"
                         android:textColor="#0F172A"
                         android:textSize="15sp"
                         android:textStyle="bold" />
@@ -343,7 +343,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:buttonTint="@color/primary"
-                            android:text="💵 Tiền mặt khi nhận hàng (COD)"
+                            android:text="Tiền mặt khi nhận hàng (COD)"
                             android:textColor="#1E293B"
                             android:textSize="13.5sp" />
 
@@ -354,7 +354,7 @@
                             android:layout_marginTop="6dp"
                             android:buttonTint="@color/primary"
                             android:checked="true"
-                            android:text="🏦 Chuyển khoản ngân hàng (VietQR / Chuyển 24/7)"
+                            android:text="Chuyển khoản ngân hàng (VietQR / Chuyển 24/7)"
                             android:textColor="#1E293B"
                             android:textSize="13.5sp" />
                     </RadioGroup>
@@ -373,7 +373,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="🏛 THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
+                            android:text="THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
                             android:textColor="#0284C7"
                             android:textSize="12sp"
                             android:textStyle="bold" />
@@ -392,7 +392,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="⚡ Quán sẽ xác nhận và chế biến ngay sau khi nhận được giao dịch chuyển khoản."
+                            android:text="Quán sẽ xác nhận và chế biến ngay sau khi nhận được giao dịch chuyển khoản."
                             android:textColor="#64748B"
                             android:textSize="11sp"
                             android:textStyle="italic" />
@@ -419,7 +419,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📝 Ghi Chú Đơn Hàng"
+                        android:text="Ghi Chú Đơn Hàng"
                         android:textColor="@color/text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold" />
@@ -562,7 +562,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="🎟️ Giảm giá Voucher"
+                            android:text="Giảm giá Voucher"
                             android:textColor="@color/primary"
                             android:textSize="13sp"
                             android:textStyle="bold" />

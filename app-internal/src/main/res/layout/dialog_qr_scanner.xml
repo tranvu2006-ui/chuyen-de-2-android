@@ -19,7 +19,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="📷 Quét Mã QR Khách Hàng"
+            android:text="Quét Mã QR Khách Hàng"
             android:textColor="#0F172A"
             android:textSize="16sp"
             android:textStyle="bold" />
@@ -80,7 +80,7 @@
                     android:focusable="true"
                     android:paddingHorizontal="10dp"
                     android:paddingVertical="5dp"
-                    android:text="🔄 Đổi Cam"
+                    android:text="Đổi Cam"
                     android:textColor="#FFFFFF"
                     android:textSize="11sp"
                     android:textStyle="bold" />
@@ -94,7 +94,7 @@
                     android:focusable="true"
                     android:paddingHorizontal="10dp"
                     android:paddingVertical="5dp"
-                    android:text="🔦 Flash"
+                    android:text="Flash"
                     android:textColor="#FFFFFF"
                     android:textSize="11sp"
                     android:textStyle="bold" />
@@ -161,7 +161,7 @@
         android:layout_height="48dp"
         android:layout_marginBottom="8dp"
         android:backgroundTint="@color/primary"
-        android:text="📷 Mở Camera Quét Thực Tế"
+        android:text="Mở Camera Quét Thực Tế"
         android:textColor="@color/white"
         android:textStyle="bold"
         app:cornerRadius="10dp" />
@@ -172,7 +172,7 @@
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:layout_marginBottom="10dp"
-        android:text="🖼️ Chọn Ảnh Mã QR Từ Thư Viện"
+        android:text="Chọn Ảnh Mã QR Từ Thư Viện"
         android:textColor="@color/primary"
         app:strokeColor="@color/primary"
         android:textStyle="bold"
@@ -242,7 +242,7 @@
             android:layout_marginStart="6dp"
             android:layout_weight="1.2"
             android:backgroundTint="#10B981"
-            android:text="✓ Khớp &amp; Hoàn Tất"
+            android:text="Khớp &amp; Hoàn Tất"
             android:textColor="@color/white"
             android:textSize="12.5sp"
             android:textStyle="bold"

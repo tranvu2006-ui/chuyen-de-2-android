@@ -58,7 +58,7 @@
                 android:background="@drawable/bg_badge_green"
                 android:paddingHorizontal="6dp"
                 android:paddingVertical="2dp"
-                android:text="✓ VIETQR (0đ)"
+                android:text="VIETQR (0đ)"
                 android:textColor="@color/brand_green"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />
@@ -81,7 +81,7 @@
                 android:focusable="true"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:text="⚡ Ưu tiên giao trước (1)"
+                android:text="Ưu tiên giao trước (1)"
                 android:textColor="@color/brand_blue"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />
@@ -132,7 +132,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="📍 104 Hai Bà Trưng, P. Đa Kao, Q.1"
+                    android:text="104 Hai Bà Trưng, P. Đa Kao, Q.1"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
@@ -146,7 +146,7 @@
                 android:focusable="true"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="4dp"
-                android:text="📞 Gọi"
+                android:text="Gọi"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold" />
@@ -180,7 +180,7 @@
             android:layout_marginTop="6dp"
             android:background="#FFFBEB"
             android:padding="6dp"
-            android:text="📝 Ghi chú: Xin thêm ống hút to"
+            android:text="Ghi chú: Xin thêm ống hút to"
             android:textColor="#92400E"
             android:textSize="10.5sp"
             android:visibility="gone" />

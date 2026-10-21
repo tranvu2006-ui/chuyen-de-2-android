@@ -68,7 +68,7 @@
             android:layout_height="42dp"
             android:layout_marginTop="10dp"
             android:backgroundTint="#059669"
-            android:text="🛵 NHẬN ĐƠN NÀY"
+            android:text="NHẬN ĐƠN NÀY"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
             android:textStyle="bold"

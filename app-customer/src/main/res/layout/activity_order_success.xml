@@ -140,7 +140,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="💰 Chi Tiết Thanh Toán"
+                        android:text="Chi Tiết Thanh Toán"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -294,7 +294,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📦 Thông Tin Giao Nhận"
+                        android:text="Thông Tin Giao Nhận"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -304,7 +304,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="🏷️ Mã đơn: #ORD123456"
+                        android:text="Mã đơn: #ORD123456"
                         android:textColor="#475569"
                         android:textSize="12sp" />
 
@@ -313,7 +313,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="📍 Địa chỉ: 123 Nguyễn Trãi, Quận 1, TP.HCM"
+                        android:text="Địa chỉ: 123 Nguyễn Trãi, Quận 1, TP.HCM"
                         android:textColor="#475569"
                         android:textSize="12sp" />
 
@@ -347,7 +347,7 @@
             style="@style/Widget.FoodOrder.Button.Primary"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:text="🛵 Theo Dõi Đơn Hàng"
+            android:text="Theo Dõi Đơn Hàng"
             android:textSize="14sp"
             android:textStyle="bold"
             app:cornerRadius="12dp" />
@@ -358,7 +358,7 @@
             android:layout_height="40dp"
             android:layout_marginTop="8dp"
             android:backgroundTint="#2563EB"
-            android:text="💬 Nhắn Tin Cho Quán"
+            android:text="Nhắn Tin Cho Quán"
             android:textColor="@color/white"
             android:textSize="12.5sp"
             android:textStyle="bold"
@@ -371,7 +371,7 @@
             android:layout_height="38dp"
             android:layout_marginTop="8dp"
             android:backgroundTint="#F1F5F9"
-            android:text="🏠 Về Trang Chủ"
+            android:text="Về Trang Chủ"
             android:textColor="#334155"
             android:textSize="12.5sp"
             android:textStyle="bold"

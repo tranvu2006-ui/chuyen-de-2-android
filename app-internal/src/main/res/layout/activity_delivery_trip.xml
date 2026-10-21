@@ -86,7 +86,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:paddingHorizontal="10dp"
-                android:text="✕ Hủy đơn"
+                android:text="Hủy đơn"
                 android:textColor="@color/danger"
                 android:textSize="11.5sp"
                 app:strokeColor="#FECDD3" />
@@ -185,16 +185,16 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <TextView
+                <ImageView
                     android:id="@+id/stepBundleShopBadge"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:background="@drawable/bg_badge_green"
                     android:gravity="center"
-                    android:text="✓"
+                   
                     android:textColor="#FFFFFF"
-                    android:textSize="10.5sp"
-                    android:textStyle="bold" />
+                   
+                    android:textStyle="bold" app:srcCompat="@drawable/ic_check" app:tint="@color/primary" />
 
                 <TextView
                     android:id="@+id/stepBundleShopText"
@@ -616,13 +616,13 @@
                             android:clickable="true"
                             android:focusable="true">
 
-                            <TextView
+                            <ImageView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
-                                android:text="📞"
+                               
                                 android:textColor="#059669"
-                                android:textSize="18sp" />
+                                app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
                         </FrameLayout>
                     </LinearLayout>
 
@@ -839,13 +839,13 @@
                                 android:clickable="true"
                                 android:focusable="true">
 
-                                <TextView
+                                <ImageView
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:layout_gravity="center"
-                                    android:text="📞"
+                                   
                                     android:textColor="#059669"
-                                    android:textSize="16sp" />
+                                    app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
                             </FrameLayout>
                         </LinearLayout>
 
@@ -960,7 +960,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="📦 DANH SÁCH MÓN CẦN LẤY"
+                        android:text="DANH SÁCH MÓN CẦN LẤY"
                         android:textColor="@color/text_primary"
                         android:textSize="12.5sp"
                         android:textStyle="bold" />
@@ -970,7 +970,7 @@
                         style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="34dp"
-                        android:text="✓ Kiểm đủ tất cả"
+                        android:text="Kiểm đủ tất cả"
                         android:textColor="@color/brand_blue"
                         android:textSize="11sp" />
                 </LinearLayout>
@@ -1049,7 +1049,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="center"
-                        android:text="⚠️ Tích đủ các món để mở khóa quẹt"
+                        android:text="Tích đủ các món để mở khóa quẹt"
                         android:textColor="#94A3B8"
                         android:textSize="12.5sp"
                         android:textStyle="bold" />
@@ -1112,7 +1112,7 @@
                     android:id="@+id/tvRouteToastText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🛵 Đã chọn giao cho An Nguyễn trước!"
+                    android:text="Đã chọn giao cho An Nguyễn trước!"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -1193,7 +1193,7 @@
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
                             android:paddingHorizontal="10dp"
-                            android:text="Maps ➔"
+                            android:text="Maps "
                             android:textColor="#059669"
                             android:textSize="11sp"
                             android:textStyle="bold"
@@ -1249,7 +1249,7 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="🎯 TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC:"
+                                android:text="TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC:"
                                 android:textColor="#475569"
                                 android:textSize="10.5sp"
                                 android:textStyle="bold" />
@@ -1299,7 +1299,7 @@
                                         android:background="@drawable/bg_badge_orange"
                                         android:paddingHorizontal="4dp"
                                         android:paddingVertical="1dp"
-                                        android:text="⚡ Giao trước"
+                                        android:text="Giao trước"
                                         android:textColor="#FFFFFF"
                                         android:textSize="9sp"
                                         android:textStyle="bold" />
@@ -1531,13 +1531,13 @@
                             android:clickable="true"
                             android:focusable="true">
 
-                            <TextView
+                            <ImageView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
-                                android:text="📞"
+                               
                                 android:textColor="#059669"
-                                android:textSize="16sp" />
+                                app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
                         </FrameLayout>
 
                         <!-- Nút Nhắn tin 💬 -->
@@ -1550,13 +1550,13 @@
                             android:clickable="true"
                             android:focusable="true">
 
-                            <TextView
+                            <ImageView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
-                                android:text="💬"
+                               
                                 android:textColor="@color/brand_blue"
-                                android:textSize="16sp" />
+                                app:srcCompat="@drawable/ic_message_circle" app:tint="@color/primary" />
                         </FrameLayout>
 
                         <!-- Nút Báo cáo sự cố / Hủy đơn / Khách bom ⚠️ (6.html) -->
@@ -1569,13 +1569,13 @@
                             android:clickable="true"
                             android:focusable="true">
 
-                            <TextView
+                            <ImageView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
-                                android:text="⚠️"
+                               
                                 android:textColor="@color/danger"
-                                android:textSize="16sp" />
+                                app:srcCompat="@drawable/ic_alert_triangle" app:tint="#F59E0B" />
                         </FrameLayout>
                     </LinearLayout>
 
@@ -1587,7 +1587,7 @@
                         android:layout_marginTop="8dp"
                         android:background="@drawable/bg_badge_duty_off"
                         android:padding="8dp"
-                        android:text="📍 Địa chỉ: 104 Hai Bà Trưng, P. Đa Kao, Q.1"
+                        android:text="Địa chỉ: 104 Hai Bà Trưng, P. Đa Kao, Q.1"
                         android:textColor="#1E293B"
                         android:textSize="11.5sp" />
 
@@ -1599,7 +1599,7 @@
                         android:layout_marginTop="6dp"
                         android:background="#FFFBEB"
                         android:padding="6dp"
-                        android:text="📝 Ghi chú: Xin thêm 2 ống hút to nha quán"
+                        android:text="Ghi chú: Xin thêm 2 ống hút to nha quán"
                         android:textColor="#92400E"
                         android:textSize="11sp"
                         android:visibility="gone" />
@@ -1613,7 +1613,7 @@
                         android:layout_marginBottom="12dp"
                         android:background="#FEF2F2"
                         android:padding="8dp"
-                        android:text="💵 Thu tiền mặt COD: 95.000 đ"
+                        android:text="Thu tiền mặt COD: 95.000 đ"
                         android:textColor="@color/danger"
                         android:textSize="12sp"
                         android:textStyle="bold" />
@@ -1769,7 +1769,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                             android:id="@+id/tvStep4QrIcon"
-                            android:text="📷\nQR SCAN"
+                            android:text="\nQR SCAN"
                                 android:textAlignment="center"
                                 android:textColor="#FFFFFF"
                                 android:textSize="16sp"
@@ -1800,7 +1800,7 @@
                                 android:layout_marginEnd="6dp"
                                 android:layout_weight="1"
                                 android:backgroundTint="@color/primary"
-                                android:text="📷 Mở Camera"
+                                android:text="Mở Camera"
                                 android:textColor="#FFFFFF"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
@@ -1813,7 +1813,7 @@
                                 android:layout_marginStart="6dp"
                                 android:layout_weight="1"
                                 android:backgroundTint="#334155"
-                                android:text="🖼️ Tải Ảnh QR"
+                                android:text="Tải Ảnh QR"
                                 android:textColor="#FFFFFF"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
@@ -1826,7 +1826,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
                     android:backgroundTint="#059669"
-                    android:text="✅ XÁC NHẬN THU TIỀN &amp; HOÀN TẤT ĐƠN HÀNG"
+                    android:text="XÁC NHẬN THU TIỀN &amp; HOÀN TẤT ĐƠN HÀNG"
                     android:textColor="#FFFFFF"
                     android:textSize="13.5sp"
                     android:textStyle="bold"

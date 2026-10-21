@@ -170,21 +170,21 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:checked="true"
-                        android:text="👤 Khách Hàng (Đặt món &amp; giỏ hàng)"
+                        android:text="Khách Hàng (Đặt món &amp; giỏ hàng)"
                         android:textSize="13sp" />
 
                     <RadioButton
                         android:id="@+id/rbMerchant"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🏪 Chủ Quán (Quản lý cửa hàng)"
+                        android:text="Chủ Quán (Quản lý cửa hàng)"
                         android:textSize="13sp" />
 
                     <RadioButton
                         android:id="@+id/rbDriver"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🛵 Tài Xế Shipper (Nhận cuốc giao món)"
+                        android:text="Tài Xế Shipper (Nhận cuốc giao món)"
                         android:textSize="13sp" />
                 </RadioGroup>
 

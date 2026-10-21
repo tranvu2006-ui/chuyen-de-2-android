@@ -145,12 +145,6 @@ class DeliveryTripActivity : AppCompatActivity() {
         observeOrderDetails()
         observeShipperActiveOrders()
         checkAndRequestLocation()
-
-        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                showConfirmExitDialog()
-            }
-        })
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -833,7 +827,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         binding.btnTripBack.setOnClickListener {
-            showConfirmExitDialog()
+            finish()
         }
 
         binding.btnTripCancel.setOnClickListener {
@@ -1334,25 +1328,6 @@ class DeliveryTripActivity : AppCompatActivity() {
                 Toast.makeText(this@DeliveryTripActivity, "Lỗi cập nhật: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
-    }
-
-    private fun showConfirmExitDialog() {
-        val count = if (isBundleMode) {
-            val remain = bundleOrders.count { !completedBundleOrderIds.contains(it.orderId) }
-            if (remain > 0) remain else bundleOrders.size
-        } else 1
-
-        val currentTarget = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
-        val shortCode = currentTarget?.let { QRCodeUtils.getShortOrderCode(it.orderId) } ?: ""
-
-        AlertDialog.Builder(this)
-            .setTitle("⚠️ RỜI MÀN HÌNH GIAO HÀNG?")
-            .setMessage("Bạn đang giao đơn #ORD-$shortCode (Tổng chuyến: $count đơn chưa hoàn tất).\n\nTiến trình giao hàng của bạn vẫn được lưu an toàn. Bạn có chắc muốn quay lại danh sách không?")
-            .setPositiveButton("Rời màn hình") { _, _ ->
-                finish()
-            }
-            .setNegativeButton("Ở lại giao tiếp", null)
-            .show()
     }
 
     private fun showCancelOrderDialog() {

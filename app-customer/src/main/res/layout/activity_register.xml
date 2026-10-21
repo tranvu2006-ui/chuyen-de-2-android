@@ -12,25 +12,45 @@
         android:layout_height="wrap_content"
         android:padding="24dp">
 
+        <!-- Logo Container -->
+        <FrameLayout
+            android:id="@+id/logoContainer"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/bg_floating_cart"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/ivLogo"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center"
+                app:srcCompat="@drawable/ic_soup"
+                app:tint="@color/white" />
+        </FrameLayout>
+
         <TextView
             android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="12dp"
             android:letterSpacing="-0.02"
             android:text="Oishi Food"
             android:textColor="@color/primary"
-            android:textSize="28sp"
+            android:textSize="26sp"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toBottomOf="@id/logoContainer" />
 
         <TextView
             android:id="@+id/tvSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:text="Tạo tài khoản để bắt đầu đặt món ngon"
             android:textColor="@color/text_secondary"
             android:textSize="14sp"

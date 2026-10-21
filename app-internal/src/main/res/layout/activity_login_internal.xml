@@ -25,11 +25,11 @@
 
             <ImageView
                 android:id="@+id/tvIcon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:layout_gravity="center"
-               
-                app:srcCompat="@drawable/ic_soup" />
+                app:srcCompat="@drawable/ic_soup"
+                app:tint="@color/primary" />
         </FrameLayout>
 
         <TextView

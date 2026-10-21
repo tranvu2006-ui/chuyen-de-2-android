@@ -170,6 +170,16 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
+    /** Lấy thông tin đơn hàng 1 lần */
+    suspend fun getOrder(orderId: String): Order? {
+        return try {
+            val snap = database.getReference("orders").child(orderId).get().await()
+            snap.getValue(Order::class.java)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Lắng nghe 1 đơn hàng cụ thể */
     fun observeOrder(orderId: String): Flow<Order?> = callbackFlow {
         val ref = database.getReference("orders").child(orderId)
@@ -219,6 +229,7 @@ class FirebaseRepository @Inject constructor(
                 order.shipperId = shipperId
                 order.shipperName = shipperName
                 order.status = Order.Status.ASSIGNED
+                order.orderStatus = Order.Status.ASSIGNED
                 currentData.value = order
 
                 return Transaction.success(currentData)
@@ -250,7 +261,8 @@ class FirebaseRepository @Inject constructor(
             "shipperId" to null,
             "shipperName" to "",
             "driverId" to null,
-            "status" to Order.Status.READY
+            "status" to Order.Status.READY,
+            "orderStatus" to Order.Status.READY
         )
         dbRef.updateChildren(updates).addOnCompleteListener { task ->
             if (task.isSuccessful) {
@@ -261,13 +273,54 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Cập nhật trạng thái đơn hàng */
+    /** Cập nhật trạng thái đơn hàng và đồng bộ hai chiều status/orderStatus */
     suspend fun updateOrderStatus(orderId: String, status: String) {
+        val updates = mutableMapOf<String, Any>(
+            "status" to status,
+            "orderStatus" to status,
+            "updatedAt" to System.currentTimeMillis()
+        )
         database.getReference("orders")
             .child(orderId)
-            .child("status")
-            .setValue(status)
+            .updateChildren(updates)
             .await()
+
+        // Tự động cập nhật thống kê đơn hàng và điểm uy tín khách hàng khi hoàn thành hoặc bom hàng
+        try {
+            val orderSnap = database.getReference("orders").child(orderId).get().await()
+            val customerId = orderSnap.child("customerId").getValue(String::class.java).orEmpty()
+            if (customerId.isNotBlank()) {
+                val custRef = database.getReference("users").child(customerId)
+                val custSnap = custRef.get().await()
+                if (custSnap.exists()) {
+                    val currentCompleted = custSnap.child("completedOrders").getValue(Long::class.java) ?: 0L
+                    val currentTotal = custSnap.child("totalOrders").getValue(Long::class.java) ?: 0L
+                    val currentBoom = custSnap.child("boomOrders").getValue(Long::class.java) ?: 0L
+                    val currentScore = custSnap.child("trustScore").getValue(Long::class.java) ?: 100L
+
+                    val statsUpdates = mutableMapOf<String, Any>()
+                    if (status == Order.Status.COMPLETED) {
+                        statsUpdates["completedOrders"] = currentCompleted + 1
+                        statsUpdates["totalOrders"] = currentTotal + 1
+                        statsUpdates["trustScore"] = minOf(100L, currentScore + 2L)
+                    } else if (status == Order.Status.BOOM) {
+                        statsUpdates["boomOrders"] = currentBoom + 1
+                        statsUpdates["totalOrders"] = currentTotal + 1
+                        val newScore = maxOf(0L, currentScore - 30L)
+                        statsUpdates["trustScore"] = newScore
+                        if (newScore < 20L) {
+                            statsUpdates["status"] = "LOCKED"
+                            statsUpdates["isActive"] = false
+                            statsUpdates["lockReason"] = "Điểm uy tín dưới 20 do bom hàng"
+                        }
+                    }
+                    if (statsUpdates.isNotEmpty()) {
+                        custRef.updateChildren(statsUpdates)
+                        database.getReference("customers").child(customerId).updateChildren(statsUpdates)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     // ==================== GPS TRACKING ====================

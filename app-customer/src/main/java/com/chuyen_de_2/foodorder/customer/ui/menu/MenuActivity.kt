@@ -107,6 +107,7 @@ class MenuActivity : AppCompatActivity() {
 
     private fun setupBottomCheckoutBar() {
         binding.btnCheckoutNow.setOnClickListener {
+            viewModel.flushCart()
             startActivity(Intent(this, CartActivity::class.java))
         }
     }

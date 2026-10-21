@@ -3,7 +3,10 @@ package com.chuyen_de_2.foodorder.customer.ui.profile
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -31,6 +34,9 @@ class ProfileActivity : AppCompatActivity() {
     @Inject
     lateinit var firebaseAuth: FirebaseAuth
 
+    private var currentName: String = ""
+    private var currentPhone: String = ""
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityProfileBinding.inflate(layoutInflater)
@@ -53,19 +59,21 @@ class ProfileActivity : AppCompatActivity() {
     private fun loadUserProfile() {
         val currentUser = firebaseAuth.currentUser
         if (currentUser != null) {
-            binding.tvUserEmail.text = currentUser.email ?: "customer@oishifood.vn"
-            
-            // Tải thông tin chi tiết từ node users/{uid} và customers/{uid}
+            binding.tvUserEmail.text = currentUser.email ?: "Chưa có email"
+
+            // Tải thông tin chi tiết từ node users/{uid} và customers/{uid} (đồng thời tự động đồng bộ email/name thật)
             lifecycleScope.launch {
                 val userResult = authRepository.getCurrentUserData()
                 userResult.onSuccess { user ->
-                    binding.tvUserName.text = user.name.ifBlank { currentUser.displayName ?: "Người dùng Oishi" }
+                    currentName = user.name.ifBlank { currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "Khách hàng" }
+                    currentPhone = user.phone
+                    binding.tvUserName.text = currentName
                     if (user.phone.isNotBlank()) {
                         binding.tvUserPhone.text = user.phone
                     } else {
-                        binding.tvUserPhone.text = "Chưa cập nhật SĐT"
+                        binding.tvUserPhone.text = "Chưa cập nhật SĐT (Chạm để thêm)"
                     }
-                    
+
                     // Hiển thị vai trò nếu là Merchant / Driver
                     when (user.role) {
                         com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT,
@@ -95,7 +103,58 @@ class ProfileActivity : AppCompatActivity() {
         }
     }
 
+    private fun showEditProfileDialog() {
+        val density = resources.displayMetrics.density
+        val pad = (20 * density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, (12 * density).toInt(), pad, 0)
+        }
+
+        val etName = EditText(this).apply {
+            hint = "Họ và tên"
+            setText(currentName)
+        }
+        val etPhone = EditText(this).apply {
+            hint = "Số điện thoại liên hệ"
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+            setText(currentPhone)
+        }
+
+        container.addView(etName)
+        container.addView(etPhone)
+
+        AlertDialog.Builder(this)
+            .setTitle("Cập nhật thông tin cá nhân")
+            .setView(container)
+            .setPositiveButton("Lưu") { _, _ ->
+                val newName = etName.text.toString().trim()
+                val newPhone = etPhone.text.toString().trim()
+                if (newName.isBlank()) {
+                    Toast.makeText(this, "Vui lòng nhập họ tên", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                lifecycleScope.launch {
+                    val res = authRepository.updateUserProfile(newName, newPhone)
+                    res.onSuccess {
+                        currentName = newName
+                        currentPhone = newPhone
+                        binding.tvUserName.text = newName
+                        binding.tvUserPhone.text = newPhone.ifBlank { "Chưa cập nhật SĐT (Chạm để thêm)" }
+                        Toast.makeText(this@ProfileActivity, "Đã cập nhật hồ sơ lên hệ thống!", Toast.LENGTH_SHORT).show()
+                    }.onFailure {
+                        Toast.makeText(this@ProfileActivity, "Lỗi cập nhật: ${it.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
     private fun setupListeners() {
+        binding.tvUserName.setOnClickListener { showEditProfileDialog() }
+        binding.tvUserPhone.setOnClickListener { showEditProfileDialog() }
+
         // Lịch sử đơn hàng
         binding.btnOrderHistory.setOnClickListener {
             startActivity(Intent(this, OrderHistoryActivity::class.java))
@@ -106,9 +165,9 @@ class ProfileActivity : AppCompatActivity() {
             startActivity(Intent(this, ComplaintActivity::class.java))
         }
 
-        // Địa chỉ nhận hàng
+        // Địa chỉ nhận hàng & SĐT
         binding.btnAddressBook.setOnClickListener {
-            Toast.makeText(this, "📍 Địa chỉ mặc định: 88 Đồng Khởi, P. Bến Nghé, Quận 1, TP.HCM", Toast.LENGTH_LONG).show()
+            showEditProfileDialog()
         }
 
         // Hotline

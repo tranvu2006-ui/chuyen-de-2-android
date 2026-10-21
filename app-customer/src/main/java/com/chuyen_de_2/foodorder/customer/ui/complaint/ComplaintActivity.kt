@@ -91,20 +91,28 @@ class ComplaintActivity : AppCompatActivity() {
             val customerId = firebaseAuth.currentUser?.uid ?: "anonymous_customer"
             val storeId = intent.getStringExtra("EXTRA_STORE_ID") ?: ""
 
-            val complaint = Complaint(
-                orderId = orderId,
-                customerId = customerId,
-                storeId = storeId,
-                reason = "[$selectedReason] $description",
-                evidenceImage = evidenceUrl,
-                status = Complaint.ComplaintStatus.PENDING,
-                createdAt = System.currentTimeMillis()
-            )
-
             binding.btnSubmitComplaint.isEnabled = false
             binding.btnSubmitComplaint.text = "Đang gửi khiếu nại..."
 
             lifecycleScope.launch {
+                var resolvedStoreId = storeId
+                if (resolvedStoreId.isBlank()) {
+                    val order = firebaseRepository.getOrder(orderId)
+                    if (order != null) {
+                        resolvedStoreId = order.shopId.ifBlank { order.storeId }
+                    }
+                }
+
+                val complaint = Complaint(
+                    orderId = orderId,
+                    customerId = customerId,
+                    storeId = resolvedStoreId,
+                    reason = "[$selectedReason] $description",
+                    evidenceImage = evidenceUrl,
+                    status = Complaint.ComplaintStatus.PENDING,
+                    createdAt = System.currentTimeMillis()
+                )
+
                 val result = firebaseRepository.submitComplaint(complaint)
                 if (result.isSuccess) {
                     Toast.makeText(

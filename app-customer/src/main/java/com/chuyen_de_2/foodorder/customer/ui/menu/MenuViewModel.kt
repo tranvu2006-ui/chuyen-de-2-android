@@ -125,7 +125,6 @@ class MenuViewModel @Inject constructor(
                     } else if (_selectedDish.value == null && visibleDishes.isNotEmpty()) {
                         val firstDish = visibleDishes.first()
                         _selectedDish.value = firstDish
-                        addToCart(firstDish)
                     }
                     _isLoading.value = false
                 } else {
@@ -252,5 +251,21 @@ class MenuViewModel @Inject constructor(
         )
 
         cartUpdates.tryEmit(CartPayload(userId, currentShopId, cart))
+    }
+
+    fun flushCart() {
+        val userId = auth.currentUser?.uid ?: return
+        val items = _cartItems.value ?: return
+        if (items.isEmpty()) return
+        val total = items.values.sumOf { it.price * it.quantity }
+        val cart = Cart(
+            shopId = currentShopId,
+            shopName = currentShopName,
+            totalAmount = total,
+            items = items
+        )
+        viewModelScope.launch {
+            firebaseRepository.syncCartToFirebase(CartPayload(userId, currentShopId, cart))
+        }
     }
 }

@@ -69,12 +69,24 @@ class ShopViewModel @Inject constructor(
         observeShippers()
     }
 
+    private var currentStoreId: String = ""
+
+    fun setStoreId(id: String) {
+        currentStoreId = id
+        filterOrders()
+    }
+
     fun selectTab(tab: TabType) {
         _currentTab.value = tab
     }
 
     private fun filterOrders() {
-        val orders = _allOrders.value ?: emptyList()
+        val rawOrders = _allOrders.value ?: emptyList()
+        val orders = if (currentStoreId.isNotBlank()) {
+            rawOrders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
+        } else {
+            rawOrders
+        }
         val tab = _currentTab.value ?: TabType.NEW
 
         // Cập nhật số lượng đếm trên từng tab

@@ -930,7 +930,8 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
-                                android:text="📷\nQR SCAN"
+                            android:id="@+id/tvStep4QrIcon"
+                            android:text="📷\nQR SCAN"
                                 android:textAlignment="center"
                                 android:textColor="#FFFFFF"
                                 android:textSize="16sp"
@@ -941,7 +942,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="14dp"
-                            android:text="Quét mã QR từ ứng dụng khách hàng để hoàn tất"
+                            android:id="@+id/tvStep4QrStatus"
+                            android:text="🔒 Chưa xác minh — Mở camera quét mã QR trên app Khách hàng"
                             android:textColor="#94A3B8"
                             android:textSize="12sp" />
 
@@ -952,7 +954,7 @@
                             android:layout_height="40dp"
                             android:layout_marginTop="12dp"
                             android:backgroundTint="@color/primary"
-                            android:text="📸 Quét Mã QR Thành Công"
+                            android:text="📷 MỞ CAMERA QUÉT MÃ QR KHÁCH HÀNG"
                             android:textColor="#FFFFFF"
                             android:textSize="12sp"
                             android:textStyle="bold" />

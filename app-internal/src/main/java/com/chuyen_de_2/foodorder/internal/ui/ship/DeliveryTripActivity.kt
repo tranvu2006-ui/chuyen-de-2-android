@@ -5,8 +5,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -15,6 +20,9 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -24,6 +32,7 @@ import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityDeliveryTripBinding
@@ -31,6 +40,13 @@ import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBin
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.material.button.MaterialButton
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.ResultPoint
+import com.journeyapps.barcodescanner.BarcodeCallback
+import com.journeyapps.barcodescanner.BarcodeResult
+import com.journeyapps.barcodescanner.DecoratedBarcodeView
+import com.journeyapps.barcodescanner.DefaultDecoderFactory
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -48,6 +64,9 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var currentOrderId: String = ""
     private var currentOrder: Order? = null
     private var currentStep = 1 // 1: Đến quán, 2: Lấy hàng, 3: Đến khách, 4: Quét QR xong
+    private var isQrVerified: Boolean = false
+    private var verifiedTokenString: String = ""
+    private var activeScannerView: DecoratedBarcodeView? = null
 
     // Tọa độ GPS thực tế của Shipper và Điểm đến
     private var driverLat: Double = 10.8522
@@ -66,6 +85,22 @@ class DeliveryTripActivity : AppCompatActivity() {
             fetchRealShipperLocation()
         } else {
             Toast.makeText(this, "Đang dùng vị trí mặc định do chưa cấp quyền GPS", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showQrScannerDialog()
+        } else {
+            Toast.makeText(
+                this,
+                "Vui lòng cấp quyền Camera để quét mã QR trên ứng dụng của khách hàng!",
+                Toast.LENGTH_LONG
+            ).show()
+            // Vẫn mở dialog để hỗ trợ nhập mã Token dự phòng nếu thiết bị không có camera
+            showQrScannerDialog()
         }
     }
 
@@ -206,15 +241,19 @@ class DeliveryTripActivity : AppCompatActivity() {
         lifecycleScope.launch {
             firebaseRepository.observeOrder(currentOrderId).collectLatest { order ->
                 if (order != null) {
+                    val isFirstLoad = (currentOrder == null)
                     currentOrder = order
                     bindOrderData(order)
+                    if (isFirstLoad && order.status == Order.Status.DELIVERING && currentStep < 3) {
+                        updateStepUI(3)
+                    }
                 }
             }
         }
     }
 
     private fun bindOrderData(order: Order) {
-        val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
+        val shortCode = QRCodeUtils.getShortOrderCode(order.orderId.ifBlank { currentOrderId })
         binding.tvTripOrderCode.text = "Đơn #ORD-$shortCode"
 
         val storeName = order.shopName.ifBlank { "Quán ăn" }
@@ -355,20 +394,52 @@ class DeliveryTripActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // Bước 3: Nút "Đã đến điểm giao khách" -> sang Bước 4
+        // Bước 3: Nút "Đã đến điểm giao khách" -> sang Bước 4 & mở Camera quét QR
         binding.btnArrivedAtCustomer.setOnClickListener {
             updateStepUI(4)
+            checkCameraAndOpenScanner()
         }
 
-        // Bước 4: Nút quét mã QR
+        // Bước 4: Nút mở Camera quét mã QR trực tiếp từ app Khách hàng
         binding.btnSimulateScan.setOnClickListener {
-            showQrScannerDialog()
+            checkCameraAndOpenScanner()
+        }
+        binding.tvStep4QrIcon.setOnClickListener {
+            checkCameraAndOpenScanner()
         }
 
-        // Bước 4: Hoàn tất đơn hàng
+        // Bước 4: Hoàn tất đơn hàng (bắt buộc phải quét & xác minh mã QR của khách trước)
         binding.btnCompleteTripFinal.setOnClickListener {
-            completeTripOrder()
+            if (!isQrVerified) {
+                Toast.makeText(
+                    this,
+                    "⚠️ Vui lòng quét mã QR trực tiếp từ ứng dụng của khách hàng để xác minh giao đơn!",
+                    Toast.LENGTH_LONG
+                ).show()
+                checkCameraAndOpenScanner()
+            } else {
+                completeTripOrder()
+            }
         }
+    }
+
+    private fun checkCameraAndOpenScanner() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            showQrScannerDialog()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun markStep4QrVerified(matchedToken: String) {
+        isQrVerified = true
+        verifiedTokenString = matchedToken
+        binding.tvStep4QrIcon.text = "✅\nĐÃ KHỚP QR"
+        binding.tvStep4QrIcon.setTextColor(Color.parseColor("#34D399"))
+        binding.tvStep4QrStatus.text = "✓ Đã xác minh mã QR khách hàng: $matchedToken"
+        binding.tvStep4QrStatus.setTextColor(Color.parseColor("#34D399"))
+        binding.btnSimulateScan.text = "✓ Đã Quét Mã QR Hợp Lệ ($matchedToken)"
+        binding.btnSimulateScan.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green)
     }
 
     private fun updateStepUI(step: Int) {
@@ -411,27 +482,183 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Mở hộp thoại Camera Quét Mã QR thực tế (ZXing DecoratedBarcodeView)
+     * Quét trực tiếp mã QR hiển thị trên màn hình ứng dụng Khách hàng (TrackingActivity).
+     */
     private fun showQrScannerDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_qr_scanner, null)
-        val tvToken = dialogView.findViewById<android.widget.TextView>(R.id.tvDetectedToken)
-        val btnClose = dialogView.findViewById<android.widget.ImageView>(R.id.btnCloseScanner)
-        val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnCancelScan)
-        val btnConfirm = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnConfirmScannedToken)
+        val scannerView = dialogView.findViewById<DecoratedBarcodeView>(R.id.barcodeScannerView)
+        val tvExpectedInfo = dialogView.findViewById<TextView>(R.id.tvExpectedOrderInfo)
+        val tvScannerStatus = dialogView.findViewById<TextView>(R.id.tvScannerStatus)
+        val tvDetectedToken = dialogView.findViewById<TextView>(R.id.tvDetectedToken)
+        val btnSwitchCamera = dialogView.findViewById<TextView>(R.id.btnSwitchCamera)
+        val btnToggleFlash = dialogView.findViewById<TextView>(R.id.btnToggleFlash)
+        val etManualToken = dialogView.findViewById<EditText>(R.id.etManualTokenInput)
+        val btnVerifyManual = dialogView.findViewById<MaterialButton>(R.id.btnVerifyManualToken)
+        val btnClose = dialogView.findViewById<ImageView>(R.id.btnCloseScanner)
+        val btnCancel = dialogView.findViewById<MaterialButton>(R.id.btnCancelScan)
+        val btnConfirm = dialogView.findViewById<MaterialButton>(R.id.btnConfirmScannedToken)
 
-        val shortCode = if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
-        val tokenText = "TOKEN_OISHI_$shortCode"
-        tvToken.text = tokenText
+        val shortCode = QRCodeUtils.getShortOrderCode(currentOrderId)
+        val expectedToken = QRCodeUtils.getDisplayToken(currentOrderId, currentOrder?.deliveryToken ?: "")
+        tvExpectedInfo.text = "Đơn cần xác minh: #ORD-$shortCode • Hướng camera vào mã QR trên ứng dụng của khách hàng."
+
+        var isTorchOn = false
+        var currentCameraId = 0 // 0: Camera sau, 1: Camera trước
+        var lastScannedText = ""
+        var lastScanTime = 0L
 
         val dialog = AlertDialog.Builder(this)
             .setView(dialogView)
+            .setCancelable(false)
             .create()
+
+        // Hàm xử lý chung khi đã nhận được chuỗi dữ liệu (từ Camera QR hoặc nhập tay)
+        fun handleScannedPayload(rawPayload: String, isFromCamera: Boolean) {
+            val verifyResult = QRCodeUtils.verifyOrderQrPayload(
+                scannedRaw = rawPayload,
+                expectedOrderId = currentOrderId,
+                expectedDeliveryToken = currentOrder?.deliveryToken ?: ""
+            )
+
+            if (verifyResult.isValid) {
+                try {
+                    scannerView.pause()
+                    window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+                        .startTone(ToneGenerator.TONE_PROP_ACK, 200)
+                } catch (_: Exception) {}
+
+                tvScannerStatus.text = "✅ ĐÃ QUÉT & XÁC MINH MÃ QR HỢP LỆ!"
+                tvScannerStatus.setTextColor(Color.parseColor("#34D399"))
+                tvDetectedToken.text = verifyResult.message
+                tvDetectedToken.setTextColor(Color.parseColor("#059669"))
+
+                btnConfirm.isEnabled = true
+                btnConfirm.text = "✓ Hoàn Tất Giao Đơn #ORD-$shortCode"
+                markStep4QrVerified(verifyResult.matchedToken)
+
+                if (isFromCamera) {
+                    Toast.makeText(
+                        this,
+                        "🎉 Quét mã QR khách hàng thành công! Đang hoàn tất đơn hàng...",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (dialog.isShowing) {
+                            dialog.dismiss()
+                            completeTripOrder()
+                        }
+                    }, 750)
+                }
+            } else {
+                try {
+                    window.decorView.performHapticFeedback(HapticFeedbackConstants.REJECT)
+                    ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+                        .startTone(ToneGenerator.TONE_PROP_NACK, 220)
+                } catch (_: Exception) {}
+
+                tvScannerStatus.text = "❌ MÃ QR KHÔNG KHỚP ĐƠN #ORD-$shortCode"
+                tvScannerStatus.setTextColor(Color.parseColor("#F87171"))
+                tvDetectedToken.text = verifyResult.message
+                tvDetectedToken.setTextColor(Color.parseColor("#DC2626"))
+            }
+        }
+
+        // Cấu hình Camera ZXing DecoratedBarcodeView
+        val hasCameraPermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasCameraPermission) {
+            activeScannerView = scannerView
+            scannerView.setStatusText("")
+            scannerView.barcodeView.decoderFactory = DefaultDecoderFactory(
+                listOf(BarcodeFormat.QR_CODE)
+            )
+            scannerView.barcodeView.cameraSettings.requestedCameraId = currentCameraId
+            scannerView.barcodeView.cameraSettings.isAutoFocusEnabled = true
+            scannerView.resume()
+
+            scannerView.decodeContinuous(object : BarcodeCallback {
+                override fun barcodeResult(result: BarcodeResult?) {
+                    val text = result?.text?.trim().orEmpty()
+                    if (text.isBlank()) return
+                    val now = System.currentTimeMillis()
+                    if (text == lastScannedText && (now - lastScanTime) < 2000L) {
+                        return
+                    }
+                    lastScannedText = text
+                    lastScanTime = now
+                    handleScannedPayload(text, isFromCamera = true)
+                }
+
+                override fun possibleResultPoints(resultPoints: MutableList<ResultPoint>?) {}
+            })
+        } else {
+            tvScannerStatus.text = "⚠️ Chưa cấp quyền Camera — Vui lòng cấp quyền hoặc nhập mã bên dưới"
+            tvScannerStatus.setTextColor(Color.parseColor("#FBBF24"))
+        }
+
+        // Nút đổi Camera Trước / Sau (Hữu ích khi quét qua Webcam máy tính hoặc điện thoại)
+        btnSwitchCamera.setOnClickListener {
+            if (!hasCameraPermission) return@setOnClickListener
+            currentCameraId = if (currentCameraId == 0) 1 else 0
+            scannerView.pause()
+            scannerView.barcodeView.cameraSettings.requestedCameraId = currentCameraId
+            scannerView.resume()
+            val camName = if (currentCameraId == 0) "Camera sau" else "Camera trước"
+            tvScannerStatus.text = "● Đang quét bằng $camName..."
+            tvScannerStatus.setTextColor(Color.parseColor("#34D399"))
+        }
+
+        // Nút Bật / Tắt Đèn Flash
+        btnToggleFlash.setOnClickListener {
+            if (!hasCameraPermission) return@setOnClickListener
+            try {
+                isTorchOn = !isTorchOn
+                if (isTorchOn) {
+                    scannerView.setTorchOn()
+                    btnToggleFlash.text = "🔦 Tắt Flash"
+                } else {
+                    scannerView.setTorchOff()
+                    btnToggleFlash.text = "🔦 Flash"
+                }
+            } catch (_: Exception) {
+                Toast.makeText(this, "Thiết bị không hỗ trợ đèn Flash", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Nút kiểm tra mã Token / PIN nhập thủ công
+        btnVerifyManual.setOnClickListener {
+            val manualInput = etManualToken.text.toString().trim()
+            if (manualInput.isBlank()) {
+                Toast.makeText(
+                    this,
+                    "Vui lòng nhập mã Token (VD: $expectedToken) hiển thị trên máy khách hàng!",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+            handleScannedPayload(manualInput, isFromCamera = false)
+        }
 
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
         btnConfirm.setOnClickListener {
-            dialog.dismiss()
-            Toast.makeText(this, "✓ Quét mã QR thành công! Đã khớp Delivery Token: $tokenText", Toast.LENGTH_SHORT).show()
-            completeTripOrder()
+            if (isQrVerified) {
+                dialog.dismiss()
+                completeTripOrder()
+            }
+        }
+
+        dialog.setOnDismissListener {
+            try {
+                scannerView.pause()
+            } catch (_: Exception) {}
+            activeScannerView = null
         }
 
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
@@ -444,9 +671,18 @@ class DeliveryTripActivity : AppCompatActivity() {
                 firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.COMPLETED)
                 firebaseRepository.clearTracking(currentOrderId)
 
+                val shortCode = QRCodeUtils.getShortOrderCode(currentOrderId)
+                val tokenInfo = verifiedTokenString.ifBlank {
+                    QRCodeUtils.getDisplayToken(currentOrderId, currentOrder?.deliveryToken ?: "")
+                }
+
                 AlertDialog.Builder(this@DeliveryTripActivity)
-                    .setTitle("🎉 Giao Hàng Thành Công!")
-                    .setMessage("Đơn hàng đã được hoàn tất thành công.\n\n+25.000 đ tiền công ship đã được cộng vào Ví Thu Nhập của bạn!")
+                    .setTitle("🎉 Giao Hàng & Đối Soát QR Thành Công!")
+                    .setMessage(
+                        "Đơn hàng #ORD-$shortCode đã được xác minh mã QR ($tokenInfo) và hoàn tất thành công.\n\n" +
+                            "Ứng dụng của Khách hàng đã tự động chuyển sang trạng thái 'Đã nhận hàng'.\n" +
+                            "+25.000 đ tiền công ship đã được cộng vào Ví Thu Nhập của bạn!"
+                    )
                     .setPositiveButton("Về Trang Chủ") { _, _ ->
                         finish()
                     }
@@ -460,7 +696,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun showCancelOrderDialog() {
         val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
-        val shortCode = if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
+        val shortCode = QRCodeUtils.getShortOrderCode(currentOrderId)
         dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn #ORD-$shortCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
 
         val reasons = arrayOf(
@@ -495,5 +731,19 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
 
         dialog.show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try {
+            activeScannerView?.resume()
+        } catch (_: Exception) {}
+    }
+
+    override fun onPause() {
+        try {
+            activeScannerView?.pause()
+        } catch (_: Exception) {}
+        super.onPause()
     }
 }

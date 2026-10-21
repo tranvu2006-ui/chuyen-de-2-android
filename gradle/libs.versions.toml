@@ -23,6 +23,8 @@ glide = "4.16.0"
 googleServices = "4.4.2"
 googleCrashlytics = "3.0.2"
 swiperefreshlayout = "1.1.0"
+zxingCore = "3.5.3"
+zxingEmbedded = "4.3.0"
 
 [libraries]
 # AndroidX Core
@@ -76,6 +78,8 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 
 # Image Loading
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
+zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

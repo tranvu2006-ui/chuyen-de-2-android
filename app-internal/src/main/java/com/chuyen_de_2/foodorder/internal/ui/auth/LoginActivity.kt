@@ -6,6 +6,8 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
@@ -30,8 +32,19 @@ class LoginActivity : AppCompatActivity() {
         if (isLogout) {
             authRepository.logout()
         } else if (authRepository.isLoggedIn) {
-            navigateToDashboard()
-            return
+            lifecycleScope.launch {
+                val statusCheck = authRepository.checkAccountActiveStatus()
+                if (statusCheck.isFailure) {
+                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                    androidx.appcompat.app.AlertDialog.Builder(this@LoginActivity)
+                        .setTitle("🔒 Tài khoản bị khóa")
+                        .setMessage(reason)
+                        .setPositiveButton("Đóng", null)
+                        .show()
+                } else {
+                    navigateToDashboard()
+                }
+            }
         }
 
         binding = ActivityLoginInternalBinding.inflate(layoutInflater)

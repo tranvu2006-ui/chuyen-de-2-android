@@ -31,6 +31,7 @@ class RegisterActivity : AppCompatActivity() {
     private fun setupUI() {
         binding.btnRegister.setOnClickListener {
             val name = binding.etName.text.toString().trim()
+            val phone = binding.etPhone.text.toString().trim()
             val email = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString().trim()
             val confirmPassword = binding.etConfirmPassword.text.toString().trim()
@@ -39,7 +40,7 @@ class RegisterActivity : AppCompatActivity() {
                 com.chuyen_de_2.foodorder.customer.R.id.rbDriver -> com.chuyen_de_2.foodorder.core.data.model.User.Role.DRIVER
                 else -> com.chuyen_de_2.foodorder.core.data.model.User.Role.CUSTOMER
             }
-            viewModel.register(name, email, password, confirmPassword, role)
+            viewModel.register(name, email, password, confirmPassword, role, phone)
         }
 
         binding.tvLogin.setOnClickListener {

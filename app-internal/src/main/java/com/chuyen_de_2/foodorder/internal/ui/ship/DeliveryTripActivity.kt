@@ -306,7 +306,6 @@ class DeliveryTripActivity : AppCompatActivity() {
                                         Toast.makeText(this@DeliveryTripActivity, "📍 Đã đến nhà khách! Chờ khách đối soát mã nhận món", Toast.LENGTH_SHORT).show()
                                     }
                                 }
-                                launchCameraQrScanner()
                                 thumb.translationX = 0f
                                 label.alpha = 1f
                                 isConfirmed = false
@@ -1136,7 +1135,6 @@ class DeliveryTripActivity : AppCompatActivity() {
                     Toast.makeText(this@DeliveryTripActivity, "📍 Đã đến nhà khách! Chờ khách đối soát mã nhận món", Toast.LENGTH_SHORT).show()
                 }
             }
-            launchCameraQrScanner()
         }
 
         // Bước 4: Nút quét mã QR bằng camera thật

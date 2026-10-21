@@ -51,8 +51,10 @@ data class Store(
     @SerializedName("prepTime")
     val prepTime: String = "",
 
+    @get:com.google.firebase.database.PropertyName("isVerified")
+    @set:com.google.firebase.database.PropertyName("isVerified")
     @SerializedName("isVerified")
-    val isVerified: Boolean = false,
+    var isVerified: Boolean = false,
 
     @SerializedName("cccdNumber")
     val cccdNumber: String = "",

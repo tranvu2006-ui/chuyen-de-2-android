@@ -255,6 +255,7 @@ class StoreVerificationActivity : AppCompatActivity() {
 
             val result = firebaseRepository.verifyAndCompleteStoreProfile(
                 storeId = currentStoreId,
+                merchantUid = uid,
                 name = name,
                 phone = phone,
                 address = address,

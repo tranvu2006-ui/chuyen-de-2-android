@@ -612,8 +612,25 @@ class FirebaseRepository @Inject constructor(
         return try {
             val snap = database.getReference("stores").child(storeId).get().await()
             if (!snap.exists()) null
-            else snap.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
-        } catch (_: Exception) {
+            else {
+                val store = snap.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                val isVer = snap.child("isVerified").getValue(Boolean::class.java)
+                    ?: snap.child("verified").getValue(Boolean::class.java)
+                    ?: store?.isVerified
+                    ?: false
+                val addr = snap.child("address").getValue(String::class.java) ?: store?.address.orEmpty()
+                val dist = snap.child("district").getValue(String::class.java) ?: store?.district.orEmpty()
+                val cccd = snap.child("cccdNumber").getValue(String::class.java) ?: store?.cccdNumber.orEmpty()
+                val owner = snap.child("ownerName").getValue(String::class.java) ?: store?.ownerName.orEmpty()
+                store?.copy(
+                    isVerified = isVer,
+                    address = addr,
+                    district = dist,
+                    cccdNumber = cccd,
+                    ownerName = owner
+                )
+            }
+        } catch (e: Exception) {
             null
         }
     }
@@ -621,6 +638,7 @@ class FirebaseRepository @Inject constructor(
     /** Xác minh danh tính và cập nhật đầy đủ phiếu thông tin địa chỉ quán */
     suspend fun verifyAndCompleteStoreProfile(
         storeId: String,
+        merchantUid: String = "",
         name: String,
         phone: String,
         address: String,
@@ -638,6 +656,7 @@ class FirebaseRepository @Inject constructor(
     ): Result<Unit> {
         return try {
             val updates = mutableMapOf<String, Any>(
+                "id" to storeId,
                 "name" to name.trim(),
                 "phone" to phone.trim(),
                 "address" to address.trim(),
@@ -650,10 +669,18 @@ class FirebaseRepository @Inject constructor(
                 "openHours" to openHours.trim(),
                 "prepTime" to prepTime.trim(),
                 "isVerified" to true,
+                "verified" to true,
                 "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN,
                 "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN,
                 "open" to true
             )
+            if (merchantUid.isNotBlank()) {
+                updates["merchantId"] = merchantUid
+                updates["ownerId"] = merchantUid
+                try {
+                    database.getReference("users").child(merchantUid).child("storeId").setValue(storeId).await()
+                } catch (_: Exception) {}
+            }
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
             if (latitude != 0.0) updates["latitude"] = latitude
             if (longitude != 0.0) updates["longitude"] = longitude

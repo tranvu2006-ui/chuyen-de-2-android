@@ -157,7 +157,8 @@ class DashboardActivity : AppCompatActivity() {
                 val storeId = firebaseRepository.resolveStoreIdForUser(uid)
                 if (storeId.isNotBlank()) {
                     val store = firebaseRepository.getStoreOnce(storeId)
-                    if (store == null || store.address.isBlank() || store.district.isBlank() || !store.isVerified || store.cccdNumber.isBlank()) {
+                    val isComplete = store != null && (store.isVerified || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
+                    if (store == null || !isComplete || store.address.isBlank()) {
                         Toast.makeText(
                             this@DashboardActivity,
                             "⚠️ Vui lòng hoàn tất phiếu địa chỉ và xác minh thông tin quán trước khi nhận đơn!",

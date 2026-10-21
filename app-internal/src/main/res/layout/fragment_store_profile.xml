@@ -38,6 +38,9 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnTopEdit"
+            app:icon="@drawable/ic_pencil"
+            app:iconSize="14dp"
+            app:iconTint="#EE4D2D"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
@@ -90,7 +93,8 @@
                         android:background="@drawable/bg_badge_orange"
                         android:gravity="center"
                        
-                        app:srcCompat="@drawable/ic_soup" />
+                        app:srcCompat="@drawable/ic_store"
+                        app:tint="#EE4D2D" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -571,6 +575,9 @@
             <!-- Nút chỉnh sửa to -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnMainEdit"
+                app:icon="@drawable/ic_pencil"
+                app:iconSize="16dp"
+                app:iconTint="#FFFFFF"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:backgroundTint="#EE4D2D"

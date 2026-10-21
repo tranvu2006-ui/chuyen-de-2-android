@@ -3,18 +3,20 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F4F6F8"
+    android:background="#F8FAFC"
     android:orientation="vertical">
 
-    <!-- 1. Header Thông Tin Quán & Nút Check-in (Quán/2.html: shop-header) -->
+    <!-- 1. Header Thông Tin Quán & Nút Check-in -->
     <LinearLayout
         android:id="@+id/shopHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/surface"
-        android:elevation="1dp"
+        android:elevation="2dp"
         android:orientation="vertical"
-        android:padding="14dp">
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="14dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -22,33 +24,48 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                app:cardBackgroundColor="#FFF1EE"
+                app:cardCornerRadius="10dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#FFDDD4"
+                app:strokeWidth="1dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    app:srcCompat="@drawable/ic_store"
+                    app:tint="@color/primary" />
+            </com.google.android.material.card.MaterialCardView>
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
                 android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:background="@drawable/bg_badge_orange"
-                    android:gravity="center"
-                   
-                    app:srcCompat="@drawable/ic_soup" />
+                android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
                     android:letterSpacing="-0.02"
-                    android:text="Oishi Merchant"
-                    android:textColor="@color/primary"
+                    android:text="Quản Lý Thực Đơn"
+                    android:textColor="#0F172A"
                     android:textSize="16sp"
                     android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Danh sách món ăn &amp; đồ uống"
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
             </LinearLayout>
 
-            <!-- Nút Check-in Mở Ca / Đóng Cửa (Quán/2.html: btn-checkin) -->
+            <!-- Nút Check-in Mở Ca / Đóng Cửa -->
             <LinearLayout
                 android:id="@+id/btnCheckin"
                 android:layout_width="wrap_content"
@@ -75,6 +92,13 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- Divider line -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="10dp"
+            android:background="#F1F5F9" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -88,31 +112,61 @@
                 android:layout_weight="1"
                 android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/tvShopName"
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Quán của bạn"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <TextView
-                    android:id="@+id/tvShopAddress"
+                    <TextView
+                        android:id="@+id/tvShopName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Quán của bạn"
+                        android:textColor="#0F172A"
+                        android:textSize="15.5sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_marginStart="6dp"
+                        app:srcCompat="@drawable/ic_badge_check"
+                        app:tint="#10B981" />
+                </LinearLayout>
+
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Chưa cập nhật địa chỉ"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="13dp"
+                        android:layout_height="13dp"
+                        app:srcCompat="@drawable/ic_map_pin"
+                        app:tint="#94A3B8" />
+
+                    <TextView
+                        android:id="@+id/tvShopAddress"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:text="Chưa cập nhật địa chỉ"
+                        android:textColor="#64748B"
+                        android:textSize="11.5sp" />
+                </LinearLayout>
             </LinearLayout>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_badge_blue"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
                 android:text="Chủ Quán"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
@@ -120,69 +174,71 @@
         </LinearLayout>
     </LinearLayout>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/divider" />
-
-    <!-- 2. Banner Nhận Đơn Hàng Mới Của Quán (Quán/2.html: lines 213-222) -->
-    <LinearLayout
+    <!-- 2. Banner Nhận Đơn Hàng Mới Của Quán -->
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/bannerNewOrderIncoming"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="14dp"
         android:layout_marginTop="12dp"
-        android:background="@drawable/bg_banner_new_order"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="12dp">
-
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-           
-            app:srcCompat="@drawable/ic_notification" app:tint="@color/primary" />
+        app:cardBackgroundColor="@color/primary"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="2dp">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="12dp">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                app:srcCompat="@drawable/ic_notification"
+                app:tint="@color/white" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvBannerNewOrderTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ĐƠN HÀNG MỚI ĐẾN (#88291)"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text="Chờ quán xác nhận đơn của khách"
+                    android:textColor="#FED7AA"
+                    android:textSize="11sp" />
+            </LinearLayout>
 
             <TextView
-                android:id="@+id/tvBannerNewOrderTitle"
+                android:id="@+id/btnBannerGoToOrders"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="ĐƠN HÀNG MỚI ĐẾN (#88291)"
+                android:background="@drawable/bg_card_rounded"
+                android:backgroundTint="#40FFFFFF"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="Xem Đơn ➔"
                 android:textColor="@color/white"
-                android:textSize="13sp"
+                android:textSize="11.5sp"
                 android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
-                android:text="Chờ quán xác nhận đơn của khách "
-                android:textColor="@color/white"
-                android:textSize="11sp" />
         </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-        <TextView
-            android:id="@+id/btnBannerGoToOrders"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_card_rounded"
-            android:backgroundTint="#40FFFFFF"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp"
-            android:text="Xác Nhận Đơn"
-            android:textColor="@color/white"
-            android:textSize="11.5sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <!-- 3. Thanh Thao Tác Thêm Món & Tạo Combo (Quán/2.html: action-header) -->
+    <!-- 3. Thanh Thao Tác Thêm Món & Tạo Combo -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -201,8 +257,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Thực Đơn Của Quán"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
+                android:textColor="#0F172A"
+                android:textSize="15sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -211,17 +267,16 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="1dp"
                 android:text="2 món đang mở bán"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textColor="#64748B"
+                android:textSize="11.5sp" />
         </LinearLayout>
 
         <!-- Nút Tạo Combo -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCreateCombo"
-            style="@style/Widget.Internal.Button"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="38dp"
-            android:backgroundTint="@color/white"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:paddingHorizontal="10dp"
@@ -230,13 +285,16 @@
             android:textSize="11.5sp"
             android:textStyle="bold"
             app:cornerRadius="10dp"
+            app:icon="@drawable/ic_sparkles"
+            app:iconSize="14dp"
+            app:iconTint="@color/primary"
             app:strokeColor="@color/primary"
-            app:strokeWidth="1.5dp" />
+            app:strokeWidth="1dp" />
 
         <!-- Nút Thêm Món -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddFood"
-            style="@style/Widget.Internal.Button"
+            style="@style/Widget.Material3.Button"
             android:layout_width="wrap_content"
             android:layout_height="38dp"
             android:layout_marginStart="8dp"
@@ -244,11 +302,14 @@
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:paddingHorizontal="12dp"
-            android:text="+ Thêm Món"
+            android:text="Thêm Món"
             android:textColor="@color/white"
             android:textSize="11.5sp"
             android:textStyle="bold"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="10dp"
+            app:icon="@drawable/ic_plus"
+            app:iconSize="14dp"
+            app:iconTint="@color/white" />
     </LinearLayout>
 
     <!-- 4. Danh Sách Món Ăn RecyclerView -->
@@ -272,26 +333,33 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:background="@drawable/bg_card_rounded"
-            android:backgroundTint="@color/surface"
             android:gravity="center"
             android:orientation="vertical"
             android:padding="32dp"
             android:visibility="gone">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🍽️"
-                android:textSize="36sp" />
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                app:cardBackgroundColor="#F1F5F9"
+                app:cardCornerRadius="34dp"
+                app:cardElevation="0dp">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center"
+                    app:srcCompat="@drawable/ic_utensils_crossed"
+                    app:tint="#94A3B8" />
+            </com.google.android.material.card.MaterialCardView>
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="14dp"
                 android:text="Chưa có món ăn nào trong thực đơn"
-                android:textColor="@color/text_primary"
-                android:textSize="13.5sp"
+                android:textColor="#1E293B"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -299,8 +367,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="Bấm '+ Thêm Món' bên trên để tạo món mở bán ngay!"
-                android:textColor="@color/text_secondary"
-                android:textSize="11.5sp" />
+                android:textColor="#64748B"
+                android:textSize="12sp" />
         </LinearLayout>
     </FrameLayout>
 

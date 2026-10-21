@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     style="@style/Widget.Material3.CardView.Elevated"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
     app:cardBackgroundColor="@color/surface"
-    app:cardCornerRadius="14dp"
+    app:cardCornerRadius="16dp"
     app:cardElevation="1dp"
-    app:strokeColor="@color/border"
+    app:strokeColor="#E2E8F0"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -18,15 +19,24 @@
         android:orientation="horizontal"
         android:padding="12dp">
 
-        <!-- Thumbnail ảnh món -->
-        <ImageView
-            android:id="@+id/ivDishThumb"
-            android:layout_width="70dp"
-            android:layout_height="70dp"
-            android:background="#F1F5F9"
-            android:contentDescription="Ảnh món ăn"
-            android:scaleType="centerCrop"
-            android:src="@drawable/bg_badge_orange" />
+        <!-- Thumbnail ảnh món được bo góc mượt mà -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="74dp"
+            android:layout_height="74dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#F1F5F9"
+            app:strokeWidth="1dp">
+
+            <ImageView
+                android:id="@+id/ivDishThumb"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#F1F5F9"
+                android:contentDescription="Ảnh món ăn"
+                android:scaleType="centerCrop"
+                tools:src="@drawable/bg_badge_orange" />
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- Thông tin món -->
         <LinearLayout
@@ -42,75 +52,94 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="Trà Xí Muội Ô Long"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+                android:textColor="#0F172A"
+                android:textSize="14.5sp"
+                android:textStyle="bold"
+                tools:text="Trà Xí Muội Ô Long" />
 
             <TextView
                 android:id="@+id/tvDishCategory"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Trà Trái Cây"
-                android:textColor="@color/brand_blue"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                android:layout_marginTop="3dp"
+                android:background="@drawable/bg_badge_blue"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="2dp"
+                android:textColor="#2563EB"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:text="Trà Trái Cây" />
 
             <TextView
                 android:id="@+id/tvDishDescription"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="3dp"
                 android:ellipsize="end"
-                android:maxLines="2"
-                android:text="Ghi chú món ăn"
-                android:textColor="@color/text_secondary"
+                android:maxLines="1"
+                android:textColor="#64748B"
                 android:textSize="11sp"
-                android:visibility="gone" />
+                android:visibility="gone"
+                tools:text="Ghi chú món ăn" />
 
             <TextView
                 android:id="@+id/tvDishPrice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="28.000 đ"
                 android:textColor="@color/primary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+                android:textSize="14.5sp"
+                android:textStyle="bold"
+                tools:text="28.000 đ" />
         </LinearLayout>
 
-        <!-- Nút Sửa & Xóa -->
+        <!-- Nút Sửa & Xóa đồng bộ icon Lucide -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="end"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnEditDish"
+                style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_btn_edit_dish"
+                android:layout_height="34dp"
+                android:backgroundTint="#EFF6FF"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
-                android:paddingVertical="6dp"
                 android:text="Sửa"
-                android:textColor="@color/brand_blue"
-                android:textSize="11.5sp"
-                android:textStyle="bold" />
+                android:textColor="#2563EB"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp"
+                app:icon="@drawable/ic_pencil"
+                app:iconSize="13dp"
+                app:iconTint="#2563EB"
+                app:strokeColor="#BFDBFE"
+                app:strokeWidth="1dp" />
 
-            <TextView
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDeleteDish"
+                style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="34dp"
                 android:layout_marginStart="6dp"
-                android:background="@drawable/bg_btn_delete_dish"
+                android:backgroundTint="#FEF2F2"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
-                android:paddingVertical="6dp"
                 android:text="Xóa"
-                android:textColor="@color/danger"
-                android:textSize="11.5sp"
-                android:textStyle="bold" />
+                android:textColor="#DC2626"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp"
+                app:icon="@drawable/ic_trash"
+                app:iconSize="13dp"
+                app:iconTint="#DC2626"
+                app:strokeColor="#FECACA"
+                app:strokeWidth="1dp" />
         </LinearLayout>
 
     </LinearLayout>

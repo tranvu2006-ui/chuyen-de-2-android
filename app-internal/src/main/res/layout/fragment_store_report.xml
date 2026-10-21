@@ -13,7 +13,7 @@
         android:layout_height="?attr/actionBarSize"
         android:background="#FFFFFF"
         android:elevation="2dp"
-        app:title="📊 Báo Cáo Doanh Số &amp; Hiệu Quả"
+        app:title="Báo Cáo Doanh Số &amp; Hiệu Quả"
         app:titleTextColor="@color/text_primary" />
 
     <androidx.core.widget.NestedScrollView
@@ -67,7 +67,7 @@
                     android:textSize="12sp" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
-            <!-- 1. Revenue Card (Dark Gradient Style theo Quán/7.html) -->
+            <!-- 1. Revenue Card (Dark Gradient Style) -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -82,14 +82,28 @@
                     android:orientation="vertical"
                     android:padding="18dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:letterSpacing="0.05"
-                        android:text="DOANH SỐ BÁN HÀNG"
-                        android:textColor="#94A3B8"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="15dp"
+                            android:layout_height="15dp"
+                            app:srcCompat="@drawable/ic_banknote"
+                            app:tint="#FACC15" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:letterSpacing="0.05"
+                            android:text="DOANH SỐ BÁN HÀNG"
+                            android:textColor="#94A3B8"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tvRevenueAmount"
@@ -120,12 +134,26 @@
                             android:layout_weight="1"
                             android:orientation="vertical">
 
-                            <TextView
+                            <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Đơn hoàn tất"
-                                android:textColor="#94A3B8"
-                                android:textSize="11sp" />
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    app:srcCompat="@drawable/ic_check_circle"
+                                    app:tint="#10B981" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="4dp"
+                                    android:text="Hoàn tất"
+                                    android:textColor="#94A3B8"
+                                    android:textSize="11sp" />
+                            </LinearLayout>
 
                             <TextView
                                 android:id="@+id/tvCompletedOrdersCount"
@@ -134,7 +162,7 @@
                                 android:layout_marginTop="2dp"
                                 android:text="0 đơn"
                                 android:textColor="#10B981"
-                                android:textSize="14sp"
+                                android:textSize="15sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
 
@@ -145,12 +173,26 @@
                             android:layout_weight="1"
                             android:orientation="vertical">
 
-                            <TextView
+                            <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Đơn hủy / Bùng"
-                                android:textColor="#94A3B8"
-                                android:textSize="11sp" />
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    app:srcCompat="@drawable/ic_alert_triangle"
+                                    app:tint="#EF4444" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="4dp"
+                                    android:text="Hủy / Bùng"
+                                    android:textColor="#94A3B8"
+                                    android:textSize="11sp" />
+                            </LinearLayout>
 
                             <TextView
                                 android:id="@+id/tvCancelledOrdersCount"
@@ -159,7 +201,7 @@
                                 android:layout_marginTop="2dp"
                                 android:text="0 đơn"
                                 android:textColor="#EF4444"
-                                android:textSize="14sp"
+                                android:textSize="15sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
 
@@ -184,14 +226,14 @@
                                 android:layout_marginTop="2dp"
                                 android:text="0 đ"
                                 android:textColor="#38BDF8"
-                                android:textSize="14sp"
+                                android:textSize="15sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- 2. Card Món Bán Chạy Nhất (Quán/7.html) -->
+            <!-- 2. Card Món Bán Chạy Nhất -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -206,14 +248,28 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:text="Top Món Bán Chạy Nhất"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            app:srcCompat="@drawable/ic_flame"
+                            app:tint="#EA580C" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:text="Top Món Bán Chạy Nhất"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/rvBestSellerDishes"
@@ -234,7 +290,7 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- 3. Card Tổng Hợp Đánh Giá Khách Hàng (Quán/7.html) -->
+            <!-- 3. Card Tổng Hợp Đánh Giá Khách Hàng -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -248,14 +304,28 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="12dp"
-                        android:text="⭐ Đánh Giá &amp; Uy Tín Quán"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            app:srcCompat="@drawable/ic_star"
+                            app:tint="#F59E0B" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:text="Đánh Giá &amp; Uy Tín Quán"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -280,11 +350,46 @@
                                 android:textSize="32sp"
                                 android:textStyle="bold" />
 
-                            <TextView
+                            <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="⭐⭐⭐⭐⭐"
-                                android:textSize="12sp" />
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    app:srcCompat="@drawable/ic_star"
+                                    app:tint="#F59E0B" />
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    android:layout_marginStart="2dp"
+                                    app:srcCompat="@drawable/ic_star"
+                                    app:tint="#F59E0B" />
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    android:layout_marginStart="2dp"
+                                    app:srcCompat="@drawable/ic_star"
+                                    app:tint="#F59E0B" />
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    android:layout_marginStart="2dp"
+                                    app:srcCompat="@drawable/ic_star"
+                                    app:tint="#F59E0B" />
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    android:layout_marginStart="2dp"
+                                    app:srcCompat="@drawable/ic_star"
+                                    app:tint="#F59E0B" />
+                            </LinearLayout>
 
                             <TextView
                                 android:id="@+id/tvRatingCount"
@@ -321,10 +426,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
+                                android:lineSpacingExtra="2dp"
                                 android:text="• Đồ ăn chuẩn vị &amp; đóng gói cẩn thận\n• Thời gian chuẩn bị đúng hẹn (15p)"
                                 android:textColor="@color/text_secondary"
-                                android:textSize="11sp"
-                                android:lineSpacingExtra="2dp" />
+                                android:textSize="11sp" />
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>

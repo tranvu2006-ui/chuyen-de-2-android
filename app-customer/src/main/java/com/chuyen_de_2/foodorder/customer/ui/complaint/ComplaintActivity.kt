@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.customer.ui.complaint
+﻿package com.chuyen_de_2.foodorder.customer.ui.complaint
 
 import android.os.Bundle
 import android.widget.ArrayAdapter
@@ -18,6 +18,16 @@ import javax.inject.Inject
 /**
  * Trung tâm gửi khiếu nại đơn hàng chuẩn b12.html
  * Gửi lên Firebase Realtime Database node `complaints/{complaintId}` cho Admin duyệt
+ */
+/**
+ * Tên chức năng: Trung Tâm Gửi Khiếu Nại & Tranh Chấp Đơn Hàng (Order Complaint & Dispute Center)
+ * Cách hoạt động:
+ *  - Thu thập mã đơn hàng, lý do khiếu nại (Giao sai món, đồ ăn nguội/bẩn, tài xế thái độ xấu, giao quá trễ, tính sai tiền, v.v.).
+ *  - Cho phép đính kèm mô tả chi tiết và liên kết hình ảnh bằng chứng (Evidence Image URL).
+ *  - Đẩy khiếu nại lên Firebase Realtime Database / Firestore node complaints/{complaintId} với trạng thái PENDING.
+ *  - Thông tin sẽ được gửi tới Admin Portal để xem xét hoàn tiền hoặc xử phạt vi phạm.
+ * Luồng hướng tới:
+ *  - Gửi thành công -> Đóng màn hình quay về [OrderHistoryActivity] hoặc [TrackingActivity].
  */
 @AndroidEntryPoint
 class ComplaintActivity : AppCompatActivity() {

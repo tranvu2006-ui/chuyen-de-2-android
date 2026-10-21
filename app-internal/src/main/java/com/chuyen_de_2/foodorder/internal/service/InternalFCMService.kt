@@ -15,15 +15,14 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 /**
- * FCM Service cho Internal App — đánh thức khi có đơn mới (Section 4.1 - doc-adr)
- *
- * Test Case 4 (Section 10 - doc-adr):
- * App Shop đã bị vuốt tắt hẳn đa nhiệm, nhận đơn hàng mới.
- * Expected: FCM Payload kích hoạt máy sáng màn hình, rung và đổ chuông.
- *
- * Mitigation (Section 12 - doc-adr):
- * FCM làm kênh liên lạc dự phòng.
- * Khi nhận Data Push, ép client gọi FirebaseDatabase.goOnline() để refresh socket.
+ * Tên chức năng: Dịch Vụ Thông Báo Đẩy Firebase Cloud Messaging (Internal FCM Push Service)
+ * Cách hoạt động:
+ *  - Nhận tin nhắn thông báo đẩy (Push Notification) từ Cloud Functions / Backend khi có đơn hàng mới phát sinh hoặc có cập nhật trạng thái đơn.
+ *  - Tự động gọi `FirebaseDatabase.goOnline()` để đánh thức kết nối WebSocket của Firebase ngay cả khi ứng dụng đang chạy nền.
+ *  - Hiển thị thông báo ưu tiên cao (High Priority Notification), rung, chuông báo và sáng màn hình để nhân viên quán hoặc tài xế không bị lỡ đơn.
+ *  - Quản lý đồng bộ FCM Device Token lên tài khoản người dùng trên Firestore.
+ * Luồng hướng tới:
+ *  - Người dùng bấm vào thông báo -> Mở ngay [DashboardActivity] để xử lý đơn hàng.
  */
 @AndroidEntryPoint
 class InternalFCMService : FirebaseMessagingService() {
@@ -31,6 +30,11 @@ class InternalFCMService : FirebaseMessagingService() {
     @Inject
     lateinit var authRepository: AuthRepository
 
+    /**
+     * Tên chức năng: Tiếp nhận và lưu trữ mã định danh thiết bị FCM Token mới
+     * Cách hoạt động: Được kích hoạt tự động khi Firebase cấp mới hoặc xoay vòng Token thiết bị; lưu token vào tài liệu user trên Firestore.
+     * Luồng hướng tới: Cập nhật FCM token phục vụ bắn thông báo đơn mục tiêu.
+     */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         kotlinx.coroutines.runBlocking {
@@ -40,10 +44,15 @@ class InternalFCMService : FirebaseMessagingService() {
         }
     }
 
+    /**
+     * Tên chức năng: Tiếp nhận tin nhắn thông báo đẩy từ Firebase
+     * Cách hoạt động: Trích xuất tiêu đề, nội dung và kích hoạt chuỗi hành động đánh thức socket Firebase rồi hiển thị thông báo khẩn cấp.
+     * Luồng hướng tới: Gọi [showHighPriorityNotification].
+     */
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
-        // Mitigation: Refresh Firebase socket khi nhận push (Section 12 - doc-adr)
+        // Refresh Firebase socket khi nhận push
         FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).goOnline()
 
         val title = message.notification?.title ?: message.data["title"] ?: "Đơn hàng mới!"
@@ -52,6 +61,11 @@ class InternalFCMService : FirebaseMessagingService() {
         showHighPriorityNotification(title, body)
     }
 
+    /**
+     * Tên chức năng: Hiển thị thông báo đẩy khẩn cấp (Heads-up Notification)
+     * Cách hoạt động: Xây dựng Notification với kênh CHANNEL_ID_ORDER, thiết lập PRIORITY_HIGH, rung, chuông và FullScreenIntent để đánh thức màn hình điện thoại.
+     * Luồng hướng tới: Kích hoạt màn hình thông báo và điều hướng sang [DashboardActivity] khi người dùng nhấn chọn.
+     */
     private fun showHighPriorityNotification(title: String, body: String) {
         val intent = Intent(this, DashboardActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -68,9 +82,9 @@ class InternalFCMService : FirebaseMessagingService() {
             .setContentText(body)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL) // Rung + Chuông + LED
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, true) // Đánh thức màn hình
+            .setFullScreenIntent(pendingIntent, true)
             .build()
 
         val manager = getSystemService(NotificationManager::class.java)

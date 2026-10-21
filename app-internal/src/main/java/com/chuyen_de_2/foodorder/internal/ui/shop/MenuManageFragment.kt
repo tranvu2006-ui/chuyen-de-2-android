@@ -38,12 +38,15 @@ import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 /**
- * MenuManageFragment — Quản lý Thực Đơn & Điểm Danh Mở Ca Quán
- * Thiết kế và tính năng chuẩn theo Quán/2.html:
- * - Nút Check-in mở ca / tạm nghỉ
- * - Banner nhận đơn hàng mới
- * - Thao tác Thêm Món & Tạo Combo
- * - Danh sách món ăn mở bán kèm nút Sửa & Xóa
+ * Tên chức năng: Quản Lý Thực Đơn & Điểm Danh Mở Ca Quán (Menu Management)
+ * Cách hoạt động:
+ *  - Cung cấp tính năng Check-in mở ca bán hàng / tạm nghỉ ngơi cho Quán.
+ *  - Lắng nghe danh sách món ăn từ sub-collection Firestore `stores/{storeId}/dishes`.
+ *  - Cho phép thêm món ăn mới hoặc chỉnh sửa món hiện có (tên, giá, phân loại, mô tả, ảnh từ thư viện hoặc URL).
+ *  - Hỗ trợ xóa món ăn khỏi thực đơn và cập nhật Realtime sang app Khách hàng.
+ * Luồng hướng tới:
+ *  - Dữ liệu món ăn đồng bộ trực tiếp tới Menu của app Customer.
+ *  - Bấm banner đơn hàng mới -> Chuyển hướng sang tab Quản lý đơn hàng ([OrderListFragment]).
  */
 @AndroidEntryPoint
 class MenuManageFragment : Fragment() {
@@ -71,6 +74,11 @@ class MenuManageFragment : Fragment() {
         return binding.root
     }
 
+    /**
+     * Tên chức năng: Khởi tạo View quản lý thực đơn
+     * Cách hoạt động: Gắn sự kiện các nút chức năng, khởi tạo RecyclerView và truy vấn storeId của tài khoản.
+     * Luồng hướng tới: Chuẩn bị hiển thị danh sách món ăn của quán.
+     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -79,6 +87,11 @@ class MenuManageFragment : Fragment() {
         resolveCurrentStoreIdAndObserve()
     }
 
+    /**
+     * Tên chức năng: Định danh Cửa hàng và giám sát món ăn
+     * Cách hoạt động: Lấy UID người dùng hiện tại để resolve ra storeId tương ứng, sau đó lắng nghe Firestore snapshot.
+     * Luồng hướng tới: Gọi [observeStoreDishes].
+     */
     private fun resolveCurrentStoreIdAndObserve() {
         val uid = auth.currentUser?.uid.orEmpty()
         viewLifecycleOwner.lifecycleScope.launch {
@@ -87,6 +100,11 @@ class MenuManageFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Lắng nghe danh sách món ăn theo thời gian thực (Realtime Menu Observer)
+     * Cách hoạt động: Lắng nghe flow từ `firebaseRepository.observeStoreDishes`. Nếu quán mới chưa có món, tự động sinh bộ món mẫu.
+     * Luồng hướng tới: Cập nhật RecyclerView hiển thị danh sách món.
+     */
     private fun observeStoreDishes() {
         viewLifecycleOwner.lifecycleScope.launch {
             firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
@@ -105,6 +123,11 @@ class MenuManageFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Tạo danh sách món mẫu theo từng loại hình quán ăn
+     * Cách hoạt động: Cung cấp danh sách Dish mặc định cho các quán mới khởi tạo (Cơm tấm, Phở, Bún bò, Bánh mì, Trà sữa, Gà rán).
+     * Luồng hướng tới: Điền dữ liệu ban đầu cho quán.
+     */
     private fun getDefaultShopDishes(storeId: String): List<Dish> {
         return when (storeId) {
             "shop_02" -> listOf(
@@ -126,7 +149,7 @@ class MenuManageFragment : Fragment() {
             )
             "shop_06" -> listOf(
                 Dish(id = "dish_06_01", storeId = "shop_06", name = "Combo 2 Miếng Gà Rán Giòn Cay", basePrice = 79000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400"),
-                Dish(id = "dish_06_02", storeId = "shop_06", name = "Cánh Gà Sốt Chua Ngọt Hàn Quốc", basePrice = 85000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400")
+                Dish(id = "dish_06_02", storeId = "shop_06", name = "Cánh Gà Sốt Chim Ngọt Hàn Quốc", basePrice = 85000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400")
             )
             else -> listOf(
                 Dish(id = "dish_01_01", storeId = "shop_01", name = "Cơm sườn nướng than hoa", basePrice = 55000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400"),
@@ -139,8 +162,13 @@ class MenuManageFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập giao diện điều khiển và các nút thao tác menu
+     * Cách hoạt động: Bắt sự kiện Check-in mở ca, chuyển nhanh sang đơn hàng, thêm món ăn và tạo combo.
+     * Luồng hướng tới: Tương tác người dùng với thực đơn.
+     */
     private fun setupUI() {
-        // 1. Nút Check-in mở ca (Quán/2.html: toggleCheckin)
+        // 1. Nút Check-in mở ca
         binding.btnCheckin.setOnClickListener {
             toggleCheckin()
         }
@@ -164,6 +192,11 @@ class MenuManageFragment : Fragment() {
         updateDishCountText()
     }
 
+    /**
+     * Tên chức năng: Chuyển đổi trạng thái Điểm danh / Mở ca (Check-in Toggle)
+     * Cách hoạt động: Bật/tắt trạng thái ca làm việc của nhân viên quán, đổi giao diện nút bấm và thông báo.
+     * Luồng hướng tới: Cập nhật visual feedback cho quản lý quán.
+     */
     private fun toggleCheckin() {
         isCheckedIn = !isCheckedIn
         if (isCheckedIn) {
@@ -189,6 +222,11 @@ class MenuManageFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập danh sách RecyclerView món ăn
+     * Cách hoạt động: Khởi tạo [ManageDishAdapter] với các callback Chỉnh sửa món và Xóa món.
+     * Luồng hướng tới: Render các thẻ món ăn [item_manage_dish.xml].
+     */
     private fun setupRecyclerView() {
         adapter = ManageDishAdapter(
             onEditClick = { dish -> showDishDialog(dish) },
@@ -203,6 +241,11 @@ class MenuManageFragment : Fragment() {
         updateList()
     }
 
+    /**
+     * Tên chức năng: Làm mới danh sách hiển thị món ăn
+     * Cách hoạt động: Cung cấp danh sách món hiện tại cho Adapter và cập nhật trạng thái trống (Empty State).
+     * Luồng hướng tới: Cập nhật giao diện danh sách.
+     */
     private fun updateList() {
         adapter.submitList(dishList.toList())
         binding.layoutEmptyDishes.visibility = if (dishList.isEmpty()) View.VISIBLE else View.GONE
@@ -229,6 +272,11 @@ class MenuManageFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Nén và chuyển đổi ảnh Uri sang Base64
+     * Cách hoạt động: Đọc Stream từ Uri, scale kích thước về tối đa 450px và nén JPEG 80% để lưu trữ trực tiếp vào Firestore dạng chuỗi base64 nhẹ.
+     * Luồng hướng tới: Cung cấp dữ liệu ảnh lưu trữ cho Dish.
+     */
     private fun convertUriToBase64(uri: Uri): String? {
         return try {
             val inputStream = requireContext().contentResolver.openInputStream(uri)
@@ -255,6 +303,11 @@ class MenuManageFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Tải và hiển thị ảnh xem trước món ăn
+     * Cách hoạt động: Dùng Glide tải ảnh từ Base64 hoặc URL trực tuyến với cơ chế fallback icon mặc định.
+     * Luồng hướng tới: Cập nhật ImageView trong modal chỉnh sửa món.
+     */
     private fun loadPreviewImage(targetView: ImageView, urlOrBase64: String) {
         if (urlOrBase64.isBlank()) {
             targetView.setImageResource(R.drawable.bg_badge_orange)
@@ -282,6 +335,15 @@ class MenuManageFragment : Fragment() {
             .into(targetView)
     }
 
+    /**
+     * Tên chức năng: Hiển thị Dialog Thêm mới / Chỉnh sửa Món ăn
+     * Cách hoạt động:
+     *  - Nếu editingDish != null: Nạp thông tin hiện có để sửa.
+     *  - Nếu editingDish == null: Mở form trống để tạo món mới.
+     *  - Hỗ trợ chọn ảnh từ máy hoặc nhập URL trực tuyến.
+     *  - Khi bấm Lưu: Gọi [FirebaseRepository.saveStoreDish] để đẩy lên Firestore.
+     * Luồng hướng tới: Cập nhật trực tiếp thực đơn trên Firestore và thông báo thành công.
+     */
     private fun showDishDialog(editingDish: Dish?) {
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -424,6 +486,11 @@ class MenuManageFragment : Fragment() {
         dialog.show()
     }
 
+    /**
+     * Tên chức năng: Hộp thoại xác nhận và Xóa món ăn
+     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa món trên Firestore via [FirebaseRepository.deleteStoreDish].
+     * Luồng hướng tới: Gỡ bỏ món khỏi thực đơn của quán.
+     */
     private fun confirmDeleteDish(dish: Dish) {
         AlertDialog.Builder(requireContext())
             .setTitle("Xác Nhận Xóa")

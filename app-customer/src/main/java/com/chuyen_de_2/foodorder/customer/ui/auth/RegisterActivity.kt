@@ -11,12 +11,27 @@ import com.chuyen_de_2.foodorder.customer.databinding.ActivityRegisterBinding
 import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * Tên chức năng: Màn Hình Đăng Ký Tài Khoản Khách Hàng (Customer Registration)
+ * Cách hoạt động:
+ *  - Thu thập thông tin cá nhân: Họ tên, Số điện thoại, Email, Mật khẩu và xác nhận mật khẩu.
+ *  - Cho phép chọn vai trò đăng ký (Khách hàng, Đối tác quán, Tài xế).
+ *  - Tạo tài khoản trên Firebase Authentication và ghi nhận thông tin vào Firestore collection `users`.
+ * Luồng hướng tới:
+ *  - Đăng ký thành công -> Điều hướng ngay vào màn hình chính [HomeActivity] (xóa stack).
+ *  - Bấm "Đã có tài khoản" -> Đóng màn hình quay về [LoginActivity].
+ */
 @AndroidEntryPoint
 class RegisterActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRegisterBinding
     private val viewModel: AuthViewModel by viewModels()
 
+    /**
+     * Tên chức năng: Khởi tạo View đăng ký
+     * Cách hoạt động: Áp dụng Insets, thiết lập lắng nghe sự kiện nút bấm và ViewModel.
+     * Luồng hướng tới: Hiển thị form đăng ký.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRegisterBinding.inflate(layoutInflater)
@@ -28,6 +43,11 @@ class RegisterActivity : AppCompatActivity() {
         observeViewModel()
     }
 
+    /**
+     * Tên chức năng: Xử lý sự kiện gửi form đăng ký
+     * Cách hoạt động: Lấy dữ liệu từ các trường EditText và RadioGroup chọn Role, gửi sang [AuthViewModel.register].
+     * Luồng hướng tới: Kích hoạt xử lý trên Firebase Auth.
+     */
     private fun setupUI() {
         binding.btnRegister.setOnClickListener {
             val name = binding.etName.text.toString().trim()
@@ -44,10 +64,15 @@ class RegisterActivity : AppCompatActivity() {
         }
 
         binding.tvLogin.setOnClickListener {
-            finish() // Quay lại Login
+            finish()
         }
     }
 
+    /**
+     * Tên chức năng: Lắng nghe kết quả đăng ký từ ViewModel
+     * Cách hoạt động: Hiển thị trạng thái tải và điều hướng sang [HomeActivity] khi thành công.
+     * Luồng hướng tới: [HomeActivity].
+     */
     private fun observeViewModel() {
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE

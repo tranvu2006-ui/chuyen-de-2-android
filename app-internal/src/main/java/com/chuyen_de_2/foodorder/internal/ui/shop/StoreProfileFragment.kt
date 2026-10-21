@@ -25,12 +25,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * StoreProfileFragment — Hồ Sơ & Cài Đặt Quán Ăn
- * Thiết kế và cấu trúc chuẩn theo Quán/8.html:
- * - Thông tin nhận diện quán (Tên, địa chỉ, badge đã xác minh)
- * - Thông tin pháp lý & Chủ quán (Chủ hộ, CCCD, SĐT, trạng thái)
- * - Cấu hình vận hành (Giờ mở cửa, thời gian chuẩn bị món)
- * - Chức năng Chỉnh Sửa Thông Tin Quán lưu trực tiếp lên Firebase Realtime Database
+ * Tên chức năng: Quản Lý Hồ Sơ & Cài Đặt Quán Ăn (Merchant Profile & Store Settings)
+ * Cách hoạt động:
+ *  - Hiển thị đầy đủ thông tin pháp lý và nhận diện của quán: Tên, địa chỉ, số điện thoại, chủ hộ kinh doanh, CCCD.
+ *  - Cung cấp cấu hình vận hành: Giờ mở cửa, thời gian chuẩn bị món ăn trung bình.
+ *  - Quản lý thông tin tài khoản ngân hàng thụ hưởng (VietQR / Napas) để hệ thống đối soát doanh thu.
+ *  - Cho phép chủ quán mở hộp thoại chỉnh sửa trực tiếp và đồng bộ lên Firebase.
+ * Luồng hướng tới:
+ *  - Lưu thông tin vào Firestore -> Dữ liệu cập nhật ngay lập tức trên app Khách hàng và app Tài xế.
+ *  - Bấm vào badge xác minh -> Mở màn hình [StoreVerificationActivity] để bổ sung thông tin nếu thiếu.
  */
 @AndroidEntryPoint
 class StoreProfileFragment : Fragment() {
@@ -57,6 +60,11 @@ class StoreProfileFragment : Fragment() {
         return binding.root
     }
 
+    /**
+     * Tên chức năng: Khởi tạo View hồ sơ quán
+     * Cách hoạt động: Thiết lập các sự kiện nút bấm (Quay lại, Sửa, Đăng xuất) và nạp dữ liệu quán từ Firebase.
+     * Luồng hướng tới: Chuẩn bị hiển thị thông tin chi tiết.
+     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -64,6 +72,11 @@ class StoreProfileFragment : Fragment() {
         resolveCurrentStoreIdAndObserve()
     }
 
+    /**
+     * Tên chức năng: Xác định storeId của người dùng đăng nhập
+     * Cách hoạt động: Lấy UID của Merchant hiện tại để tra cứu document store trên Firestore.
+     * Luồng hướng tới: Gọi [observeStoreProfile].
+     */
     private fun resolveCurrentStoreIdAndObserve() {
         val uid = auth.currentUser?.uid.orEmpty()
         viewLifecycleOwner.lifecycleScope.launch {
@@ -72,6 +85,11 @@ class StoreProfileFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập các sự kiện tương tác trên màn hình hồ sơ
+     * Cách hoạt động: Bắt sự kiện quay lại trang trước, mở modal sửa thông tin, và xác nhận đăng xuất tài khoản.
+     * Luồng hướng tới: Điều hướng giao diện tương ứng.
+     */
     private fun setupListeners() {
         binding.btnBackToOrders.setOnClickListener {
             parentFragmentManager.popBackStack()
@@ -99,6 +117,11 @@ class StoreProfileFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Lắng nghe thông tin hồ sơ quán theo thời gian thực (Realtime Store Profile)
+     * Cách hoạt động: Theo dõi document `stores/{storeId}` từ Firestore và cập nhật giao diện khi có thay đổi.
+     * Luồng hướng tới: Gọi [bindStoreData].
+     */
     private fun observeStoreProfile() {
         viewLifecycleOwner.lifecycleScope.launch {
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
@@ -125,6 +148,11 @@ class StoreProfileFragment : Fragment() {
         SupportedBank("OCB (Phương Đông)", "970448")
     )
 
+    /**
+     * Tên chức năng: Đổ dữ liệu thông tin quán lên giao diện
+     * Cách hoạt động: Render tên quán, địa chỉ, chủ sở hữu, CCCD, thông tin ngân hàng thụ hưởng và badge trạng thái xác minh hồ sơ.
+     * Luồng hướng tới: Hiển thị trực quan cho chủ quán.
+     */
     private fun bindStoreData(store: Store) {
         binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
         binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
@@ -182,6 +210,11 @@ class StoreProfileFragment : Fragment() {
         )
     }
 
+    /**
+     * Tên chức năng: Hiển thị Dialog chỉnh sửa thông tin quán
+     * Cách hoạt động: Cho phép sửa tên, địa chỉ, quận huyện, tên chủ quán, giờ mở cửa, thời gian chuẩn bị món và tài khoản ngân hàng.
+     * Luồng hướng tới: Gọi [FirebaseRepository.updateStoreProfile] để lưu Firestore và cập nhật giao diện ngay lập tức.
+     */
     private fun showEditStoreDialog() {
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)

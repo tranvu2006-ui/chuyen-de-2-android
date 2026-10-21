@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.customer.ui.profile
+﻿package com.chuyen_de_2.foodorder.customer.ui.profile
 
 import android.app.Activity
 import android.content.Intent
@@ -46,6 +46,18 @@ import javax.inject.Inject
  * - Upload ảnh avatar từ máy hoặc chọn Emoji avatar
  * - Quản lý Sổ địa chỉ giao hàng
  * - Lấy GPS và kéo bản đồ để chọn địa chỉ nhận hàng
+ */
+/**
+ * Tên chức năng: Trang Cá Nhân, Điểm Uy Tín & Sổ Địa Chỉ Khách Hàng (Customer Profile & Trust Score)
+ * Cách hoạt động:
+ *  - Hiển thị thông tin cá nhân (Ảnh đại diện, Họ tên, Email, Số điện thoại).
+ *  - Quản lý Điểm tín nhiệm / Uy tín (Trust Score) giúp đánh giá độ tin cậy của tài khoản khi đặt đơn COD.
+ *  - Quản lý Sổ địa chỉ giao hàng nhận món (Thêm, sửa, xóa, đặt làm mặc định).
+ *  - Tích hợp chọn vị trí qua bản đồ vệ tinh / Google Maps [SelectLocationActivity].
+ *  - Cung cấp lối tắt tới Lịch sử đơn hàng, Khiếu nại và nút Đăng xuất.
+ * Luồng hướng tới:
+ *  - Chuyển sang [SelectLocationActivity] khi thêm địa chỉ bản đồ.
+ *  - Chuyển sang [OrderHistoryActivity], [ComplaintActivity], hoặc [LoginActivity] khi đăng xuất.
  */
 @AndroidEntryPoint
 class ProfileActivity : AppCompatActivity() {

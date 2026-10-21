@@ -20,7 +20,16 @@ import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperBinding
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
- * ShipperFragment — Trang chủ đơn hàng của Tài xế chuyên quán theo thiết kế ship/2.html & ship/3.html
+ * Tên chức năng: Kênh Nhận Đơn & Trực Tuyến Của Tài Xế (Shipper Orders & Dispatch Center)
+ * Cách hoạt động:
+ *  - Bật/Tắt chế độ trực tuyến (Online/Offline) nhận cuốc xe giao thức ăn.
+ *  - Lắng nghe danh sách đơn chờ nhận (READY) từ Quán trực thuộc của tài xế.
+ *  - Quản lý đơn đang thực hiện (Active Orders) và cho phép bấm "Tiếp tục giao" để mở màn hình lộ trình GPS [DeliveryTripActivity].
+ *  - Hỗ trợ hủy đơn với lý do cụ thể (xe hỏng, việc gấp...) để hoàn trả đơn về danh sách chờ cho tài xế khác.
+ *  - Thống kê tức thời: Số cuốc hoàn thành hôm nay và tổng thu nhập phí ship kiếm được.
+ * Luồng hướng tới:
+ *  - Nhận đơn -> Cập nhật trạng thái đơn sang ASSIGNED trên Firestore.
+ *  - Bấm "Tiếp tục giao" -> Mở màn hình điều hướng lộ trình bản đồ [DeliveryTripActivity].
  */
 @AndroidEntryPoint
 class ShipperFragment : Fragment() {
@@ -45,6 +54,11 @@ class ShipperFragment : Fragment() {
         return binding.root
     }
 
+    /**
+     * Tên chức năng: Khởi tạo View màn hình tài xế
+     * Cách hoạt động: Gắn adapter, bật/tắt chế độ trực, gắn nút đăng xuất và lắng nghe dữ liệu từ ViewModel.
+     * Luồng hướng tới: Sẵn sàng nhận đơn giao hàng.
+     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -54,6 +68,11 @@ class ShipperFragment : Fragment() {
         observeData()
     }
 
+    /**
+     * Tên chức năng: Xử lý Đăng xuất ca trực của Tài xế
+     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa phiên Auth và chuyển về [LoginActivity].
+     * Luồng hướng tới: Quay về [LoginActivity].
+     */
     private fun setupLogout() {
         binding.btnShipperLogoutHeader.setOnClickListener {
             AlertDialog.Builder(requireContext())
@@ -72,6 +91,11 @@ class ShipperFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Khởi tạo Adapter danh sách đơn đang giao và đơn chờ nhận
+     * Cách hoạt động: Cấu hình 2 RecyclerView độc lập (rvActiveOrders và rvPendingOrders) kèm các sự kiện bấm nhận đơn, tiếp tục cuốc đi, và hủy nhận đơn.
+     * Luồng hướng tới: Hiển thị các đơn hàng cho shipper.
+     */
     private fun setupAdapters() {
         activeAdapter = DriverActiveOrdersAdapter(
             onContinueTrip = { order ->
@@ -105,6 +129,11 @@ class ShipperFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Chuyển đổi trạng thái Trực tuyến / Tạm nghỉ (Duty Toggle)
+     * Cách hoạt động: Gạt trạng thái trực của tài xế và đồng bộ lên Firebase qua [ShipperViewModel.toggleDuty].
+     * Luồng hướng tới: Hệ thống chỉ phát đơn mới khi tài xế ĐANG TRỰC.
+     */
     private fun setupDutyToggle() {
         binding.btnDutyToggle.setOnClickListener {
             isOnline = !isOnline
@@ -127,8 +156,15 @@ class ShipperFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Lắng nghe và đồng bộ dữ liệu đơn hàng tài xế
+     * Cách hoạt động:
+     *  - Lắng nghe đơn do chính tài xế đang giao (ASSIGNED, DELIVERING, ARRIVED_AT_SHOP, ARRIVED_AT_CUSTOMER).
+     *  - Lắng nghe đơn chờ nhận từ quán được phân công.
+     *  - Tính toán số cuốc hoàn thành và tiền cước tích lũy trong ngày.
+     * Luồng hướng tới: Cập nhật giao diện tức thời.
+     */
     private fun observeData() {
-        // Lắng nghe các đơn đang nhận giao của tài xế (chỉ ASSIGNED hoặc DELIVERING do chính tài xế nhận)
         viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
             val currentUid = authRepository.currentUser?.uid ?: ""
             val activeOrders = orders.filter {
@@ -146,12 +182,10 @@ class ShipperFragment : Fragment() {
             binding.tvEmptyActive.visibility = if (activeOrders.isEmpty()) View.VISIBLE else View.GONE
             binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
 
-            // Cập nhật lại danh sách đơn chờ với cờ hasActive
             viewModel.storePendingOrders.value?.let { pendingOrders ->
                 pendingAdapter.submitList(pendingOrders, hasActive)
             }
 
-            // Thống kê đơn hoàn thành & thu nhập thực tế
             val completed = orders.filter { it.status == Order.Status.COMPLETED && it.shipperId == currentUid }
             val completedCount = completed.size
             val earnings = completed.sumOf { if (it.shippingFee > 0) it.shippingFee else 25000L }
@@ -160,7 +194,6 @@ class ShipperFragment : Fragment() {
             binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
         }
 
-        // Hiển thị tên quán trực thuộc của tài xế
         viewModel.shipperStore.observe(viewLifecycleOwner) { (storeId, storeName) ->
             if (storeName.isNotBlank()) {
                 binding.tvShopBadge.text = "🏪 $storeName"
@@ -171,7 +204,6 @@ class ShipperFragment : Fragment() {
             }
         }
 
-        // Lắng nghe các đơn chờ nhận của quán (hiển thị trực tiếp trong danh sách theo chuẩn ship/2.html)
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
             val hasActive = activeAdapter.itemCount > 0
             pendingAdapter.submitList(pendingOrders, hasActive)
@@ -188,6 +220,11 @@ class ShipperFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Hộp thoại Hủy nhận đơn giao hàng (Cancel Order Modal)
+     * Cách hoạt động: Cho phép tài xế chọn lý do bất khả kháng (hỏng xe, quán làm lâu...) và trả lại đơn về danh sách chờ.
+     * Luồng hướng tới: Cập nhật đơn về trạng thái READY không có tài xế trên Firestore.
+     */
     private fun showCancelModal(order: Order) {
         val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
         val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId

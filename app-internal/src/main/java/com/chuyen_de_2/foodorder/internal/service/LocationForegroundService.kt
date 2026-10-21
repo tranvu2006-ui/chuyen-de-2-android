@@ -20,18 +20,13 @@ import com.google.android.gms.location.Priority
 import com.google.firebase.database.FirebaseDatabase
 
 /**
- * Android Foreground Location Service — GPS Shipper (Section 3.3 - doc-adr)
- *
- * Xây dựng Android Foreground Location Service truyền GPS:
- * - Persistent notification (High Priority)
- * - FusedLocationProviderClient cập nhật GPS mỗi 5 giây
- * - Push tọa độ lên tracking/{orderId} Firebase
- * - Xử lý Doze Mode: IGNORE_BATTERY_OPTIMIZATIONS
- *
- * Risks & Mitigations (Section 12 - doc-adr):
- * - Xin cấp quyền IGNORE_BATTERY_OPTIMIZATIONS
- * - Dùng chuông báo notification High Priority
- * - Foreground Service không bị Android OS "kill"
+ * Tên chức năng: Dịch Vụ Chạy Ngầm Theo Dõi Vị Trí GPS Tài Xế (Android Foreground Location Service)
+ * Cách hoạt động:
+ *  - Chạy dưới dạng Foreground Service với Notification thường trực (Ongoing) để chống bị Android OS tắt khi khóa màn hình (Doze Mode).
+ *  - Dùng FusedLocationProviderClient lấy tọa độ GPS chính xác cao mỗi 5 giây (`GPS_UPDATE_INTERVAL_MS`).
+ *  - Đẩy trực tiếp tọa độ (Latitude, Longitude, Timestamp) lên nút Firebase Realtime Database `tracking/{orderId}`.
+ * Luồng hướng tới:
+ *  - Ứng dụng Khách hàng [TrackingActivity] lắng nghe realtime nút này để vẽ biểu tượng xe máy di chuyển trực tiếp trên bản đồ.
  */
 class LocationForegroundService : Service() {
 
@@ -48,6 +43,11 @@ class LocationForegroundService : Service() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
     }
 
+    /**
+     * Tên chức năng: Tiếp nhận lệnh khởi động dịch vụ (Start Command)
+     * Cách hoạt động: Lấy orderId từ Intent, gọi [startForeground] hiển thị notification và kích hoạt luồng GPS.
+     * Luồng hướng tới: Bắt đầu phát tọa độ vị trí.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         orderId = intent?.getStringExtra(EXTRA_ORDER_ID) ?: ""
 
@@ -62,9 +62,14 @@ class LocationForegroundService : Service() {
         // Bắt đầu lắng nghe GPS
         startLocationUpdates()
 
-        return START_STICKY // Khởi động lại nếu bị kill
+        return START_STICKY
     }
 
+    /**
+     * Tên chức năng: Tạo Notification thông báo trạng thái giao hàng
+     * Cách hoạt động: Tạo thông báo thường trực trên khay hệ thống, gắn PendingIntent mở lại [DashboardActivity].
+     * Luồng hướng tới: Hiển thị thông báo cố định cho người dùng.
+     */
     private fun createNotification(): Notification {
         val intent = Intent(this, DashboardActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -77,13 +82,18 @@ class LocationForegroundService : Service() {
             .setContentText("GPS đang hoạt động — Đơn #${orderId.takeLast(6)}")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
-            .setOngoing(true) // Không thể vuốt tắt
+            .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
 
-    @Suppress("MissingPermission") // Permission checked in Fragment
+    /**
+     * Tên chức năng: Kích hoạt lắng nghe cập nhật tọa độ GPS (Location Updates)
+     * Cách hoạt động: Đăng ký FusedLocationProviderClient với độ ưu tiên cao nhất PRIORITY_HIGH_ACCURACY, mỗi lần có tọa độ mới sẽ bắn lên Firebase Realtime Database.
+     * Luồng hướng tới: Ghi dữ liệu vào Firebase Realtime Database node `tracking/{orderId}`.
+     */
+    @Suppress("MissingPermission")
     private fun startLocationUpdates() {
         val locationRequest = LocationRequest.Builder(
             Priority.PRIORITY_HIGH_ACCURACY,
@@ -95,7 +105,6 @@ class LocationForegroundService : Service() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { location ->
-                    // Push tọa độ lên Firebase tracking/{orderId}
                     val tracking = TrackingLocation(
                         lat = location.latitude,
                         lng = location.longitude,
@@ -117,9 +126,13 @@ class LocationForegroundService : Service() {
         )
     }
 
+    /**
+     * Tên chức năng: Giải phóng tài nguyên GPS khi dừng dịch vụ
+     * Cách hoạt động: Hủy đăng ký callback vị trí để ngắt phần cứng GPS giúp tiết kiệm pin.
+     * Luồng hướng tới: Dừng Service an toàn.
+     */
     override fun onDestroy() {
         super.onDestroy()
-        // Dừng cập nhật GPS khi service bị hủy
         if (::locationCallback.isInitialized) {
             fusedLocationClient.removeLocationUpdates(locationCallback)
         }

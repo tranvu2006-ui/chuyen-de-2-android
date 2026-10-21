@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.customer.ui.notification
+﻿package com.chuyen_de_2.foodorder.customer.ui.notification
 
 import android.content.Intent
 import android.os.Bundle
@@ -18,6 +18,17 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Tên chức năng: Hộp Thư Thông Báo Khách Hàng (Customer Notification Center)
+ * Cách hoạt động:
+ *  - Thu thập danh sách thông báo Realtime từ hệ thống: Tiến độ đơn hàng, tin nhắn từ quán/tài xế, chương trình khuyến mãi và cảnh báo khẩn cấp.
+ *  - Phân loại thông báo bằng Filter Chips: Tất cả, Đơn hàng, Khuyến mãi, Hệ thống.
+ *  - Khi nhấn vào một thông báo đơn hàng:
+ *      + Nếu đơn đang hoạt động (DELIVERING / PREPARING / PENDING): Mở màn hình theo dõi [TrackingActivity].
+ *      + Nếu đơn đã kết thúc (COMPLETED / CANCELLED): Mở màn hình lịch sử [OrderHistoryActivity].
+ * Luồng hướng tới:
+ *  - Chuyển hướng tới [TrackingActivity] hoặc [OrderHistoryActivity].
+ */
 @AndroidEntryPoint
 class NotificationActivity : AppCompatActivity() {
 

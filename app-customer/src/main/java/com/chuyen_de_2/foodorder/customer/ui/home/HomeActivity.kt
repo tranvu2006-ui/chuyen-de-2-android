@@ -27,6 +27,22 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Tên chức năng: Trang Chủ Khám Phá & Đặt Món Ăn (Customer Home Marketplace)
+ * Cách hoạt động:
+ *  - Hiển thị danh mục món ăn (Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, v.v.).
+ *  - Cung cấp danh sách Món ăn Hot bán chạy cuộn ngang và Thực đơn món ăn toàn hệ thống cuộn dọc.
+ *  - Tìm kiếm món ăn tức thời theo từ khóa (Instant Search Filter).
+ *  - Bộ lọc Quán gần bạn (< 1.5 km) hiển thị qua BottomSheetDialog.
+ *  - Nút giỏ hàng nổi (Floating Cart Button) cập nhật số lượng món và tổng tiền theo thời gian thực.
+ *  - Thanh điều hướng BottomNavigation: Trang chủ, Đơn hàng, Thông báo, Tài khoản.
+ * Luồng hướng tới:
+ *  - Bấm vào món ăn / quán ăn -> Chuyển sang màn hình thực đơn chi tiết [MenuActivity].
+ *  - Bấm nút Giỏ hàng nổi -> Chuyển sang giỏ hàng [CartActivity].
+ *  - Bấm tab Đơn hàng -> Chuyển sang lịch sử đơn [OrderHistoryActivity].
+ *  - Bấm tab Thông báo -> Chuyển sang [NotificationActivity].
+ *  - Bấm tab Tài khoản -> Chuyển sang [ProfileActivity].
+ */
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
 
@@ -34,7 +50,6 @@ class HomeActivity : AppCompatActivity() {
     private val viewModel: HomeViewModel by viewModels()
     private val cartViewModel: CartViewModel by viewModels()
 
-    // Adapter danh sách món ăn chính trên trang chủ (theo chuẩn b1.html)
     private lateinit var dishAdapter: HomeDishAdapter
     private lateinit var hotDishAdapter: HotDishAdapter
 
@@ -44,12 +59,16 @@ class HomeActivity : AppCompatActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
 
+    /**
+     * Tên chức năng: Khởi tạo Trang chủ Khách hàng
+     * Cách hoạt động: Cấu hình Insets Edge-to-Edge, khởi tạo các thành phần giao diện, adapter, bộ lọc và lắng nghe ViewModel.
+     * Luồng hướng tới: Chuẩn bị sàn thương mại món ăn cho khách đặt.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Xử lý Window Insets để tránh bị trùng với Status Bar & Navigation Bar
         InsetUtils.initEdgeToEdge(this, false)
         InsetUtils.applyStatusBarPadding(binding.headerBar, 8)
         InsetUtils.applyNavigationBarPadding(binding.bottomNav)
@@ -71,6 +90,11 @@ class HomeActivity : AppCompatActivity() {
         checkAccountLock()
     }
 
+    /**
+     * Tên chức năng: Kiểm tra trạng thái tài khoản khi người dùng quay lại màn hình
+     * Cách hoạt động: Kiểm tra cờ `isActive` trên Firestore; nếu bị khóa, tự động đăng xuất và thông báo lỗi.
+     * Luồng hướng tới: Điều hướng về [LoginActivity] nếu tài khoản bị khóa.
+     */
     private fun checkAccountLock() {
         lifecycleScope.launch {
             val statusCheck = authRepository.checkAccountActiveStatus()
@@ -93,18 +117,20 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập thanh tiêu đề Header và bộ lọc quán gần
+     * Cách hoạt động: Bắt sự kiện Click nút "Quán gần đây", chọn địa chỉ, nút "Xem tất cả" và "Xóa lọc".
+     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet] hoặc reset bộ lọc.
+     */
     private fun setupHeader() {
-        // Nút '📍 Quán Gần Đây' ở thanh Header (b1.html: btn-nearby-header)
         binding.btnNearbyStores.setOnClickListener {
             showNearbyStoresBottomSheet()
         }
 
-        // Bấm vào địa chỉ cũng mở danh sách Quán Gần Đây
         binding.tvLocation.setOnClickListener {
             showNearbyStoresBottomSheet()
         }
 
-        // Nút 'Xem tất cả' để reset toàn bộ lọc
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
@@ -114,7 +140,6 @@ class HomeActivity : AppCompatActivity() {
             Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         }
 
-        // Nút 'Xóa lọc' trên indicator banner
         binding.btnClearFilter.setOnClickListener {
             isNearbyFiltered = false
             binding.layoutActiveFilterIndicator.visibility = View.GONE
@@ -122,7 +147,11 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /** Hiển thị Bottom Sheet Modal: Các Quán Ăn Gần Bạn Nhất (chuẩn b1.html) */
+    /**
+     * Tên chức năng: Hiển thị Bottom Sheet Modal danh sách Quán Ăn Gần Bạn Nhất
+     * Cách hoạt động: Mở bảng trượt dưới lên hiển thị danh sách quán ăn theo bán kính khoảng cách GPS, hỗ trợ lọc món theo quán gần (< 1.5 km).
+     * Luồng hướng tới: Bấm chọn quán -> Mở [MenuActivity] của quán đó.
+     */
     private fun showNearbyStoresBottomSheet() {
         val dialog = BottomSheetDialog(this)
         val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
@@ -145,12 +174,10 @@ class HomeActivity : AppCompatActivity() {
         val stores = viewModel.nearbyStores.value ?: emptyList()
         nearbyAdapter.submitList(stores)
 
-        // Nút đóng sheet [✕]
         sheetBinding.btnCloseSheet.setOnClickListener {
             dialog.dismiss()
         }
 
-        // Nút: Chỉ Lọc Món Các Quán Gần (< 1.5 km)
         sheetBinding.btnFilterNearbyOnly.setOnClickListener {
             dialog.dismiss()
             isNearbyFiltered = true
@@ -162,7 +189,11 @@ class HomeActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /** Thiết lập danh sách Món Ăn chính của trang chủ */
+    /**
+     * Tên chức năng: Thiết lập RecyclerView danh sách Món Ăn chính
+     * Cách hoạt động: Khởi tạo [HomeDishAdapter] và xử lý callback mở thực đơn quán chứa món ăn đó.
+     * Luồng hướng tới: Điều hướng sang [MenuActivity].
+     */
     private fun setupDishRecyclerView() {
         dishAdapter = HomeDishAdapter(
             onDishClick = { dish ->
@@ -189,6 +220,11 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Cấu hình danh sách Món Ăn Hot (Thịnh hành)
+     * Cách hoạt động: Gắn [HotDishAdapter] với chiều ngang (HORIZONTAL).
+     * Luồng hướng tới: Chọn món hot -> Mở [MenuActivity].
+     */
     private fun setupHotDishes() {
         hotDishAdapter = HotDishAdapter { hotDish ->
             val intent = Intent(this, MenuActivity::class.java).apply {
@@ -205,6 +241,11 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập các nút chọn Danh mục món ăn
+     * Cách hoạt động: Gán sự kiện click cho từng danh mục: Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, Pizza, Cà phê, Tráng miệng.
+     * Luồng hướng tới: Gọi [onCategorySelected].
+     */
     private fun setupCategories() {
         binding.catRice.setOnClickListener { onCategorySelected("Cơm", "Cơm Trưa") }
         binding.catMilkTea.setOnClickListener { onCategorySelected("Trà", "Trà Sữa") }
@@ -228,6 +269,11 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Tìm kiếm món ăn theo từ khóa nhập liệu
+     * Cách hoạt động: Lắng nghe TextWatcher trên ô tìm kiếm, gọi [HomeViewModel.filterDishes] cập nhật danh sách hiển thị tức thời.
+     * Luồng hướng tới: Lọc kết quả tìm kiếm.
+     */
     private fun setupSearch() {
         binding.etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -244,12 +290,22 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Nút Giỏ Hàng Nổi (Floating Cart)
+     * Cách hoạt động: Hiển thị nổi trên màn hình khi có món trong giỏ, click vào để điều hướng sang màn hình xem giỏ hàng.
+     * Luồng hướng tới: [CartActivity].
+     */
     private fun setupFloatingCart() {
         binding.btnCart.setOnClickListener {
             startActivity(Intent(this, CartActivity::class.java))
         }
     }
 
+    /**
+     * Tên chức năng: Cấu hình điều hướng thanh Bottom Navigation
+     * Cách hoạt động: Bắt sự kiện chuyển hướng giữa các tab chính: Trang chủ, Đơn hàng, Thông báo, Hồ sơ cá nhân.
+     * Luồng hướng tới: [HomeActivity], [OrderHistoryActivity], [NotificationActivity], [ProfileActivity].
+     */
     private fun setupBottomNav() {
         binding.tabHome.setOnClickListener {
             // Already home
@@ -268,15 +324,18 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ HomeViewModel & CartViewModel
+     * Cách hoạt động: Cập nhật danh sách món ăn, món hot, trạng thái loading/error, và cập nhật số lượng/tổng tiền hiển thị trên nút Giỏ hàng nổi.
+     * Luồng hướng tới: Đồng bộ hiển thị Realtime.
+     */
     private fun observeViewModel() {
-        // Quan sát danh sách Món Ăn chính
         viewModel.homeDishes.observe(this) { dishes ->
             dishAdapter.submitList(dishes)
             binding.tvDishesCountBadge.text = "(${dishes.size} món)"
             binding.tvEmpty.visibility = if (dishes.isEmpty()) View.VISIBLE else View.GONE
         }
 
-        // Quan sát món hot cuộn ngang
         viewModel.hotDishes.observe(this) { hotDishes ->
             hotDishAdapter.submitList(hotDishes)
             val hasHot = hotDishes.isNotEmpty()
@@ -294,7 +353,6 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-        // Realtime cart status trên Floating Button
         cartViewModel.carts.observe(this) { carts ->
             val totalItems = carts.sumOf { cart -> cart.items.values.sumOf { it.quantity } }
             if (totalItems > 0) {
@@ -313,6 +371,11 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Hiển thị Banner nhắc nhở mở App Nội bộ nếu tài khoản là Đối tác
+     * Cách hoạt động: Kiểm tra role của user; nếu là Quán hoặc Tài xế, hiển thị banner đầu trang hỗ trợ 1 chạm mở app Oishi Internal.
+     * Luồng hướng tới: Mở Package `com.chuyen_de_2.foodorder.internal`.
+     */
     private fun checkUserRoleForBanner() {
         lifecycleScope.launch {
             val role = authRepository.getUserRole()?.trim()?.uppercase()

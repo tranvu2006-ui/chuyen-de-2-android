@@ -23,11 +23,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Dashboard Activity — Phân quyền RBAC (Section 2 - doc-adr)
- *
- * Kiểm tra role của user đã đăng nhập:
- * - MANAGER → hiển thị OrderListFragment (Kanban quản lý đơn)
- * - SHIPPER → hiển thị ShipperFragment (nhận cuốc + GPS)
+ * Tên chức năng: Bảng điều khiển Trung tâm Phân quyền (Role-Based Dashboard)
+ * Cách hoạt động:
+ *  - Phân tích quyền tài khoản (RBAC): MERCHANT / MANAGER (Quán ăn) hoặc SHIPPER / DRIVER (Tài xế giao hàng).
+ *  - Đối với Quán ăn: Kiểm tra tình trạng xác minh địa chỉ; nếu chưa xong sẽ chuyển hướng sang [StoreVerificationActivity].
+ *  - Cung cấp giao diện BottomNavigationView tương ứng riêng biệt cho Quán và Tài xế.
+ * Luồng hướng tới:
+ *  - MERCHANT: [OrderListFragment] (Quản lý đơn), [MenuManageFragment] (Thực đơn), [DriverListFragment] (Đội ngũ tài xế), [StoreReportFragment] (Báo cáo doanh thu).
+ *  - SHIPPER: [ShipperFragment] (Nhận cuốc/GPS), [ShipperIncomeFragment] (Thu nhập/Ví), [ShipperProfileFragment] (Hồ sơ tài xế).
  */
 @AndroidEntryPoint
 class DashboardActivity : AppCompatActivity() {
@@ -44,6 +47,11 @@ class DashboardActivity : AppCompatActivity() {
     private var navigationBarHeight: Int = 0
     private var isMerchantMode = false
 
+    /**
+     * Tên chức năng: Khởi tạo Dashboard và xử lý Insets tràn viền (Edge-to-Edge)
+     * Cách hoạt động: Lắng nghe WindowInsets để tính toán khoảng đệm thanh trạng thái và thanh điều hướng ảo, sau đó gọi loadUserRole().
+     * Luồng hướng tới: Bắt đầu kiểm tra vai trò người dùng tại [loadUserRole].
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         InsetUtils.initEdgeToEdge(this, true)
@@ -77,17 +85,27 @@ class DashboardActivity : AppCompatActivity() {
         loadUserRole()
     }
 
+    /**
+     * Tên chức năng: Áp dụng khoảng đệm an toàn màn hình (Window Padding)
+     * Cách hoạt động: Thêm padding top cho container và padding bottom cho bottom navigation để không bị che khuất bởi phím điều hướng hệ thống.
+     * Luồng hướng tới: Hiển thị nội dung hoàn chỉnh trong vùng an toàn (Safe Area).
+     */
     private fun applyWindowPadding() {
         InsetUtils.setLightStatusBar(this, true)
         binding.root.setBackgroundColor(android.graphics.Color.WHITE)
         val density = resources.displayMetrics.density
-        val extraSpacing = (10 * density).toInt() // Cách trên 1 xíu để tránh thanh pin và giờ
+        val extraSpacing = (10 * density).toInt()
         val topPadding = (if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)) + extraSpacing
         binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
         binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
         binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
     }
 
+    /**
+     * Tên chức năng: Thiết lập thanh công cụ Toolbar và sự kiện Đăng xuất
+     * Cách hoạt động: Gắn Toolbar và xử lý hộp thoại xác nhận khi người dùng muốn đăng xuất.
+     * Luồng hướng tới: Chuyển về [LoginActivity] và xóa cờ phiên làm việc.
+     */
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         binding.btnLogout.setOnClickListener {
@@ -106,6 +124,15 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Tải và đối soát vai trò tài khoản (Role Dispatcher)
+     * Cách hoạt động:
+     *  - Truy vấn Firestore lấy role hiện tại của user.
+     *  - Nếu là Quán ăn: Kiểm tra xác minh hồ sơ quán.
+     *  - Nếu là Tài xế: Thiết lập menu shipper.
+     *  - Nếu tài khoản mới chưa có role: Hiển thị Dialog kích hoạt vai trò tương ứng ngay lập tức.
+     * Luồng hướng tới: [checkMerchantVerificationAndProceed] hoặc [setupShipperNavigation].
+     */
     private fun loadUserRole() {
         lifecycleScope.launch {
             val role = authRepository.getUserRole()?.trim()?.uppercase()
@@ -150,6 +177,11 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Đối soát hồ sơ quán & xác minh thông tin bắt buộc
+     * Cách hoạt động: Kiểm tra tài liệu quán trên Firestore; nếu chưa có địa chỉ hoặc chưa xác minh thì chặn vào Dashboard.
+     * Luồng hướng tới: Chưa hoàn tất -> [StoreVerificationActivity]; Đã hoàn tất -> [setupMerchantNavigation].
+     */
     private fun checkMerchantVerificationAndProceed() {
         lifecycleScope.launch {
             val uid = authRepository.currentUser?.uid.orEmpty()
@@ -178,6 +210,11 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập giao diện và thanh điều hướng cho Tài xế (Shipper Navigation)
+     * Cách hoạt động: Ẩn thanh công cụ shop, hiện BottomNav Shipper gồm: Nhận đơn, Thu nhập và Hồ sơ tài xế.
+     * Luồng hướng tới: Chuyển đổi giữa [ShipperFragment], [ShipperIncomeFragment], [ShipperProfileFragment].
+     */
     private fun setupShipperNavigation() {
         isMerchantMode = false
         binding.toolbar.visibility = android.view.View.GONE
@@ -207,6 +244,11 @@ class DashboardActivity : AppCompatActivity() {
         binding.bottomNavShipper.selectedItemId = R.id.nav_shipper_orders
     }
 
+    /**
+     * Tên chức năng: Thiết lập giao diện và thanh điều hướng cho Quán ăn (Merchant Navigation)
+     * Cách hoạt động: Ẩn thanh công cụ shipper, hiện BottomNav Quán gồm: Đơn hàng, Thực đơn, Tài xế và Doanh thu.
+     * Luồng hướng tới: Chuyển đổi giữa [OrderListFragment], [MenuManageFragment], [DriverListFragment], [StoreReportFragment].
+     */
     private fun setupMerchantNavigation() {
         isMerchantMode = true
         binding.toolbar.visibility = android.view.View.GONE
@@ -254,6 +296,11 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Thay thế Fragment nội dung trong container
+     * Cách hoạt động: Dùng FragmentManager để commit giao dịch replace fragment tương ứng vào framelayout container.
+     * Luồng hướng tới: Cập nhật màn hình con tương ứng trong Dashboard.
+     */
     private fun loadFragment(fragment: androidx.fragment.app.Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(binding.fragmentContainer.id, fragment)

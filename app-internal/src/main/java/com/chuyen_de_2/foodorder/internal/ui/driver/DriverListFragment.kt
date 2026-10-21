@@ -28,12 +28,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * DriverListFragment — Quản lý Đội ngũ Tài xế Quán
- * Giao diện và nghiệp vụ chuẩn theo Quán/1.html:
- * - Thống kê nhanh đội xe (Tổng tài xế, Đang rảnh, Đang giao, Nghỉ ca)
- * - Danh sách thẻ thông tin từng tài xế (Xe máy, Đơn đã giao, Đánh giá uy tín)
- * - Nút gọi điện liên hệ tài xế qua ACTION_DIAL
- * - Nút Thêm TX mở hộp thoại thêm tài xế mới vào Firebase
+ * Tên chức năng: Quản Lý Đội Ngũ Tài Xế Nội Bộ Của Quán (Store Drivers Management)
+ * Cách hoạt động:
+ *  - Thống kê tình trạng hoạt động của đội xe trực thuộc quán: Tổng tài xế, Đang rảnh sẵn sàng nhận đơn, Đang trên đường đi giao, Nghỉ ca.
+ *  - Hiển thị danh sách chi tiết từng tài xế (Họ tên, SĐT, biển số xe, loại xe máy, số đơn đã giao, đánh giá sao uy tín).
+ *  - Hỗ trợ gọi điện thoại trực tiếp cho tài xế qua ACTION_DIAL.
+ *  - Hỗ trợ Quán tự tạo tài khoản mới cho Tài xế nội bộ (cấp email, mật khẩu, mã TX) lưu trữ lên Firebase Auth và Firestore.
+ * Luồng hướng tới:
+ *  - Tài xế được tạo sẽ đăng nhập trực tiếp trên app với vai trò DRIVER và tự động được gán vào Quán tương ứng.
  */
 @AndroidEntryPoint
 class DriverListFragment : Fragment() {
@@ -59,6 +61,11 @@ class DriverListFragment : Fragment() {
         return binding.root
     }
 
+    /**
+     * Tên chức năng: Khởi tạo View quản lý tài xế
+     * Cách hoạt động: Thiết lập RecyclerView danh sách tài xế, gắn sự kiện thêm tài xế và nạp dữ liệu từ Firebase.
+     * Luồng hướng tới: Sẵn sàng hiển thị đội ngũ tài xế.
+     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -67,6 +74,11 @@ class DriverListFragment : Fragment() {
         resolveCurrentStoreIdAndObserve()
     }
 
+    /**
+     * Tên chức năng: Xác định storeId của quán hiện tại
+     * Cách hoạt động: Dùng UID tài khoản quán để truy vấn mã quán, sau đó bắt đầu lắng nghe danh sách tài xế thuộc quán đó.
+     * Luồng hướng tới: Gọi [observeDrivers].
+     */
     private fun resolveCurrentStoreIdAndObserve() {
         val uid = auth.currentUser?.uid.orEmpty()
         viewLifecycleOwner.lifecycleScope.launch {
@@ -75,6 +87,11 @@ class DriverListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Cấu hình RecyclerView danh sách tài xế
+     * Cách hoạt động: Gắn [DriverAdapter] và xử lý callback gọi điện thoại trực tiếp cho tài xế.
+     * Luồng hướng tới: Render danh sách tài xế.
+     */
     private fun setupRecyclerView() {
         adapter = DriverAdapter(
             onCallClick = { phone ->
@@ -98,6 +115,11 @@ class DriverListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Giám sát danh sách tài xế của quán theo thời gian thực (Realtime Drivers Observer)
+     * Cách hoạt động: Lắng nghe collection drivers của quán trên Firestore, đếm số lượng theo trạng thái trực và cập nhật KPI.
+     * Luồng hướng tới: Cập nhật giao diện tức thời.
+     */
     private fun observeDrivers() {
         binding.progressBar.visibility = View.VISIBLE
 
@@ -127,6 +149,13 @@ class DriverListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Hộp thoại Tạo tài khoản Tài xế Mới (Add Driver Modal)
+     * Cách hoạt động:
+     *  - Thu thập thông tin: Tên tài xế, SĐT, Mã TX, Biển số xe, Dòng xe, Email đăng nhập, Mật khẩu.
+     *  - Gọi [FirebaseRepository.createDriverAccount] để khởi tạo user trên Firebase Auth phụ và lưu Firestore.
+     * Luồng hướng tới: Cấp tài khoản mới cho tài xế sử dụng ngay lập tức.
+     */
     private fun showAddDriverDialog() {
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)

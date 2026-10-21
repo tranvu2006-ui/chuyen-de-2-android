@@ -20,6 +20,18 @@ import com.chuyen_de_2.foodorder.customer.databinding.ActivityMenuBinding
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * Tên chức năng: Chi Tiết Thực Đơn Quán & Đặt Món (Store Menu & Item Detail Screen)
+ * Cách hoạt động:
+ *  - Lấy danh sách món ăn từ Cửa hàng tương ứng theo `shopId` từ Firestore.
+ *  - Khu vực phía trên (Top Detail Section): Hiển thị hình ảnh lớn, tên món, giá gốc gạch ngang, giá khuyến mãi, điểm đánh giá sao ⭐ và bình luận của khách hàng.
+ *  - Khu vực phía dưới: Phân loại món ăn theo Chip danh mục (Mới, Combo, Cà phê, Trà, v.v.) và danh sách món dạng RecyclerView.
+ *  - Bấm chọn món sẽ tự động thêm vào giỏ hàng hoặc mở modal tùy chọn Size/Topping [DishOptionBottomSheetDialogFragment].
+ *  - Thanh đặt hàng cố định (Bottom Checkout Bar): Hiển thị tổng số lượng món, tổng số tiền và nút "Xem Giỏ Hàng".
+ * Luồng hướng tới:
+ *  - Bấm "Xem Giỏ Hàng" -> Chuyển sang màn hình giỏ hàng [CartActivity].
+ *  - Bấm "Đánh giá" -> Mở BottomSheet xem chi tiết đánh giá [DishReviewsBottomSheetDialogFragment].
+ */
 @AndroidEntryPoint
 class MenuActivity : AppCompatActivity() {
 
@@ -28,6 +40,11 @@ class MenuActivity : AppCompatActivity() {
     private lateinit var adapter: MenuAdapter
     private var shopName: String = "Nhà hàng"
 
+    /**
+     * Tên chức năng: Khởi tạo màn hình thực đơn quán
+     * Cách hoạt động: Nhận `shopId`, `shopName` từ Intent, nạp dữ liệu menu từ ViewModel và thiết lập giao diện.
+     * Luồng hướng tới: Chuẩn bị hiển thị danh sách món ăn của quán.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMenuBinding.inflate(layoutInflater)
@@ -54,6 +71,11 @@ class MenuActivity : AppCompatActivity() {
         observeViewModel()
     }
 
+    /**
+     * Tên chức năng: Thiết lập thanh điều hướng đỉnh (Top Navigation Bar)
+     * Cách hoạt động: Bắt sự kiện nút quay lại, chia sẻ liên kết quán và thêm quán vào danh sách yêu thích.
+     * Luồng hướng tới: Tương tác người dùng.
+     */
     private fun setupTopNav() {
         binding.btnNavBack.setOnClickListener {
             onBackPressedDispatcher.onBackPressed()
@@ -69,6 +91,11 @@ class MenuActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Bộ lọc danh mục món ăn (Category Filter Chips)
+     * Cách hoạt động: Lắng nghe sự kiện chọn Chip để lọc danh sách món: Món mới, Combo, Cà phê, Trà hoặc Tất cả.
+     * Luồng hướng tới: Gọi [MenuViewModel.filterByCategory].
+     */
     private fun setupCategoryChips() {
         binding.chipGroupCategory.setOnCheckedStateChangeListener { _, checkedIds ->
             if (checkedIds.isEmpty()) return@setOnCheckedStateChangeListener
@@ -84,6 +111,11 @@ class MenuActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Khởi tạo RecyclerView thực đơn món ăn
+     * Cách hoạt động: Cấu hình [MenuAdapter] với các hành động thêm/bớt món, lấy số lượng đã chọn trong giỏ và xem chi tiết món.
+     * Luồng hướng tới: Render từng món ăn trong menu.
+     */
     private fun setupRecyclerView() {
         adapter = MenuAdapter(
             onAddClick = { dish ->
@@ -106,6 +138,11 @@ class MenuActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Cấu hình thanh Đặt Món / Xem Giỏ Hàng phía dưới
+     * Cách hoạt động: Đồng bộ dữ liệu giỏ hàng vào Room/Shared ViewModel và chuyển hướng sang [CartActivity].
+     * Luồng hướng tới: [CartActivity].
+     */
     private fun setupBottomCheckoutBar() {
         binding.btnCheckoutNow.setOnClickListener {
             viewModel.flushCart()
@@ -113,15 +150,21 @@ class MenuActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ MenuViewModel
+     * Cách hoạt động:
+     *  - Cập nhật danh sách món ăn hiển thị.
+     *  - Cập nhật thông tin món ăn đang chọn ở phần chi tiết đỉnh.
+     *  - Hiển thị hoặc ẩn thanh đặt hàng dưới cùng kèm tổng tiền.
+     * Luồng hướng tới: Đồng bộ giao diện tức thời.
+     */
     private fun observeViewModel() {
-        // 1. Quan sát danh sách món ăn
         viewModel.dishes.observe(this) { items ->
             adapter.submitList(items)
             binding.tvEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
             binding.tvDishesCountBadge.text = "${items.size} MÓN"
         }
 
-        // 2. Quan sát món ăn đang được chọn (Nửa trên Top Detail Section - b5.html)
         viewModel.selectedDish.observe(this) { dish ->
             if (dish != null) {
                 bindTopDetailSection(dish)
@@ -129,12 +172,10 @@ class MenuActivity : AppCompatActivity() {
             }
         }
 
-        // 3. Loading
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
         }
 
-        // 4. Giỏ hàng & Thanh đặt món cố định dưới cùng
         viewModel.cartCount.observe(this) { count ->
             if (count > 0) {
                 binding.layoutBottomCheckoutBar.visibility = View.VISIBLE
@@ -154,32 +195,30 @@ class MenuActivity : AppCompatActivity() {
     }
 
     /**
-     * Hiển thị chi tiết món ăn ở nửa trên theo b5.html
+     * Tên chức năng: Hiển thị chi tiết món ăn ở khung nổi bật phía trên (Top Detail Card)
+     * Cách hoạt động: Render tên, giá, ảnh món ăn, mô tả, huy hiệu khuyến mãi và điểm sao đánh giá.
+     * Luồng hướng tới: Cung cấp thông tin cận cảnh về món ăn.
      */
     private fun bindTopDetailSection(dish: Dish) {
         binding.tvDetailDishTitle.text = dish.name
         binding.tvDetailDishStore.text = "Quán $shopName"
         binding.tvDetailPriceMain.text = dish.price.toVndCurrency()
 
-        // Giá gốc giả lập gạch ngang nếu có
         val originalPrice = (dish.price * 1.3).toLong()
         binding.tvDetailPriceOld.paintFlags = binding.tvDetailPriceOld.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
         binding.tvDetailPriceOld.text = originalPrice.toVndCurrency()
 
-        // Rating
         val rating = if (dish.ratingAvg > 0) dish.ratingAvg else 4.8f
         val reviewCount = if (dish.reviewCount > 0) dish.reviewCount else 128
         binding.tvDetailRatingText.text = "⭐ $rating"
         binding.btnViewDishReviews.text = "⭐ Đánh giá ($reviewCount) ➔"
 
-        // Mô tả món
         binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {
             dish.description
         } else {
             "Món ngon thơm lừng chế biến từ nguyên liệu tươi sạch, giữ trọn hương vị đặc trưng truyền thống."
         }
 
-        // Badge promo
         if (dish.category.contains("mới", ignoreCase = true) || dish.soldCount > 500) {
             binding.tvDetailPromoBadge.visibility = View.VISIBLE
             binding.tvDetailPromoBadge.text = if (dish.soldCount > 1000) "HOT" else "-25%"
@@ -187,7 +226,6 @@ class MenuActivity : AppCompatActivity() {
             binding.tvDetailPromoBadge.visibility = View.GONE
         }
 
-        // Load ảnh lớn 100x100
         Glide.with(this)
             .load(dish.imageUrl)
             .transform(CenterCrop(), RoundedCorners(28))
@@ -195,7 +233,6 @@ class MenuActivity : AppCompatActivity() {
             .error(R.drawable.placeholder_food)
             .into(binding.ivDetailFood)
 
-        // Nút mở modal BottomSheet đánh giá chi tiết
         binding.btnViewDishReviews.setOnClickListener {
             val sheet = DishReviewsBottomSheetDialogFragment.newInstance(
                 dishName = dish.name,
@@ -205,21 +242,20 @@ class MenuActivity : AppCompatActivity() {
             sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
         }
 
-        // Bấm vào phần chi tiết món ở nửa trên
         binding.cardTopDetail.setOnClickListener {
             handleDishSelection(dish)
         }
     }
 
     /**
-     * Xử lý khi người dùng chọn 1 món:
-     * - Bất kỳ món nào khi bấm vào chọn đều tự động cộng thêm 1 vào giỏ hàng
+     * Tên chức năng: Xử lý sự kiện chọn món và thêm vào giỏ hàng
+     * Cách hoạt động: Cập nhật món đang chọn lên ViewModel, tự động cộng thêm số lượng vào giỏ và thông báo cho người dùng.
+     * Luồng hướng tới: Thêm món vào [CartViewModel].
      */
     private fun handleDishSelection(dish: Dish) {
         viewModel.selectDish(dish)
         adapter.setSelectedDishId(dish.id)
 
-        // Tự động cộng thêm 1 cho món bất kì
         viewModel.addToCart(dish)
         adapter.notifyDataSetChanged()
 

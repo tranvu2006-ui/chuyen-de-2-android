@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.customer.ui.order
+﻿package com.chuyen_de_2.foodorder.customer.ui.order
 
 import android.content.Intent
 import android.net.Uri
@@ -23,6 +23,20 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Tên chức năng: Màn Hình Lịch Sử Đơn Hàng & Xử Lý Sự Cố (Customer Order History & Incidents)
+ * Cách hoạt động:
+ *  - Truy xuất toàn bộ lịch sử đơn hàng của khách hàng từ Firestore.
+ *  - Phân loại đơn hàng theo các Tab Chip: Tất cả, Khẩn cấp (Cảnh báo nhỡ cuộc gọi/Bom), Đang giao, Chờ xác nhận, Chưa thanh toán, Đã giao, Đã hủy.
+ *  - Cung cấp các tính năng thao tác nhanh trên từng đơn:
+ *      + Bấm 'Theo dõi' -> Mở bản đồ GPS realtime [TrackingActivity].
+ *      + Bấm 'Khiếu nại' -> Mở form phản hồi sự cố [ComplaintActivity].
+ *      + Bấm 'Đặt lại' -> Mở lại thực đơn quán [MenuActivity] để mua lại.
+ *      + Bấm 'Xem bằng chứng' -> Xem hình ảnh chụp tại chỗ của shipper [IncidentProofBottomSheetDialogFragment].
+ *      + Bấm 'Gọi điện' -> Quay số gọi quán hoặc tài xế.
+ * Luồng hướng tới:
+ *  - Chuyển hướng tới [TrackingActivity], [ComplaintActivity], hoặc [MenuActivity].
+ */
 @AndroidEntryPoint
 class OrderHistoryActivity : AppCompatActivity() {
 

@@ -19,11 +19,14 @@ import java.util.Calendar
 import javax.inject.Inject
 
 /**
- * Báo Cáo Doanh Số & Hiệu Quả Bán Hàng theo Quán/7.html
- * - Thống kê doanh thu theo thời gian: Hôm nay, Tuần này, Tháng này
- * - Số lượng đơn hoàn tất & đơn hủy/bùng
- * - Top các món bán chạy nhất của quán
- * - Tổng hợp đánh giá và độ uy tín sao ⭐
+ * Tên chức năng: Báo Cáo Doanh Số & Hiệu Quả Bán Hàng Của Quán (Store Performance & Revenue Analytics)
+ * Cách hoạt động:
+ *  - Phân tích và tổng hợp toàn bộ đơn hàng của Cửa hàng theo các mốc thời gian: Hôm nay, Tuần này, Tháng này.
+ *  - Tính toán tổng doanh thu thực tế, số đơn hoàn tất, số đơn hủy/bùng, giá trị trung bình trên mỗi đơn (AOV).
+ *  - Bóc tách danh sách món ăn từ các đơn hoàn tất để xếp hạng Top món bán chạy nhất (Best Sellers) kèm số lượng và đơn giá.
+ *  - Hiển thị điểm đánh giá sao uy tín ⭐ trung bình của quán từ phản hồi khách hàng.
+ * Luồng hướng tới:
+ *  - Cung cấp bức tranh tài chính kinh doanh tức thời cho chủ quán ra quyết định nhập nguyên liệu và điều chỉnh thực đơn.
  */
 @AndroidEntryPoint
 class StoreReportFragment : Fragment() {
@@ -49,6 +52,11 @@ class StoreReportFragment : Fragment() {
         return binding.root
     }
 
+    /**
+     * Tên chức năng: Khởi tạo View báo cáo thống kê
+     * Cách hoạt động: Thiết lập RecyclerView danh sách món bán chạy, cài đặt bộ lọc thời gian và bắt đầu nạp dữ liệu.
+     * Luồng hướng tới: Chuẩn bị hiển thị các chỉ số KPI.
+     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -57,6 +65,11 @@ class StoreReportFragment : Fragment() {
         loadStoreAndObserveData()
     }
 
+    /**
+     * Tên chức năng: Cấu hình RecyclerView cho Top Món Bán Chạy
+     * Cách hoạt động: Gắn [BestSellerDishAdapter] với LayoutManager tuyến tính.
+     * Luồng hướng tới: Hiển thị bảng xếp hạng món ăn chạy nhất.
+     */
     private fun setupRecyclerView() {
         binding.rvBestSellerDishes.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -64,6 +77,11 @@ class StoreReportFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Bộ lọc thời gian thống kê (Hôm nay / Tuần này / Tháng này)
+     * Cách hoạt động: Lắng nghe sự kiện chọn trên MaterialButtonToggleGroup, cập nhật biến `currentPeriod` và tính toán lại các chỉ số.
+     * Luồng hướng tới: Gọi [computeAndDisplayMetrics].
+     */
     private fun setupTimeFilterTabs() {
         binding.toggleGroupTimeFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
@@ -78,6 +96,11 @@ class StoreReportFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Tải định danh Quán và thu thập dữ liệu Firestore theo thời gian thực
+     * Cách hoạt động: Lấy UID người dùng, resolve storeId, đồng thời lắng nghe thông tin Store (điểm rating) và toàn bộ Orders của quán.
+     * Luồng hướng tới: Đồng bộ dữ liệu mới nhất từ Firebase.
+     */
     private fun loadStoreAndObserveData() {
         val uid = authRepository.currentUser?.uid.orEmpty()
         viewLifecycleOwner.lifecycleScope.launch {
@@ -109,6 +132,15 @@ class StoreReportFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Tính toán số liệu thống kê & Top món bán chạy
+     * Cách hoạt động:
+     *  - Lọc đơn hàng theo mốc thời gian bắt đầu của ngày/tuần/tháng hiện tại.
+     *  - Tính tổng doanh thu từ các đơn hoàn tất (COMPLETED).
+     *  - Đếm số đơn thành công và số đơn thất bại/hủy/bùng (CANCELLED, BOOM).
+     *  - Gom nhóm các món ăn theo tên và tính tổng số lượng đã bán, sau đó sắp xếp giảm dần.
+     * Luồng hướng tới: Cập nhật các trường TextView KPI và danh sách [BestSellerDishAdapter].
+     */
     private fun computeAndDisplayMetrics() {
         val now = Calendar.getInstance()
         val startOfToday = Calendar.getInstance().apply {
@@ -167,7 +199,7 @@ class StoreReportFragment : Fragment() {
         binding.tvAverageOrderValue.text = avgOrderValue.toVndCurrency()
 
         // Tính top món bán chạy nhất
-        val dishSalesMap = mutableMapOf<String, Pair<Int, Long>>() // name -> (totalQty, price)
+        val dishSalesMap = mutableMapOf<String, Pair<Int, Long>>()
         completedOrders.forEach { order ->
             order.items.values.forEach { item ->
                 val existing = dishSalesMap[item.dishName]

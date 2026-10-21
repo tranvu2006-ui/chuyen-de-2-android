@@ -34,11 +34,18 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * OrderListFragment — Kênh Quản Lý Đơn Hàng Dành Cho Quán (Quán/5.html)
- * Quy trình 3 bước chuẩn ShopeeFood:
- * 1. Quán xác nhận đơn của khách ➔ Bếp bắt đầu nấu (Tài xế chưa nhận đơn)
- * 2. Nấu xong ➔ Bấm xác nhận đã nấu xong (Phát đơn cho tài xế)
- * 3. Tài xế tới quầy ➔ Bấm xác nhận giao cho tài xế ➔ Đang giao
+ * Tên chức năng: Kênh Quản Lý Đơn Hàng Dành Cho Quán (Merchant Order Kanban)
+ * Cách hoạt động:
+ *  - Lắng nghe Realtime luồng đơn hàng của Quán theo thời gian thực từ Firestore.
+ *  - Vận hành quy trình 3 bước chuẩn thương mại điện tử:
+ *      1. Đơn mới (PENDING) -> Quán bấm Xác nhận đơn -> Chuyển sang Bếp nấu (PREPARING).
+ *      2. Bếp nấu (PREPARING) -> Nấu xong bấm Xác nhận đã nấu xong -> Chuyển sang Sẵn sàng (READY) để Tài xế nhận đơn.
+ *      3. Tài xế đến quầy (READY / ASSIGNED) -> Bấm Xác nhận giao cho tài xế -> Chuyển sang Đang giao (DELIVERING).
+ *      4. Lịch sử đơn (COMPLETED / CANCELLED).
+ *  - Theo dõi nhanh Doanh thu hôm nay, Số đơn hoàn thành, và Bật/Tắt trạng thái mở bán của Quán.
+ * Luồng hướng tới:
+ *  - Cập nhật trực tiếp trạng thái đơn hàng trên Firestore và đồng bộ tới app Khách hàng và app Tài xế.
+ *  - Bấm vào thông tin Quán -> Chuyển sang [StoreProfileFragment].
  */
 @AndroidEntryPoint
 class OrderListFragment : Fragment() {
@@ -66,6 +73,11 @@ class OrderListFragment : Fragment() {
         return binding.root
     }
 
+    /**
+     * Tên chức năng: Khởi tạo View và kích hoạt các luồng dữ liệu
+     * Cách hoạt động: Thiết lập giao diện, tab bar, RecyclerView, lắng nghe ViewModel và truy xuất storeId của user.
+     * Luồng hướng tới: Chuẩn bị hiển thị danh sách đơn hàng.
+     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -76,6 +88,11 @@ class OrderListFragment : Fragment() {
         resolveCurrentStoreIdAndObserve()
     }
 
+    /**
+     * Tên chức năng: Xác định định danh Cửa hàng (Store ID Resolver)
+     * Cách hoạt động: Lấy UID người dùng hiện tại, tra cứu bảng stores để tìm storeId quản lý, sau đó cấp phát cho ViewModel.
+     * Luồng hướng tới: Lắng nghe snapshot đơn hàng của đúng cửa hàng đó.
+     */
     private fun resolveCurrentStoreIdAndObserve() {
         val uid = auth.currentUser?.uid.orEmpty()
         viewLifecycleOwner.lifecycleScope.launch {
@@ -85,6 +102,13 @@ class OrderListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Giám sát thông tin và trạng thái Quán theo thời gian thực
+     * Cách hoạt động:
+     *  - Lắng nghe sự thay đổi tên quán, địa chỉ và trạng thái (OPEN, CLOSED, LOCKED, PENDING).
+     *  - Đồng bộ công tắc switch "Đang Bán / Tạm Đóng" lên giao diện.
+     * Luồng hướng tới: Hiển thị đúng trạng thái mở cửa của quán trên màn hình khách hàng.
+     */
     private fun observeStoreProfile() {
         val openProfile = {
             parentFragmentManager.beginTransaction()
@@ -151,6 +175,11 @@ class OrderListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Bật/Tắt trạng thái nhận đơn của Quán
+     * Cách hoạt động: Khi người dùng gạt switch, cập nhật trạng thái `OPEN` hoặc `CLOSED` vào tài liệu Store trên Firestore.
+     * Luồng hướng tới: Firebase cập nhật -> Màn hình Khách hàng cập nhật thẻ Quán đóng/mở cửa.
+     */
     private fun bindShopStatusSwitchListener() {
         binding.switchShopStatus.setOnCheckedChangeListener { _, isChecked ->
             val newStatus = if (isChecked) {
@@ -174,10 +203,14 @@ class OrderListFragment : Fragment() {
     }
 
     private fun setupUI() {
-        // Toggle Switch Đang Bán / Tạm Đóng (Quán/5.html: toggleShopOpen)
         bindShopStatusSwitchListener()
     }
 
+    /**
+     * Tên chức năng: Chuyển đổi tab Kanban trạng thái đơn hàng
+     * Cách hoạt động: Bắt sự kiện Click vào các tab: Đơn mới, Bếp nấu, Đang giao, Lịch sử để lọc danh sách tương ứng.
+     * Luồng hướng tới: Gọi [ShopViewModel.selectTab] để phát dữ liệu danh sách đơn theo tab đã chọn.
+     */
     private fun setupTabs() {
         binding.tabNew.setOnClickListener {
             viewModel.selectTab(ShopViewModel.TabType.NEW)
@@ -197,6 +230,11 @@ class OrderListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Làm nổi bật giao diện Tab đang chọn (Pill Highlight)
+     * Cách hoạt động: Thay đổi background drawable và màu chữ trắng/xám tương ứng cho tab được kích hoạt.
+     * Luồng hướng tới: Cập nhật visual feedback cho người dùng.
+     */
     private fun highlightTab(tab: ShopViewModel.TabType) {
         val activeBg = R.drawable.bg_order_tab_active
         val idleBg = R.drawable.bg_order_tab_idle
@@ -243,6 +281,11 @@ class OrderListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Khởi tạo danh sách RecyclerView đơn hàng và các Callback
+     * Cách hoạt động: Gắn [OrderAdapter], gán các lambda xử lý tương tác (Xử lý đơn, Xem chi tiết, Nhắn tin khách, Gọi điện tài xế, Xem cảnh báo).
+     * Luồng hướng tới: Hiển thị các thẻ đơn hàng [item_order.xml].
+     */
     private fun setupRecyclerView() {
         adapter = OrderAdapter(
             onActionClick = { order -> handleOrderAction(order) },
@@ -266,6 +309,14 @@ class OrderListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Xử lý hành động nghiệp vụ theo vòng đời đơn hàng (Order State Machine)
+     * Cách hoạt động:
+     *  - PENDING -> Gọi [ShopViewModel.confirmCustomerOrder] chuyển sang PREPARING (Bếp nấu).
+     *  - PREPARING -> Gọi [ShopViewModel.markCookingDone] chuyển sang READY (Nấu xong, phát đơn cho shipper).
+     *  - READY / ASSIGNED -> Gọi [ShopViewModel.handoverToDriver] chuyển sang DELIVERING (Giao túi món cho tài xế).
+     * Luồng hướng tới: Cập nhật Firebase -> Thông báo Realtime sang App Khách hàng & Tài xế.
+     */
     private fun handleOrderAction(order: Order) {
         when (order.status) {
             Order.Status.PENDING -> {
@@ -319,6 +370,11 @@ class OrderListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Hiển thị Dialog chi tiết đơn hàng
+     * Cách hoạt động: Bóc tách danh sách món ăn, số lượng, ghi chú, địa chỉ giao hàng và tổng tiền đơn hàng để hiển thị trực quan.
+     * Luồng hướng tới: Hiển thị hộp thoại AlertDialog cho Quán đối soát.
+     */
     private fun showOrderDetailDialog(order: Order) {
         val total = if (order.totalPayment > 0) order.totalPayment else order.total
         val dishes = if (order.items.isNotEmpty()) {
@@ -334,6 +390,11 @@ class OrderListFragment : Fragment() {
             .show()
     }
 
+    /**
+     * Tên chức năng: Hiển thị thông báo sự cố giao hàng (Incident Modal)
+     * Cách hoạt động: Mở Dialog cảnh báo khi phát hiện sự cố (ví dụ khách không nhận máy, tài xế gọi nhỡ).
+     * Luồng hướng tới: Hỗ trợ chủ quán nắm bắt rủi ro đơn hàng đang giao.
+     */
     private fun showWarningDetailModal(order: Order) {
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -361,6 +422,15 @@ class OrderListFragment : Fragment() {
         dialog.show()
     }
 
+    /**
+     * Tên chức năng: Lắng nghe và cập nhật dữ liệu Realtime từ ViewModel
+     * Cách hoạt động:
+     *  - Cập nhật danh sách đơn theo tab.
+     *  - Cập nhật số badge số lượng đơn trên từng tab.
+     *  - Cập nhật tổng doanh thu và số đơn thành công hôm nay.
+     *  - Phát chuông và thông báo khi có đơn hàng mới từ khách đặt.
+     * Luồng hướng tới: Đồng bộ hiển thị giao diện tức thời.
+     */
     private fun observeViewModel() {
         // Danh sách đơn hàng theo tab
         viewModel.filteredOrders.observe(viewLifecycleOwner) { orders ->
@@ -369,7 +439,7 @@ class OrderListFragment : Fragment() {
             binding.rvOrders.isVisible = orders.isNotEmpty()
         }
 
-        // Số lượng đếm trên các tabs (Quán/5.html: countTabNew, countTabCooking, countTabDelivering)
+        // Số lượng đếm trên các tabs
         viewModel.countNew.observe(viewLifecycleOwner) { count ->
             binding.tvCountNew.text = "($count)"
         }
@@ -380,7 +450,7 @@ class OrderListFragment : Fragment() {
             binding.tvCountDelivering.text = "($count)"
         }
 
-        // Doanh thu và đơn hoàn tất hôm nay (Quán/5.html: stats-grid)
+        // Doanh thu và đơn hoàn tất hôm nay
         viewModel.todayRevenue.observe(viewLifecycleOwner) { revenue ->
             binding.tvTodayRevenue.text = revenue.toVndCurrency()
         }
@@ -399,7 +469,7 @@ class OrderListFragment : Fragment() {
             binding.bannerTabDeliveringWarning.isVisible = hasWarning && tab == ShopViewModel.TabType.DELIVERING
         }
 
-        // Chuông báo đơn mới (Quán/5.html)
+        // Chuông báo đơn mới
         viewModel.newOrderAlert.observe(viewLifecycleOwner) { hasNewOrder ->
             if (hasNewOrder) {
                 playAlertSound()
@@ -409,6 +479,11 @@ class OrderListFragment : Fragment() {
         }
     }
 
+    /**
+     * Tên chức năng: Phát âm thanh chuông báo có đơn mới
+     * Cách hoạt động: Sử dụng [RingtoneManager] để phát chuông Notification mặc định của hệ điều hành.
+     * Luồng hướng tới: Cảnh báo âm thanh cho nhân viên quán.
+     */
     private fun playAlertSound() {
         try {
             val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)

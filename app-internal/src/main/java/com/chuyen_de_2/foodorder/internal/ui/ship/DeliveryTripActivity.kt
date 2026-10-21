@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.internal.ui.ship
+﻿package com.chuyen_de_2.foodorder.internal.ui.ship
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -55,6 +55,20 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Tên chức năng: Màn Hình Chuyến Giao Hàng & Điều Hướng GPS (Shipper Delivery Trip & GPS Navigation)
+ * Cách hoạt động:
+ *  - Dẫn đường theo thời gian thực (Realtime Route Navigation) từ vị trí tài xế -> Quán lấy hàng -> Điểm giao của Khách hàng qua Leaflet / OSM Map.
+ *  - Quản lý quy trình 4 bước giao hàng:
+ *      + Bước 1: Tài xế di chuyển tới quán (Bấm quẹt xác nhận 'Đã đến quán').
+ *      + Bước 2: Kiểm đếm món ăn tại quán (Checklist các món và quẹt xác nhận 'Đã lấy hàng & Bắt đầu giao').
+ *      + Bước 3: Di chuyển tới vị trí khách hàng (Bấm quẹt xác nhận 'Đã đến điểm giao').
+ *      + Bước 4: Xác thực giao hàng an toàn (Quét mã QR / Nhập mã Token bảo mật của khách để hoàn tất cuốc).
+ *  - Hỗ trợ giao đơn gộp (Bundle / Batched Orders) nhiều điểm khách trên cùng tuyến đường.
+ *  - Tích hợp gọi điện cho khách/quán, báo sự cố giao hàng và gửi vị trí GPS liên tục cho khách theo dõi.
+ * Luồng hướng tới:
+ *  - Hoàn tất đơn hàng -> Cập nhật trạng thái COMPLETED lên Firestore -> Trả về [ShipperFragment] và cộng doanh thu.
+ */
 @AndroidEntryPoint
 class DeliveryTripActivity : AppCompatActivity() {
 

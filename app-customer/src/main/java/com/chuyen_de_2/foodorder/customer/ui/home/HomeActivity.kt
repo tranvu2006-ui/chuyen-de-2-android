@@ -358,7 +358,7 @@ class HomeActivity : AppCompatActivity() {
             if (totalItems > 0) {
                 binding.btnCart.visibility = View.VISIBLE
                 val shopCount = carts.size
-                binding.tvCartBadge.text = "$shopCount quán ($totalItems món)"
+                binding.tvCartBadge.text = if (shopCount > 1) "$shopCount quán" else "$totalItems món"
             } else {
                 binding.btnCart.visibility = View.GONE
             }

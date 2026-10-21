@@ -614,40 +614,50 @@
         android:paddingHorizontal="16dp"
         app:layout_constraintBottom_toTopOf="@id/bottomNav">
 
-        <TextView
-            android:id="@+id/tvCartIcon"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/layoutCartLeft"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="🛒 Giỏ Hàng Của Bạn"
-            android:textColor="@color/on_primary"
-            android:textSize="13sp"
-            android:textStyle="bold"
+            android:layout_marginEnd="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/tvCartAmount"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toTopOf="parent">
 
-        <TextView
-            android:id="@+id/tvCartBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:background="#FFFFFF"
-            android:paddingHorizontal="6dp"
-            android:paddingVertical="1dp"
-            android:text="1"
-            android:textColor="@color/primary"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:visibility="visible"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@id/tvCartIcon"
-            app:layout_constraintTop_toTopOf="parent" />
+            <TextView
+                android:id="@+id/tvCartIcon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="🛒 Giỏ Hàng"
+                android:textColor="@color/on_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvCartBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_cart_badge_pill"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:textColor="@color/primary"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="2 quán" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvCartAmount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="0 đ "
+            android:text="0 đ ➔"
             android:textColor="@color/on_primary"
             android:textSize="13sp"
             android:textStyle="bold"

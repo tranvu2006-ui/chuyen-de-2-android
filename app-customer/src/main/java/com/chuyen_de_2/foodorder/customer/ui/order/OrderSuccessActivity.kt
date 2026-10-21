@@ -21,7 +21,7 @@ class OrderSuccessActivity : AppCompatActivity() {
         binding = ActivityOrderSuccessBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.initEdgeToEdge(this, true)
         InsetUtils.applyToolbarInsets(binding.toolbar)
         InsetUtils.applyNavigationBarPadding(binding.bottomBar)
 

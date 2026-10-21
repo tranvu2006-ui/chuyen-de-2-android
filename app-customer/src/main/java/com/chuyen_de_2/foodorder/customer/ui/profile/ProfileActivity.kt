@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.profile
+package com.chuyen_de_2.foodorder.customer.ui.profile
 
 import android.app.Activity
 import android.content.Intent
@@ -125,7 +125,7 @@ class ProfileActivity : AppCompatActivity() {
         binding = ActivityProfileBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.initEdgeToEdge(this, true)
         InsetUtils.applyToolbarInsets(binding.toolbar)
 
         setupToolbar()

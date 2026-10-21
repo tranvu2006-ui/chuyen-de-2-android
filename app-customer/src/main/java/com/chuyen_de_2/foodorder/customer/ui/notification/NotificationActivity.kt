@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.notification
+package com.chuyen_de_2.foodorder.customer.ui.notification
 
 import android.content.Intent
 import android.os.Bundle
@@ -8,6 +8,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityNotificationBinding
 import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryActivity
@@ -48,6 +49,10 @@ class NotificationActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityNotificationBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyToolbarInsets(binding.toolbar)
+        InsetUtils.applyNavigationBarPadding(binding.rvNotifications)
 
         setupToolbar()
         setupRecyclerView()

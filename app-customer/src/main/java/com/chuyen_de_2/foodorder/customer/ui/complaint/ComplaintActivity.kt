@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.complaint
+package com.chuyen_de_2.foodorder.customer.ui.complaint
 
 import android.os.Bundle
 import android.widget.ArrayAdapter
@@ -54,7 +54,7 @@ class ComplaintActivity : AppCompatActivity() {
         binding = ActivityComplaintBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.initEdgeToEdge(this, true)
         InsetUtils.applyToolbarInsets(binding.toolbar)
 
         setupToolbar()

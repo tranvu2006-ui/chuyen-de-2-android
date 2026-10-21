@@ -62,7 +62,11 @@ class MenuViewModel @Inject constructor(
     private var currentShopName: String = ""
     private var currentCategory: String = "ALL"
 
-    private val cartUpdates = MutableSharedFlow<CartPayload>(extraBufferCapacity = 1)
+    private val cartUpdates = MutableSharedFlow<CartPayload>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
 
     init {
         viewModelScope.launch {
@@ -75,11 +79,27 @@ class MenuViewModel @Inject constructor(
         }
     }
 
+    private var currentShopDistrict: String = ""
+    private var currentShopAddress: String = ""
+
     fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null) {
         currentShopId = shopId
         currentShopName = shopName
         loadMenu(shopId, initialDishId)
         observeShopCart(shopId)
+        loadShopDetails(shopId)
+    }
+
+    private fun loadShopDetails(shopId: String) {
+        viewModelScope.launch {
+            try {
+                val store = firebaseRepository.getStoreOnce(shopId)
+                if (store != null) {
+                    currentShopDistrict = store.district.ifBlank { "Quận 1" }
+                    currentShopAddress = store.address
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun observeShopCart(shopId: String) {
@@ -87,18 +107,11 @@ class MenuViewModel @Inject constructor(
         viewModelScope.launch {
             firebaseRepository.observeCart(userId, shopId).collectLatest { cart ->
                 if (cart != null && cart.items.isNotEmpty()) {
-                    val current = (_cartItems.value ?: emptyMap()).toMutableMap()
-                    var changed = false
-                    cart.items.forEach { (k, v) ->
-                        if (!current.containsKey(k)) {
-                            current[k] = v
-                            changed = true
-                        }
-                    }
-                    if (changed) {
-                        _cartItems.value = current
-                        updateCartTotals()
-                    }
+                    _cartItems.value = cart.items.toMutableMap()
+                    updateCartTotals()
+                } else if (cart == null && !_cartItems.value.isNullOrEmpty()) {
+                    _cartItems.value = mutableMapOf()
+                    updateCartTotals()
                 }
             }
         }
@@ -246,6 +259,8 @@ class MenuViewModel @Inject constructor(
         val cart = Cart(
             shopId = currentShopId,
             shopName = currentShopName,
+            shopDistrict = currentShopDistrict,
+            shopAddress = currentShopAddress,
             totalAmount = total,
             items = items
         )
@@ -261,6 +276,8 @@ class MenuViewModel @Inject constructor(
         val cart = Cart(
             shopId = currentShopId,
             shopName = currentShopName,
+            shopDistrict = currentShopDistrict,
+            shopAddress = currentShopAddress,
             totalAmount = total,
             items = items
         )

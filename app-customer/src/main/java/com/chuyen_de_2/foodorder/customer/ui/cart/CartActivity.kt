@@ -40,9 +40,9 @@ class CartActivity : AppCompatActivity() {
         binding = ActivityCartBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.initEdgeToEdge(this, true)
         InsetUtils.applyToolbarInsets(binding.toolbar)
-        InsetUtils.applyNavigationBarPadding(binding.rvCart)
+        InsetUtils.applyNavigationBarPadding(binding.nestedScrollView)
 
         setupToolbar()
         setupRecyclerView()
@@ -52,6 +52,9 @@ class CartActivity : AppCompatActivity() {
     private fun setupToolbar() {
         binding.toolbar.setNavigationOnClickListener {
             onBackPressedDispatcher.onBackPressed()
+        }
+        binding.btnExploreFood.setOnClickListener {
+            finish()
         }
     }
 
@@ -79,6 +82,7 @@ class CartActivity : AppCompatActivity() {
                     .show()
             },
             onCheckoutShop = { shopId, shopName, _ ->
+                viewModel.flushCart(shopId)
                 val intent = Intent(this, CheckoutActivity::class.java).apply {
                     putExtra(Constants.EXTRA_SHOP_ID, shopId)
                     putExtra(Constants.EXTRA_SHOP_NAME, shopName)
@@ -106,12 +110,18 @@ class CartActivity : AppCompatActivity() {
             binding.tvSubNotice.visibility = if (hasItems) View.VISIBLE else View.GONE
             binding.rvCart.visibility = if (hasItems) View.VISIBLE else View.GONE
 
-            binding.tvShopCountBadge.text = if (hasItems) "${carts.size} Quán Ăn" else ""
+            val totalItems = carts.sumOf { it.items.values.sumOf { item -> item.quantity } }
+            binding.tvShopCountBadge.text = if (hasItems) "${carts.size} Quán • $totalItems món" else ""
             binding.tvShopCountBadge.visibility = if (hasItems) View.VISIBLE else View.GONE
         }
 
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        viewModel.flushCart()
     }
 }

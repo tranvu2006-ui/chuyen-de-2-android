@@ -46,7 +46,11 @@ class CartViewModel @Inject constructor(
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
-    private val cartUpdates = MutableSharedFlow<CartPayload>(extraBufferCapacity = 1)
+    private val cartUpdates = MutableSharedFlow<CartPayload>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
 
     private var cartListener: ValueEventListener? = null
 
@@ -109,7 +113,12 @@ class CartViewModel @Inject constructor(
 
         if (items.isEmpty()) {
             currentCarts.removeAt(cartIndex)
-            clearCart(shopId)
+            _carts.value = currentCarts
+            _totalAmount.value = currentCarts.sumOf { it.totalAmount }
+            viewModelScope.launch {
+                firebaseRepository.clearCart(userId, shopId)
+            }
+            return
         } else {
             val total = items.values.sumOf { it.price * it.quantity }
             val updatedCart = cart.copy(totalAmount = total, items = items)
@@ -120,6 +129,22 @@ class CartViewModel @Inject constructor(
 
         _carts.value = currentCarts
         _totalAmount.value = currentCarts.sumOf { it.totalAmount }
+    }
+
+    fun flushCart(shopId: String? = null) {
+        val userId = auth.currentUser?.uid ?: return
+        val currentCarts = _carts.value ?: return
+        viewModelScope.launch {
+            if (shopId != null) {
+                currentCarts.find { it.shopId == shopId }?.let { cart ->
+                    firebaseRepository.syncCartToFirebase(CartPayload(userId, shopId, cart))
+                }
+            } else {
+                currentCarts.forEach { cart ->
+                    firebaseRepository.syncCartToFirebase(CartPayload(userId, cart.shopId, cart))
+                }
+            }
+        }
     }
 
     fun clearCart(shopId: String) {

@@ -270,4 +270,9 @@ class MenuActivity : AppCompatActivity() {
         }
         bottomSheet.show(supportFragmentManager, DishOptionBottomSheetDialogFragment.TAG)
     }
+
+    override fun onPause() {
+        super.onPause()
+        viewModel.flushCart()
+    }
 }

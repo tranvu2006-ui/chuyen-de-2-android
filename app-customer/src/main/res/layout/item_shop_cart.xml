@@ -64,12 +64,14 @@
                 android:layout_height="38dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
+                android:contentDescription="Xóa giỏ hàng quán"
                 android:focusable="true"
-                android:gravity="center"
-               
-               
+                android:padding="8dp"
+                android:scaleType="centerInside"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent" app:srcCompat="@drawable/ic_trash" app:tint="#EF4444" />
+                app:layout_constraintTop_toTopOf="parent"
+                app:srcCompat="@drawable/ic_trash"
+                app:tint="#EF4444" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -136,7 +138,7 @@
                 android:insetBottom="0dp"
                 android:paddingHorizontal="18dp"
                 android:paddingVertical="10dp"
-                android:text="Đặt Quán Này "
+                android:text="Đặt Quán Này 👉"
                 android:textColor="@color/white"
                 android:textSize="13.5sp"
                 android:textStyle="bold"

@@ -59,6 +59,7 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/nestedScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
@@ -139,6 +140,20 @@
                     android:text="Hãy dạo quanh các quán ăn và chọn món nhé!"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnExploreFood"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:backgroundTint="@color/primary"
+                    android:paddingHorizontal="24dp"
+                    android:paddingVertical="11dp"
+                    android:text="Khám Phá Món Ngon Ngay"
+                    android:textColor="@color/white"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="20dp" />
             </LinearLayout>
 
         </androidx.constraintlayout.widget.ConstraintLayout>

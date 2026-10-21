@@ -28,6 +28,14 @@ class CartAdapter(
     inner class ShopViewHolder(private val binding: ItemShopCartBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
+        private val dishAdapter = CartDishAdapter(onQuantityChange)
+
+        init {
+            binding.rvDishes.layoutManager = LinearLayoutManager(itemView.context)
+            binding.rvDishes.isNestedScrollingEnabled = false
+            binding.rvDishes.adapter = dishAdapter
+        }
+
         fun bind(cart: Cart) {
             val displayName = if (cart.shopName.startsWith("🏪")) {
                 cart.shopName
@@ -53,19 +61,7 @@ class CartAdapter(
                 onCheckoutShop(cart.shopId, cart.shopName, cart.totalAmount)
             }
 
-            // Danh sách món trong quán
-            val dishList = cart.items.values.toList()
-            val dishAdapter = CartDishAdapter(
-                shopId = cart.shopId,
-                shopName = cart.shopName,
-                dishes = dishList,
-                onQuantityChange = onQuantityChange
-            )
-            binding.rvDishes.apply {
-                layoutManager = LinearLayoutManager(itemView.context)
-                isNestedScrollingEnabled = false
-                adapter = dishAdapter
-            }
+            dishAdapter.submitDishes(cart.shopId, cart.shopName, cart.items.values.toList())
         }
     }
 
@@ -86,11 +82,20 @@ class CartAdapter(
      * Adapter cho các món ăn bên trong từng Shop Card (theo mockup a1.html)
      */
     private class CartDishAdapter(
-        private val shopId: String,
-        private val shopName: String,
-        private val dishes: List<CartItem>,
         private val onQuantityChange: (shopId: String, shopName: String, itemId: String, newQty: Int) -> Unit
     ) : RecyclerView.Adapter<CartDishAdapter.DishViewHolder>() {
+
+        private var shopId: String = ""
+        private var shopName: String = ""
+        private val dishes = mutableListOf<CartItem>()
+
+        fun submitDishes(shopId: String, shopName: String, newDishes: List<CartItem>) {
+            this.shopId = shopId
+            this.shopName = shopName
+            this.dishes.clear()
+            this.dishes.addAll(newDishes)
+            notifyDataSetChanged()
+        }
 
         inner class DishViewHolder(val binding: ItemShopDishBinding) :
             RecyclerView.ViewHolder(binding.root)
@@ -106,7 +111,7 @@ class CartAdapter(
             val item = dishes[position]
             val binding = holder.binding
 
-            binding.tvDishName.text = "${item.name} x${item.quantity}"
+            binding.tvDishName.text = item.name
 
             if (item.options.isNotBlank()) {
                 binding.tvDishNote.text = item.options

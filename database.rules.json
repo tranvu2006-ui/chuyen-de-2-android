@@ -104,6 +104,19 @@
       "$complaintId": {
         ".write": "auth != null"
       }
+    },
+    "customer_addresses": {
+      "$userId": {
+        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN')",
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN')"
+      }
+    },
+    "trust_score_logs": {
+      ".indexOn": ["customerId", "orderId"],
+      ".read": "auth != null",
+      "$logId": {
+        ".write": "auth != null"
+      }
     }
   }
 }

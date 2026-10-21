@@ -284,6 +284,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                     }
 
                     binding.tvTripBundleBadge.visibility = View.VISIBLE
+                    binding.tvTripBundleBadge.text = "Ghép ${bundleOrders.size} đơn"
                     binding.tvTripOrderCode.text = "Đơn Gộp • ${bundleOrders.size} Đơn"
 
                     bindBundleOrdersStep2()
@@ -309,10 +310,13 @@ class DeliveryTripActivity : AppCompatActivity() {
         val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
         if (!isBundleMode) {
             binding.tvTripOrderCode.text = "Đơn #ORD-$shortCode"
+            binding.tvTripBundleBadge.visibility = View.GONE
         } else {
             val idx = bundleOrders.indexOfFirst { it.orderId == order.orderId }
             val ch = if (idx >= 0) idx + 1 else 1
             binding.tvTripOrderCode.text = "Đơn Gộp • Chặng $ch/${bundleOrders.size}"
+            binding.tvTripBundleBadge.visibility = View.VISIBLE
+            binding.tvTripBundleBadge.text = "Ghép ${bundleOrders.size} đơn"
         }
 
         val storeName = order.shopName.ifBlank { "Quán ăn" }
@@ -417,17 +421,18 @@ class DeliveryTripActivity : AppCompatActivity() {
                 cardBinding.btnTogglePriority.text = "⚡ Ưu tiên giao trước (1)"
                 cardBinding.btnTogglePriority.setBackgroundResource(R.drawable.bg_priority_active)
             } else {
-                cardBinding.btnTogglePriority.text = "🔄 Đổi lên giao trước (2)"
+                cardBinding.btnTogglePriority.text = "🔄 Đổi lên giao trước (${index + 1})"
                 cardBinding.btnTogglePriority.setBackgroundResource(R.drawable.bg_badge_duty_off)
             }
 
             cardBinding.btnTogglePriority.setOnClickListener {
-                if (bundleOrders.size >= 2) {
-                    java.util.Collections.swap(bundleOrders, 0, 1)
+                if (index > 0 && index < bundleOrders.size) {
+                    val selectedOrder = bundleOrders.removeAt(index)
+                    bundleOrders.add(0, selectedOrder)
                     activeBundleIndex = 0
                     bindBundleOrdersStep2()
                     bindCustomerQuickSwitchStep3()
-                    Toast.makeText(this, "⚡ Đã đổi thứ tự ưu tiên giao đơn!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "⚡ Đã đưa đơn của ${selectedOrder.customerName.ifBlank { "khách" }} lên giao trước!", Toast.LENGTH_SHORT).show()
                 }
             }
 
@@ -482,6 +487,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         val order1 = bundleOrders.getOrNull(0)
         val order2 = bundleOrders.getOrNull(1)
+        val order3 = bundleOrders.getOrNull(2)
 
         // Khách 1
         if (order1 != null) {
@@ -497,7 +503,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                 binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.btnChoiceCust1.setBackgroundResource(R.drawable.bg_choice_card_idle)
             } else if (activeBundleIndex == 0) {
-                binding.choiceBadge1.text = "⚡ Giao trước"
+                binding.choiceBadge1.text = "⚡ Đang giao"
                 binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_orange)
                 binding.btnChoiceCust1.setBackgroundResource(R.drawable.bg_choice_card_active)
             } else {
@@ -545,6 +551,40 @@ class DeliveryTripActivity : AppCompatActivity() {
             }
         }
 
+        // Khách 3 (Ghép 3 đơn)
+        if (order3 != null) {
+            binding.btnChoiceCust3.visibility = View.VISIBLE
+            binding.choiceName3.text = "3. ${order3.customerName.ifBlank { "Khách 3" }}"
+            binding.choiceAddr3.text = order3.address.ifBlank { "Địa chỉ 3" }
+            val isCod3 = order3.paymentMethod.equals("COD", true)
+            binding.choicePayment3.text = if (isCod3) "COD ${(if (order3.totalPayment > 0) order3.totalPayment else (order3.total + order3.shippingFee)).toVndCurrency()}" else "0 đ (MoMo)"
+            binding.choicePayment3.setTextColor(if (isCod3) ContextCompat.getColor(this, R.color.primary) else ContextCompat.getColor(this, R.color.brand_green))
+
+            val isDone3 = completedBundleOrderIds.contains(order3.orderId)
+            if (isDone3) {
+                binding.choiceBadge3.text = "✓ Đã giao"
+                binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_idle)
+            } else if (activeBundleIndex == 2) {
+                binding.choiceBadge3.text = "⚡ Đang giao"
+                binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_active)
+            } else {
+                binding.choiceBadge3.text = "Giao sau"
+                binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_duty_off)
+                binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_idle)
+            }
+
+            binding.btnChoiceCust3.setOnClickListener {
+                switchActiveBundleCustomer(2)
+            }
+            binding.stepBundleCust3.setOnClickListener {
+                switchActiveBundleCustomer(2)
+            }
+        } else {
+            binding.btnChoiceCust3.visibility = View.GONE
+        }
+
         updateBundleStepperUI()
     }
 
@@ -556,14 +596,15 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         val order1 = bundleOrders.getOrNull(0)
         val order2 = bundleOrders.getOrNull(1)
+        val order3 = bundleOrders.getOrNull(2)
 
         val colorPrimary = ContextCompat.getColor(this, R.color.primary)
         val colorGreen = ContextCompat.getColor(this, R.color.brand_green)
         val colorMuted = ContextCompat.getColor(this, R.color.text_secondary)
 
         // Tên khách hiển thị trên Stepper
-        binding.stepBundleCust1Text.text = order1?.customerName?.take(10) ?: "Khách 1"
-        binding.stepBundleCust2Text.text = order2?.customerName?.take(10) ?: "Khách 2"
+        binding.stepBundleCust1Text.text = order1?.customerName?.take(10)?.ifBlank { "Khách 1" } ?: "Khách 1"
+        binding.stepBundleCust2Text.text = order2?.customerName?.take(10)?.ifBlank { "Khách 2" } ?: "Khách 2"
 
         val isDone1 = order1 != null && completedBundleOrderIds.contains(order1.orderId)
         val isDone2 = order2 != null && completedBundleOrderIds.contains(order2.orderId)
@@ -598,6 +639,32 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.stepBundleCust2Badge.setBackgroundResource(R.drawable.bg_badge_duty_off)
             binding.stepBundleCust2Badge.text = "2"
             binding.stepBundleCust2Text.setTextColor(colorMuted)
+        }
+
+        // Trạng thái Khách 3 (Ghép 3 đơn)
+        if (order3 != null) {
+            binding.stepBundleDivider3.visibility = View.VISIBLE
+            binding.stepBundleCust3.visibility = View.VISIBLE
+            binding.stepBundleCust3Text.text = order3.customerName.take(10).ifBlank { "Khách 3" }
+
+            val isDone3 = completedBundleOrderIds.contains(order3.orderId)
+            if (isDone3) {
+                binding.stepBundleCust3Badge.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.stepBundleCust3Badge.text = "✓"
+                binding.stepBundleCust3Text.setTextColor(colorGreen)
+                binding.stepBundleDivider3.setBackgroundColor(colorGreen)
+            } else if (activeBundleIndex == 2) {
+                binding.stepBundleCust3Badge.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.stepBundleCust3Badge.text = "3"
+                binding.stepBundleCust3Text.setTextColor(colorPrimary)
+            } else {
+                binding.stepBundleCust3Badge.setBackgroundResource(R.drawable.bg_badge_duty_off)
+                binding.stepBundleCust3Badge.text = "3"
+                binding.stepBundleCust3Text.setTextColor(colorMuted)
+            }
+        } else {
+            binding.stepBundleDivider3.visibility = View.GONE
+            binding.stepBundleCust3.visibility = View.GONE
         }
     }
 
@@ -939,14 +1006,15 @@ class DeliveryTripActivity : AppCompatActivity() {
                 completedBundleOrderIds.add(order.orderId)
                 dialog.dismiss()
 
-                // Nếu là đơn gộp và còn đơn thứ 2 chưa giao -> Hiện modal điều hướng theo 6.html (bomReturnFlowModal)
-                val remainingOrder = bundleOrders.find { !completedBundleOrderIds.contains(it.orderId) }
-                if (isBundleMode && remainingOrder != null) {
-                    val nextIdx = bundleOrders.indexOf(remainingOrder)
+                // Nếu là đơn gộp và còn đơn chưa giao -> Hiện modal điều hướng theo 6.html (bomReturnFlowModal)
+                val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) }
+                if (isBundleMode && remainingOrders.isNotEmpty()) {
+                    val nextOrder = remainingOrders.first()
+                    val nextIdx = bundleOrders.indexOf(nextOrder)
                     AlertDialog.Builder(this@DeliveryTripActivity)
                         .setTitle("🚨 ĐÃ BÁO CÁO SỰ CỐ • TIẾP TỤC ĐƠN GHÉP")
-                        .setMessage("Đơn #ORD-$shortCode đã được hủy thành công.\n\n⚠️ Quy trình đơn ghép: Giữ nguyên niêm phong món ăn trong thùng xe. Vui lòng tiếp tục đi giao đơn ghép kế tiếp (#ORD-${remainingOrder.orderId.takeLast(6).uppercase()}).\n\nSau khi hoàn thành xong chuyến đi, hệ thống sẽ điều hướng bạn quay về Quán để trả lại món và nhận tiền hoàn phí!")
-                        .setPositiveButton("🛵 TIẾP TỤC GIAO ĐƠN THỨ 2 ➔") { _, _ ->
+                        .setMessage("Đơn #ORD-$shortCode đã được hủy thành công.\n\n⚠️ Quy trình đơn ghép: Giữ nguyên niêm phong món ăn trong thùng xe. Vui lòng tiếp tục đi giao đơn ghép kế tiếp (#ORD-${nextOrder.orderId.takeLast(6).uppercase()}).\n\nSau khi hoàn thành xong chuyến đi, hệ thống sẽ điều hướng bạn quay về Quán để trả lại món và nhận tiền hoàn phí!")
+                        .setPositiveButton("🛵 TIẾP TỤC GIAO ĐƠN TIẾP THEO ➔") { _, _ ->
                             switchActiveBundleCustomer(nextIdx)
                             updateStepUI(3)
                         }
@@ -1005,12 +1073,15 @@ class DeliveryTripActivity : AppCompatActivity() {
                     .edit().remove("step_$ordId").apply()
 
                 // Kiểm tra xem đơn gộp còn đơn nào chưa giao không
-                val remainingOrder = bundleOrders.find { !completedBundleOrderIds.contains(it.orderId) }
-                if (isBundleMode && remainingOrder != null) {
-                    val nextIdx = bundleOrders.indexOf(remainingOrder)
+                val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) }
+                if (isBundleMode && remainingOrders.isNotEmpty()) {
+                    val nextOrder = remainingOrders.first()
+                    val nextIdx = bundleOrders.indexOf(nextOrder)
+                    val completedCount = completedBundleOrderIds.size
+                    val totalCount = bundleOrders.size
                     AlertDialog.Builder(this@DeliveryTripActivity)
-                        .setTitle("🎉 Giao Thành Công Chặng 1!")
-                        .setMessage("Đơn hàng của ${targetOrder?.customerName} đã được hoàn tất thành công.\n\nTiếp tục di chuyển giao đơn ghép thứ 2 cho khách: ${remainingOrder.customerName}!")
+                        .setTitle("🎉 Giao Thành Công Đơn $completedCount/$totalCount!")
+                        .setMessage("Đơn hàng của ${targetOrder?.customerName} đã được hoàn tất thành công.\n\nTiếp tục di chuyển giao đơn tiếp theo cho khách: ${nextOrder.customerName} (Còn ${remainingOrders.size} đơn)!")
                         .setPositiveButton("🛵 GIAO ĐƠN TIẾP THEO ➔") { _, _ ->
                             switchActiveBundleCustomer(nextIdx)
                             updateStepUI(3)

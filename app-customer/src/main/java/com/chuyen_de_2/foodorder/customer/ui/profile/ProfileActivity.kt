@@ -211,7 +211,6 @@ class ProfileActivity : AppCompatActivity() {
         binding.btnAddressBook.setOnClickListener {
             showAddressBookBottomSheet()
         }
-        }
 
         // Hotline
         binding.btnHotline.setOnClickListener {

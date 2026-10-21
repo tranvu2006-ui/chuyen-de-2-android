@@ -379,7 +379,12 @@ class AuthRepository @Inject constructor(
     }
 
     /** Cập nhật thông tin cá nhân (Họ tên, Số điện thoại, Địa chỉ) cho người dùng hiện tại */
-    suspend fun updateUserProfile(name: String, phone: String, address: String = ""): Result<Unit> {
+    suspend fun updateUserProfile(
+        name: String,
+        phone: String,
+        avatarUrl: String = "",
+        address: String = ""
+    ): Result<Unit> {
         return try {
             val firebaseUser = auth.currentUser ?: return Result.failure(Exception("Chưa đăng nhập"))
             val uid = firebaseUser.uid
@@ -401,6 +406,7 @@ class AuthRepository @Inject constructor(
             )
             if (email.isNotBlank()) updates["email"] = email
             if (address.isNotBlank()) updates["address"] = address.trim()
+            if (avatarUrl.isNotBlank()) updates["avatarUrl"] = avatarUrl.trim()
 
             database.getReference("users").child(uid).updateChildren(updates).await()
             database.getReference("customers").child(uid).updateChildren(updates).await()
@@ -662,37 +668,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    /** Cập nhật thông tin hồ sơ: Tên, SĐT, Avatar */
-    suspend fun updateUserProfile(name: String, phone: String, avatarUrl: String): Result<Unit> {
-        val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Chưa đăng nhập"))
-        return try {
-            val updates = mutableMapOf<String, Any>()
-            if (name.isNotBlank()) updates["name"] = name
-            updates["phone"] = phone
-            if (avatarUrl.isNotBlank()) updates["avatarUrl"] = avatarUrl
-
-            database.getReference("users").child(uid).updateChildren(updates).await()
-
-            // Cập nhật customer node nếu có
-            if (avatarUrl.isNotBlank()) {
-                database.getReference("customers").child(uid).child("avatarUrl").setValue(avatarUrl).await()
-            }
-
-            // Cập nhật Firebase Auth profile displayName
-            if (name.isNotBlank()) {
-                val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
-                    .setDisplayName(name)
-                    .build()
-                auth.currentUser?.updateProfile(profileUpdates)?.await()
-            }
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** User hiện tại (nullable) */
     val currentUser: FirebaseUser? get() = auth.currentUser
 
     /** Kiểm tra đã đăng nhập chưa */

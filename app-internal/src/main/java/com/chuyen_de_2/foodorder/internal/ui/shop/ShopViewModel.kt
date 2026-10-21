@@ -83,7 +83,6 @@ class ShopViewModel @Inject constructor(
         currentStoreId = id
         filterOrders()
     }
-    }
 
     fun selectTab(tab: TabType) {
         _currentTab.value = tab

@@ -236,10 +236,5 @@
             android:textStyle="bold"
             app:cornerRadius="10dp" />
     </LinearLayout>
-            android:textColor="@color/white"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="10dp" />
-    </LinearLayout>
 
 </LinearLayout>

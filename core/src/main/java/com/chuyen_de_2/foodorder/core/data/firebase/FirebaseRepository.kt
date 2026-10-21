@@ -606,6 +606,65 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Lấy thông tin hồ sơ quán một lần (Snapshot) */
+    suspend fun getStoreOnce(storeId: String): com.chuyen_de_2.foodorder.core.data.model.Store? {
+        if (storeId.isBlank()) return null
+        return try {
+            val snap = database.getReference("stores").child(storeId).get().await()
+            if (!snap.exists()) null
+            else snap.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Xác minh danh tính và cập nhật đầy đủ phiếu thông tin địa chỉ quán */
+    suspend fun verifyAndCompleteStoreProfile(
+        storeId: String,
+        name: String,
+        phone: String,
+        address: String,
+        district: String,
+        ownerName: String,
+        cccdNumber: String,
+        bankName: String,
+        bankAccountNumber: String,
+        bankAccountName: String,
+        bankBin: String = "",
+        latitude: Double = 0.0,
+        longitude: Double = 0.0,
+        openHours: String = "08:00 - 22:30",
+        prepTime: String = "15 phút"
+    ): Result<Unit> {
+        return try {
+            val updates = mutableMapOf<String, Any>(
+                "name" to name.trim(),
+                "phone" to phone.trim(),
+                "address" to address.trim(),
+                "district" to district.trim(),
+                "ownerName" to ownerName.trim(),
+                "cccdNumber" to cccdNumber.trim(),
+                "bankName" to bankName.trim(),
+                "bankAccountNumber" to bankAccountNumber.trim(),
+                "bankAccountName" to bankAccountName.trim().uppercase(),
+                "openHours" to openHours.trim(),
+                "prepTime" to prepTime.trim(),
+                "isVerified" to true,
+                "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN,
+                "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN,
+                "open" to true
+            )
+            if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
+            if (latitude != 0.0) updates["latitude"] = latitude
+            if (longitude != 0.0) updates["longitude"] = longitude
+
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Cập nhật trạng thái đóng/mở cửa của quán lên Firebase (OPEN / CLOSED) */
     suspend fun updateStoreStatus(storeId: String, status: String): Result<Unit> {
         return try {

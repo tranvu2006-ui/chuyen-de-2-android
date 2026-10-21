@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityDashboardBinding
@@ -34,6 +36,9 @@ class DashboardActivity : AppCompatActivity() {
 
     @Inject
     lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
 
     private var statusBarHeight: Int = 0
     private var navigationBarHeight: Int = 0
@@ -107,7 +112,7 @@ class DashboardActivity : AppCompatActivity() {
 
             when (role) {
                 User.Role.MANAGER, User.Role.MERCHANT, "SHOP", "STORE" -> {
-                    setupMerchantNavigation()
+                    checkMerchantVerificationAndProceed()
                 }
                 User.Role.SHIPPER, User.Role.DRIVER -> {
                     setupShipperNavigation()
@@ -121,7 +126,7 @@ class DashboardActivity : AppCompatActivity() {
                             lifecycleScope.launch {
                                 authRepository.setUserRole(User.Role.MERCHANT)
                                 Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
-                                setupMerchantNavigation()
+                                checkMerchantVerificationAndProceed()
                             }
                         }
                         .setNegativeButton("🛵 Tôi là Tài Xế") { _, _ ->
@@ -142,6 +147,33 @@ class DashboardActivity : AppCompatActivity() {
                         .show()
                 }
             }
+        }
+    }
+
+    private fun checkMerchantVerificationAndProceed() {
+        lifecycleScope.launch {
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            if (uid.isNotBlank()) {
+                val storeId = firebaseRepository.resolveStoreIdForUser(uid)
+                if (storeId.isNotBlank()) {
+                    val store = firebaseRepository.getStoreOnce(storeId)
+                    if (store == null || store.address.isBlank() || store.district.isBlank() || !store.isVerified || store.cccdNumber.isBlank()) {
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "⚠️ Vui lòng hoàn tất phiếu địa chỉ và xác minh thông tin quán trước khi nhận đơn!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                            putExtra("STORE_ID", storeId)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        startActivity(intent)
+                        finish()
+                        return@launch
+                    }
+                }
+            }
+            setupMerchantNavigation()
         }
     }
 

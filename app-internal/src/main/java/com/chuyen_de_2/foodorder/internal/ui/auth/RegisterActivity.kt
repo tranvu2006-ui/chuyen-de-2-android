@@ -60,8 +60,8 @@ class RegisterActivity : AppCompatActivity() {
 
         viewModel.registerResult.observe(this) { result ->
             result.onSuccess {
-                Toast.makeText(this, "🎉 Đăng ký tài khoản đối tác thành công!", Toast.LENGTH_SHORT).show()
-                startActivity(Intent(this, DashboardActivity::class.java).apply {
+                Toast.makeText(this, "🎉 Đăng ký tài khoản thành công! Vui lòng hoàn tất phiếu địa chỉ và xác minh thông tin quán.", Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, StoreVerificationActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 })
                 finish()

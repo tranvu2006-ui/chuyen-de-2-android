@@ -146,6 +146,23 @@ class StoreProfileFragment : Fragment() {
             binding.tvProfileStatus.text = "⚪ TẠM ĐÓNG CỬA (CLOSED)"
             binding.tvProfileStatus.setTextColor(Color.parseColor("#64748B"))
         }
+
+        if (store.isVerified && store.address.isNotBlank() && store.district.isNotBlank()) {
+            binding.tvProfileVerifiedBadge.text = "✓ ĐÃ XÁC MINH HỒ SƠ"
+            binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#10B981"))
+            binding.tvProfileVerifiedBadge.setBackgroundResource(R.drawable.bg_badge_free)
+        } else {
+            binding.tvProfileVerifiedBadge.text = "⚠️ CHỜ BỔ SUNG ĐỊA CHỈ & XÁC MINH"
+            binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#D97706"))
+            binding.tvProfileVerifiedBadge.setBackgroundColor(Color.parseColor("#FEF3C7"))
+        }
+
+        binding.tvProfileVerifiedBadge.setOnClickListener {
+            val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
+                putExtra("STORE_ID", currentStoreId)
+            }
+            startActivity(intent)
+        }
     }
 
     private fun getDefaultStore(): Store {

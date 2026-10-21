@@ -191,7 +191,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:checked="true"
+            android:checked="false"
             android:text="Đã kiểm đủ món &amp; dán tem niêm phong đơn này"
             android:textColor="#059669"
             android:textSize="11.5sp"

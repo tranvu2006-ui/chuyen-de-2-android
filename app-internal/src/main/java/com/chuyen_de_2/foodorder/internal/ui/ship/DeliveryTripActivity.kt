@@ -20,6 +20,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ArrayAdapter
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
@@ -139,12 +140,128 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         setupWebViews()
         setupSwipeToConfirm()
+        setupSwipeToConfirmStep2()
         setupListeners()
         val initialStep = getSavedStep(currentOrderId)
         updateStepUI(initialStep)
         observeOrderDetails()
         observeShipperActiveOrders()
         checkAndRequestLocation()
+    }
+
+    private fun setupSwipeToConfirmStep2() {
+        val track = binding.swipeTrackStep2
+        val thumb = binding.swipeThumbStep2
+        val label = binding.tvSwipeLabelStep2
+        var startX = 0f
+        var isConfirmed = false
+
+        updateStep2ReadinessUI()
+
+        thumb.setOnTouchListener { v, event ->
+            if (isConfirmed) return@setOnTouchListener true
+
+            if (!isStep2AllChecked()) {
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    Toast.makeText(this, "⚠️ Vui lòng tích chọn đủ tất cả các món trước khi quẹt giao hàng!", Toast.LENGTH_SHORT).show()
+                }
+                return@setOnTouchListener true
+            }
+
+            val maxDrag = (track.width - thumb.width - 16).toFloat()
+            if (maxDrag <= 0) return@setOnTouchListener false
+
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.rawX - thumb.translationX
+                    thumb.animate().cancel()
+                    label.animate().cancel()
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val newX = (event.rawX - startX).coerceIn(0f, maxDrag)
+                    thumb.translationX = newX
+                    label.alpha = (1f - (newX / maxDrag)).coerceIn(0.1f, 1f)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (thumb.translationX >= maxDrag * 0.65f) {
+                        isConfirmed = true
+                        thumb.animate()
+                            .translationX(maxDrag)
+                            .setDuration(120)
+                            .withEndAction {
+                                v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                lifecycleScope.launch {
+                                    if (isBundleMode && bundleOrders.isNotEmpty()) {
+                                        bundleOrders.forEach { o ->
+                                            firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                                        }
+                                        Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy đủ tất cả ${bundleOrders.size} đơn gộp! Bắt đầu giao chặng 1", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
+                                        Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy hàng thành công! Xuất phát giao hàng", Toast.LENGTH_SHORT).show()
+                                    }
+                                    updateStepUI(3)
+                                    fetchRealShipperLocation()
+                                    thumb.translationX = 0f
+                                    label.alpha = 1f
+                                    isConfirmed = false
+                                }
+                            }
+                            .start()
+                    } else {
+                        thumb.animate()
+                            .translationX(0f)
+                            .setDuration(220)
+                            .setInterpolator(DecelerateInterpolator())
+                            .start()
+                        label.animate().alpha(1f).setDuration(220).start()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+
+        track.setOnClickListener {
+            if (!isStep2AllChecked()) {
+                Toast.makeText(this, "⚠️ Vui lòng tích chọn đủ tất cả các món trước khi quẹt!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Gạt nút tròn sang phải để xác nhận đã lấy hàng và xuất phát!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun isStep2AllChecked(): Boolean {
+        if (isBundleMode && bundleOrders.isNotEmpty()) {
+            for (i in 0 until binding.layoutBundleCardsContainer.childCount) {
+                val card = binding.layoutBundleCardsContainer.getChildAt(i)
+                val cb = card.findViewById<CheckBox>(R.id.cbOrderReady)
+                if (cb != null && !cb.isChecked) return false
+            }
+            return true
+        } else {
+            for (i in 0 until binding.layoutSingleDishesContainer.childCount) {
+                val view = binding.layoutSingleDishesContainer.getChildAt(i)
+                if (view is CheckBox && !view.isChecked) return false
+            }
+            return binding.cbSealPackage.isChecked
+        }
+    }
+
+    private fun updateStep2ReadinessUI() {
+        val allChecked = isStep2AllChecked()
+        if (allChecked) {
+            binding.swipeTrackStep2.alpha = 1f
+            binding.tvSwipeLabelStep2.text = "Gạt sang phải ĐÃ LẤY HÀNG & ĐI GIAO ›››"
+            binding.tvSwipeLabelStep2.setTextColor(ContextCompat.getColor(this, R.color.primary))
+        } else {
+            binding.swipeTrackStep2.alpha = 0.55f
+            binding.tvSwipeLabelStep2.text = "⚠️ Tích đủ các món để mở khóa quẹt"
+            binding.tvSwipeLabelStep2.setTextColor(Color.parseColor("#94A3B8"))
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -389,6 +506,33 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.tvStep2SingleOrderCode.text = "MÃ ĐƠN: #ORD-$shortCode"
         }
 
+        // Đổ danh sách món thật vào checklist bước 2
+        binding.layoutSingleDishesContainer.removeAllViews()
+        binding.cbSealPackage.isChecked = false
+        if (order.items.isNotEmpty()) {
+            order.items.values.forEach { item ->
+                val cb = CheckBox(this).apply {
+                    text = "• ${item.quantity}x ${item.dishName}"
+                    setTextColor(Color.parseColor("#1E293B"))
+                    textSize = 12.5f
+                    isChecked = false
+                    setOnCheckedChangeListener { _, _ -> updateStep2ReadinessUI() }
+                }
+                binding.layoutSingleDishesContainer.addView(cb)
+            }
+        } else {
+            val cb = CheckBox(this).apply {
+                text = "• Món ăn theo đơn đặt của khách"
+                setTextColor(Color.parseColor("#1E293B"))
+                textSize = 12.5f
+                isChecked = false
+                setOnCheckedChangeListener { _, _ -> updateStep2ReadinessUI() }
+            }
+            binding.layoutSingleDishesContainer.addView(cb)
+        }
+        binding.cbSealPackage.setOnCheckedChangeListener { _, _ -> updateStep2ReadinessUI() }
+        updateStep2ReadinessUI()
+
         binding.tvStep3OrderCode.text = "ĐANG GIAO: #ORD-$shortCode"
         binding.tvStep4OrderCode.text = "XÁC MINH ĐƠN HÀNG: #ORD-$shortCode"
 
@@ -537,14 +681,17 @@ class DeliveryTripActivity : AppCompatActivity() {
                 cardBinding.tvBundleCustomerNote.visibility = View.GONE
             }
 
+            cardBinding.cbOrderReady.isChecked = false
             cardBinding.cbOrderReady.setOnCheckedChangeListener { _, isChecked ->
                 if (isChecked) {
                     Toast.makeText(this, "✓ Đã kiểm đủ món đơn #ORD-$shortCode", Toast.LENGTH_SHORT).show()
                 }
+                updateStep2ReadinessUI()
             }
 
             binding.layoutBundleCardsContainer.addView(cardBinding.root)
         }
+        updateStep2ReadinessUI()
     }
 
     /**
@@ -854,14 +1001,17 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 2: Checklist chọn tất cả (5.html: btn-check-all)
         binding.btnCheckAllDishes.setOnClickListener {
-            binding.cbDish1.isChecked = true
-            binding.cbDish2.isChecked = true
+            for (i in 0 until binding.layoutSingleDishesContainer.childCount) {
+                val v = binding.layoutSingleDishesContainer.getChildAt(i)
+                if (v is CheckBox) v.isChecked = true
+            }
             binding.cbSealPackage.isChecked = true
             for (i in 0 until binding.layoutBundleCardsContainer.childCount) {
                 val child = binding.layoutBundleCardsContainer.getChildAt(i)
-                val cb = child.findViewById<android.widget.CheckBox>(R.id.cbOrderReady)
+                val cb = child.findViewById<CheckBox>(R.id.cbOrderReady)
                 cb?.isChecked = true
             }
+            updateStep2ReadinessUI()
             Toast.makeText(this, "✓ Đã kiểm tra đủ tất cả món!", Toast.LENGTH_SHORT).show()
         }
 

@@ -1015,29 +1015,19 @@
                             android:textSize="11.5sp"
                             android:textStyle="bold" />
 
-                        <CheckBox
-                            android:id="@+id/cbDish1"
+                        <!-- Container danh sách món ăn thật lấy từ đơn hàng -->
+                        <LinearLayout
+                            android:id="@+id/layoutSingleDishesContainer"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:checked="true"
-                            android:text="Món 1 theo đơn"
-                            android:textColor="#1E293B"
-                            android:textSize="12.5sp" />
-
-                        <CheckBox
-                            android:id="@+id/cbDish2"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:checked="true"
-                            android:text="Món 2 theo đơn"
-                            android:textColor="#1E293B"
-                            android:textSize="12.5sp" />
+                            android:orientation="vertical" />
 
                         <CheckBox
                             android:id="@+id/cbSealPackage"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:checked="true"
+                            android:layout_marginTop="4dp"
+                            android:checked="false"
                             android:text="Túi niêm phong đã dán tem nguyên vẹn"
                             android:textColor="#059669"
                             android:textSize="12.5sp"
@@ -1045,18 +1035,52 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Nút xác nhận lấy hàng (5.html: bottom-sheet-fixed) -->
+                <!-- THANH TRƯỢT GẠT SANG PHẢI XÁC NHẬN ĐÃ LẤY HÀNG (giống Bước 1) -->
+                <FrameLayout
+                    android:id="@+id/swipeTrackStep2"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@drawable/bg_swipe_track">
+
+                    <!-- Nhãn chữ ở giữa thanh trượt -->
+                    <TextView
+                        android:id="@+id/tvSwipeLabelStep2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="⚠️ Tích đủ các món để mở khóa quẹt"
+                        android:textColor="#94A3B8"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold" />
+
+                    <!-- Nút tròn gạt màu cam đỏ (Handle / Thumb) -->
+                    <FrameLayout
+                        android:id="@+id/swipeThumbStep2"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_gravity="start|center_vertical"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/bg_swipe_thumb"
+                        android:elevation="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:text="➔"
+                            android:textColor="#FFFFFF"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+                    </FrameLayout>
+                </FrameLayout>
+
+                <!-- Giữ nút cũ ẩn để tương thích -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnConfirmPickDishes"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginBottom="16dp"
-                    android:backgroundTint="@color/primary"
-                    android:text="🛵 XÁC NHẬN ĐÃ LẤY TẤT CẢ ĐƠN GỘP ➔"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    app:cornerRadius="12dp" />
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
 
             </LinearLayout>
         </ScrollView>

@@ -159,10 +159,22 @@
         style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="8dp"
         android:backgroundTint="@color/primary"
         android:text="📷 Mở Camera Quét Thực Tế"
         android:textColor="@color/white"
+        android:textStyle="bold"
+        app:cornerRadius="10dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPickQrImageDialog"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="10dp"
+        android:text="🖼️ Chọn Ảnh Mã QR Từ Thư Viện"
+        android:textColor="@color/primary"
+        app:strokeColor="@color/primary"
         android:textStyle="bold"
         app:cornerRadius="10dp" />
 

@@ -5,6 +5,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -108,6 +110,14 @@ class DeliveryTripActivity : AppCompatActivity() {
             ).show()
             // Vẫn mở dialog để hỗ trợ nhập mã Token dự phòng nếu thiết bị không có camera
             showQrScannerDialog()
+        }
+    }
+
+    private val pickQrImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            decodeAndVerifyQrFromUri(uri)
         }
     }
 
@@ -1144,6 +1154,9 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.tvStep4QrIcon.setOnClickListener {
             launchCameraQrScanner()
         }
+        binding.btnPickQrImage.setOnClickListener {
+            pickQrImageLauncher.launch("image/*")
+        }
 
         // Bước 4: Hoàn tất đơn hàng (bắt buộc phải quét & xác minh mã QR của khách trước)
         binding.btnCompleteTripFinal.setOnClickListener {
@@ -1175,8 +1188,79 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.tvStep4QrIcon.setTextColor(Color.parseColor("#34D399"))
         binding.tvStep4QrStatus.text = "✓ Đã xác minh mã QR khách hàng: $matchedToken"
         binding.tvStep4QrStatus.setTextColor(Color.parseColor("#34D399"))
-        binding.btnSimulateScan.text = "✓ Đã Quét Mã QR Hợp Lệ ($matchedToken)"
+        binding.btnSimulateScan.text = "✓ Đã Quét QR Hợp Lệ"
         binding.btnSimulateScan.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green)
+    }
+
+    private fun decodeAndVerifyQrFromUri(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (bitmap == null) {
+                Toast.makeText(this, "Không thể mở file ảnh. Vui lòng thử lại!", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val scannedValue = decodeQrFromBitmap(bitmap)
+            if (scannedValue != null) {
+                verifyScannedQrPayload(scannedValue)
+            } else {
+                Toast.makeText(this, "⚠️ Không tìm thấy mã QR trong ảnh. Vui lòng chọn ảnh chụp rõ nét hơn!", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Lỗi đọc ảnh QR: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun decodeQrFromBitmap(bitmap: Bitmap): String? {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val source = com.google.zxing.RGBLuminanceSource(width, height, pixels)
+        val binaryBitmap = com.google.zxing.BinaryBitmap(com.google.zxing.common.HybridBinarizer(source))
+
+        return try {
+            val hints = mapOf(
+                com.google.zxing.DecodeHintType.TRY_HARDER to true,
+                com.google.zxing.DecodeHintType.POSSIBLE_FORMATS to listOf(com.google.zxing.BarcodeFormat.QR_CODE)
+            )
+            val result = com.google.zxing.MultiFormatReader().decode(binaryBitmap, hints)
+            result.text
+        } catch (_: Exception) {
+            try {
+                val globalBitmap = com.google.zxing.BinaryBitmap(com.google.zxing.common.GlobalHistogramBinarizer(source))
+                val result = com.google.zxing.MultiFormatReader().decode(globalBitmap)
+                result.text
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    private fun verifyScannedQrPayload(scannedPayload: String) {
+        val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+        val ordId = targetOrder?.orderId ?: currentOrderId
+        val shortCode = QRCodeUtils.getShortOrderCode(ordId)
+
+        val verifyResult = QRCodeUtils.verifyOrderQrPayload(
+            scannedRaw = scannedPayload,
+            expectedOrderId = ordId,
+            expectedDeliveryToken = targetOrder?.deliveryToken ?: ""
+        )
+
+        if (verifyResult.isValid) {
+            isQrVerified = true
+            verifiedTokenString = verifyResult.matchedToken
+            markStep4QrVerified(verifyResult.matchedToken)
+            Toast.makeText(this, "✓ Xác minh ảnh QR thành công! Khớp Token: ${verifyResult.matchedToken}", Toast.LENGTH_SHORT).show()
+            completeTripOrder()
+        } else {
+            Toast.makeText(this, "❌ Mã QR trong ảnh không khớp với đơn #ORD-$shortCode!", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun updateStepUI(step: Int) {
@@ -1476,6 +1560,12 @@ class DeliveryTripActivity : AppCompatActivity() {
         btnOpenLiveCamera?.setOnClickListener {
             dialog.dismiss()
             launchCameraQrScanner()
+        }
+
+        val btnPickQrImageDialog = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnPickQrImageDialog)
+        btnPickQrImageDialog?.setOnClickListener {
+            dialog.dismiss()
+            pickQrImageLauncher.launch("image/*")
         }
 
         btnClose?.setOnClickListener { dialog.dismiss() }

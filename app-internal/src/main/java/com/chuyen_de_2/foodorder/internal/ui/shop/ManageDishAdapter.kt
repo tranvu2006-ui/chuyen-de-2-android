@@ -1,6 +1,7 @@
 package com.chuyen_de_2.foodorder.internal.ui.shop
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -25,16 +26,45 @@ class ManageDishAdapter(
         fun bind(dish: Dish) {
             binding.tvDishName.text = dish.name
             binding.tvDishCategory.text = dish.category.ifBlank { "Món Quán" }
+
+            if (dish.description.isNotBlank()) {
+                binding.tvDishDescription.visibility = View.VISIBLE
+                binding.tvDishDescription.text = "📝 ${dish.description}"
+            } else {
+                binding.tvDishDescription.visibility = View.GONE
+            }
+
             val price = if (dish.basePrice > 0) dish.basePrice else dish.price
             binding.tvDishPrice.text = price.toVndCurrency()
 
             if (dish.imageUrl.isNotBlank()) {
-                Glide.with(binding.root.context)
-                    .load(dish.imageUrl)
-                    .placeholder(R.drawable.bg_badge_orange)
-                    .error(R.drawable.bg_badge_orange)
-                    .centerCrop()
-                    .into(binding.ivDishThumb)
+                if (dish.imageUrl.startsWith("data:image") || dish.imageUrl.length > 500) {
+                    try {
+                        val base64Data = if (dish.imageUrl.contains(",")) dish.imageUrl.substringAfter(",") else dish.imageUrl
+                        val decoded = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                        Glide.with(binding.root.context)
+                            .asBitmap()
+                            .load(decoded)
+                            .placeholder(R.drawable.bg_badge_orange)
+                            .error(R.drawable.bg_badge_orange)
+                            .centerCrop()
+                            .into(binding.ivDishThumb)
+                    } catch (_: Exception) {
+                        Glide.with(binding.root.context)
+                            .load(dish.imageUrl)
+                            .placeholder(R.drawable.bg_badge_orange)
+                            .error(R.drawable.bg_badge_orange)
+                            .centerCrop()
+                            .into(binding.ivDishThumb)
+                    }
+                } else {
+                    Glide.with(binding.root.context)
+                        .load(dish.imageUrl)
+                        .placeholder(R.drawable.bg_badge_orange)
+                        .error(R.drawable.bg_badge_orange)
+                        .centerCrop()
+                        .into(binding.ivDishThumb)
+                }
             } else {
                 binding.ivDishThumb.setImageResource(R.drawable.bg_badge_orange)
             }

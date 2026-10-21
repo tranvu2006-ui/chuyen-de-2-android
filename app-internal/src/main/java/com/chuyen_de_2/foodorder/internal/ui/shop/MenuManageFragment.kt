@@ -1,23 +1,30 @@
 package com.chuyen_de_2.foodorder.internal.ui.shop
 
 import android.app.Dialog
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Dish
 import com.chuyen_de_2.foodorder.internal.R
@@ -27,6 +34,7 @@ import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 /**
@@ -206,36 +214,147 @@ class MenuManageFragment : Fragment() {
         binding.tvDishTotalCount.text = "${dishList.size} món đang mở bán"
     }
 
+    private var onImagePickedCallback: ((String) -> Unit)? = null
+
+    private val pickImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val base64 = convertUriToBase64(uri)
+            if (base64 != null) {
+                onImagePickedCallback?.invoke(base64)
+            } else {
+                Toast.makeText(requireContext(), "Không thể tải ảnh, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun convertUriToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap == null) return null
+
+            val maxDim = 450
+            val width = originalBitmap.width
+            val height = originalBitmap.height
+            val scale = (maxDim.toFloat() / maxOf(width, height)).coerceAtMost(1.0f)
+            val scaledWidth = (width * scale).toInt()
+            val scaledHeight = (height * scale).toInt()
+
+            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, scaledWidth, scaledHeight, true)
+            val outputStream = ByteArrayOutputStream()
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+            val byteArray = outputStream.toByteArray()
+            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun loadPreviewImage(targetView: ImageView, urlOrBase64: String) {
+        if (urlOrBase64.isBlank()) {
+            targetView.setImageResource(R.drawable.bg_badge_orange)
+            return
+        }
+        if (urlOrBase64.startsWith("data:image") || urlOrBase64.length > 500) {
+            try {
+                val clean = if (urlOrBase64.contains(",")) urlOrBase64.substringAfter(",") else urlOrBase64
+                val decoded = Base64.decode(clean, Base64.DEFAULT)
+                Glide.with(this)
+                    .asBitmap()
+                    .load(decoded)
+                    .placeholder(R.drawable.bg_badge_orange)
+                    .error(R.drawable.bg_badge_orange)
+                    .centerCrop()
+                    .into(targetView)
+                return
+            } catch (_: Exception) {}
+        }
+        Glide.with(this)
+            .load(urlOrBase64)
+            .placeholder(R.drawable.bg_badge_orange)
+            .error(R.drawable.bg_badge_orange)
+            .centerCrop()
+            .into(targetView)
+    }
+
     private fun showDishDialog(editingDish: Dish?) {
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_edit_dish)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
 
         val tvTitle = dialog.findViewById<TextView>(R.id.tvModalTitle)
+        val ivPreview = dialog.findViewById<ImageView>(R.id.ivDishPreview)
+        val btnPickImage = dialog.findViewById<MaterialButton>(R.id.btnPickDishImage)
+        val btnClearImage = dialog.findViewById<TextView>(R.id.btnClearDishImage)
+        val etImageUrl = dialog.findViewById<EditText>(R.id.etDishImageUrl)
         val etName = dialog.findViewById<EditText>(R.id.etDishName)
         val etPrice = dialog.findViewById<EditText>(R.id.etDishPrice)
         val spinnerCategory = dialog.findViewById<Spinner>(R.id.spinnerDishCategory)
+        val etDescription = dialog.findViewById<EditText>(R.id.etDishDescription)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelDish)
         val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveDish)
+
+        var currentImageUrl = editingDish?.imageUrl.orEmpty()
 
         val categories = arrayOf("Món chính", "Canh", "Khai vị", "Nước uống", "Ăn Vặt", "Trà Trái Cây", "Trà Sữa", "Cơm Phần", "Món Khác")
         val spinnerAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, categories)
         spinnerCategory.adapter = spinnerAdapter
 
+        // Thiết lập dữ liệu ban đầu
         if (editingDish != null) {
             tvTitle.text = "Chỉnh Sửa Món Ăn"
             etName.setText(editingDish.name)
             val currentPrice = if (editingDish.basePrice > 0) editingDish.basePrice else editingDish.price
             etPrice.setText(currentPrice.toString())
+            etDescription.setText(editingDish.description)
+            if (editingDish.imageUrl.isNotBlank() && !editingDish.imageUrl.startsWith("data:image")) {
+                etImageUrl.setText(editingDish.imageUrl)
+            }
+            loadPreviewImage(ivPreview, editingDish.imageUrl)
             val catIndex = categories.indexOf(editingDish.category)
             if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
         } else {
             tvTitle.text = "Thêm Món Mới Vào Menu"
+            loadPreviewImage(ivPreview, "")
+        }
+
+        // Tải ảnh từ thư viện thiết bị
+        btnPickImage.setOnClickListener {
+            onImagePickedCallback = { base64Data ->
+                currentImageUrl = base64Data
+                etImageUrl.setText("")
+                loadPreviewImage(ivPreview, base64Data)
+                Toast.makeText(requireContext(), "📷 Đã chọn ảnh món ăn thành công!", Toast.LENGTH_SHORT).show()
+            }
+            pickImageLauncher.launch("image/*")
+        }
+
+        // Đặt lại ảnh mặc định
+        btnClearImage.setOnClickListener {
+            currentImageUrl = ""
+            etImageUrl.setText("")
+            ivPreview.setImageResource(R.drawable.bg_badge_orange)
+        }
+
+        // Preview ảnh khi dán link URL
+        etImageUrl.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                val inputUrl = etImageUrl.text.toString().trim()
+                if (inputUrl.isNotBlank()) {
+                    currentImageUrl = inputUrl
+                    loadPreviewImage(ivPreview, inputUrl)
+                }
+            }
         }
 
         btnCancel.setOnClickListener { dialog.dismiss() }
@@ -244,6 +363,14 @@ class MenuManageFragment : Fragment() {
             val name = etName.text.toString().trim()
             val priceStr = etPrice.text.toString().trim()
             val category = spinnerCategory.selectedItem.toString()
+            val description = etDescription.text.toString().trim()
+            val typedUrl = etImageUrl.text.toString().trim()
+
+            val finalImageUrl = when {
+                typedUrl.isNotBlank() -> typedUrl
+                currentImageUrl.isNotBlank() -> currentImageUrl
+                else -> "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=60"
+            }
 
             if (name.isBlank() || priceStr.isBlank()) {
                 Toast.makeText(requireContext(), "Vui lòng nhập đầy đủ tên và giá món!", Toast.LENGTH_SHORT).show()
@@ -258,6 +385,8 @@ class MenuManageFragment : Fragment() {
                     name = name,
                     basePrice = price,
                     category = category,
+                    description = description,
+                    imageUrl = finalImageUrl,
                     storeId = currentStoreId
                 )
                 val index = dishList.indexOfFirst { it.id == editingDish.id }
@@ -277,8 +406,9 @@ class MenuManageFragment : Fragment() {
                     name = name,
                     basePrice = price,
                     category = category,
-                    isAvailable = true,
-                    imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=60"
+                    description = description,
+                    imageUrl = finalImageUrl,
+                    isAvailable = true
                 )
                 dishList.add(newDish)
                 viewLifecycleOwner.lifecycleScope.launch {

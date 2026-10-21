@@ -52,12 +52,33 @@ class DishOptionBottomSheetDialogFragment(
         binding.tvDishDesc.text = if (dish.description.isNotBlank()) dish.description else "Món ngon đặc sản Oishi Food"
         binding.tvDishBasePrice.text = dish.price.toVndCurrency()
 
-        Glide.with(this)
-            .load(dish.imageUrl)
-            .transform(CenterCrop(), RoundedCorners(14))
-            .placeholder(R.drawable.placeholder_food)
-            .error(R.drawable.placeholder_food)
-            .into(binding.ivDishThumb)
+        if (dish.imageUrl.startsWith("data:image") || dish.imageUrl.length > 500) {
+            try {
+                val clean = if (dish.imageUrl.contains(",")) dish.imageUrl.substringAfter(",") else dish.imageUrl
+                val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
+                Glide.with(this)
+                    .asBitmap()
+                    .load(decoded)
+                    .transform(CenterCrop(), RoundedCorners(14))
+                    .placeholder(R.drawable.placeholder_food)
+                    .error(R.drawable.placeholder_food)
+                    .into(binding.ivDishThumb)
+            } catch (_: Exception) {
+                Glide.with(this)
+                    .load(dish.imageUrl)
+                    .transform(CenterCrop(), RoundedCorners(14))
+                    .placeholder(R.drawable.placeholder_food)
+                    .error(R.drawable.placeholder_food)
+                    .into(binding.ivDishThumb)
+            }
+        } else {
+            Glide.with(this)
+                .load(dish.imageUrl)
+                .transform(CenterCrop(), RoundedCorners(14))
+                .placeholder(R.drawable.placeholder_food)
+                .error(R.drawable.placeholder_food)
+                .into(binding.ivDishThumb)
+        }
 
         binding.tvModalQty.text = quantity.toString()
     }

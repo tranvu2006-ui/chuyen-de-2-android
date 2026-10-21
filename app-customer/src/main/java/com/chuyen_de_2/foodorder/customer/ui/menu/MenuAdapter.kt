@@ -50,12 +50,33 @@ class MenuAdapter(
             }
 
             // Load ảnh thumbnail món 64x64 bo góc 10dp
-            Glide.with(context)
-                .load(item.imageUrl)
-                .transform(CenterCrop(), RoundedCorners(20))
-                .placeholder(R.drawable.placeholder_food)
-                .error(R.drawable.placeholder_food)
-                .into(binding.ivFood)
+            if (item.imageUrl.startsWith("data:image") || item.imageUrl.length > 500) {
+                try {
+                    val base64Data = if (item.imageUrl.contains(",")) item.imageUrl.substringAfter(",") else item.imageUrl
+                    val decodedBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                    Glide.with(context)
+                        .asBitmap()
+                        .load(decodedBytes)
+                        .transform(CenterCrop(), RoundedCorners(20))
+                        .placeholder(R.drawable.placeholder_food)
+                        .error(R.drawable.placeholder_food)
+                        .into(binding.ivFood)
+                } catch (_: Exception) {
+                    Glide.with(context)
+                        .load(item.imageUrl)
+                        .transform(CenterCrop(), RoundedCorners(20))
+                        .placeholder(R.drawable.placeholder_food)
+                        .error(R.drawable.placeholder_food)
+                        .into(binding.ivFood)
+                }
+            } else {
+                Glide.with(context)
+                    .load(item.imageUrl)
+                    .transform(CenterCrop(), RoundedCorners(20))
+                    .placeholder(R.drawable.placeholder_food)
+                    .error(R.drawable.placeholder_food)
+                    .into(binding.ivFood)
+            }
 
             // Trạng thái món đang chọn (selected-view)
             val isSelected = (item.id == selectedDishId)

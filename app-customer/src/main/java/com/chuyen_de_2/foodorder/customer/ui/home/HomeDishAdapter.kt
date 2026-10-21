@@ -94,12 +94,33 @@ class HomeDishAdapter(
             if (dish.imageUrl.isNotBlank()) {
                 binding.ivDishThumb.visibility = View.VISIBLE
                 binding.tvDishEmoji.visibility = View.GONE
-                Glide.with(context)
-                    .load(dish.imageUrl)
-                    .transform(CenterCrop(), RoundedCorners(12))
-                    .placeholder(R.drawable.placeholder_food)
-                    .error(R.drawable.placeholder_food)
-                    .into(binding.ivDishThumb)
+                if (dish.imageUrl.startsWith("data:image") || dish.imageUrl.length > 500) {
+                    try {
+                        val clean = if (dish.imageUrl.contains(",")) dish.imageUrl.substringAfter(",") else dish.imageUrl
+                        val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
+                        Glide.with(context)
+                            .asBitmap()
+                            .load(decoded)
+                            .transform(CenterCrop(), RoundedCorners(12))
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    } catch (_: Exception) {
+                        Glide.with(context)
+                            .load(dish.imageUrl)
+                            .transform(CenterCrop(), RoundedCorners(12))
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    }
+                } else {
+                    Glide.with(context)
+                        .load(dish.imageUrl)
+                        .transform(CenterCrop(), RoundedCorners(12))
+                        .placeholder(R.drawable.placeholder_food)
+                        .error(R.drawable.placeholder_food)
+                        .into(binding.ivDishThumb)
+                }
             } else {
                 binding.ivDishThumb.visibility = View.VISIBLE
                 binding.ivDishThumb.setImageResource(R.drawable.placeholder_food)

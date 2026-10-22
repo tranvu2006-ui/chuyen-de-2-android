@@ -25,7 +25,14 @@ class ManageDishAdapter(
 
         fun bind(dish: Dish) {
             binding.tvDishName.text = dish.name
-            binding.tvDishCategory.text = dish.category.ifBlank { "Món Quán" }
+            val catDisplay = buildString {
+                append(dish.category.ifBlank { "Món Quán" })
+                if (dish.platformCategory.isNotBlank()) {
+                    append(" • ")
+                    append(dish.platformCategory)
+                }
+            }
+            binding.tvDishCategory.text = catDisplay
 
             if (dish.description.isNotBlank()) {
                 binding.tvDishDescription.visibility = View.VISIBLE

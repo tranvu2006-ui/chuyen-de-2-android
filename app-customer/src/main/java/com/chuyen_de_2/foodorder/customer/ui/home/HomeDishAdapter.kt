@@ -27,7 +27,8 @@ data class HomeDishItem(
     val promoBadge: String = "",
     val tag1: String = "Bán Chạy Nhất",
     val tag2: String = "Freeship Extra",
-    val category: String = ""
+    val category: String = "",
+    val platformCategory: String = ""
 )
 
 class HomeDishAdapter(

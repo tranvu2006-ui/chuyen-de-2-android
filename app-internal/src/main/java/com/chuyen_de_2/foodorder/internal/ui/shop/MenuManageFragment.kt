@@ -21,6 +21,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.lifecycle.lifecycleScope
@@ -316,15 +317,49 @@ class MenuManageFragment : Fragment() {
         val etName = dialog.findViewById<EditText>(R.id.etDishName)
         val etPrice = dialog.findViewById<EditText>(R.id.etDishPrice)
         val spinnerCategory = dialog.findViewById<Spinner>(R.id.spinnerDishCategory)
+        val spinnerPlatformCategory = dialog.findViewById<Spinner>(R.id.spinnerPlatformCategory)
         val etDescription = dialog.findViewById<EditText>(R.id.etDishDescription)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelDish)
         val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveDish)
 
         var currentImageUrl = editingDish?.imageUrl.orEmpty()
 
-        val categories = arrayOf("Món chính", "Canh", "Khai vị", "Nước uống", "Ăn Vặt", "Trà Trái Cây", "Trà Sữa", "Cơm Phần", "Món Khác")
-        val spinnerAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, categories)
-        spinnerCategory.adapter = spinnerAdapter
+        val storeCategories = arrayOf("Món chính", "Canh", "Khai vị", "Món ăn kèm", "Nước uống", "Ăn Vặt", "Trà Trái Cây", "Trà Sữa", "Cơm Phần", "Món Khác")
+        val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeCategories)
+        spinnerCategory.adapter = storeAdapter
+
+        val platformCategories = arrayOf("Cơm Trưa", "Trà Sữa", "Bún/Phở", "Gà Rán", "Bánh Mì", "Pizza", "Cà Phê", "Tráng Miệng / Ăn Vặt", "Lẩu / Món Nước", "Đồ Chay", "Món Khác")
+        val platformAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, platformCategories)
+        spinnerPlatformCategory.adapter = platformAdapter
+
+        var userSelectedPlatformCategory = false
+        spinnerPlatformCategory.setOnTouchListener { _, _ ->
+            userSelectedPlatformCategory = true
+            false
+        }
+
+        // Tự động gợi ý danh mục nền tảng khi gõ tên món nếu tạo mới
+        etName.doAfterTextChanged { text ->
+            if (!userSelectedPlatformCategory && editingDish == null) {
+                val input = text?.toString().orEmpty().lowercase()
+                val suggestedIndex = when {
+                    input.contains("cơm") -> platformCategories.indexOf("Cơm Trưa")
+                    input.contains("trà") -> platformCategories.indexOf("Trà Sữa")
+                    input.contains("bún") || input.contains("phở") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOf("Bún/Phở")
+                    input.contains("gà") -> platformCategories.indexOf("Gà Rán")
+                    input.contains("bánh mì") -> platformCategories.indexOf("Bánh Mì")
+                    input.contains("pizza") -> platformCategories.indexOf("Pizza")
+                    input.contains("cà phê") || input.contains("cafe") || input.contains("coffee") -> platformCategories.indexOf("Cà Phê")
+                    input.contains("lẩu") -> platformCategories.indexOf("Lẩu / Món Nước")
+                    input.contains("chay") -> platformCategories.indexOf("Đồ Chay")
+                    input.contains("chè") || input.contains("kem") || input.contains("bánh") || input.contains("ăn vặt") || input.contains("tráng miệng") -> platformCategories.indexOf("Tráng Miệng / Ăn Vặt")
+                    else -> -1
+                }
+                if (suggestedIndex >= 0) {
+                    spinnerPlatformCategory.setSelection(suggestedIndex)
+                }
+            }
+        }
 
         // Thiết lập dữ liệu ban đầu
         if (editingDish != null) {
@@ -337,8 +372,18 @@ class MenuManageFragment : Fragment() {
                 etImageUrl.setText(editingDish.imageUrl)
             }
             loadPreviewImage(ivPreview, editingDish.imageUrl)
-            val catIndex = categories.indexOf(editingDish.category)
+            val catIndex = storeCategories.indexOf(editingDish.category)
             if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
+
+            val platIndex = platformCategories.indexOf(editingDish.platformCategory)
+            if (platIndex >= 0) {
+                spinnerPlatformCategory.setSelection(platIndex)
+            } else {
+                val fallbackIndex = platformCategories.indexOfFirst {
+                    editingDish.platformCategory.isNotBlank() && it.contains(editingDish.platformCategory, true)
+                }
+                if (fallbackIndex >= 0) spinnerPlatformCategory.setSelection(fallbackIndex)
+            }
         } else {
             tvTitle.text = "Thêm Món Mới Vào Menu"
             loadPreviewImage(ivPreview, "")
@@ -378,7 +423,8 @@ class MenuManageFragment : Fragment() {
         btnSave.setOnClickListener {
             val name = etName.text.toString().trim()
             val priceStr = etPrice.text.toString().trim()
-            val category = spinnerCategory.selectedItem.toString()
+            val category = spinnerCategory.selectedItem?.toString().orEmpty().ifBlank { "Món chính" }
+            val platformCategory = spinnerPlatformCategory.selectedItem?.toString().orEmpty().ifBlank { "Món Khác" }
             val description = etDescription.text.toString().trim()
             val typedUrl = etImageUrl.text.toString().trim()
 
@@ -401,6 +447,8 @@ class MenuManageFragment : Fragment() {
                     name = name,
                     basePrice = price,
                     category = category,
+                    platformCategory = platformCategory,
+                    categoryId = platformCategory,
                     description = description,
                     imageUrl = finalImageUrl,
                     storeId = currentStoreId
@@ -422,6 +470,8 @@ class MenuManageFragment : Fragment() {
                     name = name,
                     basePrice = price,
                     category = category,
+                    platformCategory = platformCategory,
+                    categoryId = platformCategory,
                     description = description,
                     imageUrl = finalImageUrl,
                     isAvailable = true

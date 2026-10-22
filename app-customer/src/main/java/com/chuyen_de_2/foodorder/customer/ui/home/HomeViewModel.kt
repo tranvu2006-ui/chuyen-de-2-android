@@ -112,14 +112,17 @@ class HomeViewModel @Inject constructor(
             val dishesToDisplay = availableDishes
 
             dishesToDisplay.forEach { dish ->
+                val platformCat = dish.platformCategory.ifBlank {
+                    inferPlatformCategory(dish.name, dish.category)
+                }
                 val emoji = when {
-                    dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
-                    dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍛"
-                    dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
-                    dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
-                    dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
-                    dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
-                    dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
+                    platformCat.contains("Trà", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
+                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍛"
+                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
+                    platformCat.contains("Bún", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
+                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
+                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
+                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
                     else -> "🍲"
                 }
                 allDishes.add(
@@ -136,9 +139,10 @@ class HomeViewModel @Inject constructor(
                         soldCount = "${dish.soldCount} đã bán",
                         distanceKm = roundedDist,
                         promoBadge = if (dish.basePrice >= 50000) "-15%" else "Món ngon",
-                        tag1 = if (dish.category.isNotBlank()) dish.category else "Món của quán",
+                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
                         tag2 = "Giao Nhanh",
-                        category = dish.category.ifBlank { store.category }
+                        category = dish.category.ifBlank { store.category },
+                        platformCategory = platformCat
                     )
                 )
             }
@@ -181,8 +185,7 @@ class HomeViewModel @Inject constructor(
         val cat = currentCategory
         if (!cat.isNullOrBlank()) {
             filtered = filtered.filter { dish ->
-                dish.category.contains(cat, ignoreCase = true) ||
-                dish.name.contains(cat, ignoreCase = true)
+                matchesCategory(dish, cat)
             }
         }
 
@@ -192,11 +195,48 @@ class HomeViewModel @Inject constructor(
             filtered = filtered.filter { dish ->
                 dish.name.lowercase().contains(q) ||
                 dish.storeName.lowercase().contains(q) ||
-                dish.category.lowercase().contains(q)
+                dish.category.lowercase().contains(q) ||
+                dish.platformCategory.lowercase().contains(q)
             }
         }
 
         _homeDishes.value = filtered
+    }
+
+    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
+        val target = filterCat.trim().lowercase()
+        val pCat = dish.platformCategory.lowercase()
+        val sCat = dish.category.lowercase()
+        val name = dish.name.lowercase()
+
+        return when (target) {
+            "cơm", "cơm trưa" -> pCat.contains("cơm") || sCat.contains("cơm") || name.contains("cơm")
+            "trà", "trà sữa" -> pCat.contains("trà") || sCat.contains("trà") || name.contains("trà") || pCat.contains("nước") || sCat.contains("nước")
+            "bún", "bún/phở", "phở" -> pCat.contains("bún") || pCat.contains("phở") || sCat.contains("bún") || sCat.contains("phở") || name.contains("bún") || name.contains("phở") || name.contains("mì")
+            "gà", "gà rán" -> pCat.contains("gà") || sCat.contains("gà") || name.contains("gà")
+            "bánh mì" -> pCat.contains("bánh mì") || sCat.contains("bánh mì") || name.contains("bánh mì")
+            "pizza" -> pCat.contains("pizza") || sCat.contains("pizza") || name.contains("pizza")
+            "cà phê", "cafe" -> pCat.contains("cà phê") || pCat.contains("cafe") || sCat.contains("cà phê") || sCat.contains("cafe") || name.contains("cà phê") || name.contains("cafe") || name.contains("coffee")
+            "tráng miệng", "ăn vặt" -> pCat.contains("tráng miệng") || pCat.contains("ăn vặt") || sCat.contains("tráng miệng") || sCat.contains("ăn vặt") || name.contains("chè") || name.contains("kem") || name.contains("bánh") || name.contains("tráng miệng")
+            else -> pCat.contains(target) || sCat.contains(target) || name.contains(target)
+        }
+    }
+
+    private fun inferPlatformCategory(name: String, category: String): String {
+        val text = "$name $category".lowercase()
+        return when {
+            text.contains("cơm") -> "Cơm Trưa"
+            text.contains("trà") -> "Trà Sữa"
+            text.contains("bún") || text.contains("phở") || text.contains("hủ tiếu") || text.contains("mì") -> "Bún/Phở"
+            text.contains("gà") -> "Gà Rán"
+            text.contains("bánh mì") -> "Bánh Mì"
+            text.contains("pizza") -> "Pizza"
+            text.contains("cà phê") || text.contains("cafe") || text.contains("coffee") -> "Cà Phê"
+            text.contains("lẩu") -> "Lẩu / Món Nước"
+            text.contains("chay") -> "Đồ Chay"
+            text.contains("chè") || text.contains("kem") || text.contains("bánh") || text.contains("ăn vặt") || text.contains("tráng miệng") -> "Tráng Miệng / Ăn Vặt"
+            else -> "Món Khác"
+        }
     }
 
     fun loadRestaurants() = loadStores()

@@ -134,16 +134,21 @@ class HomeActivity : AppCompatActivity() {
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
+            clearCategoryHighlight()
             binding.layoutActiveFilterIndicator.visibility = View.GONE
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
             viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false)
             binding.etSearch.setText("")
             Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         }
 
         binding.btnClearFilter.setOnClickListener {
+            selectedCategory = null
             isNearbyFiltered = false
+            clearCategoryHighlight()
             binding.layoutActiveFilterIndicator.visibility = View.GONE
-            viewModel.filterDishes(nearbyOnly = false)
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false)
         }
     }
 
@@ -247,26 +252,64 @@ class HomeActivity : AppCompatActivity() {
      * Luồng hướng tới: Gọi [onCategorySelected].
      */
     private fun setupCategories() {
-        binding.catRice.setOnClickListener { onCategorySelected("Cơm", "Cơm Trưa") }
-        binding.catMilkTea.setOnClickListener { onCategorySelected("Trà", "Trà Sữa") }
-        binding.catNoodle.setOnClickListener { onCategorySelected("Bún", "Bún/Phở") }
-        binding.catChicken.setOnClickListener { onCategorySelected("Gà", "Gà Rán") }
-        binding.catBread.setOnClickListener { onCategorySelected("Bánh mì", "Bánh Mì") }
-        binding.catPizza.setOnClickListener { onCategorySelected("Pizza", "Pizza") }
-        binding.catCoffee.setOnClickListener { onCategorySelected("Cà phê", "Cà Phê") }
-        binding.catDessert.setOnClickListener { onCategorySelected("Tráng miệng", "Ăn Vặt") }
+        binding.catRice.setOnClickListener { onCategorySelected("Cơm", "Cơm Trưa", binding.catRice) }
+        binding.catMilkTea.setOnClickListener { onCategorySelected("Trà", "Trà Sữa", binding.catMilkTea) }
+        binding.catNoodle.setOnClickListener { onCategorySelected("Bún", "Bún/Phở", binding.catNoodle) }
+        binding.catChicken.setOnClickListener { onCategorySelected("Gà", "Gà Rán", binding.catChicken) }
+        binding.catBread.setOnClickListener { onCategorySelected("Bánh mì", "Bánh Mì", binding.catBread) }
+        binding.catPizza.setOnClickListener { onCategorySelected("Pizza", "Pizza", binding.catPizza) }
+        binding.catCoffee.setOnClickListener { onCategorySelected("Cà phê", "Cà Phê", binding.catCoffee) }
+        binding.catDessert.setOnClickListener { onCategorySelected("Tráng miệng", "Ăn Vặt", binding.catDessert) }
     }
 
-    private fun onCategorySelected(keyword: String, displayName: String) {
+    private fun onCategorySelected(keyword: String, displayName: String, view: View) {
         if (selectedCategory == keyword) {
             selectedCategory = null
+            clearCategoryHighlight()
             viewModel.filterDishes(category = "ALL")
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+            if (!isNearbyFiltered) {
+                binding.layoutActiveFilterIndicator.visibility = View.GONE
+            } else {
+                binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Các quán gần nhất (< 1.5 km)"
+            }
             Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         } else {
             selectedCategory = keyword
+            highlightCategory(view)
             viewModel.filterDishes(category = keyword)
+            binding.tvSectionTitle.text = "Món ngon: $displayName"
+            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
+            val filterText = if (isNearbyFiltered) {
+                "Đang lọc: $displayName & 📍 Quán gần (< 1.5 km)"
+            } else {
+                "Đang lọc danh mục: $displayName"
+            }
+            binding.tvFilterIndicatorSummary.text = filterText
             Toast.makeText(this, "Danh mục: $displayName", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun highlightCategory(selectedView: View) {
+        val categoryViews = listOf(
+            binding.catRice, binding.catMilkTea, binding.catNoodle, binding.catChicken,
+            binding.catBread, binding.catPizza, binding.catCoffee, binding.catDessert
+        )
+        categoryViews.forEach { v ->
+            if (v == selectedView) {
+                v.setBackgroundResource(R.drawable.bg_chip_selected)
+            } else {
+                v.background = null
+            }
+        }
+    }
+
+    private fun clearCategoryHighlight() {
+        val categoryViews = listOf(
+            binding.catRice, binding.catMilkTea, binding.catNoodle, binding.catChicken,
+            binding.catBread, binding.catPizza, binding.catCoffee, binding.catDessert
+        )
+        categoryViews.forEach { it.background = null }
     }
 
     /**

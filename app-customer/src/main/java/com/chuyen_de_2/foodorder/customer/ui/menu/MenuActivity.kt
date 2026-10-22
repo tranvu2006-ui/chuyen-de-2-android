@@ -18,6 +18,7 @@ import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityMenuBinding
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
+import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -163,6 +164,32 @@ class MenuActivity : AppCompatActivity() {
             adapter.submitList(items)
             binding.tvEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
             binding.tvDishesCountBadge.text = "${items.size} MÓN"
+        }
+
+        viewModel.categories.observe(this) { cats ->
+            if (cats.isNotEmpty()) {
+                binding.chipGroupCategory.removeAllViews()
+
+                val allChip = Chip(this).apply {
+                    id = View.generateViewId()
+                    text = "Tất cả"
+                    isCheckable = true
+                    isChecked = (viewModel.currentCategoryName == "ALL" || viewModel.currentCategoryName.isEmpty())
+                    setOnClickListener { viewModel.filterByCategory("ALL") }
+                }
+                binding.chipGroupCategory.addView(allChip)
+
+                cats.forEach { catName ->
+                    val chip = Chip(this).apply {
+                        id = View.generateViewId()
+                        text = catName
+                        isCheckable = true
+                        isChecked = (viewModel.currentCategoryName == catName)
+                        setOnClickListener { viewModel.filterByCategory(catName) }
+                    }
+                    binding.chipGroupCategory.addView(chip)
+                }
+            }
         }
 
         viewModel.selectedDish.observe(this) { dish ->

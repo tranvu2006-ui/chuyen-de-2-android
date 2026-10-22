@@ -44,8 +44,11 @@ data class Dish(
     @SerializedName("reviewCount")
     val reviewCount: Int = 0,
 
-    @SerializedName("category")
+    @SerializedName("category", alternate = ["storeCategory"])
     val category: String = "",
+
+    @SerializedName("platformCategory", alternate = ["platform_category"])
+    val platformCategory: String = "",
 
     @SerializedName("hasOptions")
     val hasOptions: Boolean = false,
@@ -64,6 +67,8 @@ data class Dish(
                 category.contains("Cà phê", ignoreCase = true) ||
                 category.contains("Nước", ignoreCase = true) ||
                 category.contains("Uống", ignoreCase = true) ||
+                platformCategory.contains("Trà", ignoreCase = true) ||
+                platformCategory.contains("Cà phê", ignoreCase = true) ||
                 name.contains("Trà", ignoreCase = true) ||
                 name.contains("Cà phê", ignoreCase = true) ||
                 name.contains("Trà sữa", ignoreCase = true) ||

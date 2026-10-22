@@ -58,6 +58,12 @@ class MenuViewModel @Inject constructor(
     private val _cartTotalPrice = MutableLiveData(0L)
     val cartTotalPrice: LiveData<Long> = _cartTotalPrice
 
+    private val _categories = MutableLiveData<List<String>>(emptyList())
+    val categories: LiveData<List<String>> = _categories
+
+    val currentCategoryName: String
+        get() = currentCategory
+
     private var currentShopId: String = ""
     private var currentShopName: String = ""
     private var currentCategory: String = "ALL"
@@ -126,6 +132,12 @@ class MenuViewModel @Inject constructor(
                 if (visibleDishes.isNotEmpty()) {
                     allDishes.clear()
                     allDishes.addAll(visibleDishes)
+
+                    val uniqueCats = visibleDishes.map { it.category.ifBlank { it.platformCategory } }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    _categories.value = uniqueCats
+
                     applyFilter()
 
                     // Chọn món theo initialDishId hoặc mặc định món đầu tiên
@@ -142,6 +154,7 @@ class MenuViewModel @Inject constructor(
                     _isLoading.value = false
                 } else {
                     allDishes.clear()
+                    _categories.value = emptyList()
                     applyFilter()
                     _selectedDish.value = null
                     _isLoading.value = false
@@ -163,8 +176,11 @@ class MenuViewModel @Inject constructor(
         if (currentCategory.equals("ALL", ignoreCase = true) || currentCategory.isEmpty()) {
             _dishes.value = allDishes
         } else {
-            _dishes.value = allDishes.filter {
-                it.category.contains(currentCategory, ignoreCase = true)
+            _dishes.value = allDishes.filter { dish ->
+                dish.category.equals(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.equals(currentCategory, ignoreCase = true) ||
+                dish.category.contains(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.contains(currentCategory, ignoreCase = true)
             }
         }
     }

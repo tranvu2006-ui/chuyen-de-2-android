@@ -466,10 +466,19 @@ class FirebaseRepository @Inject constructor(
                                     ?: 0L
                                 val dImg = dChild.child("imageUrl").getValue(String::class.java) ?: ""
                                 val dCat = dChild.child("category").getValue(String::class.java) ?: ""
+                                val dPlatformCat = dChild.child("platformCategory").getValue(String::class.java)
+                                    ?: dChild.child("categoryId").getValue(String::class.java) ?: ""
                                 if (dName.isNotBlank()) {
                                     val dId = dChild.key ?: ""
                                     dishesMap[dId] = com.chuyen_de_2.foodorder.core.data.model.Dish(
-                                        id = dId, storeId = storeId, name = dName, basePrice = dPrice, imageUrl = dImg, category = dCat
+                                        id = dId,
+                                        storeId = storeId,
+                                        name = dName,
+                                        basePrice = dPrice,
+                                        imageUrl = dImg,
+                                        category = dCat,
+                                        platformCategory = dPlatformCat,
+                                        categoryId = dPlatformCat
                                     )
                                 }
                             }

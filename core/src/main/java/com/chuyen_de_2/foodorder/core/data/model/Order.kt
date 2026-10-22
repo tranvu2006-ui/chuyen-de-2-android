@@ -91,6 +91,30 @@ data class Order(
     @SerializedName("completedAt")
     val completedAt: Long? = null
 ) {
+    val effectiveStoreId: String
+        get() = storeId.ifBlank { shopId }
+
+    val effectiveShopName: String
+        get() = shopName.ifBlank { storeId }
+
+    val effectiveDriverId: String
+        get() = driverId ?: shipperId ?: ""
+
+    val effectiveDriverName: String
+        get() = shipperName
+
+    val effectiveStatus: String
+        get() = status.ifBlank { orderStatus }
+
+    val effectiveAddress: String
+        get() = deliveryAddress.ifBlank { address }
+
+    val effectiveTotal: Long
+        get() = if (totalPayment > 0) totalPayment else total
+
+    val effectiveTimestamp: Long
+        get() = if (createdAt > 0) createdAt else timestamp
+
     /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
     object Status {
         const val PENDING = "PENDING"

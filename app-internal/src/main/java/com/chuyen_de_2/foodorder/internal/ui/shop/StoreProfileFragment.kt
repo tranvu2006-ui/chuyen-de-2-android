@@ -50,7 +50,7 @@ class StoreProfileFragment : Fragment() {
     @Inject
     lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
     private var currentStore: Store? = null
 
     override fun onCreateView(

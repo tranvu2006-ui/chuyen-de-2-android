@@ -106,9 +106,25 @@ class FirebaseRepository @Inject constructor(
             val ref = database.getReference("orders").push()
             val orderId = ref.key ?: return Result.failure(Exception("Không tạo được order ID"))
 
+            val now = System.currentTimeMillis()
+            val targetStoreId = order.storeId.ifBlank { order.shopId }
+            val targetAddress = order.deliveryAddress.ifBlank { order.address }
+            val targetTotal = if (order.totalPayment > 0) order.totalPayment else order.total
+            val targetStatus = order.status.ifBlank { order.orderStatus.ifBlank { Order.Status.PENDING } }
+            val targetTimestamp = if (order.createdAt > 0) order.createdAt else if (order.timestamp > 0) order.timestamp else now
+
             val orderWithId = order.copy(
                 orderId = orderId,
-                timestamp = System.currentTimeMillis()
+                storeId = targetStoreId,
+                shopId = targetStoreId,
+                deliveryAddress = targetAddress,
+                address = targetAddress,
+                totalPayment = targetTotal,
+                total = targetTotal,
+                status = targetStatus,
+                orderStatus = targetStatus,
+                createdAt = targetTimestamp,
+                timestamp = targetTimestamp
             )
             ref.setValue(orderWithId).await()
 

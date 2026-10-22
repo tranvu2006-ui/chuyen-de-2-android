@@ -63,7 +63,7 @@ class MenuManageFragment : Fragment() {
     private lateinit var adapter: ManageDishAdapter
     private val dishList = mutableListOf<Dish>()
     private var isCheckedIn = true
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
 
     var onNavigateToOrdersListener: (() -> Unit)? = null
 
@@ -107,58 +107,12 @@ class MenuManageFragment : Fragment() {
      */
     private fun observeStoreDishes() {
         viewLifecycleOwner.lifecycleScope.launch {
+            if (currentStoreId.isBlank()) return@launch
             firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
                 dishList.clear()
-                if (dishes.isNotEmpty()) {
-                    dishList.addAll(dishes)
-                } else {
-                    dishList.addAll(getDefaultShopDishes(currentStoreId))
-                    // Tự động đẩy món mặc định lên Firebase nếu quán chưa có món
-                    dishList.forEach { dish ->
-                        firebaseRepository.saveStoreDish(currentStoreId, dish)
-                    }
-                }
+                dishList.addAll(dishes)
                 updateList()
             }
-        }
-    }
-
-    /**
-     * Tên chức năng: Tạo danh sách món mẫu theo từng loại hình quán ăn
-     * Cách hoạt động: Cung cấp danh sách Dish mặc định cho các quán mới khởi tạo (Cơm tấm, Phở, Bún bò, Bánh mì, Trà sữa, Gà rán).
-     * Luồng hướng tới: Điền dữ liệu ban đầu cho quán.
-     */
-    private fun getDefaultShopDishes(storeId: String): List<Dish> {
-        return when (storeId) {
-            "shop_02" -> listOf(
-                Dish(id = "dish_02_01", storeId = "shop_02", name = "Phở Bò Tái Lăn Hà Nội", basePrice = 65000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=400"),
-                Dish(id = "dish_02_02", storeId = "shop_02", name = "Phở Đặc Biệt (Tái, Nạm, Gầu)", basePrice = 75000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1555126634-323283e090fa?w=400"),
-                Dish(id = "dish_02_03", storeId = "shop_02", name = "Quẩy Giòn Hà Nội", basePrice = 10000, category = "Kèm", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400")
-            )
-            "shop_03" -> listOf(
-                Dish(id = "dish_03_01", storeId = "shop_03", name = "Bún Bò Huế Đặc Biệt", basePrice = 60000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400"),
-                Dish(id = "dish_03_02", storeId = "shop_03", name = "Bún Bò Giò Heo Chả Cua", basePrice = 65000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400")
-            )
-            "shop_04" -> listOf(
-                Dish(id = "dish_04_01", storeId = "shop_04", name = "Bánh Mì Pate Chả Đặc Biệt Huỳnh Hoa", basePrice = 58000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400"),
-                Dish(id = "dish_04_02", storeId = "shop_04", name = "Bánh Mì Thịt Nướng Bơ Tỏi", basePrice = 45000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400")
-            )
-            "shop_05" -> listOf(
-                Dish(id = "dish_05_01", storeId = "shop_05", name = "Trà Sữa Trân Châu Hoàng Gia", basePrice = 45000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1558857563-b371033873b8?w=400"),
-                Dish(id = "dish_05_02", storeId = "shop_05", name = "Trà Sữa Oolong Nướng", basePrice = 48000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
-            )
-            "shop_06" -> listOf(
-                Dish(id = "dish_06_01", storeId = "shop_06", name = "Combo 2 Miếng Gà Rán Giòn Cay", basePrice = 79000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400"),
-                Dish(id = "dish_06_02", storeId = "shop_06", name = "Cánh Gà Sốt Chim Ngọt Hàn Quốc", basePrice = 85000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400")
-            )
-            else -> listOf(
-                Dish(id = "dish_01_01", storeId = "shop_01", name = "Cơm sườn nướng than hoa", basePrice = 55000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400"),
-                Dish(id = "dish_01_02", storeId = "shop_01", name = "Cơm tấm bì chả đặc biệt", basePrice = 40000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"),
-                Dish(id = "dish_01_03", storeId = "shop_01", name = "Sườn cốt lết chiên giòn", basePrice = 60000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400"),
-                Dish(id = "dish_01_04", storeId = "shop_01", name = "Canh chua cá lóc", basePrice = 35000, category = "Canh", imageUrl = "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400"),
-                Dish(id = "dish_01_05", storeId = "shop_01", name = "Gỏi cuốn tôm thịt", basePrice = 30000, category = "Khai vị", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400"),
-                Dish(id = "dish_01_06", storeId = "shop_01", name = "Trà Ô Long Xí Muội", basePrice = 28000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
-            )
         }
     }
 

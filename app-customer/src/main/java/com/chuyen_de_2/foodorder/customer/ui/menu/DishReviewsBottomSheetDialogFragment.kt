@@ -63,9 +63,9 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
             dismiss()
         }
 
-        val sampleReviews = mutableListOf<DishReviewItem>()
+        val reviewsList = mutableListOf<DishReviewItem>()
 
-        reviewsAdapter = DishReviewsAdapter(sampleReviews)
+        reviewsAdapter = DishReviewsAdapter(reviewsList)
         binding.rvDishReviews.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = reviewsAdapter
@@ -99,8 +99,8 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
                 specText = "Tiêu chuẩn quán",
                 comment = commentText
             )
-            sampleReviews.add(0, newRev)
-            reviewsAdapter.updateData(sampleReviews)
+            reviewsList.add(0, newRev)
+            reviewsAdapter.updateData(reviewsList)
             binding.etQuickReview.text?.clear()
             Toast.makeText(requireContext(), "Cảm ơn bạn đã gửi đánh giá!", Toast.LENGTH_SHORT).show()
         }

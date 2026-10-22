@@ -64,7 +64,7 @@ class OrderListFragment : Fragment() {
 
     private val viewModel: ShopViewModel by viewModels()
     private lateinit var adapter: OrderAdapter
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?

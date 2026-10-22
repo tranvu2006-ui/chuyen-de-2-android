@@ -50,7 +50,7 @@ class DriverListFragment : Fragment() {
     lateinit var auth: FirebaseAuth
 
     private lateinit var adapter: DriverAdapter
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
 
     override fun onCreateView(
         inflater: LayoutInflater,

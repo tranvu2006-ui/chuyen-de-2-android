@@ -51,8 +51,15 @@ object GoogleMapUtils {
         "Nhà Bè" to LatLng(10.6953, 106.7274)
     )
 
-
-
+    /**
+     * Tìm tên Quận / Huyện TP.HCM gần toạ độ GPS nhất dựa trên bảng toạ độ chuẩn
+     */
+    fun findNearestDistrict(lat: Double, lng: Double): String {
+        val target = LatLng(lat, lng)
+        return DISTRICT_COORDINATES.minByOrNull {
+            calculateDistanceKm(target, it.value)
+        }?.key ?: "TP.HCM"
+    }
     /**
      * Chuyển địa chỉ chữ sang LatLng bằng Google Geocoder
      */

@@ -23,10 +23,13 @@ import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
 import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -63,7 +66,17 @@ class HomeActivity : AppCompatActivity() {
 
     private var selectedCategory: String? = null
     private var isNearbyFiltered: Boolean = false
-    private var currentLocationName: String = "Quận 1, TP.HCM"
+    private var currentLocationName: String = "Đang xác định vị trí..."
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
+            requestFreshGpsLocation()
+        }
+    }
 
     @Inject
     lateinit var authRepository: AuthRepository
@@ -188,18 +201,68 @@ class HomeActivity : AppCompatActivity() {
                 }
             } catch (_: Exception) {}
 
-            if (ContextCompat.checkSelfPermission(this@HomeActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(this@HomeActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-            ) {
-                try {
-                    val fused = LocationServices.getFusedLocationProviderClient(this@HomeActivity)
-                    fused.lastLocation.addOnSuccessListener { loc ->
-                        if (loc != null) {
-                            viewModel.setUserLocation(loc.latitude, loc.longitude)
+            checkGpsPermissionAndFetch()
+        }
+    }
+
+    private fun checkGpsPermissionAndFetch(onComplete: (() -> Unit)? = null) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ) {
+            requestFreshGpsLocation(onComplete)
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestFreshGpsLocation(onComplete: (() -> Unit)? = null) {
+        try {
+            val fused = LocationServices.getFusedLocationProviderClient(this)
+            val priority = Priority.PRIORITY_HIGH_ACCURACY
+            fused.getCurrentLocation(priority, null).addOnSuccessListener { loc ->
+                if (loc != null) {
+                    onGpsLocationUpdated(loc.latitude, loc.longitude, onComplete)
+                } else {
+                    fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                        if (fallbackLoc != null) {
+                            onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                        } else {
+                            onComplete?.invoke()
                         }
                     }
-                } catch (_: SecurityException) {}
+                }
+            }.addOnFailureListener {
+                fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                    if (fallbackLoc != null) {
+                        onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                    } else {
+                        onComplete?.invoke()
+                    }
+                }
             }
+        } catch (_: SecurityException) {
+            onComplete?.invoke()
+        }
+    }
+
+    private fun onGpsLocationUpdated(lat: Double, lng: Double, onComplete: (() -> Unit)? = null) {
+        viewModel.setUserLocation(lat, lng)
+        lifecycleScope.launch {
+            val nearestDistrict = GoogleMapUtils.findNearestDistrict(lat, lng)
+            binding.tvLocation.text = "📍 $nearestDistrict ▾"
+            val reverseAddr = GoogleMapUtils.reverseGeocode(this@HomeActivity, lat, lng)
+            currentLocationName = if (reverseAddr.isNotBlank() && reverseAddr != "TP. Hồ Chí Minh") {
+                reverseAddr
+            } else {
+                "$nearestDistrict, TP.HCM"
+            }
+            onComplete?.invoke()
         }
     }
 
@@ -213,7 +276,16 @@ class HomeActivity : AppCompatActivity() {
         val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
         dialog.setContentView(sheetBinding.root)
 
-        sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
+        val updateSheetLocation = {
+            sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
+        }
+        updateSheetLocation()
+
+        if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
+            checkGpsPermissionAndFetch {
+                updateSheetLocation()
+            }
+        }
 
         val nearbyAdapter = NearbyStoreAdapter { storeItem ->
             dialog.dismiss()

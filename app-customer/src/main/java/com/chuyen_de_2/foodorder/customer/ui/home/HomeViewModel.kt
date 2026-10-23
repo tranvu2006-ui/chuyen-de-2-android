@@ -41,6 +41,15 @@ class HomeViewModel @Inject constructor(
     private var currentQuery: String? = null
     private var currentCategory: String? = null
     private var currentNearbyOnly: Boolean = false
+    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
+        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun setUserLocation(lat: Double, lng: Double) {
+        if (lat != 0.0 && lng != 0.0) {
+            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
+            _stores.value?.let { processStoresAndDishes(it) }
+        }
+    }
 
     init {
         loadStores()
@@ -70,24 +79,10 @@ class HomeViewModel @Inject constructor(
             pt != Store.PenaltyTier.HIDE
         }
 
-        // 1. Quán gần đây
+        // 1. Quán gần đây (Sắp xếp theo thứ tự khoảng cách từ gần đến xa)
         val nearbyList = activeStores.map { store ->
-            val storeLatLng = if (store.latitude != 0.0 && store.longitude != 0.0) {
-                com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
-            } else if (store.district.isNotBlank()) {
-                com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[store.district]
-            } else {
-                null
-            }
-            val roundedDist = if (storeLatLng != null) {
-                val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
-                    com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG,
-                    storeLatLng
-                ).toDouble()
-                Math.round(dist * 10.0) / 10.0
-            } else {
-                0.0
-            }
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
             val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
                 val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
                 "$baseTime-${baseTime + 10} phút"
@@ -111,28 +106,19 @@ class HomeViewModel @Inject constructor(
                 originalStore = store
             )
         }
-        _nearbyStores.value = nearbyList
+
+        val sortedNearbyList = nearbyList.sortedWith(
+            compareBy<NearbyStoreItem> { if (it.distanceKm > 0.0) 0 else 1 }
+                .thenBy { it.distanceKm }
+        )
+        _nearbyStores.value = sortedNearbyList
 
         // 2. Thu thập các món ăn của quán
         val allDishes = mutableListOf<HomeDishItem>()
 
         activeStores.forEach { store ->
-            val storeLatLng = if (store.latitude != 0.0 && store.longitude != 0.0) {
-                com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
-            } else if (store.district.isNotBlank()) {
-                com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[store.district]
-            } else {
-                null
-            }
-            val roundedDist = if (storeLatLng != null) {
-                val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
-                    com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG,
-                    storeLatLng
-                ).toDouble()
-                Math.round(dist * 10.0) / 10.0
-            } else {
-                0.0
-            }
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
 
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
 
@@ -201,9 +187,14 @@ class HomeViewModel @Inject constructor(
     private fun applyFilters() {
         var filtered = masterDishList
 
-        // 1. Lọc theo cự ly gần (< 1.5 km)
+        // 1. Lọc theo cự ly gần (< 3.0 km hoặc sắp xếp theo quán gần nhất)
         if (currentNearbyOnly) {
-            filtered = filtered.filter { it.distanceKm <= 1.5 }
+            val nearbyDishes = filtered.filter { it.distanceKm in 0.01..3.0 }
+            filtered = if (nearbyDishes.isNotEmpty()) {
+                nearbyDishes
+            } else {
+                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            }
         }
 
         // 2. Lọc theo danh mục
@@ -262,6 +253,30 @@ class HomeViewModel @Inject constructor(
             text.contains("chè") || text.contains("kem") || text.contains("bánh") || text.contains("ăn vặt") || text.contains("tráng miệng") -> "Tráng Miệng / Ăn Vặt"
             else -> "Món Khác"
         }
+    }
+
+    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
+        if (store.latitude != 0.0 && store.longitude != 0.0) {
+            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+        }
+        val distName = store.district.trim()
+        if (distName.isNotBlank()) {
+            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
+            if (exact != null) return exact
+            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
+                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
+            if (fuzzy != null) return fuzzy
+        }
+        return null
+    }
+
+    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
+        if (storeLatLng == null) return 0.0
+        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+            currentUserLatLng,
+            storeLatLng
+        ).toDouble()
+        return Math.round(dist * 10.0) / 10.0
     }
 
     fun loadRestaurants() = loadStores()

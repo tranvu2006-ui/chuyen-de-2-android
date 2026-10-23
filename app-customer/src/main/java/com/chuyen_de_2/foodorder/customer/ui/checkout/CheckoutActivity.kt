@@ -75,6 +75,8 @@ class CheckoutActivity : AppCompatActivity() {
     private var currentSubtotal = 0L
     private var currentShippingFee = 15000L
     private var currentDiscount = 0L
+    private var selectedCustomerLat = 0.0
+    private var selectedCustomerLng = 0.0
 
     private val districts = arrayOf(
         "Quận 1 (Nội thành)",
@@ -97,6 +99,8 @@ class CheckoutActivity : AppCompatActivity() {
             val data = result.data ?: return@registerForActivityResult
             val street = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS) ?: ""
             val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT) ?: ""
+            selectedCustomerLat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            selectedCustomerLng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
 
             if (street.isNotBlank()) {
                 binding.etAddress.setText(street)
@@ -449,7 +453,11 @@ class CheckoutActivity : AppCompatActivity() {
             } else {
                 GoogleMapUtils.DEFAULT_HCMC_LATLNG
             }
-            val customerLatLng = GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
+            val customerLatLng = if (selectedCustomerLat != 0.0 && selectedCustomerLng != 0.0) {
+                com.google.android.gms.maps.model.LatLng(selectedCustomerLat, selectedCustomerLng)
+            } else {
+                GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
+            }
             val distanceKm = GoogleMapUtils.calculateDistanceKm(storeLatLng, customerLatLng)
 
             currentShippingFee = GoogleMapUtils.calculateShippingFeeByDistance(distanceKm)

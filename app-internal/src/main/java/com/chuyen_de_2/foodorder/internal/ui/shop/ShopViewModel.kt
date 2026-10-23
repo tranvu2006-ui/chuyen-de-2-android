@@ -103,13 +103,15 @@ class ShopViewModel @Inject constructor(
         _countDelivering.value = orders.count {
             it.status == Order.Status.READY ||
                     it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
                     it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
                     it.status == "WARNING"
         }
 
         // Kiểm tra xem có đơn nào đang bị cảnh báo không
         _hasDeliveringWarning.value = orders.any {
-            (it.status == Order.Status.DELIVERING || it.status == Order.Status.READY) &&
+            (it.status == Order.Status.DELIVERING || it.status == Order.Status.READY || it.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
                     (it.note.contains("cảnh báo", ignoreCase = true) || it.status == "WARNING")
         }
 
@@ -138,7 +140,9 @@ class ShopViewModel @Inject constructor(
             TabType.DELIVERING -> orders.filter {
                 it.status == Order.Status.READY ||
                         it.status == Order.Status.ASSIGNED ||
+                        it.status == Order.Status.ARRIVED_AT_SHOP ||
                         it.status == Order.Status.DELIVERING ||
+                        it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
                         it.status == "WARNING"
             }
             TabType.HISTORY -> orders.filter {

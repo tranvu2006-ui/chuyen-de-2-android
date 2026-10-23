@@ -34,7 +34,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class FirebaseRepository @Inject constructor(
-    private val database: FirebaseDatabase,
+    val database: FirebaseDatabase,
     private val auth: FirebaseAuth
 ) {
     init {
@@ -113,10 +113,26 @@ class FirebaseRepository @Inject constructor(
             val targetStatus = order.status.ifBlank { order.orderStatus.ifBlank { Order.Status.PENDING } }
             val targetTimestamp = if (order.createdAt > 0) order.createdAt else if (order.timestamp > 0) order.timestamp else now
 
+            var targetShopPhone = order.shopPhone.trim()
+            var targetShopName = order.shopName.trim()
+            if ((targetShopPhone.isBlank() || targetShopName.isBlank()) && targetStoreId.isNotBlank()) {
+                try {
+                    val storeSnap = database.getReference("stores").child(targetStoreId).get().await()
+                    if (targetShopPhone.isBlank()) {
+                        targetShopPhone = storeSnap.child("phone").getValue(String::class.java).orEmpty().trim()
+                    }
+                    if (targetShopName.isBlank()) {
+                        targetShopName = storeSnap.child("name").getValue(String::class.java).orEmpty().trim()
+                    }
+                } catch (_: Exception) {}
+            }
+
             val orderWithId = order.copy(
                 orderId = orderId,
                 storeId = targetStoreId,
                 shopId = targetStoreId,
+                shopName = targetShopName.ifBlank { order.shopName },
+                shopPhone = targetShopPhone,
                 deliveryAddress = targetAddress,
                 address = targetAddress,
                 totalPayment = targetTotal,

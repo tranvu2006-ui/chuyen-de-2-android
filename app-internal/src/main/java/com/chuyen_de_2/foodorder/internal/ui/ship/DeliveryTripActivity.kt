@@ -98,6 +98,7 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var storeLng: Double = 0.0
     private var customerLat: Double = 0.0
     private var customerLng: Double = 0.0
+    private var storePhone: String = ""
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -644,6 +645,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                 try {
                     val store = firebaseRepository.getStoreOnce(targetStoreId)
                     if (store != null) {
+                        if (store.phone.isNotBlank()) {
+                            storePhone = store.phone.trim()
+                        }
                         if (store.latitude != 0.0 && store.longitude != 0.0) {
                             storeLat = store.latitude
                             storeLng = store.longitude
@@ -1115,7 +1119,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 1: Gọi điện cho quán
         binding.btnCallStoreStep1.setOnClickListener {
-            val phone = currentOrder?.shopPhone.orEmpty()
+            val phone = currentOrder?.shopPhone?.ifBlank { storePhone } ?: storePhone
             if (phone.isNotBlank()) {
                 startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
             } else {
@@ -1125,7 +1129,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 2: Gọi quán
         binding.btnCallStoreStep2.setOnClickListener {
-            val phone = bundleOrders.firstOrNull()?.shopPhone ?: currentOrder?.shopPhone.orEmpty()
+            val phone = bundleOrders.firstOrNull()?.shopPhone?.ifBlank { storePhone } ?: currentOrder?.shopPhone?.ifBlank { storePhone } ?: storePhone
             if (phone.isNotBlank()) {
                 startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
             } else {
@@ -1673,9 +1677,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                         .show()
                 } else {
                     val totalFee = if (isBundleMode) {
-                        bundleOrders.sumOf { if (it.shippingFee > 0) it.shippingFee else 25000L }
+                        bundleOrders.sumOf { if (it.shippingFee > 0) it.shippingFee else 15000L }
                     } else {
-                        25000L
+                        currentOrder?.shippingFee?.takeIf { it > 0 } ?: 15000L
                     }
                     val allCodes = if (isBundleMode) {
                         bundleOrders.joinToString(", ") { "#ORD-" + QRCodeUtils.getShortOrderCode(it.orderId) }

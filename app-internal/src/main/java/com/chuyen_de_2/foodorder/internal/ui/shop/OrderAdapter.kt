@@ -178,17 +178,18 @@ class OrderAdapter(
                     }
                 }
 
-                Order.Status.ASSIGNED -> {
-                    // Bước 3.5: Tài xế ĐÃ bấm nhận đơn -> Đang đến quầy lấy món
+                Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
+                    // Bước 3.5: Tài xế ĐÃ bấm nhận đơn hoặc ĐÃ ĐẾN QUÁN -> Chờ bàn giao túi món
                     val driverText = order.shipperName.ifBlank { "Tài xế" }
-                    binding.tvOrderBadge.text = "🛵 Tài xế đã nhận • Đang đến quầy lấy món"
+                    val isAtShop = order.status == Order.Status.ARRIVED_AT_SHOP
+                    binding.tvOrderBadge.text = if (isAtShop) "🏪 Tài xế đã đến quán • Đang ở quầy" else "🛵 Tài xế đã nhận • Đang đến quầy lấy món"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
                     binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
 
                     binding.boxDriverStatus.visibility = View.VISIBLE
                     binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
                     binding.tvDriverStatusTxt.apply {
-                        text = "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
+                        text = if (isAtShop) "🏪 $driverText đã có mặt tại quán, sẵn sàng nhận túi món" else "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
                         setTextColor(Color.parseColor("#047857"))
                     }
                     binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
@@ -201,24 +202,25 @@ class OrderAdapter(
                     }
                 }
 
-                Order.Status.DELIVERING -> {
-                    // Bước 4: Quán đã giao túi món cho tài xế -> Tài xế đang chạy đến khách
+                Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
+                    // Bước 4: Quán đã giao túi món cho tài xế -> Tài xế đang chạy đến khách hoặc đã đến nhà khách
                     val driverText = order.shipperName.ifBlank { "Tài xế" }
-                    binding.tvOrderBadge.text = "🛵 Đang giao hàng • $driverText"
+                    val isAtCustomer = order.status == Order.Status.ARRIVED_AT_CUSTOMER
+                    binding.tvOrderBadge.text = if (isAtCustomer) "📍 Đã đến nhà khách • Chờ nhận món" else "🛵 Đang giao hàng • $driverText"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_delivering)
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 
                     binding.boxDriverStatus.visibility = View.VISIBLE
                     binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
                     binding.tvDriverStatusTxt.apply {
-                        text = "🛵 Đã giao túi món cho $driverText • Đang chạy đến khách"
+                        text = if (isAtCustomer) "📍 $driverText đã đến nhà khách, đang chờ xác minh mã" else "🛵 Đã giao túi món cho $driverText • Đang chạy đến khách"
                         setTextColor(Color.parseColor("#047857"))
                     }
                     binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
 
                     binding.btnMainAction.apply {
                         isEnabled = false
-                        text = "✓ ĐÃ GIAO CHO TÀI XẾ"
+                        text = if (isAtCustomer) "📍 ĐÃ ĐẾN NHÀ KHÁCH" else "✓ ĐÃ GIAO CHO TÀI XẾ"
                         backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green_bg)
                         setTextColor(Color.parseColor("#047857"))
                     }

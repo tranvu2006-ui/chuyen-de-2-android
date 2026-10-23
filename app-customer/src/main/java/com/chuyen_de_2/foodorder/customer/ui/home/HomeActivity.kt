@@ -66,6 +66,8 @@ class HomeActivity : AppCompatActivity() {
 
     private var selectedCategory: String? = null
     private var isNearbyFiltered: Boolean = false
+    private var selectedNearbyDistanceKm: Double = 3.0
+    private var selectedNearbyDistanceLabel: String = "< 3 km"
     private var currentLocationName: String = "Đang xác định vị trí..."
 
     private val locationPermissionLauncher = registerForActivityResult(
@@ -157,10 +159,12 @@ class HomeActivity : AppCompatActivity() {
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
+            selectedNearbyDistanceKm = 3.0
+            selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
             binding.layoutActiveFilterIndicator.visibility = View.GONE
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false)
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
             binding.etSearch.setText("")
             Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         }
@@ -168,10 +172,16 @@ class HomeActivity : AppCompatActivity() {
         binding.btnClearFilter.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
+            selectedNearbyDistanceKm = 3.0
+            selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
             binding.layoutActiveFilterIndicator.visibility = View.GONE
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false)
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
+        }
+
+        binding.layoutActiveFilterIndicator.setOnClickListener {
+            showNearbyStoresBottomSheet()
         }
     }
 
@@ -287,6 +297,9 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
+        var currentRadius = selectedNearbyDistanceKm
+        var currentRadiusLabel = selectedNearbyDistanceLabel
+
         val nearbyAdapter = NearbyStoreAdapter { storeItem ->
             dialog.dismiss()
             val intent = Intent(this, MenuActivity::class.java).apply {
@@ -301,14 +314,71 @@ class HomeActivity : AppCompatActivity() {
             adapter = nearbyAdapter
         }
 
-        val initialStores = viewModel.nearbyStores.value ?: emptyList()
-        nearbyAdapter.submitList(initialStores)
-        sheetBinding.tvEmptyNearby.visibility = if (initialStores.isEmpty()) View.VISIBLE else View.GONE
+        fun filterAndDisplayStores(allStores: List<NearbyStoreItem>) {
+            val filteredStores = if (currentRadius >= 999.0) {
+                allStores
+            } else {
+                allStores.filter { it.distanceKm in 0.001..currentRadius }
+            }
+            nearbyAdapter.submitList(filteredStores)
+
+            if (filteredStores.isEmpty()) {
+                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\nHãy thử chọn bán kính 5 km hoặc 10 km!"
+                sheetBinding.tvEmptyNearby.visibility = View.VISIBLE
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.GONE
+            } else {
+                sheetBinding.tvEmptyNearby.visibility = View.GONE
+                sheetBinding.tvNearbyStoreCountSummary.text = "Tìm thấy ${filteredStores.size} quán trong bán kính $currentRadiusLabel"
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.VISIBLE
+            }
+
+            sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
+                "Áp Dụng Lọc Món Quán Gần (Tất cả)"
+            } else {
+                "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel)"
+            }
+        }
+
+        // Chọn sẵn Chip khoảng cách hiện tại
+        when (currentRadius) {
+            1.5 -> sheetBinding.chipDist1.isChecked = true
+            3.0 -> sheetBinding.chipDist3.isChecked = true
+            5.0 -> sheetBinding.chipDist5.isChecked = true
+            10.0 -> sheetBinding.chipDist10.isChecked = true
+            else -> sheetBinding.chipDistAll.isChecked = true
+        }
+
+        filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+
+        sheetBinding.chipGroupDistance.setOnCheckedStateChangeListener { _, checkedIds ->
+            when (checkedIds.firstOrNull()) {
+                R.id.chipDist1 -> {
+                    currentRadius = 1.5
+                    currentRadiusLabel = "< 1.5 km"
+                }
+                R.id.chipDist3 -> {
+                    currentRadius = 3.0
+                    currentRadiusLabel = "< 3 km"
+                }
+                R.id.chipDist5 -> {
+                    currentRadius = 5.0
+                    currentRadiusLabel = "< 5 km"
+                }
+                R.id.chipDist10 -> {
+                    currentRadius = 10.0
+                    currentRadiusLabel = "< 10 km"
+                }
+                R.id.chipDistAll -> {
+                    currentRadius = 999.0
+                    currentRadiusLabel = "Tất cả"
+                }
+            }
+            filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+        }
 
         // Quan sát Realtime để cập nhật khi dữ liệu quán tải xong
         val nearbyObserver = androidx.lifecycle.Observer<List<NearbyStoreItem>> { updatedStores ->
-            nearbyAdapter.submitList(updatedStores)
-            sheetBinding.tvEmptyNearby.visibility = if (updatedStores.isEmpty()) View.VISIBLE else View.GONE
+            filterAndDisplayStores(updatedStores)
         }
         viewModel.nearbyStores.observe(this, nearbyObserver)
         dialog.setOnDismissListener {
@@ -321,10 +391,12 @@ class HomeActivity : AppCompatActivity() {
 
         sheetBinding.btnFilterNearbyOnly.setOnClickListener {
             dialog.dismiss()
+            selectedNearbyDistanceKm = currentRadius
+            selectedNearbyDistanceLabel = currentRadiusLabel
             isNearbyFiltered = true
             binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-            binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Món từ các quán gần nhất"
-            viewModel.filterDishes(nearbyOnly = true)
+            binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Món từ các quán trong bán kính $selectedNearbyDistanceLabel"
+            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
         }
 
         dialog.show()

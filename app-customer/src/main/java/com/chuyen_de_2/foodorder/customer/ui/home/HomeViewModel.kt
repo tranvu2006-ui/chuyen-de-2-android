@@ -41,6 +41,8 @@ class HomeViewModel @Inject constructor(
     private var currentQuery: String? = null
     private var currentCategory: String? = null
     private var currentNearbyOnly: Boolean = false
+    var currentNearbyMaxDistanceKm: Double = 3.0
+        private set
     private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
         com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
 
@@ -177,23 +179,34 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Lọc danh sách món ăn */
-    fun filterDishes(query: String? = null, category: String? = null, nearbyOnly: Boolean? = null) {
+    fun filterDishes(
+        query: String? = null,
+        category: String? = null,
+        nearbyOnly: Boolean? = null,
+        maxDistanceKm: Double? = null
+    ) {
         if (query != null) currentQuery = query
         if (category != null) currentCategory = if (category == "ALL") null else category
         if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
+        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
         applyFilters()
     }
 
     private fun applyFilters() {
         var filtered = masterDishList
 
-        // 1. Lọc theo cự ly gần (< 3.0 km hoặc sắp xếp theo quán gần nhất)
+        // 1. Lọc theo cự ly gần
         if (currentNearbyOnly) {
-            val nearbyDishes = filtered.filter { it.distanceKm in 0.01..3.0 }
-            filtered = if (nearbyDishes.isNotEmpty()) {
-                nearbyDishes
-            } else {
+            val maxDist = currentNearbyMaxDistanceKm
+            filtered = if (maxDist >= 999.0) {
                 filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            } else {
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
             }
         }
 

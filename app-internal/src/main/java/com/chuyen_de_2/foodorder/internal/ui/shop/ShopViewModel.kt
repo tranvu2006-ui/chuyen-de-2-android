@@ -114,9 +114,19 @@ class ShopViewModel @Inject constructor(
         }
 
         // Tính doanh thu và đơn hoàn tất hôm nay
-        val completedOrders = orders.filter { it.status == Order.Status.COMPLETED }
-        _todayCompletedCount.value = completedOrders.size
-        val calculatedRevenue = completedOrders.sumOf {
+        val startOfToday = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val todayCompletedOrders = orders.filter {
+            it.status == Order.Status.COMPLETED &&
+            ((it.createdAt > 0 && it.createdAt >= startOfToday) || (it.timestamp > 0 && it.timestamp >= startOfToday))
+        }
+        _todayCompletedCount.value = todayCompletedOrders.size
+        val calculatedRevenue = todayCompletedOrders.sumOf {
             if (it.totalPayment > 0) it.totalPayment else if (it.total > 0) it.total else 0L
         }
         _todayRevenue.value = calculatedRevenue

@@ -51,14 +51,7 @@ object GoogleMapUtils {
         "Nhà Bè" to LatLng(10.6953, 106.7274)
     )
 
-    // Tọa độ mẫu của các quán ăn tiêu biểu
-    val STORE_COORDINATES = mapOf(
-        "store_1" to LatLng(10.7769, 106.7009), // Phở Hà Nội 36 - Quận 1
-        "store_2" to LatLng(10.7844, 106.6843), // Cơm Tấm Sài Gòn 1985 - Quận 3
-        "store_3" to LatLng(10.8015, 106.6545), // Bún Bò Huế Cố Đô - Tân Bình
-        "store_4" to LatLng(10.7554, 106.6669), // Trà Sữa Oishi Tea - Quận 5
-        "store_5" to LatLng(10.8039, 106.6974)  // Bánh Mì Chảo Cô Ba - Bình Thạnh
-    )
+
 
     /**
      * Chuyển địa chỉ chữ sang LatLng bằng Google Geocoder

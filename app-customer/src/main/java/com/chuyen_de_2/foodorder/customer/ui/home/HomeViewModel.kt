@@ -71,14 +71,21 @@ class HomeViewModel @Inject constructor(
         }
 
         // 1. Quán gần đây
-        val nearbyList = activeStores.mapIndexed { index, store ->
-            val dist = if (store.latitude != 0.0 && store.longitude != 0.0) {
-                0.8 + (index * 0.4)
+        val nearbyList = activeStores.map { store ->
+            val roundedDist = if (store.latitude != 0.0 && store.longitude != 0.0) {
+                val storeLatLng = com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+                val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+                    com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG,
+                    storeLatLng
+                ).toDouble()
+                Math.round(dist * 10.0) / 10.0
             } else {
-                0.8 + (index * 0.4)
+                0.0
             }
-            val roundedDist = Math.round(dist * 10.0) / 10.0
-            val etaMinutes = 15 + (index * 5)
+            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
+                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
+                "$baseTime-${baseTime + 10} phút"
+            } else "15-25 phút"
             val emoji = when {
                 store.name.contains("Trà", true) -> "🍵"
                 store.name.contains("Cơm", true) -> "🍛"
@@ -91,8 +98,8 @@ class HomeViewModel @Inject constructor(
                 name = store.name,
                 address = store.address.ifBlank { "TP.HCM" },
                 distanceKm = roundedDist,
-                eta = "$etaMinutes-${etaMinutes + 5} phút",
-                rating = if (store.ratingAvg > 0) store.ratingAvg else 5.0f,
+                eta = eta,
+                rating = store.ratingAvg,
                 imageUrl = store.imageUrl,
                 emoji = emoji,
                 originalStore = store
@@ -103,15 +110,21 @@ class HomeViewModel @Inject constructor(
         // 2. Thu thập các món ăn của quán
         val allDishes = mutableListOf<HomeDishItem>()
 
-        activeStores.forEachIndexed { storeIndex, store ->
-            val dist = 0.8 + (storeIndex * 0.4)
-            val roundedDist = Math.round(dist * 10.0) / 10.0
+        activeStores.forEach { store ->
+            val roundedDist = if (store.latitude != 0.0 && store.longitude != 0.0) {
+                val storeLatLng = com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+                val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+                    com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG,
+                    storeLatLng
+                ).toDouble()
+                Math.round(dist * 10.0) / 10.0
+            } else {
+                0.0
+            }
 
-            // Lấy món từ store.dishes; nếu quán chưa có món thì dùng các món mặc định của quán đó
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            val dishesToDisplay = availableDishes
 
-            dishesToDisplay.forEach { dish ->
+            availableDishes.forEach { dish ->
                 val platformCat = dish.platformCategory.ifBlank {
                     inferPlatformCategory(dish.name, dish.category)
                 }
@@ -130,17 +143,17 @@ class HomeViewModel @Inject constructor(
                         id = dish.id,
                         name = dish.name,
                         price = dish.basePrice,
-                        originalPrice = if (dish.basePrice > 0) (dish.basePrice * 1.2).toLong() else 0L,
+                        originalPrice = dish.basePrice,
                         storeId = store.id,
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
                         emoji = emoji,
-                        rating = if (dish.ratingAvg > 0) dish.ratingAvg else 4.9f,
-                        soldCount = "${dish.soldCount} đã bán",
+                        rating = dish.ratingAvg,
+                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
-                        promoBadge = if (dish.basePrice >= 50000) "-15%" else "Món ngon",
+                        promoBadge = "",
                         tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
-                        tag2 = "Giao Nhanh",
+                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
                         category = dish.category.ifBlank { store.category },
                         platformCategory = platformCat
                     )

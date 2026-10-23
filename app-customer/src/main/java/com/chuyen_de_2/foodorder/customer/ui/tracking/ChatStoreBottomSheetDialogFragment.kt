@@ -77,6 +77,27 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
                 false
             }
         }
+        if (orderId.isNotBlank()) {
+            val db = com.google.firebase.database.FirebaseDatabase.getInstance()
+            val chatRef = db.getReference("order_chats").child(orderId)
+            chatRef.addChildEventListener(object : com.google.firebase.database.ChildEventListener {
+                override fun onChildAdded(snapshot: com.google.firebase.database.DataSnapshot, prev: String?) {
+                    val sender = snapshot.child("sender").getValue(String::class.java) ?: "customer"
+                    val text = snapshot.child("text").getValue(String::class.java) ?: return
+                    val time = snapshot.child("timestamp").getValue(Long::class.java) ?: System.currentTimeMillis()
+                    val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
+                    if (sender == "customer") {
+                        addUserMessage(text, timeStr)
+                    } else {
+                        addShopReply(text, timeStr)
+                    }
+                }
+                override fun onChildChanged(snapshot: com.google.firebase.database.DataSnapshot, prev: String?) {}
+                override fun onChildRemoved(snapshot: com.google.firebase.database.DataSnapshot) {}
+                override fun onChildMoved(snapshot: com.google.firebase.database.DataSnapshot, prev: String?) {}
+                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+            })
+        }
     }
 
     private fun sendFromInput() {
@@ -88,10 +109,26 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
     }
 
     private fun sendMessage(content: String) {
-        val context = context ?: return
-        val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+        if (orderId.isNotBlank()) {
+            val db = com.google.firebase.database.FirebaseDatabase.getInstance()
+            val msgKey = db.getReference("order_chats").child(orderId).push().key ?: System.currentTimeMillis().toString()
+            db.getReference("order_chats").child(orderId).child(msgKey).setValue(
+                mapOf(
+                    "sender" to "customer",
+                    "text" to content,
+                    "timestamp" to System.currentTimeMillis()
+                )
+            )
+            // Cập nhật trực tiếp vào ghi chú của đơn trên Firebase
+            db.getReference("orders").child(orderId).child("note").setValue(content)
+        } else {
+            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            addUserMessage(content, timeStr)
+        }
+    }
 
-        // 1. Tạo tin nhắn người dùng (bên phải, nền xanh)
+    private fun addUserMessage(content: String, timeStr: String) {
+        val context = context ?: return
         val userMsgLayout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             background = ContextCompat.getDrawable(context, R.drawable.bg_chat_bubble_user)
@@ -127,19 +164,12 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
         userMsgLayout.addView(tvTime)
         binding.llChatContainer.addView(userMsgLayout)
 
-        // Cuộn xuống cuối
         binding.scrollChatMessages.post {
             binding.scrollChatMessages.fullScroll(View.FOCUS_DOWN)
         }
-
-        // 2. Phản hồi tự động từ quán sau 1.2s
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (!isAdded || _binding == null) return@postDelayed
-            addShopReply("Dạ $storeName đã nhận được ghi chú của bạn: \"$content\". Quán sẽ chuẩn bị đúng yêu cầu ạ! Chúc bạn ngon miệng! ❤️")
-        }, 1200)
     }
 
-    private fun addShopReply(content: String) {
+    private fun addShopReply(content: String, timeStr: String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())) {
         val context = context ?: return
         val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 

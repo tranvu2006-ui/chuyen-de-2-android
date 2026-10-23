@@ -2,6 +2,7 @@ package com.chuyen_de_2.foodorder.internal.ui.shop
 
 import android.content.Context
 import android.graphics.Color
+import android.widget.Toast
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -81,8 +82,12 @@ class OrderAdapter(
             binding.btnDetail.setOnClickListener { onDetailClick(order) }
             binding.btnChatCustomer.setOnClickListener { onChatCustomerClick(order) }
             binding.btnCallDriver.setOnClickListener {
-                val driverPhone = order.shipperPhone.ifBlank { "19001234" }
-                onCallDriverClick(driverPhone)
+                val driverPhone = order.shipperPhone
+                if (driverPhone.isNotBlank()) {
+                    onCallDriverClick(driverPhone)
+                } else {
+                    Toast.makeText(context, "Tài xế chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
+                }
             }
             binding.btnWarningDetail.setOnClickListener { onWarningDetailClick(order) }
         }

@@ -101,7 +101,7 @@ class MenuViewModel @Inject constructor(
             try {
                 val store = firebaseRepository.getStoreOnce(shopId)
                 if (store != null) {
-                    currentShopDistrict = store.district.ifBlank { "Quận 1" }
+                    currentShopDistrict = store.district
                     currentShopAddress = store.address
                 }
             } catch (_: Exception) {}

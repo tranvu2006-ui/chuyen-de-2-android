@@ -204,10 +204,10 @@ object GoogleMapUtils {
      * Bao gồm Marker Tài xế (Đỏ), Marker Quán (Xanh) và đường nối Polyline (Xanh dương)
      */
     fun getGoogleStaticMapUrl(
-        driverLat: Double = 10.8522,
-        driverLng: Double = 106.7685,
-        destLat: Double = 10.8548,
-        destLng: Double = 106.7720,
+        driverLat: Double,
+        driverLng: Double,
+        destLat: Double,
+        destLng: Double,
         width: Int = 640,
         height: Int = 400,
         apiKey: String = ""
@@ -224,10 +224,10 @@ object GoogleMapUtils {
      * Tạo URL lấy ảnh bản đồ tĩnh OpenStreetMap (Miễn phí 100%, không cần API Key)
      */
     fun getFreeStaticMapUrl(
-        driverLat: Double = 10.8522,
-        driverLng: Double = 106.7685,
-        destLat: Double = 10.8548,
-        destLng: Double = 106.7720,
+        driverLat: Double,
+        driverLng: Double,
+        destLat: Double,
+        destLng: Double,
         width: Int = 640,
         height: Int = 400
     ): String {

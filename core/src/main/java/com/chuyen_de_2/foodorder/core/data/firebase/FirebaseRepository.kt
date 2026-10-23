@@ -610,7 +610,9 @@ class FirebaseRepository @Inject constructor(
         bankAccountNumber: String = "",
         bankAccountName: String = "",
         bankBin: String = "",
-        imageUrl: String = ""
+        imageUrl: String = "",
+        latitude: Double = 0.0,
+        longitude: Double = 0.0
     ): Result<Unit> {
         return try {
             val updates = mutableMapOf<String, Any>(
@@ -627,6 +629,8 @@ class FirebaseRepository @Inject constructor(
             if (bankAccountName.isNotBlank()) updates["bankAccountName"] = bankAccountName
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin
             if (imageUrl.isNotBlank()) updates["imageUrl"] = imageUrl
+            if (latitude != 0.0) updates["latitude"] = latitude
+            if (longitude != 0.0) updates["longitude"] = longitude
 
             database.getReference("stores").child(storeId).updateChildren(updates).await()
             Result.success(Unit)

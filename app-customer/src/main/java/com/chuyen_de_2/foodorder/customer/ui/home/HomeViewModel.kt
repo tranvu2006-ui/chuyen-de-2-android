@@ -72,8 +72,14 @@ class HomeViewModel @Inject constructor(
 
         // 1. Quán gần đây
         val nearbyList = activeStores.map { store ->
-            val roundedDist = if (store.latitude != 0.0 && store.longitude != 0.0) {
-                val storeLatLng = com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+            val storeLatLng = if (store.latitude != 0.0 && store.longitude != 0.0) {
+                com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+            } else if (store.district.isNotBlank()) {
+                com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[store.district]
+            } else {
+                null
+            }
+            val roundedDist = if (storeLatLng != null) {
                 val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
                     com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG,
                     storeLatLng
@@ -111,8 +117,14 @@ class HomeViewModel @Inject constructor(
         val allDishes = mutableListOf<HomeDishItem>()
 
         activeStores.forEach { store ->
-            val roundedDist = if (store.latitude != 0.0 && store.longitude != 0.0) {
-                val storeLatLng = com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+            val storeLatLng = if (store.latitude != 0.0 && store.longitude != 0.0) {
+                com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+            } else if (store.district.isNotBlank()) {
+                com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[store.district]
+            } else {
+                null
+            }
+            val roundedDist = if (storeLatLng != null) {
                 val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
                     com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG,
                     storeLatLng

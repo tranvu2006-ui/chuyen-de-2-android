@@ -61,6 +61,13 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
 
+        <!-- Màn hình ghim vị trí quán trên bản đồ -->
+        <activity
+            android:name=".ui.auth.SelectLocationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
         <!-- Dashboard (RBAC routing) -->
         <activity
             android:name=".ui.dashboard.DashboardActivity"

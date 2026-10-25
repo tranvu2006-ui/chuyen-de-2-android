@@ -242,4 +242,77 @@ object GoogleMapUtils {
         val midLng = (driverLng + destLng) / 2
         return "https://staticmap.openstreetmap.de/staticmap.php?center=$midLat,$midLng&zoom=15&size=${width}x${height}&markers=$driverLat,$driverLng,ol-marker%7C$destLat,$destLng,ol-marker"
     }
+
+    /**
+     * Tìm kiếm gợi ý danh sách địa chỉ tự động dựa trên từ khóa người dùng nhập (Address Autocomplete)
+     */
+    suspend fun searchAddressSuggestions(context: Context, query: String): List<com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return@withContext emptyList()
+
+        val results = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion>()
+
+        try {
+            val geocoder = Geocoder(context, Locale("vi", "VN"))
+            val searchQuery = if (trimmed.contains("TP", true) || trimmed.contains("Hồ Chí Minh", true) || trimmed.contains("HCM", true)) {
+                trimmed
+            } else {
+                "$trimmed, TP. Hồ Chí Minh"
+            }
+
+            val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                suspendCoroutine<List<Address>?> { cont ->
+                    geocoder.getFromLocationName(searchQuery, 6) { list ->
+                        cont.resume(list)
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocationName(searchQuery, 6)
+            }
+
+            addresses?.forEach { addr ->
+                val feature = addr.thoroughfare ?: addr.featureName.orEmpty()
+                val subAdmin = addr.subAdminArea ?: addr.subLocality ?: addr.locality.orEmpty()
+                val admin = addr.adminArea ?: "TP.HCM"
+                val full = addr.getAddressLine(0) ?: "$feature, $subAdmin, $admin"
+                val cleanFull = full.replace(", Việt Nam", "").trim()
+
+                val district = findNearestDistrict(addr.latitude, addr.longitude)
+                val title = if (feature.isNotBlank()) feature else cleanFull.split(",").firstOrNull()?.trim() ?: cleanFull
+                val subtitle = cleanFull.removePrefix(title).removePrefix(",").trim()
+
+                results.add(
+                    com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion(
+                        title = title,
+                        subtitle = if (subtitle.isNotBlank()) subtitle else "$district, TP.HCM",
+                        fullAddress = cleanFull,
+                        district = district,
+                        latitude = addr.latitude,
+                        longitude = addr.longitude
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+
+        // Bổ sung gợi ý theo bảng Quận/Huyện nếu người dùng gõ tên quận hoặc chưa có kết quả
+        DISTRICT_COORDINATES.forEach { (distName, latLng) ->
+            if (distName.contains(trimmed, ignoreCase = true) || trimmed.contains(distName, ignoreCase = true)) {
+                if (results.none { it.district.equals(distName, ignoreCase = true) }) {
+                    results.add(
+                        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion(
+                            title = distName,
+                            subtitle = "Thành phố Hồ Chí Minh",
+                            fullAddress = "$distName, TP. Hồ Chí Minh",
+                            district = distName,
+                            latitude = latLng.latitude,
+                            longitude = latLng.longitude
+                        )
+                    )
+                }
+            }
+        }
+
+        return@withContext results.distinctBy { "${it.latitude},${it.longitude}" }
+    }
 }

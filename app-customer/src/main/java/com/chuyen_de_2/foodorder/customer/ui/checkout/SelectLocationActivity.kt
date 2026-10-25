@@ -33,6 +33,8 @@ class SelectLocationActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySelectLocationBinding
     private var geocodeJob: Job? = null
+    private var searchJob: Job? = null
+    private lateinit var suggestionAdapter: AddressSuggestionAdapter
 
     private var currentLat = 10.7769
     private var currentLng = 106.7009
@@ -94,6 +96,62 @@ class SelectLocationActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
+        suggestionAdapter = AddressSuggestionAdapter { suggestion ->
+            binding.rvAddressSuggestions.visibility = View.GONE
+            binding.dividerSearch.visibility = View.GONE
+            binding.etSearchLocation.setText(suggestion.title)
+            binding.etSearchLocation.clearFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+            imm?.hideSoftInputFromWindow(binding.etSearchLocation.windowToken, 0)
+
+            moveMapTo(suggestion.latitude, suggestion.longitude)
+        }
+
+        binding.rvAddressSuggestions.apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@SelectLocationActivity)
+            adapter = suggestionAdapter
+        }
+
+        binding.btnClearSearch.setOnClickListener {
+            binding.etSearchLocation.setText("")
+            binding.rvAddressSuggestions.visibility = View.GONE
+            binding.dividerSearch.visibility = View.GONE
+            binding.btnClearSearch.visibility = View.GONE
+        }
+
+        binding.etSearchLocation.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s?.toString()?.trim().orEmpty()
+                binding.btnClearSearch.visibility = if (query.isNotBlank()) View.VISIBLE else View.GONE
+
+                searchJob?.cancel()
+                if (query.length < 2) {
+                    binding.rvAddressSuggestions.visibility = View.GONE
+                    binding.dividerSearch.visibility = View.GONE
+                    binding.pbSearchLoading.visibility = View.GONE
+                    return
+                }
+
+                searchJob = lifecycleScope.launch {
+                    delay(300)
+                    binding.pbSearchLoading.visibility = View.VISIBLE
+                    val suggestions = GoogleMapUtils.searchAddressSuggestions(this@SelectLocationActivity, query)
+                    binding.pbSearchLoading.visibility = View.GONE
+
+                    if (suggestions.isNotEmpty()) {
+                        suggestionAdapter.submitList(suggestions)
+                        binding.rvAddressSuggestions.visibility = View.VISIBLE
+                        binding.dividerSearch.visibility = View.VISIBLE
+                    } else {
+                        binding.rvAddressSuggestions.visibility = View.GONE
+                        binding.dividerSearch.visibility = View.GONE
+                    }
+                }
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+
         binding.btnConfirmLocation.setOnClickListener {
             if (currentFullAddress.isBlank()) {
                 Toast.makeText(this, "Vui lòng đợi định vị địa chỉ...", Toast.LENGTH_SHORT).show()

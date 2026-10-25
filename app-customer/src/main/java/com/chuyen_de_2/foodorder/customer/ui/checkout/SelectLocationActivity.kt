@@ -119,6 +119,14 @@ class SelectLocationActivity : AppCompatActivity() {
             binding.btnClearSearch.visibility = View.GONE
         }
 
+        binding.etSearchLocation.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus && binding.etSearchLocation.text.isNullOrBlank()) {
+                suggestionAdapter.submitList(GoogleMapUtils.POPULAR_LOCATIONS.take(6))
+                binding.rvAddressSuggestions.visibility = View.VISIBLE
+                binding.dividerSearch.visibility = View.VISIBLE
+            }
+        }
+
         binding.etSearchLocation.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -126,15 +134,16 @@ class SelectLocationActivity : AppCompatActivity() {
                 binding.btnClearSearch.visibility = if (query.isNotBlank()) View.VISIBLE else View.GONE
 
                 searchJob?.cancel()
-                if (query.length < 2) {
-                    binding.rvAddressSuggestions.visibility = View.GONE
-                    binding.dividerSearch.visibility = View.GONE
+                if (query.isEmpty()) {
+                    suggestionAdapter.submitList(GoogleMapUtils.POPULAR_LOCATIONS.take(6))
+                    binding.rvAddressSuggestions.visibility = View.VISIBLE
+                    binding.dividerSearch.visibility = View.VISIBLE
                     binding.pbSearchLoading.visibility = View.GONE
                     return
                 }
 
                 searchJob = lifecycleScope.launch {
-                    delay(300)
+                    delay(150)
                     binding.pbSearchLoading.visibility = View.VISIBLE
                     val suggestions = GoogleMapUtils.searchAddressSuggestions(this@SelectLocationActivity, query)
                     binding.pbSearchLoading.visibility = View.GONE

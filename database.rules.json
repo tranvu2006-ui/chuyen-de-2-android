@@ -71,7 +71,7 @@
       ".indexOn": ["customerId", "shipperId", "shopId", "status", "timestamp"],
       ".read": "auth != null",
       "$orderId": {
-        ".write": "auth != null"
+        ".write": "auth != null && ((data.exists() && newData.child('customerId').val() == data.child('customerId').val() && newData.child('total').val() == data.child('total').val() && newData.child('totalPayment').val() == data.child('totalPayment').val() && newData.child('paymentMethod').val() == data.child('paymentMethod').val() && newData.child('vnpTransactionNo').val() == data.child('vnpTransactionNo').val() && newData.child('vnpBankCode').val() == data.child('vnpBankCode').val() && newData.child('vnpPayDate').val() == data.child('vnpPayDate').val() && newData.child('vnpTxnRef').val() == data.child('vnpTxnRef').val() && newData.child('paidAt').val() == data.child('paidAt').val()) || (!data.exists() && newData.child('customerId').val() == auth.uid && !newData.child('vnpTransactionNo').exists() && !newData.child('vnpBankCode').exists() && !newData.child('vnpPayDate').exists() && !newData.child('vnpTxnRef').exists() && !newData.child('paidAt').exists() && ((newData.child('paymentMethod').val() == 'VNPAY' && newData.child('totalPayment').val() == 0) || (newData.child('paymentMethod').val() != 'VNPAY' && newData.child('totalPayment').val() == newData.child('total').val()))))"
       }
     },
     "tracking": {

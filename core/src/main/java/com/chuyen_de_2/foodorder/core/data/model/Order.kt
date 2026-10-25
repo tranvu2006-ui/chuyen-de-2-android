@@ -112,6 +112,12 @@ data class Order(
     val effectiveTotal: Long
         get() = if (totalPayment > 0) totalPayment else total
 
+    /** Đơn online (VNPay/VietQR) đã tạo nhưng chưa nhận tiền. */
+    val isAwaitingOnlinePayment: Boolean
+        get() = paymentMethod != PaymentMethod.COD &&
+            totalPayment == 0L &&
+            (status == Status.PENDING || orderStatus == Status.PENDING)
+
     val effectiveTimestamp: Long
         get() = if (createdAt > 0) createdAt else timestamp
 
@@ -146,6 +152,7 @@ data class Order(
     object PaymentMethod {
         const val COD = "COD"
         const val BANKING = "BANKING"
+        const val VNPAY = "VNPAY"
     }
 }
 

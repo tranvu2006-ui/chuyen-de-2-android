@@ -42,6 +42,7 @@ class OrderAdapter(
                 "• 1x Suất ăn đặt trực tiếp"
             }
             val payText = when (order.paymentMethod) {
+                Order.PaymentMethod.VNPAY -> if (order.totalPayment > 0) "Đã thanh toán VNPay" else "Chờ thanh toán VNPay"
                 Order.PaymentMethod.BANKING -> "Đã thanh toán Ngân hàng"
                 else -> "Thu tiền mặt khi nhận (COD)"
             }

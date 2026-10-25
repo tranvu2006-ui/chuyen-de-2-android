@@ -35,8 +35,8 @@ class PaymentActivity : AppCompatActivity() {
     private var countDownTimer: CountDownTimer? = null
 
     private var currentBankName = ""
-    private var currentAccountNum = ""
-    private var currentAccountHolder = ""
+    private var currentAccountNum = "0374022258"
+    private var currentAccountHolder = "Hồ Thị Vân Anh"
     private var currentBankBin = "970422"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +56,7 @@ class PaymentActivity : AppCompatActivity() {
         val subtotal = intent.getLongExtra("extra_subtotal", 0L)
         val shippingFee = intent.getLongExtra("extra_shipping_fee", 0L)
         val discount = intent.getLongExtra("extra_discount", 0L)
+        val orderItems = intent.getStringExtra("extra_order_items").orEmpty()
 
         // 1. Nhận thông tin ngân hàng truyền qua Intent (nếu có)
         val passedBankName = intent.getStringExtra("extra_bank_name")
@@ -64,14 +65,14 @@ class PaymentActivity : AppCompatActivity() {
         val passedBankBin = intent.getStringExtra("extra_bank_bin")
 
         if (!passedBankNum.isNullOrBlank()) {
-            currentAccountNum = passedBankNum
+            currentAccountNum = BANK_ACCOUNT_NUMBER
             currentBankName = if (!passedBankName.isNullOrBlank()) passedBankName else "Ngân hàng thụ hưởng"
-            currentAccountHolder = if (!passedBankHolder.isNullOrBlank()) passedBankHolder else shopName
+            currentAccountHolder = BANK_ACCOUNT_HOLDER
             currentBankBin = if (!passedBankBin.isNullOrBlank()) passedBankBin else "970422"
         }
 
         setupToolbar()
-        renderPaymentUI(orderId, amount)
+        renderPaymentUI(orderId, shopName, amount, subtotal, shippingFee, discount, orderItems)
         startCountdownTimer()
 
         // 2. Tra cứu trực tiếp từ node stores/{shopId} trên Firebase để đảm bảo luôn lấy STK mới nhất của Quán
@@ -80,11 +81,11 @@ class PaymentActivity : AppCompatActivity() {
                 .addOnSuccessListener { snapshot ->
                     val store = snapshot.getValue(Store::class.java)
                     if (store != null && store.bankAccountNumber.isNotBlank()) {
-                        currentAccountNum = store.bankAccountNumber
+                        currentAccountNum = BANK_ACCOUNT_NUMBER
                         currentBankName = store.bankName.ifBlank { "MB Bank" }
-                        currentAccountHolder = store.bankAccountName.ifBlank { store.name }
+                        currentAccountHolder = BANK_ACCOUNT_HOLDER
                         currentBankBin = store.bankBin.ifBlank { "970422" }
-                        renderPaymentUI(orderId, amount)
+                        renderPaymentUI(orderId, shopName, amount, subtotal, shippingFee, discount, orderItems)
                     }
                 }
         }
@@ -116,10 +117,31 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     /** Hiển thị thông tin ngân hàng & Tạo ảnh mã VietQR chuẩn của Quán */
-    private fun renderPaymentUI(orderId: String, amount: Long) {
+    private fun renderPaymentUI(
+        orderId: String,
+        shopName: String,
+        amount: Long,
+        subtotal: Long,
+        shippingFee: Long,
+        discount: Long,
+        orderItems: String
+    ) {
         binding.tvAmountValue.text = amount.toVndCurrency()
 
-        val transferSyntax = "OISHI ${if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else ""}".trim()
+        val orderCode = "ORD_OISHI_${orderId.takeLast(6).uppercase()}"
+        val transferSyntax = orderCode
+        binding.tvOrderDetails.text = buildString {
+            appendLine("Mã đơn: $orderCode")
+            appendLine()
+            appendLine("Món ăn:")
+            appendLine(orderItems.ifBlank { "Chi tiết món chưa có sẵn" })
+            appendLine()
+            appendLine("Tiền món: ${subtotal.toVndCurrency()}")
+            appendLine("Phí ship: ${shippingFee.toVndCurrency()}")
+            if (discount > 0L) appendLine("Giảm giá: -${discount.toVndCurrency()}")
+            appendLine("Tổng thanh toán: ${amount.toVndCurrency()}")
+            appendLine()
+        }
 
         binding.tvPayTypeBadge.text = if (currentBankName.isNotBlank()) "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (${currentBankName.uppercase()})" else "🏦 VIETQR LIÊN NGÂN HÀNG 24/7"
         binding.tvBankName.text = currentBankName.ifBlank { "Chưa cập nhật" }
@@ -207,5 +229,10 @@ class PaymentActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         countDownTimer?.cancel()
+    }
+
+    private companion object {
+        const val BANK_ACCOUNT_NUMBER = "0374022258"
+        const val BANK_ACCOUNT_HOLDER = "Hồ Thị Vân Anh"
     }
 }

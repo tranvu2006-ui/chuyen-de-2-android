@@ -162,7 +162,7 @@ class CheckoutViewModel @Inject constructor(
                         total = finalPayment,
                         subtotalAmount = cart.totalAmount,
                         shippingFee = shippingFee,
-                        totalPayment = finalPayment,
+                        totalPayment = if (paymentMethod == Order.PaymentMethod.VNPAY) 0L else finalPayment,
                         paymentMethod = paymentMethod,
                         deliveryToken = token,
                         items = cart.items.mapValues { (_, item) ->

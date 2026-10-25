@@ -223,9 +223,9 @@ class CheckoutActivity : AppCompatActivity() {
             GoogleMapUtils.openGoogleMapsSearch(this, fullAddress)
         }
 
-        // Mặc định chọn Chuyển khoản ngân hàng (VietQR) theo screenshot
-        binding.rbBanking.isChecked = true
-        binding.layoutBankingInfo.visibility = View.VISIBLE
+        // Mặc định chọn VNPay sandbox
+        binding.rbVnPay.isChecked = true
+        binding.layoutBankingInfo.visibility = View.GONE
 
         // Chọn phương thức thanh toán
         binding.rgPayment.setOnCheckedChangeListener { _, checkedId ->
@@ -256,6 +256,7 @@ class CheckoutActivity : AppCompatActivity() {
             val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
 
             val paymentMethod = when {
+                binding.rbVnPay.isChecked -> Order.PaymentMethod.VNPAY
                 binding.rbBanking.isChecked -> Order.PaymentMethod.BANKING
                 else -> Order.PaymentMethod.COD
             }
@@ -439,6 +440,15 @@ class CheckoutActivity : AppCompatActivity() {
     }
 
     private fun updateLocationAndFee() {
+        val hasPaymentTestItem = hasPaymentTestItem()
+        if (hasPaymentTestItem) {
+            currentShippingFee = 0L
+            binding.tvShipRule.text = "🧪 Đơn thử nghiệm • Miễn phí giao hàng"
+            recalculateTotal()
+            return
+        }
+
+        currentShippingFee = DEFAULT_SHIPPING_FEE
         val streetAddress = binding.etAddress.text.toString().trim()
         val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: "Quận 1 (Nội thành)"
         val fullAddress = if (streetAddress.isNotBlank()) "$streetAddress, $selectedDistrict, TP.HCM" else "$selectedDistrict, TP.HCM"
@@ -460,10 +470,23 @@ class CheckoutActivity : AppCompatActivity() {
             }
             val distanceKm = GoogleMapUtils.calculateDistanceKm(storeLatLng, customerLatLng)
 
+            if (hasPaymentTestItem()) {
+                currentShippingFee = 0L
+                binding.tvShipRule.text = "🧪 Đơn thử nghiệm • Miễn phí giao hàng"
+                recalculateTotal()
+                return@launch
+            }
+
             currentShippingFee = GoogleMapUtils.calculateShippingFeeByDistance(distanceKm)
             val distanceStr = String.format(Locale.US, "%.1f", distanceKm)
             binding.tvShipRule.text = "🛵 Google Maps: Khoảng cách ~$distanceStr km • Cước phí: ${currentShippingFee.toVndCurrency()}"
             recalculateTotal()
+        }
+    }
+
+    private fun hasPaymentTestItem(): Boolean {
+        return viewModel.carts.value.orEmpty().any { cart ->
+            cart.items.values.any { it.price == PAYMENT_TEST_ITEM_PRICE && it.quantity > 0 }
         }
     }
 
@@ -489,6 +512,7 @@ class CheckoutActivity : AppCompatActivity() {
             binding.tvSubtotal.text = currentSubtotal.toVndCurrency()
             binding.tvItemCount.text = "${carts.sumOf { it.items.size }} món"
 
+            updateLocationAndFee()
             recalculateTotal()
 
             // Hiển thị danh sách tóm tắt
@@ -516,7 +540,21 @@ class CheckoutActivity : AppCompatActivity() {
                 val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
                 val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: currentStore?.name ?: supportActionBar?.title?.toString() ?: "Quán Ăn"
 
-                if (binding.rbBanking.isChecked) {
+                if (binding.rbVnPay.isChecked) {
+                    startActivity(
+                        com.chuyen_de_2.foodorder.customer.ui.payment.VnPayActivity.createIntent(
+                            context = this,
+                            orderId = orderId,
+                            shopName = targetShopName,
+                            address = fullAddress,
+                            amount = finalTotal,
+                            subtotal = currentSubtotal,
+                            shippingFee = currentShippingFee,
+                            discount = currentDiscount,
+                            orderItems = buildPaymentItemSummary()
+                        )
+                    )
+                } else if (binding.rbBanking.isChecked) {
                     // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng (với thông tin tài khoản của Quán)
                     val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
                         putExtra(Constants.EXTRA_ORDER_ID, orderId)
@@ -527,12 +565,14 @@ class CheckoutActivity : AppCompatActivity() {
                         putExtra("extra_subtotal", currentSubtotal)
                         putExtra("extra_shipping_fee", currentShippingFee)
                         putExtra("extra_discount", currentDiscount)
+                        putExtra("extra_order_items", buildPaymentItemSummary())
                         putExtra("extra_channel", "bank")
                         putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
                         putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                         putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
                         putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
                     }
+
                     startActivity(intent)
                 } else {
                     // COD: Chuyển sang màn hình Đặt Đơn Thành Công chuẩn b8_success.html
@@ -555,6 +595,19 @@ class CheckoutActivity : AppCompatActivity() {
         }
     }
 
+    private fun buildPaymentItemSummary(): String {
+        return viewModel.carts.value.orEmpty().flatMap { cart ->
+            cart.items.values.map { item ->
+                "${item.quantity}x ${item.name}${if (item.options.isNotBlank()) " (${item.options})" else ""} — ${(item.price * item.quantity).toVndCurrency()}"
+            }
+        }.joinToString("\n")
+    }
+
+    private companion object {
+        const val PAYMENT_TEST_ITEM_PRICE = 333L
+        const val DEFAULT_SHIPPING_FEE = 15000L
+    }
+
     /** Lắng nghe thông tin tài khoản ngân hàng của quán để hiển thị cho khách xem trước */
     private fun observeShopInfo(shopId: String) {
         if (shopId.isBlank()) return
@@ -565,7 +618,7 @@ class CheckoutActivity : AppCompatActivity() {
                     if (store.bankAccountNumber.isNotBlank()) {
                         val bankDisplay = store.bankName.ifBlank { "MB Bank (Quân Đội)" }
                         val ownerDisplay = store.bankAccountName.ifBlank { store.name }
-                        binding.tvBankingDetails.text = "• Ngân hàng: $bankDisplay\n• Số tài khoản: ${store.bankAccountNumber}\n• Chủ tài khoản: $ownerDisplay\n• Cú pháp CK: OISHI [Mã đơn hàng]"
+                        binding.tvBankingDetails.text = "• Ngân hàng: $bankDisplay\n• Số tài khoản: ${store.bankAccountNumber}\n• Chủ tài khoản: $ownerDisplay\n• Nội dung CK: ORD_OISHI_[MÃ ĐƠN]"
                     }
                 }
             }

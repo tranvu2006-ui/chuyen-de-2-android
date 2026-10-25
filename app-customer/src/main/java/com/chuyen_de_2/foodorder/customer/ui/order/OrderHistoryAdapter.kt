@@ -22,7 +22,8 @@ class OrderHistoryAdapter(
     private val onComplaintClick: (Order) -> Unit,
     private val onReorderClick: (Order) -> Unit,
     private val onViewProofClick: (Order) -> Unit,
-    private val onCallClick: (String) -> Unit
+    private val onCallClick: (String) -> Unit,
+    private val onPayClick: (Order) -> Unit
 ) : ListAdapter<Order, OrderHistoryAdapter.OrderViewHolder>(DiffCallback) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
@@ -141,7 +142,7 @@ class OrderHistoryAdapter(
 
                         binding.btnActionPrimary.text = "💳 Thanh Toán Ngay ➔"
                         binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
-                        binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                        binding.btnActionPrimary.setOnClickListener { onPayClick(order) }
                     } else {
                         // CHỜ QUÁN XÁC NHẬN
                         binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")

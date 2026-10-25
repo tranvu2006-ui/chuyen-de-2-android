@@ -57,6 +57,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.database)
+    implementation(libs.firebase.functions)
     implementation(libs.firebase.messaging)
 
     // Google Play Services

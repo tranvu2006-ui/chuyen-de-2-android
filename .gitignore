@@ -25,3 +25,5 @@ chuyende2/
 .claude/
 CLAUDE.md
 graphify-out/
+/functions/node_modules/
+/functions/lib/

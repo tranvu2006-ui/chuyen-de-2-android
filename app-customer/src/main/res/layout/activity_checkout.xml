@@ -348,12 +348,22 @@
                             android:textSize="13.5sp" />
 
                         <RadioButton
-                            android:id="@+id/rbBanking"
+                            android:id="@+id/rbVnPay"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
                             android:buttonTint="@color/primary"
                             android:checked="true"
+                            android:text="Cổng VNPay (Sandbox thẻ NCB)"
+                            android:textColor="#1E293B"
+                            android:textSize="13.5sp" />
+
+                        <RadioButton
+                            android:id="@+id/rbBanking"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:buttonTint="@color/primary"
                             android:text="Chuyển khoản ngân hàng (VietQR / Chuyển 24/7)"
                             android:textColor="#1E293B"
                             android:textSize="13.5sp" />

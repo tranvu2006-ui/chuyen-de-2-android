@@ -661,6 +661,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Hình thức thanh toán
         val payMethodStr = when (order.paymentMethod) {
+            Order.PaymentMethod.VNPAY -> "VNPay (Đã thanh toán)"
             Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
             else -> "Tiền mặt khi nhận món (COD)"
         }

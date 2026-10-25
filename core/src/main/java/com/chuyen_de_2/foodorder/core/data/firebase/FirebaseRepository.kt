@@ -8,6 +8,8 @@ import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.data.model.TrackingLocation
 import com.chuyen_de_2.foodorder.core.data.model.TrustScoreLog
+import com.chuyen_de_2.foodorder.core.util.VnPayHelper
+import com.chuyen_de_2.foodorder.core.util.VnPayResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -15,6 +17,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.MutableData
 import com.google.firebase.database.Transaction
 import com.google.firebase.database.ValueEventListener
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -109,7 +112,12 @@ class FirebaseRepository @Inject constructor(
             val now = System.currentTimeMillis()
             val targetStoreId = order.storeId.ifBlank { order.shopId }
             val targetAddress = order.deliveryAddress.ifBlank { order.address }
-            val targetTotal = if (order.totalPayment > 0) order.totalPayment else order.total
+            val amountDue = when {
+                order.total > 0L -> order.total
+                order.totalPayment > 0L -> order.totalPayment
+                else -> 0L
+            }
+            val paidAmount = order.totalPayment
             val targetStatus = order.status.ifBlank { order.orderStatus.ifBlank { Order.Status.PENDING } }
             val targetTimestamp = if (order.createdAt > 0) order.createdAt else if (order.timestamp > 0) order.timestamp else now
 
@@ -135,8 +143,8 @@ class FirebaseRepository @Inject constructor(
                 shopPhone = targetShopPhone,
                 deliveryAddress = targetAddress,
                 address = targetAddress,
-                totalPayment = targetTotal,
-                total = targetTotal,
+                totalPayment = paidAmount,
+                total = amountDue,
                 status = targetStatus,
                 orderStatus = targetStatus,
                 createdAt = targetTimestamp,
@@ -329,6 +337,41 @@ class FirebaseRepository @Inject constructor(
                 onResult(false, task.exception?.message ?: "Lỗi hủy nhận đơn")
             }
         }
+    }
+
+    suspend fun createVnPayPayment(orderId: String): String {
+        val result = FirebaseFunctions.getInstance("asia-southeast1")
+            .getHttpsCallable("createVnPayPayment")
+            .call(mapOf("orderId" to orderId))
+            .await()
+        val data = result.getData() as? Map<*, *>
+            ?: throw IllegalStateException("VNPay backend returned an invalid response")
+        return data["url"] as? String
+            ?: throw IllegalStateException("VNPay backend did not return a payment URL")
+    }
+
+    suspend fun verifyVnPayReturn(returnUrl: String): VnPayResult {
+        val result = FirebaseFunctions.getInstance("asia-southeast1")
+            .getHttpsCallable("verifyVnPayReturn")
+            .call(mapOf("returnUrl" to returnUrl))
+            .await()
+        val data = result.getData() as? Map<*, *>
+            ?: throw IllegalStateException("VNPay backend returned an invalid response")
+        val responseCode = data["responseCode"] as? String
+            ?: throw IllegalStateException("VNPay backend omitted the response code")
+        val transactionStatus = data["transactionStatus"] as? String ?: ""
+        return VnPayResult(
+            success = data["success"] as? Boolean ?: false,
+            responseCode = responseCode,
+            transactionStatus = transactionStatus,
+            txnRef = data["txnRef"] as? String ?: "",
+            transactionNo = data["transactionNo"] as? String ?: "",
+            amountVnd = (data["amountVnd"] as? Number)?.toLong() ?: 0L,
+            bankCode = data["bankCode"] as? String ?: "",
+            payDate = data["payDate"] as? String ?: "",
+            message = VnPayHelper.messageForCode(responseCode),
+            hashValid = true
+        )
     }
 
     /** Cập nhật trạng thái đơn hàng và đồng bộ hai chiều status/orderStatus */

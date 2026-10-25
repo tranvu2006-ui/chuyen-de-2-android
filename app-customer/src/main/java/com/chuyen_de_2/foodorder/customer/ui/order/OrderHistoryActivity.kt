@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -12,10 +13,13 @@ import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityOrderHistoryBinding
 import com.chuyen_de_2.foodorder.customer.ui.complaint.ComplaintActivity
 import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
+import com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity
+import com.chuyen_de_2.foodorder.customer.ui.payment.VnPayActivity
 import com.chuyen_de_2.foodorder.customer.ui.tracking.TrackingActivity
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
@@ -121,11 +125,64 @@ class OrderHistoryActivity : AppCompatActivity() {
                 } catch (_: Exception) {
                     Toast.makeText(this, "Số điện thoại: $phone", Toast.LENGTH_SHORT).show()
                 }
-            }
+            },
+            onPayClick = ::showPaymentMethodPicker
         )
 
         binding.rvOrders.layoutManager = LinearLayoutManager(this)
         binding.rvOrders.adapter = adapter
+    }
+
+    private fun showPaymentMethodPicker(order: Order) {
+        AlertDialog.Builder(this)
+            .setTitle("Chọn phương thức thanh toán")
+            .setItems(arrayOf("VNPay", "Chuyển khoản ngân hàng (VietQR)")) { _, choice ->
+                val orderId = order.orderId
+                val amount = order.effectiveTotal
+                val shopName = order.effectiveShopName
+                val address = order.effectiveAddress
+                val subtotal = order.subtotalAmount
+                val shippingFee = order.shippingFee
+                val discount = maxOf(0L, subtotal + shippingFee - amount)
+
+                val intent = when (choice) {
+                    0 -> VnPayActivity.createIntent(
+                        context = this,
+                        orderId = orderId,
+                        shopName = shopName,
+                        address = address,
+                        amount = amount,
+                        subtotal = subtotal,
+                        shippingFee = shippingFee,
+                        discount = discount,
+                        orderItems = order.items.values.joinToString("\n") { item ->
+                            val itemAmount = if (item.itemSubtotal > 0L) item.itemSubtotal else item.price * item.quantity
+                            "${item.quantity}x ${item.name} — ${itemAmount.toVndCurrency()}"
+                        }
+                    )
+                    else -> Intent(this, PaymentActivity::class.java).apply {
+                        putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                        putExtra(Constants.EXTRA_SHOP_ID, order.effectiveStoreId)
+                        putExtra(Constants.EXTRA_SHOP_NAME, shopName)
+                        putExtra("extra_address", address)
+                        putExtra("extra_amount", amount)
+                        putExtra("extra_subtotal", subtotal)
+                        putExtra("extra_shipping_fee", shippingFee)
+                        putExtra("extra_discount", discount)
+                        putExtra(
+                            "extra_order_items",
+                            order.items.values.joinToString("\n") { item ->
+                                val itemAmount = if (item.itemSubtotal > 0L) item.itemSubtotal else item.price * item.quantity
+                                "${item.quantity}x ${item.name} — ${itemAmount.toVndCurrency()}"
+                            }
+                        )
+                        putExtra("extra_channel", "bank")
+                    }
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("Để sau", null)
+            .show()
     }
 
     private fun setupTabs() {

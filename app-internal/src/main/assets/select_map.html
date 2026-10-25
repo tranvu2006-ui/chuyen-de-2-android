@@ -121,12 +121,17 @@
     // Bổ sung nút zoom góc phải trên
     L.control.zoom({ position: 'topright' }).addTo(map);
 
+    let isProgrammaticMove = false;
+
     map.on('movestart', function() {
       document.body.classList.add('is-moving');
     });
 
     map.on('moveend', function() {
       document.body.classList.remove('is-moving');
+      if (isProgrammaticMove) {
+        return;
+      }
       const center = map.getCenter();
       if (window.AndroidBridge && window.AndroidBridge.onLocationMoved) {
         window.AndroidBridge.onLocationMoved(center.lat, center.lng);
@@ -135,7 +140,11 @@
 
     // Hàm gọi từ Android để di chuyển bản đồ đến toạ độ
     function setMapCenter(lat, lng, zoomLevel) {
-      map.setView([lat, lng], zoomLevel || 17, { animate: true });
+      isProgrammaticMove = true;
+      map.setView([lat, lng], zoomLevel || 17, { animate: false });
+      setTimeout(() => {
+        isProgrammaticMove = false;
+      }, 350);
     }
 
     // Hàm người dùng bấm nút GPS

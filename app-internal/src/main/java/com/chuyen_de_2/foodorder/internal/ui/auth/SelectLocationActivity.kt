@@ -26,6 +26,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import java.util.Locale
 
 class SelectLocationActivity : AppCompatActivity() {
@@ -40,6 +41,8 @@ class SelectLocationActivity : AppCompatActivity() {
     private var currentFullAddress = ""
     private var currentStreetAddress = ""
     private var currentDistrict = "Quận 1"
+    private var lastGeocodedLat: Double = 0.0
+    private var lastGeocodedLng: Double = 0.0
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -234,32 +237,44 @@ class SelectLocationActivity : AppCompatActivity() {
         currentLat = lat
         currentLng = lng
 
+        // Chống nháy: Nếu khoảng cách di chuyển quá nhỏ (< 15 mét) so với lần tra cứu gần nhất thì không gọi lại
+        if (lastGeocodedLat != 0.0 && lastGeocodedLng != 0.0) {
+            val distResults = FloatArray(1)
+            android.location.Location.distanceBetween(lastGeocodedLat, lastGeocodedLng, lat, lng, distResults)
+            if (distResults[0] < 15f && currentFullAddress.isNotBlank()) {
+                return
+            }
+        }
+
         geocodeJob?.cancel()
         geocodeJob = lifecycleScope.launch {
             binding.pbLoadingAddress.visibility = View.VISIBLE
-            binding.tvSelectedAddress.text = "Đang tra cứu địa chỉ..."
-            delay(250)
+            // Chỉ hiển thị "Đang tra cứu..." nếu hiện tại chưa có địa chỉ, tránh nhấp nháy chữ
+            if (binding.tvSelectedAddress.text.isNullOrBlank()) {
+                binding.tvSelectedAddress.text = "Đang tra cứu địa chỉ..."
+            }
+            delay(400)
+
+            lastGeocodedLat = lat
+            lastGeocodedLng = lng
 
             // 1. Thuật toán không gian: Tìm Quận gần nhất theo khoảng cách GPS
             val nearestDistrictKey = GoogleMapUtils.findNearestDistrict(lat, lng)
 
-            // 2. Tra cứu chi tiết qua Android Geocoder
+            // 2. Tra cứu chi tiết qua Android Geocoder với suspendCoroutine chuẩn cho API 33+
             val rawAddress = withContext(Dispatchers.IO) {
                 try {
                     val geocoder = Geocoder(this@SelectLocationActivity, Locale("vi", "VN"))
-                    val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        var result: String? = null
-                        geocoder.getFromLocation(lat, lng, 1) { list ->
-                            if (list.isNotEmpty()) {
-                                result = list[0].getAddressLine(0)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        kotlin.coroutines.suspendCoroutine<String?> { cont ->
+                            geocoder.getFromLocation(lat, lng, 1) { list ->
+                                cont.resume(list.firstOrNull()?.getAddressLine(0))
                             }
                         }
-                        result
                     } else {
                         @Suppress("DEPRECATION")
                         geocoder.getFromLocation(lat, lng, 1)?.firstOrNull()?.getAddressLine(0)
                     }
-                    addresses
                 } catch (_: Exception) {
                     null
                 }
@@ -283,14 +298,20 @@ class SelectLocationActivity : AppCompatActivity() {
                 rawAddress?.contains("Quận 5", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 5", true) -> "Quận 5"
                 rawAddress?.contains("Quận 4", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 4", true) -> "Quận 4"
                 rawAddress?.contains("Quận 3", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 3", true) -> "Quận 3"
+                rawAddress?.contains("Quận 1", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 1", true) -> "Quận 1"
                 else -> nearestDistrictKey
             }
 
             currentDistrict = finalDistrict
 
-            // Định dạng chuỗi địa chỉ đầy đủ
-            val displayAddress = if (!rawAddress.isNullOrBlank()) {
-                rawAddress.replace(", Việt Nam", "").trim()
+            // Lọc bỏ Plus Code (ví dụ "RJVF+MPG, ") và "Việt Nam" để địa chỉ sạch đẹp
+            val cleanedAddress = rawAddress
+                ?.replace(Regex("^[A-Z0-9]{4,8}\\+[A-Z0-9]{2,4}\\s*,\\s*"), "")
+                ?.replace(", Việt Nam", "")
+                ?.trim()
+
+            val displayAddress = if (!cleanedAddress.isNullOrBlank()) {
+                cleanedAddress
             } else {
                 "Toạ độ: ${String.format(Locale.US, "%.5f, %.5f", lat, lng)}, $finalDistrict, TP.HCM"
             }

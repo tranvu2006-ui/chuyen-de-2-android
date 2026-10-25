@@ -497,7 +497,21 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- Thanh cuộn danh mục thời gian thực từ Firebase (do Admin quản lý) -->
+                <HorizontalScrollView
+                    android:id="@+id/scrollCategoryChips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:scrollbars="none">
 
+                    <LinearLayout
+                        android:id="@+id/layoutCategoryChips"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="2dp" />
+                </HorizontalScrollView>
 
                 <!-- Banner thông báo khi đang lọc món các quán gần (b1.html: active-filter-indicator) -->
                 <LinearLayout

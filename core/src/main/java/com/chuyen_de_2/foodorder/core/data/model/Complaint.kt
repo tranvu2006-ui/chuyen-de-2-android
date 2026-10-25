@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -8,6 +9,7 @@ import com.google.gson.annotations.SerializedName
  *            admin.html — Xử lý khiếu nại 3 mức phạt
  * Mapping: Bảng 14 - complaints (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class Complaint(
     @SerializedName("complaintId")
     val complaintId: String = "",

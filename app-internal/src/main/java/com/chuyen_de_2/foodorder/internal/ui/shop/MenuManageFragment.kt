@@ -65,6 +65,9 @@ class MenuManageFragment : Fragment() {
     private val dishList = mutableListOf<Dish>()
     private var isCheckedIn = true
     private var currentStoreId = ""
+    private var platformCategories: MutableList<String> = mutableListOf(
+        "Cơm Trưa", "Trà Sữa", "Bún/Phở", "Gà Rán", "Bánh Mì", "Pizza", "Cà Phê", "Tráng Miệng / Ăn Vặt", "Lẩu / Món Nước", "Đồ Chay", "Món Khác"
+    )
 
     var onNavigateToOrdersListener: (() -> Unit)? = null
 
@@ -86,6 +89,7 @@ class MenuManageFragment : Fragment() {
         setupUI()
         setupRecyclerView()
         resolveCurrentStoreIdAndObserve()
+        observePlatformCategories()
     }
 
     /**
@@ -106,6 +110,18 @@ class MenuManageFragment : Fragment() {
      * Cách hoạt động: Lắng nghe flow từ `firebaseRepository.observeStoreDishes`. Nếu quán mới chưa có món, tự động sinh bộ món mẫu.
      * Luồng hướng tới: Cập nhật RecyclerView hiển thị danh sách món.
      */
+    private fun observePlatformCategories() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            firebaseRepository.observeCategories().collectLatest { cats ->
+                if (cats.isNotEmpty()) {
+                    val names = cats.map { it.categoryName }.toMutableList()
+                    if (!names.contains("Món Khác")) names.add("Món Khác")
+                    platformCategories = names
+                }
+            }
+        }
+    }
+
     private fun observeStoreDishes() {
         viewLifecycleOwner.lifecycleScope.launch {
             if (currentStoreId.isBlank()) return@launch
@@ -328,8 +344,7 @@ class MenuManageFragment : Fragment() {
         val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeCategories)
         spinnerCategory.adapter = storeAdapter
 
-        val platformCategories = arrayOf("Cơm Trưa", "Trà Sữa", "Bún/Phở", "Gà Rán", "Bánh Mì", "Pizza", "Cà Phê", "Tráng Miệng / Ăn Vặt", "Lẩu / Món Nước", "Đồ Chay", "Món Khác")
-        val platformAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, platformCategories)
+        val platformAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, platformCategories.toTypedArray())
         spinnerPlatformCategory.adapter = platformAdapter
 
         var userSelectedPlatformCategory = false

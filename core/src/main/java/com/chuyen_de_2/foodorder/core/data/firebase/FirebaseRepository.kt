@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.core.data.firebase
+﻿package com.chuyen_de_2.foodorder.core.data.firebase
 
 import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
@@ -737,6 +737,120 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    // ==================== DANH MỤC NỀN TẢNG (CATEGORIES) ====================
+
+    /** Lắng nghe danh sách danh mục nền tảng theo thời gian thực (từ Firebase) */
+    fun observeCategories(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = callbackFlow {
+        val ref = database.getReference("categories")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Category>()
+                for (child in snapshot.children) {
+                    val catId = child.key ?: ""
+                    val catName = child.child("categoryName").getValue(String::class.java)
+                        ?: child.child("name").getValue(String::class.java) ?: ""
+                    val iconUrl = child.child("iconUrl").getValue(String::class.java)
+                        ?: child.child("icon").getValue(String::class.java) ?: "🍽️"
+                    val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                    val isActive = child.child("isActive").getValue(Boolean::class.java)
+                        ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
+
+                    if (catName.isNotBlank() && isActive) {
+                        list.add(com.chuyen_de_2.foodorder.core.data.model.Category(
+                            categoryId = catId,
+                            categoryName = catName,
+                            iconUrl = iconUrl,
+                            displayOrder = displayOrder,
+                            isActive = isActive
+                        ))
+                    }
+                }
+                if (list.isEmpty()) {
+                    // Fallback sang menus/categories nếu categories chưa có
+                    database.getReference("menus/categories").get().addOnSuccessListener { mSnap ->
+                        val fallbackList = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Category>()
+                        for (child in mSnap.children) {
+                            val catId = child.key ?: ""
+                            val catName = child.child("categoryName").getValue(String::class.java)
+                                ?: child.child("name").getValue(String::class.java) ?: ""
+                            val iconUrl = child.child("iconUrl").getValue(String::class.java)
+                                ?: child.child("icon").getValue(String::class.java) ?: "🍽️"
+                            val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                            val isActive = child.child("isActive").getValue(Boolean::class.java)
+                                ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
+
+                            if (catName.isNotBlank() && isActive) {
+                                fallbackList.add(com.chuyen_de_2.foodorder.core.data.model.Category(
+                                    categoryId = catId,
+                                    categoryName = catName,
+                                    iconUrl = iconUrl,
+                                    displayOrder = displayOrder,
+                                    isActive = isActive
+                                ))
+                            }
+                        }
+                        fallbackList.sortBy { it.displayOrder }
+                        trySend(fallbackList)
+                    }.addOnFailureListener {
+                        trySend(emptyList())
+                    }
+                } else {
+                    list.sortBy { it.displayOrder }
+                    trySend(list)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lưu / cập nhật danh mục nền tảng lên Firebase */
+    suspend fun saveCategory(category: com.chuyen_de_2.foodorder.core.data.model.Category, desc: String = ""): Result<Unit> {
+        return try {
+            val id = category.categoryId.ifBlank { "cat-${System.currentTimeMillis()}" }
+            val map = mapOf<String, Any>(
+                "id" to id,
+                "categoryId" to id,
+                "name" to category.categoryName,
+                "categoryName" to category.categoryName,
+                "icon" to category.iconUrl,
+                "iconUrl" to category.iconUrl,
+                "desc" to desc,
+                "description" to desc,
+                "displayOrder" to category.displayOrder,
+                "isActive" to category.isActive,
+                "status" to (if (category.isActive) "ACTIVE" else "HIDDEN"),
+                "updatedAt" to System.currentTimeMillis()
+            )
+            val updates = mapOf<String, Any>(
+                "categories/$id" to map,
+                "menus/categories/$id" to map
+            )
+            database.reference.updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa danh mục nền tảng khỏi Firebase */
+    suspend fun deleteCategory(categoryId: String): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any?>(
+                "categories/$categoryId" to null,
+                "menus/categories/$categoryId" to null
+            )
+            database.reference.updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ==================== THỰC ĐƠN QUÁN (DISHES) ====================
 
     /** Lấy danh sách món ăn của quán theo thời gian thực */
@@ -1144,6 +1258,193 @@ class FirebaseRepository @Inject constructor(
             for (child in snapshot.children) {
                 val isTarget = (child.key == addressId)
                 child.ref.child("isDefault").setValue(isTarget).await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ==================== QUẢN TRỊ VIÊN HỆ THỐNG (ADMIN PORTAL) ====================
+
+    /** Lắng nghe toàn bộ khiếu nại theo thời gian thực (cho Admin xử lý) */
+    fun observeAllComplaints(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Complaint>> = callbackFlow {
+        val ref = database.getReference("complaints")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Complaint>()
+                for (child in snapshot.children) {
+                    val c = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+                    if (c != null) {
+                        val cId = if (c.complaintId.isBlank()) child.key ?: "" else c.complaintId
+                        list.add(c.copy(complaintId = cId))
+                    }
+                }
+                trySend(list.sortedByDescending { it.createdAt })
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Xử lý khiếu nại và áp dụng mức phạt cho Quán ăn */
+    suspend fun resolveComplaint(
+        complaintId: String,
+        status: String,
+        penaltyApplied: String = "NONE",
+        adminNote: String = "",
+        storeId: String = ""
+    ): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "status" to status,
+                "penaltyApplied" to penaltyApplied,
+                "adminNote" to adminNote
+            )
+            database.getReference("complaints").child(complaintId).updateChildren(updates).await()
+
+            if (storeId.isNotBlank() && penaltyApplied != "NONE") {
+                updateStorePenalty(storeId, penaltyApplied, adminNote)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Cập nhật mức chế tài xử phạt Quán ăn (WARN, HIDE, LOCK) */
+    suspend fun updateStorePenalty(
+        storeId: String,
+        penaltyTier: String,
+        reason: String
+    ): Result<Unit> {
+        return try {
+            val tierId = when (penaltyTier) {
+                com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.WARN -> 1
+                com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.HIDE -> 2
+                com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK -> 3
+                else -> 0
+            }
+            val storeStatus = if (penaltyTier == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK) {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED
+            } else {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
+            }
+            val updates = mapOf<String, Any>(
+                "penaltyTier" to penaltyTier,
+                "penaltyTierId" to tierId,
+                "penaltyReason" to reason,
+                "storeStatus" to storeStatus,
+                "status" to storeStatus,
+                "open" to (storeStatus == com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN)
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Duyệt hoặc từ chối hồ sơ Quán ăn (Admin CCCD review) */
+    suspend fun verifyStore(storeId: String, isApproved: Boolean): Result<Unit> {
+        return try {
+            val status = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN 
+                         else com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED
+            val updates = mapOf<String, Any>(
+                "isVerified" to isApproved,
+                "verified" to isApproved,
+                "storeStatus" to status,
+                "status" to status,
+                "open" to isApproved
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lắng nghe toàn bộ tài khoản Users */
+    fun observeAllUsers(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.User>> = callbackFlow {
+        val ref = database.getReference("users")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.User>()
+                for (child in snapshot.children) {
+                    val u = child.getValue(com.chuyen_de_2.foodorder.core.data.model.User::class.java)
+                    if (u != null) {
+                        val uid = if (u.uid.isBlank()) child.key ?: "" else u.uid
+                        list.add(u.copy(uid = uid))
+                    }
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Khóa / Mở khóa tài khoản người dùng */
+    suspend fun updateUserStatus(uid: String, status: String, isActive: Boolean): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "status" to status,
+                "isActive" to isActive
+            )
+            database.getReference("users").child(uid).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lắng nghe hồ sơ Customers kèm điểm uy tín */
+    fun observeAllCustomers(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Customer>> = callbackFlow {
+        val ref = database.getReference("customers")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Customer>()
+                for (child in snapshot.children) {
+                    val c = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Customer::class.java)
+                    if (c != null) {
+                        val cId = if (c.customerId.isBlank()) child.key ?: "" else c.customerId
+                        list.add(c.copy(customerId = cId))
+                    }
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Khôi phục 8 danh mục chuẩn hệ thống Oishi Food */
+    suspend fun restoreDefaultCategories(): Result<Unit> {
+        return try {
+            val defaults = listOf(
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_com", categoryName = "Cơm", iconUrl = "🍚", displayOrder = 1, isActive = true),
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_pho", categoryName = "Phở - Bún", iconUrl = "🍜", displayOrder = 2, isActive = true),
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_drink", categoryName = "Trà sữa & Nước", iconUrl = "🧋", displayOrder = 3, isActive = true),
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_snack", categoryName = "Đồ ăn vặt", iconUrl = "🍟", displayOrder = 4, isActive = true),
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_bread", categoryName = "Bánh mì", iconUrl = "🥖", displayOrder = 5, isActive = true),
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_veg", categoryName = "Món chay", iconUrl = "🥗", displayOrder = 6, isActive = true),
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_seafood", categoryName = "Hải sản", iconUrl = "🦐", displayOrder = 7, isActive = true),
+                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_dessert", categoryName = "Tráng miệng", iconUrl = "🍰", displayOrder = 8, isActive = true)
+            )
+            for (cat in defaults) {
+                saveCategory(cat)
             }
             Result.success(Unit)
         } catch (e: Exception) {

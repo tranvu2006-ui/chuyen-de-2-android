@@ -1,5 +1,7 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -9,6 +11,7 @@ import com.google.gson.annotations.SerializedName
  * Vòng đời: PENDING → PREPARING → ASSIGNED → DELIVERING → COMPLETED / BOOM / CANCELLED
  * Mapping: Bảng 12 - orders (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class Order(
     @SerializedName("orderId")
     val orderId: String = "",
@@ -88,30 +91,45 @@ data class Order(
     @SerializedName("createdAt")
     val createdAt: Long = 0,
 
+    @SerializedName("updatedAt")
+    val updatedAt: Long? = null,
+
     @SerializedName("completedAt")
     val completedAt: Long? = null
 ) {
+    @get:Exclude
     val effectiveStoreId: String
         get() = storeId.ifBlank { shopId }
 
+    @get:Exclude
     val effectiveShopName: String
         get() = shopName.ifBlank { storeId }
 
+    @get:Exclude
     val effectiveDriverId: String
         get() = driverId ?: shipperId ?: ""
 
+    @get:Exclude
     val effectiveDriverName: String
         get() = shipperName
 
+    @get:Exclude
     val effectiveStatus: String
         get() = status.ifBlank { orderStatus }
 
+    @get:Exclude
     val effectiveAddress: String
         get() = deliveryAddress.ifBlank { address }
 
+    @get:Exclude
     val effectiveTotal: Long
         get() = if (totalPayment > 0) totalPayment else total
 
+    @get:Exclude
+    val totalPrice: Long
+        get() = effectiveTotal
+
+    @get:Exclude
     val effectiveTimestamp: Long
         get() = if (createdAt > 0) createdAt else timestamp
 
@@ -154,6 +172,7 @@ data class Order(
  * Giao diện: khách/b7.html — Giỏ hàng
  * Mapping: Bảng 13 - order_items (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class OrderItem(
     @SerializedName("itemId")
     val itemId: String = "",
@@ -185,5 +204,6 @@ data class OrderItem(
     @SerializedName("itemSubtotal")
     val itemSubtotal: Long = 0
 ) {
+    @get:Exclude
     val dishName: String get() = name
 }

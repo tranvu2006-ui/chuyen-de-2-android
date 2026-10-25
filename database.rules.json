@@ -25,7 +25,11 @@
       ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'ADMIN'"
     },
     "users": {
-      ".indexOn": ["role", "status", "email"],
+      ".indexOn": [
+        "role",
+        "status",
+        "email"
+      ],
       ".read": "auth != null",
       "$userId": {
         ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
@@ -44,14 +48,19 @@
       }
     },
     "bank_accounts": {
-      ".indexOn": ["userId"],
+      ".indexOn": [
+        "userId"
+      ],
       ".read": "auth != null",
       "$bankAccountId": {
         ".write": "auth != null && (data.child('userId').val() == auth.uid || newData.child('userId').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'ADMIN')"
       }
     },
     "drivers": {
-      ".indexOn": ["dutyStatus", "storeId"],
+      ".indexOn": [
+        "dutyStatus",
+        "storeId"
+      ],
       ".read": "auth != null",
       "$userId": {
         ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
@@ -68,7 +77,13 @@
       }
     },
     "orders": {
-      ".indexOn": ["customerId", "shipperId", "shopId", "status", "timestamp"],
+      ".indexOn": [
+        "customerId",
+        "shipperId",
+        "shopId",
+        "status",
+        "timestamp"
+      ],
       ".read": "auth != null",
       "$orderId": {
         ".write": "auth != null"
@@ -84,6 +99,10 @@
       ".read": true,
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
     },
+    "categories": {
+      ".read": true,
+      ".write": "auth != null"
+    },
     "menus": {
       ".read": true,
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
@@ -93,7 +112,11 @@
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
     },
     "dish_reviews": {
-      ".indexOn": ["dishId", "orderId", "customerId"],
+      ".indexOn": [
+        "dishId",
+        "orderId",
+        "customerId"
+      ],
       ".read": true,
       "$reviewId": {
         ".write": "auth != null"
@@ -112,7 +135,10 @@
       }
     },
     "trust_score_logs": {
-      ".indexOn": ["customerId", "orderId"],
+      ".indexOn": [
+        "customerId",
+        "orderId"
+      ],
       ".read": "auth != null",
       "$logId": {
         ".write": "auth != null"

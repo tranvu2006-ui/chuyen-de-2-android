@@ -4509,6 +4509,14 @@
 
       fbDb.ref('categories').on('value', snap => {
         handleCategoriesSnapshot(snap.val());
+      }, err => {
+        fbDb.ref('menus/categories').on('value', mSnap => {
+          handleCategoriesSnapshot(mSnap.val());
+        });
+      });
+
+      fbDb.ref('menus/categories').on('value', snap => {
+        if (snap.val()) handleCategoriesSnapshot(snap.val());
       });
 
       // 8. ADMIN LOGS listener (menus/admin_logs)
@@ -5300,14 +5308,15 @@
 
       categories.sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
 
-      // Đồng bộ cả 2 node trên Firebase: categories & menus/categories
+      // Đồng bộ cả 2 node trên Firebase: menus/categories & categories
       if (fbDb && isFirebaseReady) {
-        const updates = {};
-        updates[`categories/${targetId}`] = catObj;
-        updates[`menus/categories/${targetId}`] = catObj;
-        fbDb.ref().update(updates).catch(err => {
-          console.error('Lỗi lưu danh mục Firebase:', err);
+        fbDb.ref(`menus/categories/${targetId}`).set(catObj).then(() => {
+          showToast(`Đã lưu danh mục "${name}" lên Firebase thành công!`, 'success');
+        }).catch(err => {
+          console.error('Lỗi lưu menus/categories:', err);
+          showToast('Lỗi khi lưu lên Firebase: ' + (err.message || err), 'danger');
         });
+        fbDb.ref(`categories/${targetId}`).set(catObj).catch(() => {});
       }
 
       closeModal('modal-category');
@@ -5344,10 +5353,12 @@
       if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Thao tác này sẽ xóa khỏi hệ thống.`)) {
         categories = categories.filter(c => c.id !== catId);
         if (fbDb && isFirebaseReady) {
-          const updates = {};
-          updates[`categories/${catId}`] = null;
-          updates[`menus/categories/${catId}`] = null;
-          fbDb.ref().update(updates).catch(() => {});
+          fbDb.ref(`menus/categories/${catId}`).remove().then(() => {
+            showToast(`Đã xóa danh mục "${cat.name}" khỏi Firebase`, 'info');
+          }).catch(err => {
+            console.error('Lỗi xóa menus/categories:', err);
+          });
+          fbDb.ref(`categories/${catId}`).remove().catch(() => {});
         }
         renderCategories();
         renderKPIs();

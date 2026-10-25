@@ -288,6 +288,7 @@ class HomeActivity : AppCompatActivity() {
             binding.tvFilterIndicatorSummary.text = filterText
             Toast.makeText(this, "Danh mục: $displayName", Toast.LENGTH_SHORT).show()
         }
+        renderDynamicCategoryChips(viewModel.platformCategories.value ?: emptyList())
     }
 
     private fun highlightCategory(selectedView: View) {
@@ -310,7 +311,44 @@ class HomeActivity : AppCompatActivity() {
             binding.catBread, binding.catPizza, binding.catCoffee, binding.catDessert
         )
         categoryViews.forEach { it.background = null }
+        renderDynamicCategoryChips(viewModel.platformCategories.value ?: emptyList())
     }
+
+    private fun renderDynamicCategoryChips(categories: List<com.chuyen_de_2.foodorder.core.data.model.Category>) {
+        binding.layoutCategoryChips.removeAllViews()
+        if (categories.isEmpty()) {
+            binding.scrollCategoryChips.visibility = View.GONE
+            return
+        }
+        binding.scrollCategoryChips.visibility = View.VISIBLE
+
+        categories.forEach { cat ->
+            val isSelected = (selectedCategory == cat.name || (selectedCategory != null && cat.name.contains(selectedCategory!!, true)))
+            val chip = android.widget.TextView(this).apply {
+                val icon = cat.icon.ifBlank { "🍽️" }
+                text = "$icon ${cat.name}"
+                textSize = 12f
+                setTextColor(if (isSelected) androidx.core.content.ContextCompat.getColor(this@HomeActivity, R.color.primary) else androidx.core.content.ContextCompat.getColor(this@HomeActivity, R.color.text_primary))
+                setBackgroundResource(if (isSelected) R.drawable.bg_chip_selected else R.drawable.bg_chip_unselected)
+                setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
+                val params = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(dpToPx(4), dpToPx(2), dpToPx(4), dpToPx(2))
+                }
+                layoutParams = params
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    onCategorySelected(cat.name, cat.name, this)
+                }
+            }
+            binding.layoutCategoryChips.addView(chip)
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     /**
      * Tên chức năng: Tìm kiếm món ăn theo từ khóa nhập liệu
@@ -373,6 +411,10 @@ class HomeActivity : AppCompatActivity() {
      * Luồng hướng tới: Đồng bộ hiển thị Realtime.
      */
     private fun observeViewModel() {
+        viewModel.platformCategories.observe(this) { categories ->
+            renderDynamicCategoryChips(categories)
+        }
+
         viewModel.homeDishes.observe(this) { dishes ->
             dishAdapter.submitList(dishes)
             binding.tvDishesCountBadge.text = "(${dishes.size} món)"

@@ -31,6 +31,10 @@ class HomeViewModel @Inject constructor(
     private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
     val hotDishes: LiveData<List<HotDish>> = _hotDishes
 
+    // Danh sách danh mục nền tảng thời gian thực từ Firebase
+    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
+    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
+
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
@@ -56,6 +60,13 @@ class HomeViewModel @Inject constructor(
                 _isLoading.value = false
                 _stores.value = firebaseStores
                 processStoresAndDishes(firebaseStores)
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
+            firebaseRepository.observeCategories().collectLatest { cats ->
+                _platformCategories.value = cats
             }
         }
     }

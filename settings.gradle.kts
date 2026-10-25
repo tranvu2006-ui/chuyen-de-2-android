@@ -25,3 +25,4 @@ rootProject.name = "Chuyen-De-2"
 include(":core")
 include(":app-customer")
 include(":app-internal")
+include(":app-admin")

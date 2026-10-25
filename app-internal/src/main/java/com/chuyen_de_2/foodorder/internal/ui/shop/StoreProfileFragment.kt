@@ -276,8 +276,7 @@ class StoreProfileFragment : Fragment() {
         currentDialogEtAddress = etAddress
         currentDialogEtDistrict = etDistrict
 
-        val btnPickLocation = dialog.findViewById<MaterialButton>(R.id.btnPickStoreLocationMap)
-        btnPickLocation?.setOnClickListener {
+        val openMapAction = {
             val intent = Intent(requireContext(), SelectLocationActivity::class.java).apply {
                 val addr = etAddress.text.toString().trim()
                 if (addr.isNotBlank()) putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, addr)
@@ -288,6 +287,11 @@ class StoreProfileFragment : Fragment() {
             }
             selectLocationLauncher.launch(intent)
         }
+
+        val btnPickLocation = dialog.findViewById<MaterialButton>(R.id.btnPickStoreLocationMap)
+        btnPickLocation?.setOnClickListener { openMapAction() }
+        etAddress.setOnClickListener { openMapAction() }
+        dialog.findViewById<View>(R.id.tilStoreAddress)?.setOnClickListener { openMapAction() }
 
         // Các view tài khoản ngân hàng
         val spBank = dialog.findViewById<android.widget.Spinner>(R.id.spBankName)

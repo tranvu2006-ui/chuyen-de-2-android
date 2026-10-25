@@ -217,7 +217,7 @@ class StoreVerificationActivity : AppCompatActivity() {
      * Luồng hướng tới: Gọi [validateAndSubmit] hoặc hiển thị xác nhận đăng xuất.
      */
     private fun setupListeners() {
-        binding.btnPickLocationMap.setOnClickListener {
+        val openMapAction = {
             val intent = Intent(this, SelectLocationActivity::class.java).apply {
                 val currentAddress = binding.etStoreAddress.text.toString().trim()
                 if (currentAddress.isNotBlank()) {
@@ -232,6 +232,10 @@ class StoreVerificationActivity : AppCompatActivity() {
             }
             selectLocationLauncher.launch(intent)
         }
+
+        binding.btnPickLocationMap.setOnClickListener { openMapAction() }
+        binding.etStoreAddress.setOnClickListener { openMapAction() }
+        binding.tilStoreAddress.setOnClickListener { openMapAction() }
 
         binding.btnSubmitVerification.setOnClickListener {
             validateAndSubmit()

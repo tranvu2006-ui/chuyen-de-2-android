@@ -82,21 +82,28 @@
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Địa chỉ quán -->
+        <!-- Địa chỉ quán (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS chính xác) -->
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilStoreAddress"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:hint="Địa chỉ cụ thể *"
+            android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
             app:boxStrokeColor="#EE4D2D"
+            app:endIconDrawable="@drawable/ic_map_pin"
+            app:endIconMode="custom"
+            app:endIconTint="#EE4D2D"
             app:hintTextColor="#EE4D2D">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etStoreAddress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPostalAddress"
+                android:clickable="true"
+                android:cursorVisible="false"
+                android:focusable="false"
+                android:inputType="none"
                 android:textColor="#1E293B"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
@@ -106,18 +113,14 @@
             android:id="@+id/btnPickStoreLocationMap"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="48dp"
             android:layout_marginTop="8dp"
             android:text="📍 Chọn / Ghim vị trí quán trên bản đồ"
             android:textAllCaps="false"
             android:textColor="#EE4D2D"
-            android:textSize="13sp"
+            android:textSize="13.5sp"
             android:textStyle="bold"
             app:cornerRadius="10dp"
-            app:icon="@android:drawable/ic_dialog_map"
-            app:iconGravity="textStart"
-            app:iconPadding="8dp"
-            app:iconTint="#EE4D2D"
             app:strokeColor="#EE4D2D"
             app:strokeWidth="1.2dp" />
 
@@ -134,7 +137,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="6dp"
                 android:layout_weight="1"
-                android:hint="Quận / Khu vực"
+                android:hint="Quận (Tự động từ Map)"
                 app:boxStrokeColor="#EE4D2D"
                 app:hintTextColor="#EE4D2D">
 
@@ -142,7 +145,10 @@
                     android:id="@+id/etStoreDistrict"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text"
+                    android:clickable="false"
+                    android:cursorVisible="false"
+                    android:focusable="false"
+                    android:inputType="none"
                     android:textColor="#1E293B"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>

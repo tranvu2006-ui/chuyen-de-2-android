@@ -244,14 +244,151 @@ object GoogleMapUtils {
     }
 
     /**
+     * Chuẩn hoá chuỗi tiếng Việt bỏ dấu để tìm kiếm không phân biệt dấu và hoa thường
+     */
+    fun removeAccent(s: String): String {
+        val temp = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+        val pattern = java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
+        return pattern.matcher(temp).replaceAll("").replace("đ", "d").replace("Đ", "D").lowercase().trim()
+    }
+
+    /**
+     * Danh mục các tuyến đường và địa điểm nổi tiếng phổ biến tại TP.HCM
+     * Giúp trả kết quả gợi ý TỨC THÌ (0ms) khi người dùng gõ bất kỳ ký tự nào
+     */
+    val POPULAR_LOCATIONS = listOf(
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Sư Vạn Hạnh", "Phường 12, Quận 10, TP.HCM", "Đường Sư Vạn Hạnh, Quận 10, TP. Hồ Chí Minh", "Quận 10", 10.7719, 106.6698),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Song Hành", "Phường An Phú, TP. Thủ Đức", "Đường Song Hành, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8035, 106.7554),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Chợ Bến Thành (Sài Gòn)", "Đường Lê Lợi, Bến Thành, Quận 1", "Chợ Bến Thành, Quận 1, TP. Hồ Chí Minh", "Quận 1", 10.7725, 106.6980),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Saigon Centre / Takashimaya", "65 Lê Lợi, Bến Nghé, Quận 1", "65 Lê Lợi, Bến Nghé, Quận 1, TP. Hồ Chí Minh", "Quận 1", 10.7735, 106.7006),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Võ Văn Ngân", "Phường Linh Chiểu, TP. Thủ Đức", "Đường Võ Văn Ngân, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8512, 106.7720),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Kha Vạn Cân", "Phường Linh Đông, TP. Thủ Đức", "Đường Kha Vạn Cân, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8496, 106.7562),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Quang Trung", "Phường 10, Quận Gò Vấp", "Đường Quang Trung, Quận Gò Vấp, TP. Hồ Chí Minh", "Gò Vấp", 10.8355, 106.6662),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Phan Xích Long", "Phường 2, Quận Phú Nhuận", "Đường Phan Xích Long, Quận Phú Nhuận, TP. Hồ Chí Minh", "Phú Nhuận", 10.7986, 106.6872),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Điện Biên Phủ", "Phường 15, Quận Bình Thạnh", "Đường Điện Biên Phủ, Quận Bình Thạnh, TP. Hồ Chí Minh", "Bình Thạnh", 10.8016, 106.7088),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Nguyễn Thị Minh Khai", "Phường Bến Nghé, Quận 1", "Đường Nguyễn Thị Minh Khai, Quận 1, TP. Hồ Chí Minh", "Quận 1", 10.7794, 106.6953),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Cách Mạng Tháng 8", "Phường 5, Quận Tân Bình", "Đường Cách Mạng Tháng 8, Tân Bình, TP. Hồ Chí Minh", "Tân Bình", 10.7885, 106.6622),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Cộng Hòa", "Phường 13, Quận Tân Bình", "Đường Cộng Hòa, Quận Tân Bình, TP. Hồ Chí Minh", "Tân Bình", 10.8038, 106.6433),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Nguyễn Tri Phương", "Phường 8, Quận 10", "Đường Nguyễn Tri Phương, Quận 10, TP. Hồ Chí Minh", "Quận 10", 10.7634, 106.6675),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Nguyễn Trãi", "Phường 3, Quận 5", "Đường Nguyễn Trãi, Quận 5, TP. Hồ Chí Minh", "Quận 5", 10.7540, 106.6670),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Nguyễn Văn Cừ", "Phường 4, Quận 5", "Đường Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh", "Quận 5", 10.7578, 106.6828),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Nguyễn Hữu Thọ", "Phường Tân Phong, Quận 7", "Đường Nguyễn Hữu Thọ, Quận 7, TP. Hồ Chí Minh", "Quận 7", 10.7328, 106.7022),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Huỳnh Tấn Phát", "Phường Phú Thuận, Quận 7", "Đường Huỳnh Tấn Phát, Quận 7, TP. Hồ Chí Minh", "Quận 7", 10.7351, 106.7329),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Phạm Văn Đồng", "Phường 1, Quận Gò Vấp", "Đường Phạm Văn Đồng, Gò Vấp, TP. Hồ Chí Minh", "Gò Vấp", 10.8242, 106.6885),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Trường Chinh", "Phường Tây Thạnh, Quận Tân Phú", "Đường Trường Chinh, Tân Phú, TP. Hồ Chí Minh", "Tân Phú", 10.8122, 106.6294),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Tô Ngọc Vân", "Phường Linh Tây, TP. Thủ Đức", "Đường Tô Ngọc Vân, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8624, 106.7525),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Đặng Văn Bi", "Phường Trường Thọ, TP. Thủ Đức", "Đường Đặng Văn Bi, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8415, 106.7667),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Hoàng Diệu 2", "Phường Linh Trung, TP. Thủ Đức", "Đường Hoàng Diệu 2, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8564, 106.7712),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Đường Lê Văn Việt", "Phường Tăng Nhơn Phú A, TP. Thủ Đức", "Đường Lê Văn Việt, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8480, 106.7865),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Landmark 81 (Vinhomes Central Park)", "720A Điện Biên Phủ, Phường 22, Bình Thạnh", "Landmark 81, Bình Thạnh, TP. Hồ Chí Minh", "Bình Thạnh", 10.7950, 106.7218),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Chợ Thủ Đức", "Võ Văn Ngân, Phường Linh Tây, TP. Thủ Đức", "Chợ Thủ Đức, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8504, 106.7587),
+        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion("Làng Đại học Quốc gia TP.HCM", "Linh Trung, TP. Thủ Đức", "Làng Đại học Quốc gia, TP. Thủ Đức, TP. Hồ Chí Minh", "Thủ Đức", 10.8753, 106.8007)
+    )
+
+    /**
+     * Gọi Photon OpenStreetMap REST API tìm kiếm địa chỉ chính xác không cần Google Play Services
+     */
+    private fun fetchPhotonSuggestions(query: String): List<com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion> {
+        val results = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion>()
+        try {
+            val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+            val url = java.net.URL("https://photon.komoot.io/api/?q=$encoded&lat=10.7769&lon=106.7009&limit=6")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 2500
+            conn.readTimeout = 2500
+            conn.setRequestProperty("User-Agent", "FoodOrderApp/1.0")
+            if (conn.responseCode == 200) {
+                val responseText = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = org.json.JSONObject(responseText)
+                val features = json.optJSONArray("features") ?: return results
+                for (i in 0 until features.length()) {
+                    val feat = features.getJSONObject(i)
+                    val geom = feat.optJSONObject("geometry")
+                    val coords = geom?.optJSONArray("coordinates")
+                    val lng = coords?.optDouble(0) ?: 0.0
+                    val lat = coords?.optDouble(1) ?: 0.0
+                    if (lat == 0.0 || lng == 0.0) continue
+
+                    val props = feat.optJSONObject("properties") ?: continue
+                    val name = props.optString("name")
+                    val street = props.optString("street")
+                    val district = props.optString("district").ifBlank { props.optString("city") }
+                    val city = props.optString("city", "TP. Hồ Chí Minh")
+
+                    val title = if (name.isNotBlank()) name else street
+                    if (title.isBlank()) continue
+
+                    val subtitleParts = mutableListOf<String>()
+                    if (street.isNotBlank() && street != title) subtitleParts.add(street)
+                    if (district.isNotBlank()) subtitleParts.add(district)
+                    if (city.isNotBlank()) subtitleParts.add(city)
+                    val subtitle = subtitleParts.joinToString(", ")
+                    val fullAddress = if (subtitle.isNotBlank()) "$title, $subtitle" else title
+
+                    val detectedDistrict = findNearestDistrict(lat, lng)
+                    results.add(
+                        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion(
+                            title = title,
+                            subtitle = if (subtitle.isNotBlank()) subtitle else "$detectedDistrict, TP.HCM",
+                            fullAddress = fullAddress,
+                            district = detectedDistrict,
+                            latitude = lat,
+                            longitude = lng
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {}
+        return results
+    }
+
+    /**
      * Tìm kiếm gợi ý danh sách địa chỉ tự động dựa trên từ khóa người dùng nhập (Address Autocomplete)
+     * Kết hợp 4 tầng tìm kiếm: Offline siêu tốc (0ms) -> Danh mục 20 Quận -> Photon API -> Android Geocoder
      */
     suspend fun searchAddressSuggestions(context: Context, query: String): List<com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        if (trimmed.length < 2) return@withContext emptyList()
+        if (trimmed.isEmpty()) {
+            return@withContext POPULAR_LOCATIONS.take(6)
+        }
 
+        val queryNormalized = removeAccent(trimmed)
         val results = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion>()
 
+        // 1. Tầng 1: Lọc tức thì (0ms) từ danh mục địa điểm phổ biến & đường lớn TP.HCM
+        POPULAR_LOCATIONS.forEach { loc ->
+            val titleNorm = removeAccent(loc.title)
+            val subNorm = removeAccent(loc.subtitle)
+            val fullNorm = removeAccent(loc.fullAddress)
+            if (titleNorm.contains(queryNormalized) || subNorm.contains(queryNormalized) || fullNorm.contains(queryNormalized)) {
+                results.add(loc)
+            }
+        }
+
+        // 2. Tầng 2: Khớp danh sách 20 Quận/Huyện TP.HCM
+        DISTRICT_COORDINATES.forEach { (distName, latLng) ->
+            val distNorm = removeAccent(distName)
+            if (distNorm.contains(queryNormalized) || queryNormalized.contains(distNorm)) {
+                if (results.none { removeAccent(it.district) == distNorm && it.title == distName }) {
+                    results.add(
+                        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion(
+                            title = distName,
+                            subtitle = "Thành phố Hồ Chí Minh",
+                            fullAddress = "$distName, TP. Hồ Chí Minh",
+                            district = distName,
+                            latitude = latLng.latitude,
+                            longitude = latLng.longitude
+                        )
+                    )
+                }
+            }
+        }
+
+        // 3. Tầng 3: Gọi Photon OpenStreetMap REST API (miễn phí, độc lập, hỗ trợ mọi tên đường / số nhà VN)
+        val photonResults = fetchPhotonSuggestions(trimmed)
+        results.addAll(photonResults)
+
+        // 4. Tầng 4: Gọi Geocoder nội tại của Android (nếu có Google Play Services)
         try {
             val geocoder = Geocoder(context, Locale("vi", "VN"))
             val searchQuery = if (trimmed.contains("TP", true) || trimmed.contains("Hồ Chí Minh", true) || trimmed.contains("HCM", true)) {
@@ -262,13 +399,13 @@ object GoogleMapUtils {
 
             val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 suspendCoroutine<List<Address>?> { cont ->
-                    geocoder.getFromLocationName(searchQuery, 6) { list ->
+                    geocoder.getFromLocationName(searchQuery, 5) { list ->
                         cont.resume(list)
                     }
                 }
             } else {
                 @Suppress("DEPRECATION")
-                geocoder.getFromLocationName(searchQuery, 6)
+                geocoder.getFromLocationName(searchQuery, 5)
             }
 
             addresses?.forEach { addr ->
@@ -295,24 +432,8 @@ object GoogleMapUtils {
             }
         } catch (_: Exception) {}
 
-        // Bổ sung gợi ý theo bảng Quận/Huyện nếu người dùng gõ tên quận hoặc chưa có kết quả
-        DISTRICT_COORDINATES.forEach { (distName, latLng) ->
-            if (distName.contains(trimmed, ignoreCase = true) || trimmed.contains(distName, ignoreCase = true)) {
-                if (results.none { it.district.equals(distName, ignoreCase = true) }) {
-                    results.add(
-                        com.chuyen_de_2.foodorder.core.data.model.AddressSuggestion(
-                            title = distName,
-                            subtitle = "Thành phố Hồ Chí Minh",
-                            fullAddress = "$distName, TP. Hồ Chí Minh",
-                            district = distName,
-                            latitude = latLng.latitude,
-                            longitude = latLng.longitude
-                        )
-                    )
-                }
-            }
-        }
-
-        return@withContext results.distinctBy { "${it.latitude},${it.longitude}" }
+        return@withContext results.distinctBy {
+            "${String.format(Locale.US, "%.4f", it.latitude)},${String.format(Locale.US, "%.4f", it.longitude)}"
+        }.take(8)
     }
 }

@@ -28,7 +28,7 @@ class AdminCategoryViewModel @Inject constructor(
 
     private fun observeCategories() {
         viewModelScope.launch {
-            firebaseRepo.observeCategories().collect { list ->
+            firebaseRepo.observeCategories(includeInactive = true).collect { list ->
                 _categories.value = list.sortedBy { it.displayOrder }
             }
         }
@@ -52,8 +52,11 @@ class AdminCategoryViewModel @Inject constructor(
 
     fun toggleCategoryActive(category: Category, isActive: Boolean) {
         viewModelScope.launch {
-            val updated = category.copy(isActive = isActive)
-            firebaseRepo.saveCategory(updated)
+            val result = firebaseRepo.toggleCategoryActive(category.categoryId, isActive)
+            if (result.isSuccess) {
+                val stateText = if (isActive) "Hiển thị" else "Ẩn"
+                _message.value = "Đã chuyển '${category.name}' sang trạng thái: $stateText"
+            }
         }
     }
 
@@ -72,7 +75,7 @@ class AdminCategoryViewModel @Inject constructor(
         viewModelScope.launch {
             val result = firebaseRepo.restoreDefaultCategories()
             if (result.isSuccess) {
-                _message.value = "Đã khôi phục 8 danh mục mẫu thành công!"
+                _message.value = "Đã khôi phục 12 danh mục mẫu thành công!"
             } else {
                 _message.value = "Khôi phục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
             }

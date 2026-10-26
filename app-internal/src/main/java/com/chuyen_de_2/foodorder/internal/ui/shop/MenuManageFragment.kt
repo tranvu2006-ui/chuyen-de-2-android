@@ -66,8 +66,9 @@ class MenuManageFragment : Fragment() {
     private var isCheckedIn = true
     private var currentStoreId = ""
     private var platformCategories: MutableList<String> = mutableListOf(
-        "Cơm Trưa", "Trà Sữa", "Bún/Phở", "Gà Rán", "Bánh Mì", "Pizza", "Cà Phê", "Tráng Miệng / Ăn Vặt", "Lẩu / Món Nước", "Đồ Chay", "Món Khác"
+        "Cơm", "Bún - Phở", "Trà sữa & Nước", "Gà rán", "Bánh mì", "Pizza", "Cà phê", "Đồ ăn vặt", "Món chay", "Hải sản", "Tráng miệng", "Lẩu / Món Nước", "Món Khác"
     )
+    private var platformCategoryObjects: List<com.chuyen_de_2.foodorder.core.data.model.Category> = emptyList()
 
     var onNavigateToOrdersListener: (() -> Unit)? = null
 
@@ -112,8 +113,9 @@ class MenuManageFragment : Fragment() {
      */
     private fun observePlatformCategories() {
         viewLifecycleOwner.lifecycleScope.launch {
-            firebaseRepository.observeCategories().collectLatest { cats ->
+            firebaseRepository.observeCategories(includeInactive = false).collectLatest { cats ->
                 if (cats.isNotEmpty()) {
+                    platformCategoryObjects = cats
                     val names = cats.map { it.categoryName }.toMutableList()
                     if (!names.contains("Món Khác")) names.add("Món Khác")
                     platformCategories = names
@@ -358,16 +360,17 @@ class MenuManageFragment : Fragment() {
             if (!userSelectedPlatformCategory && editingDish == null) {
                 val input = text?.toString().orEmpty().lowercase()
                 val suggestedIndex = when {
-                    input.contains("cơm") -> platformCategories.indexOf("Cơm Trưa")
-                    input.contains("trà") -> platformCategories.indexOf("Trà Sữa")
-                    input.contains("bún") || input.contains("phở") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOf("Bún/Phở")
-                    input.contains("gà") -> platformCategories.indexOf("Gà Rán")
-                    input.contains("bánh mì") -> platformCategories.indexOf("Bánh Mì")
-                    input.contains("pizza") -> platformCategories.indexOf("Pizza")
-                    input.contains("cà phê") || input.contains("cafe") || input.contains("coffee") -> platformCategories.indexOf("Cà Phê")
-                    input.contains("lẩu") -> platformCategories.indexOf("Lẩu / Món Nước")
-                    input.contains("chay") -> platformCategories.indexOf("Đồ Chay")
-                    input.contains("chè") || input.contains("kem") || input.contains("bánh") || input.contains("ăn vặt") || input.contains("tráng miệng") -> platformCategories.indexOf("Tráng Miệng / Ăn Vặt")
+                    input.contains("cơm") -> platformCategories.indexOfFirst { it.contains("cơm", true) }
+                    input.contains("trà") || input.contains("nước") || input.contains("uống") -> platformCategories.indexOfFirst { it.contains("trà", true) || it.contains("nước", true) }
+                    input.contains("bún") || input.contains("phở") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOfFirst { it.contains("bún", true) || it.contains("phở", true) || it.contains("mì", true) }
+                    input.contains("gà") -> platformCategories.indexOfFirst { it.contains("gà", true) }
+                    input.contains("bánh mì") -> platformCategories.indexOfFirst { it.contains("bánh mì", true) }
+                    input.contains("pizza") -> platformCategories.indexOfFirst { it.contains("pizza", true) }
+                    input.contains("cà phê") || input.contains("cafe") || input.contains("coffee") -> platformCategories.indexOfFirst { it.contains("cà phê", true) || it.contains("cafe", true) }
+                    input.contains("lẩu") -> platformCategories.indexOfFirst { it.contains("lẩu", true) }
+                    input.contains("chay") -> platformCategories.indexOfFirst { it.contains("chay", true) }
+                    input.contains("hải sản") || input.contains("tôm") || input.contains("cua") || input.contains("cá") || input.contains("mực") -> platformCategories.indexOfFirst { it.contains("hải sản", true) }
+                    input.contains("chè") || input.contains("kem") || input.contains("bánh") || input.contains("ăn vặt") || input.contains("tráng miệng") -> platformCategories.indexOfFirst { it.contains("ăn vặt", true) || it.contains("tráng miệng", true) }
                     else -> -1
                 }
                 if (suggestedIndex >= 0) {
@@ -390,7 +393,10 @@ class MenuManageFragment : Fragment() {
             val catIndex = storeCategories.indexOf(editingDish.category)
             if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
 
-            val platIndex = platformCategories.indexOf(editingDish.platformCategory)
+            val platIndex = platformCategories.indexOfFirst {
+                it.equals(editingDish.platformCategory, ignoreCase = true) ||
+                it.equals(editingDish.categoryId, ignoreCase = true)
+            }
             if (platIndex >= 0) {
                 spinnerPlatformCategory.setSelection(platIndex)
             } else {
@@ -455,6 +461,8 @@ class MenuManageFragment : Fragment() {
             }
 
             val price = priceStr.toLongOrNull() ?: 0L
+            val matchedCategory = platformCategoryObjects.find { it.categoryName.equals(platformCategory, ignoreCase = true) }
+            val finalCategoryId = matchedCategory?.categoryId?.ifBlank { null } ?: "cat_other"
 
             if (editingDish != null) {
                 // Sửa món
@@ -463,7 +471,7 @@ class MenuManageFragment : Fragment() {
                     basePrice = price,
                     category = category,
                     platformCategory = platformCategory,
-                    categoryId = platformCategory,
+                    categoryId = finalCategoryId,
                     description = description,
                     imageUrl = finalImageUrl,
                     storeId = currentStoreId
@@ -486,7 +494,7 @@ class MenuManageFragment : Fragment() {
                     basePrice = price,
                     category = category,
                     platformCategory = platformCategory,
-                    categoryId = platformCategory,
+                    categoryId = finalCategoryId,
                     description = description,
                     imageUrl = finalImageUrl,
                     isAvailable = true

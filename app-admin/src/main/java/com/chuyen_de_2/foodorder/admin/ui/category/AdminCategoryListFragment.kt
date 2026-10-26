@@ -83,7 +83,7 @@ class AdminCategoryListFragment : Fragment() {
         binding.btnRestoreCategoryDefaults.setOnClickListener {
             AlertDialog.Builder(requireContext())
                 .setTitle("Khôi phục danh mục mẫu")
-                .setMessage("Thao tác này sẽ đồng bộ lại 8 danh mục mặc định của Oishi Food lên cơ sở dữ liệu.")
+                .setMessage("Thao tác này sẽ đồng bộ lại 12 danh mục mặc định của Oishi Food lên cơ sở dữ liệu.")
                 .setNegativeButton("Hủy", null)
                 .setPositiveButton("Đồng ý") { _, _ ->
                     viewModel.restoreDefaults()

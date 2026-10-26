@@ -760,7 +760,7 @@ class FirebaseRepository @Inject constructor(
     // ==================== DANH MỤC NỀN TẢNG (CATEGORIES) ====================
 
     /** Lắng nghe danh sách danh mục nền tảng theo thời gian thực (từ Firebase) */
-    fun observeCategories(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = callbackFlow {
+    fun observeCategories(includeInactive: Boolean = false): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = callbackFlow {
         val ref = database.getReference("categories")
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -775,7 +775,7 @@ class FirebaseRepository @Inject constructor(
                     val isActive = child.child("isActive").getValue(Boolean::class.java)
                         ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
 
-                    if (catName.isNotBlank() && isActive) {
+                    if (catName.isNotBlank() && (includeInactive || isActive)) {
                         list.add(com.chuyen_de_2.foodorder.core.data.model.Category(
                             categoryId = catId,
                             categoryName = catName,
@@ -799,7 +799,7 @@ class FirebaseRepository @Inject constructor(
                             val isActive = child.child("isActive").getValue(Boolean::class.java)
                                 ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
 
-                            if (catName.isNotBlank() && isActive) {
+                            if (catName.isNotBlank() && (includeInactive || isActive)) {
                                 fallbackList.add(com.chuyen_de_2.foodorder.core.data.model.Category(
                                     categoryId = catId,
                                     categoryName = catName,
@@ -809,10 +809,14 @@ class FirebaseRepository @Inject constructor(
                                 ))
                             }
                         }
-                        fallbackList.sortBy { it.displayOrder }
-                        trySend(fallbackList)
+                        if (fallbackList.isNotEmpty()) {
+                            fallbackList.sortBy { it.displayOrder }
+                            trySend(fallbackList)
+                        } else {
+                            trySend(getDefaultCategories().filter { includeInactive || it.isActive })
+                        }
                     }.addOnFailureListener {
-                        trySend(emptyList())
+                        trySend(getDefaultCategories().filter { includeInactive || it.isActive })
                     }
                 } else {
                     list.sortBy { it.displayOrder }
@@ -858,6 +862,23 @@ class FirebaseRepository @Inject constructor(
     }
 
     /** Xóa danh mục nền tảng khỏi Firebase */
+    /** Bật / tắt hiển thị danh mục trên ứng dụng Khách */
+    suspend fun toggleCategoryActive(categoryId: String, isActive: Boolean): Result<Unit> {
+        return try {
+            val status = if (isActive) "ACTIVE" else "HIDDEN"
+            val updates = mapOf<String, Any?>(
+                "categories/$categoryId/isActive" to isActive,
+                "categories/$categoryId/status" to status,
+                "menus/categories/$categoryId/isActive" to isActive,
+                "menus/categories/$categoryId/status" to status
+            )
+            database.reference.updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun deleteCategory(categoryId: String): Result<Unit> {
         return try {
             val updates = mapOf<String, Any?>(
@@ -1450,19 +1471,14 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Khôi phục 8 danh mục chuẩn hệ thống Oishi Food */
+    /** Danh mục nền tảng mặc định tiêu chuẩn */
+    fun getDefaultCategories(): List<com.chuyen_de_2.foodorder.core.data.model.Category> =
+        com.chuyen_de_2.foodorder.core.data.model.Category.getDefaultCategories()
+
+    /** Khôi phục 12 danh mục chuẩn hệ thống Oishi Food */
     suspend fun restoreDefaultCategories(): Result<Unit> {
         return try {
-            val defaults = listOf(
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_com", categoryName = "Cơm", iconUrl = "🍚", displayOrder = 1, isActive = true),
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_pho", categoryName = "Phở - Bún", iconUrl = "🍜", displayOrder = 2, isActive = true),
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_drink", categoryName = "Trà sữa & Nước", iconUrl = "🧋", displayOrder = 3, isActive = true),
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_snack", categoryName = "Đồ ăn vặt", iconUrl = "🍟", displayOrder = 4, isActive = true),
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_bread", categoryName = "Bánh mì", iconUrl = "🥖", displayOrder = 5, isActive = true),
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_veg", categoryName = "Món chay", iconUrl = "🥗", displayOrder = 6, isActive = true),
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_seafood", categoryName = "Hải sản", iconUrl = "🦐", displayOrder = 7, isActive = true),
-                com.chuyen_de_2.foodorder.core.data.model.Category(categoryId = "cat_dessert", categoryName = "Tráng miệng", iconUrl = "🍰", displayOrder = 8, isActive = true)
-            )
+            val defaults = getDefaultCategories()
             for (cat in defaults) {
                 saveCategory(cat)
             }

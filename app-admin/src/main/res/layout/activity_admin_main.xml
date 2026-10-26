@@ -7,22 +7,32 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
+    <!-- Unified Executive Header Backdrop -->
+    <View
+        android:id="@+id/viewHeaderBackdrop"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/bg_header_admin_gradient"
+        app:layout_constraintBottom_toBottomOf="@id/layoutTopBar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <!-- System Status Bar Spacer -->
     <View
         android:id="@+id/viewStatusBar"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@color/admin_navy"
+        android:background="@android:color/transparent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Executive Custom TopBar -->
+    <!-- Executive Custom Command Bar -->
     <LinearLayout
         android:id="@+id/layoutTopBar"
         android:layout_width="0dp"
-        android:layout_height="64dp"
-        android:background="@color/admin_navy"
+        android:layout_height="68dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
@@ -30,22 +40,29 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/viewStatusBar">
 
-        <!-- Logo Icon Bubble -->
+        <!-- Brand Squircle Emblem -->
         <FrameLayout
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/bg_choice_card_active"
-            android:backgroundTint="@color/primary">
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_glass_pill"
+            android:padding="3dp">
 
-            <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_shield_alert"
-                app:tint="@color/white" />
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_choice_card_active"
+                android:backgroundTint="@color/primary">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_shield_alert"
+                    app:tint="@color/white" />
+            </FrameLayout>
         </FrameLayout>
 
-        <!-- Titles -->
+        <!-- Command Center Identity -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -63,21 +80,22 @@
                     android:id="@+id/tvTopBarTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="OISHI FOOD ADMIN"
+                    android:letterSpacing="0.02"
+                    android:text="OISHI COMMAND"
                     android:textColor="@color/white"
-                    android:textSize="15sp"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="8dp"
                     android:background="@drawable/bg_badge_green"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="1dp"
-                    android:text="PORTAL"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="2dp"
+                    android:text="● ROOT"
                     android:textColor="@color/brand_green"
-                    android:textSize="9sp"
+                    android:textSize="9.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -85,85 +103,95 @@
                 android:id="@+id/tvTopBarAdminName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
+                android:layout_marginTop="2dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="Admin • Đang trực tuyến"
-                android:textColor="@color/text_muted"
-                android:textSize="11sp" />
+                android:text="Quản trị viên • Trực tuyến"
+                android:textColor="#94A3B8"
+                android:textSize="11.5sp" />
         </LinearLayout>
 
-        <!-- Urgent Alert Bell -->
+        <!-- Urgent Alert Glass Button -->
         <FrameLayout
             android:id="@+id/btnQuickUrgentAlert"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="6dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_glass_pill"
             android:clickable="true"
             android:focusable="true">
 
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_notification"
                 app:tint="@color/white" />
 
             <TextView
                 android:id="@+id/tvAlertBadgeCount"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
                 android:layout_gravity="top|end"
-                android:layout_marginTop="4dp"
-                android:layout_marginEnd="4dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="2dp"
                 android:background="@drawable/bg_circle_icon_red"
                 android:backgroundTint="@color/danger"
                 android:gravity="center"
                 android:textColor="@color/white"
-                android:textSize="9sp"
+                android:textSize="9.5sp"
                 android:textStyle="bold"
                 android:visibility="gone"
                 tools:text="3"
                 tools:visibility="visible" />
         </FrameLayout>
 
-        <!-- Logout Action -->
+        <!-- Logout Glass Button -->
         <FrameLayout
             android:id="@+id/btnAdminLogout"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_glass_pill"
             android:clickable="true"
             android:focusable="true">
 
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_log_out"
-                app:tint="@color/text_muted" />
+                app:tint="#FCA5A5" />
         </FrameLayout>
 
     </LinearLayout>
 
-    <!-- Main Fragment Container -->
+    <!-- Main Fragment Workspace -->
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/navHostAdmin"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@id/bottomNavAdmin"
+        app:layout_constraintBottom_toTopOf="@id/viewBottomNavDivider"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/layoutTopBar" />
 
-    <!-- Modern Bottom Navigation -->
+    <!-- Crisp 1dp Top Hairline for Bottom Navigation -->
+    <View
+        android:id="@+id/viewBottomNavDivider"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:background="@color/border"
+        app:layout_constraintBottom_toTopOf="@id/bottomNavAdmin"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Modern Executive Bottom Navigation -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottomNavAdmin"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@color/white"
-        app:elevation="12dp"
+        app:elevation="16dp"
         app:itemActiveIndicatorStyle="@style/Widget.Material3.BottomNavigationView.ActiveIndicator"
         app:itemIconSize="22dp"
         app:itemIconTint="@color/bottom_nav_color_selector"

@@ -3,38 +3,67 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_rounded">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="22dp">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Xử Lý Khiếu Nại Đơn Hàng"
-            android:textColor="@color/text_primary"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/tvDialogComplaintRef"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textColor="@color/text_muted"
-            android:textSize="12sp"
-            tools:text="Đơn: ORD-123 • Quán: store_01" />
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_circle_icon_red">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_shield_alert"
+                    app:tint="@color/danger" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Phán Quyết Khiếu Nại Đơn Hàng"
+                    android:textColor="@color/text_primary"
+                    android:textSize="17.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDialogComplaintRef"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    tools:text="Đơn: ORD-123 • Quán: store_01" />
+            </LinearLayout>
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvDialogReasonContent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_choice_card_idle"
-            android:padding="12dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_search_bar_modern"
+            android:padding="14dp"
             android:textColor="@color/text_primary"
             android:textSize="13sp"
             tools:text="Nội dung: Món giao thiếu và không đạt chất lượng." />
@@ -44,23 +73,23 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="1. Quyết định xử lý khiếu nại:"
-            android:textColor="@color/text_primary"
-            android:textSize="13sp"
+            android:text="1. PHÁN QUYẾT HỒ SƠ KHIẾU NẠI:"
+            android:textColor="@color/secondary"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
         <RadioGroup
             android:id="@+id/rgComplaintDecision"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp">
+            android:layout_marginTop="6dp">
 
             <RadioButton
                 android:id="@+id/rbResolveApprove"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="Chấp thuận khiếu nại (RESOLVED)"
+                android:text="✅ Chấp thuận khiếu nại chính đáng (RESOLVED)"
                 android:textColor="@color/brand_green"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -69,9 +98,10 @@
                 android:id="@+id/rbResolveReject"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Bác bỏ khiếu nại (REJECTED)"
+                android:text="❌ Bác bỏ khiếu nại không đủ căn cứ (REJECTED)"
                 android:textColor="@color/danger"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:textStyle="bold" />
         </RadioGroup>
 
         <!-- Store Penalty Tier -->
@@ -79,23 +109,23 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="2. Áp dụng mức phạt Quán ăn (Store):"
-            android:textColor="@color/text_primary"
-            android:textSize="13sp"
+            android:text="2. MỨC CHẾ TÀI ĐỐI VỚI CỬA HÀNG:"
+            android:textColor="@color/secondary"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
         <RadioGroup
             android:id="@+id/rgComplaintPenalty"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp">
+            android:layout_marginTop="6dp">
 
             <RadioButton
                 android:id="@+id/rbPenaltyNone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="Không phạt (NONE)"
+                android:text="⚪ Không áp dụng phạt (NONE)"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp" />
 
@@ -103,7 +133,7 @@
                 android:id="@+id/rbPenaltyWarn"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Mức 1: Cảnh cáo quán (WARN)"
+                android:text="🟡 Mức 1: Cảnh cáo vi phạm (WARN)"
                 android:textColor="@color/brand_orange"
                 android:textSize="13sp" />
 
@@ -111,7 +141,7 @@
                 android:id="@+id/rbPenaltyHide"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Mức 2: Tạm ẩn quán 3 ngày (HIDE)"
+                android:text="🟠 Mức 2: Ẩn quán khỏi đề xuất 3 ngày (HIDE)"
                 android:textColor="@color/brand_orange"
                 android:textSize="13sp" />
 
@@ -119,7 +149,7 @@
                 android:id="@+id/rbPenaltyLock"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Mức 3: Khóa tài khoản quán (LOCK)"
+                android:text="🔴 Mức 3: Đình chỉ &amp; Khóa quyền bán (LOCK)"
                 android:textColor="@color/danger"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -132,7 +162,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:hint="3. Ghi chú kết luận của Quản trị viên"
+            android:hint="3. Kết luận &amp; Ghi chú của Quản trị viên"
+            app:boxBackgroundColor="@color/surface_elevated"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp"
             app:boxStrokeColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -140,7 +175,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:lines="2"
-                android:textSize="13sp" />
+                android:textSize="13.5sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Actions -->
@@ -155,8 +190,8 @@
                 android:id="@+id/btnCancelResolve"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Hủy"
+                android:layout_height="48dp"
+                android:text="Hủy bỏ"
                 android:textColor="@color/text_secondary" />
 
             <com.google.android.material.button.MaterialButton
@@ -165,10 +200,10 @@
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"
                 android:backgroundTint="@color/primary"
-                android:text="XÁC NHẬN GIẢI QUYẾT"
+                android:text="BAN HÀNH PHÁN QUYẾT"
                 android:textColor="@color/white"
                 android:textStyle="bold"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="12dp" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

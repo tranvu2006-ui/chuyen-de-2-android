@@ -12,26 +12,41 @@
         android:orientation="vertical"
         android:paddingHorizontal="20dp"
         android:paddingTop="12dp"
-        android:paddingBottom="28dp">
+        android:paddingBottom="32dp">
 
-        <!-- Drag handle -->
+        <!-- Drag Handle -->
         <View
-            android:layout_width="44dp"
+            android:layout_width="48dp"
             android:layout_height="5dp"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="18dp"
             android:background="@drawable/bg_choice_card_idle" />
 
-        <!-- Header -->
+        <!-- Executive Store Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <FrameLayout
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/bg_circle_icon_orange">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_store"
+                    app:tint="@color/brand_orange" />
+            </FrameLayout>
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
@@ -40,7 +55,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/text_primary"
-                    android:textSize="20sp"
+                    android:textSize="19sp"
                     android:textStyle="bold"
                     tools:text="Cơm Tấm Cali Sài Gòn" />
 
@@ -62,12 +77,12 @@
                 android:paddingHorizontal="12dp"
                 android:paddingVertical="5dp"
                 android:textColor="@color/brand_orange"
-                android:textSize="12sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 tools:text="CHỜ DUYỆT CCCD" />
         </LinearLayout>
 
-        <!-- Current Penalty Alert if any -->
+        <!-- Current Penalty Alert Banner -->
         <TextView
             android:id="@+id/tvCurrentPenalty"
             android:layout_width="match_parent"
@@ -76,19 +91,19 @@
             android:background="@drawable/bg_card_warning"
             android:padding="12dp"
             android:textColor="@color/danger"
-            android:textSize="13sp"
+            android:textSize="12.5sp"
             android:textStyle="bold"
             android:visibility="gone"
             tools:text="⚠️ Đang bị chế tài: HIDE - Lý do: Vi phạm chất lượng vệ sinh"
             tools:visibility="visible" />
 
-        <!-- Section 1: Store Info Card -->
+        <!-- Section 1: Store Operation Info Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="14dp"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border"
             app:strokeWidth="1dp">
@@ -97,14 +112,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:padding="15dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🏢 THÔNG TIN CỬA HÀNG"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
+                    android:letterSpacing="0.04"
+                    android:text="🏢 HỒ SƠ VẬN HÀNH QUÁN"
+                    android:textColor="@color/secondary"
+                    android:textSize="11.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -113,7 +129,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:textColor="@color/text_primary"
-                    android:textSize="13sp"
+                    android:textSize="13.5sp"
                     tools:text="Địa chỉ: 123 Võ Văn Ngân, TP. Thủ Đức" />
 
                 <TextView
@@ -122,7 +138,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:textColor="@color/text_primary"
-                    android:textSize="13sp"
+                    android:textSize="13.5sp"
                     tools:text="Số điện thoại: 0987654321" />
 
                 <TextView
@@ -130,19 +146,19 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/text_secondary"
                     android:textSize="13sp"
                     tools:text="Giờ mở cửa: 08:00 - 22:00 (Chuẩn bị: 15 phút)" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Section 2: Bank Info Card -->
+        <!-- Section 2: Bank Settlement Account Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="14dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border"
             app:strokeWidth="1dp">
@@ -151,14 +167,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:padding="15dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="💳 TÀI KHOẢN NGÂN HÀNG THỤ HƯỞNG"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
+                    android:letterSpacing="0.04"
+                    android:text="💳 TÀI KHOẢN NGÂN HÀNG ĐỐI SOÁT"
+                    android:textColor="@color/brand_green"
+                    android:textSize="11.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -173,13 +190,13 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Section 3: Identity CCCD Group -->
+        <!-- Section 3: KYC CCCD Verification Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="14dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border"
             app:strokeWidth="1dp">
@@ -188,14 +205,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:padding="15dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🪪 HỒ SƠ ĐỊNH DANH CCCD CHỦ QUÁN"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
+                    android:letterSpacing="0.04"
+                    android:text="🪪 HỒ SƠ ĐỊNH DANH CCCD CHỦ HỘ"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -204,7 +222,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:textColor="@color/text_primary"
-                    android:textSize="14sp"
+                    android:textSize="13.5sp"
                     android:textStyle="bold"
                     tools:text="Họ tên: Nguyễn Văn A • Số CCCD: 079123456789" />
 
@@ -227,15 +245,16 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="6dp"
-                            android:text="CCCD Mặt trước"
+                            android:text="Mặt trước CCCD"
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
                         <com.google.android.material.card.MaterialCardView
                             android:layout_width="match_parent"
-                            android:layout_height="110dp"
-                            app:cardCornerRadius="10dp"
+                            android:layout_height="114dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
                             app:cardElevation="0dp"
                             app:strokeColor="@color/border"
                             app:strokeWidth="1dp">
@@ -245,8 +264,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
                                 android:scaleType="centerCrop"
-                                android:src="@drawable/ic_image"
-                                app:tint="@color/text_muted" />
+                                android:src="@drawable/ic_image" />
                         </com.google.android.material.card.MaterialCardView>
                     </LinearLayout>
 
@@ -262,15 +280,16 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="6dp"
-                            android:text="CCCD Mặt sau"
+                            android:text="Mặt sau CCCD"
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
                         <com.google.android.material.card.MaterialCardView
                             android:layout_width="match_parent"
-                            android:layout_height="110dp"
-                            app:cardCornerRadius="10dp"
+                            android:layout_height="114dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
                             app:cardElevation="0dp"
                             app:strokeColor="@color/border"
                             app:strokeWidth="1dp">
@@ -280,15 +299,14 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
                                 android:scaleType="centerCrop"
-                                android:src="@drawable/ic_image"
-                                app:tint="@color/text_muted" />
+                                android:src="@drawable/ic_image" />
                         </com.google.android.material.card.MaterialCardView>
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Action Buttons -->
+        <!-- Executive Command Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -303,9 +321,9 @@
                 android:backgroundTint="@color/secondary"
                 android:text="🛠️ Tùy Chỉnh Toàn Bộ Thuộc Tính Quán"
                 android:textColor="@color/white"
-                android:textSize="14sp"
+                android:textSize="13.5sp"
                 android:textStyle="bold"
-                app:cornerRadius="12dp"
+                app:cornerRadius="14dp"
                 app:icon="@drawable/ic_edit"
                 app:iconGravity="textStart"
                 app:iconTint="@color/white" />
@@ -315,11 +333,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:backgroundTint="@color/brand_green"
-                android:text="Phê Duyệt Mở Quán (Approve)"
+                android:text="Phê Duyệt Mở Quán &amp; Xác Thực KYC"
                 android:textColor="@color/white"
-                android:textSize="14sp"
+                android:textSize="13.5sp"
                 android:textStyle="bold"
-                app:cornerRadius="12dp"
+                app:cornerRadius="14dp"
                 app:icon="@drawable/ic_check_circle"
                 app:iconGravity="textStart"
                 app:iconTint="@color/white" />
@@ -330,25 +348,27 @@
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:layout_marginTop="10dp"
-                android:text="Áp Dụng Chế Tài Phạt Quán"
+                android:text="Áp Dụng Chế Tài Xử Phạt Quán"
                 android:textColor="@color/brand_orange"
                 android:textSize="13sp"
                 android:textStyle="bold"
-                app:cornerRadius="12dp"
+                app:cornerRadius="14dp"
                 app:icon="@drawable/ic_shield_alert"
                 app:iconGravity="textStart"
                 app:iconTint="@color/brand_orange"
-                app:strokeColor="@color/brand_orange" />
+                app:strokeColor="@color/brand_orange"
+                app:strokeWidth="1.5dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLockStore"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
+                android:layout_height="46dp"
                 android:layout_marginTop="4dp"
-                android:text="⛔ Khóa quyền kinh doanh quán ăn này"
+                android:text="⛔ Đình chỉ &amp; Khóa quyền kinh doanh quán này"
                 android:textColor="@color/danger"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
     </LinearLayout>

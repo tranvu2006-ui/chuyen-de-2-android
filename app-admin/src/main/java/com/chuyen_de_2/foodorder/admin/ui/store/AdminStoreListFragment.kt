@@ -49,7 +49,13 @@ class AdminStoreListFragment : Fragment() {
                 store = store,
                 onApprove = { s -> viewModel.approveStore(s.id) },
                 onLock = { s -> viewModel.lockStore(s.id) },
-                onApplyPenalty = { sId, tier, reason -> viewModel.applyPenalty(sId, tier, reason) }
+                onApplyPenalty = { sId, tier, reason -> viewModel.applyPenalty(sId, tier, reason) },
+                onEditAll = { s ->
+                    val editDialog = EditStoreDialogFragment(s) { updatedStore ->
+                        viewModel.saveStoreFull(updatedStore)
+                    }
+                    editDialog.show(childFragmentManager, EditStoreDialogFragment.TAG)
+                }
             )
             bottomSheet.show(childFragmentManager, AdminStoreDetailBottomSheetDialogFragment.TAG)
         }

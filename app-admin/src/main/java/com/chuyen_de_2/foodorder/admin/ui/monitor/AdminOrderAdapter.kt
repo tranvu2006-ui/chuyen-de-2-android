@@ -14,8 +14,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class AdminOrderAdapter :
-    ListAdapter<Order, AdminOrderAdapter.OrderViewHolder>(OrderDiffCallback()) {
+class AdminOrderAdapter(
+    private val onOrderClick: ((Order) -> Unit)? = null
+) : ListAdapter<Order, AdminOrderAdapter.OrderViewHolder>(OrderDiffCallback()) {
 
     private val currencyFormat = DecimalFormat("#,### đ")
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
@@ -64,6 +65,10 @@ class AdminOrderAdapter :
                     binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
                 }
+            }
+
+            itemView.setOnClickListener {
+                onOrderClick?.invoke(order)
             }
         }
     }

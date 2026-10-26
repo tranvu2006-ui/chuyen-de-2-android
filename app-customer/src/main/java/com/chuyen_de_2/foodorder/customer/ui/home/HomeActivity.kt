@@ -63,6 +63,7 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var dishAdapter: HomeDishAdapter
     private lateinit var hotDishAdapter: HotDishAdapter
+    private lateinit var categoryAdapter: HomeCategoryAdapter
 
     private var selectedCategory: String? = null
     private var isNearbyFiltered: Boolean = false
@@ -460,101 +461,9 @@ class HomeActivity : AppCompatActivity() {
      * Luồng hướng tới: Gọi [onCategorySelected].
      */
     private fun setupCategories() {
-        binding.catRice.setOnClickListener { onCategorySelected("Cơm", "Cơm", binding.catRice) }
-        binding.catMilkTea.setOnClickListener { onCategorySelected("Trà sữa", "Trà sữa & Nước", binding.catMilkTea) }
-        binding.catNoodle.setOnClickListener { onCategorySelected("Bún", "Bún - Phở", binding.catNoodle) }
-        binding.catChicken.setOnClickListener { onCategorySelected("Gà rán", "Gà rán", binding.catChicken) }
-        binding.catBread.setOnClickListener { onCategorySelected("Bánh mì", "Bánh mì", binding.catBread) }
-        binding.catPizza.setOnClickListener { onCategorySelected("Pizza", "Pizza", binding.catPizza) }
-        binding.catCoffee.setOnClickListener { onCategorySelected("Cà phê", "Cà phê", binding.catCoffee) }
-        binding.catDessert.setOnClickListener { onCategorySelected("Ăn vặt", "Đồ ăn vặt", binding.catDessert) }
-    }
-
-    private fun onCategorySelected(keyword: String, displayName: String, view: View?) {
-        if (selectedCategory == keyword) {
-            selectedCategory = null
-            clearCategoryHighlight()
-            viewModel.filterDishes(category = "ALL")
-            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            if (!isNearbyFiltered) {
-                binding.layoutActiveFilterIndicator.visibility = View.GONE
-            } else {
-                binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Các quán gần nhất (< 1.5 km)"
-            }
-            Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
-        } else {
-            selectedCategory = keyword
-            updateCategoryHighlight()
-            viewModel.filterDishes(category = keyword)
-            binding.tvSectionTitle.text = "Món ngon: $displayName"
-            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-            val filterText = if (isNearbyFiltered) {
-                "Đang lọc: $displayName & 📍 Quán gần (< 1.5 km)"
-            } else {
-                "Đang lọc danh mục: $displayName"
-            }
-            binding.tvFilterIndicatorSummary.text = filterText
-            Toast.makeText(this, "Danh mục: $displayName", Toast.LENGTH_SHORT).show()
-        }
-        renderDynamicCategoryChips(viewModel.platformCategories.value ?: emptyList())
-    }
-
-    private fun updateCategoryHighlight() {
-        val cat = selectedCategory?.lowercase()
-        val isRice = cat?.contains("cơm") == true
-        val isTea = cat?.contains("trà") == true || cat?.contains("nước") == true
-        val isNoodle = cat?.contains("bún") == true || cat?.contains("phở") == true || cat?.contains("mì") == true
-        val isChicken = cat?.contains("gà") == true
-        val isBread = cat?.contains("bánh mì") == true
-        val isPizza = cat?.contains("pizza") == true
-        val isCoffee = cat?.contains("cà phê") == true || cat?.contains("cafe") == true
-        val isDessert = cat?.contains("ăn vặt") == true || cat?.contains("tráng miệng") == true
-
-        binding.catRice.setBackgroundResource(if (isRice) R.drawable.bg_chip_selected else 0)
-        binding.catMilkTea.setBackgroundResource(if (isTea) R.drawable.bg_chip_selected else 0)
-        binding.catNoodle.setBackgroundResource(if (isNoodle) R.drawable.bg_chip_selected else 0)
-        binding.catChicken.setBackgroundResource(if (isChicken) R.drawable.bg_chip_selected else 0)
-        binding.catBread.setBackgroundResource(if (isBread) R.drawable.bg_chip_selected else 0)
-        binding.catPizza.setBackgroundResource(if (isPizza) R.drawable.bg_chip_selected else 0)
-        binding.catCoffee.setBackgroundResource(if (isCoffee) R.drawable.bg_chip_selected else 0)
-        binding.catDessert.setBackgroundResource(if (isDessert) R.drawable.bg_chip_selected else 0)
-    }
-
-    private fun clearCategoryHighlight() {
-        val categoryViews = listOf(
-            binding.catRice, binding.catMilkTea, binding.catNoodle, binding.catChicken,
-            binding.catBread, binding.catPizza, binding.catCoffee, binding.catDessert
-        )
-        categoryViews.forEach { it.background = null }
-        renderDynamicCategoryChips(viewModel.platformCategories.value ?: emptyList())
-    }
-
-    private fun renderDynamicCategoryChips(categories: List<com.chuyen_de_2.foodorder.core.data.model.Category>) {
-        binding.layoutCategoryChips.removeAllViews()
-        val allCategories = if (categories.isNotEmpty()) categories else com.chuyen_de_2.foodorder.core.data.model.Category.getDefaultCategories()
-
-        binding.scrollCategoryChips.visibility = View.VISIBLE
-
-        // Chip Tất cả
-        val isAllSelected = selectedCategory == null || selectedCategory == "ALL"
-        val allChip = android.widget.TextView(this).apply {
-            text = "✨ Tất cả"
-            textSize = 12f
-            setTextColor(if (isAllSelected) androidx.core.content.ContextCompat.getColor(this@HomeActivity, R.color.primary) else androidx.core.content.ContextCompat.getColor(this@HomeActivity, R.color.text_primary))
-            setBackgroundResource(if (isAllSelected) R.drawable.bg_chip_selected else R.drawable.bg_chip_unselected)
-            setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
-            val params = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(dpToPx(4), dpToPx(2), dpToPx(4), dpToPx(2))
-            }
-            layoutParams = params
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
+        categoryAdapter = HomeCategoryAdapter { category ->
+            if (category == null) {
                 selectedCategory = null
-                clearCategoryHighlight()
                 viewModel.filterDishes(category = "ALL")
                 binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
                 if (!isNearbyFiltered) {
@@ -562,38 +471,30 @@ class HomeActivity : AppCompatActivity() {
                 } else {
                     binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Các quán gần nhất (< 1.5 km)"
                 }
-                renderDynamicCategoryChips(categories)
+                Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
+            } else {
+                selectedCategory = category.name
+                viewModel.filterDishes(category = category.name)
+                binding.tvSectionTitle.text = "Món ngon: ${category.name}"
+                binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
+                val filterText = if (isNearbyFiltered) {
+                    "Đang lọc: ${category.name} & 📍 Quán gần (< 1.5 km)"
+                } else {
+                    "Đang lọc danh mục: ${category.name}"
+                }
+                binding.tvFilterIndicatorSummary.text = filterText
+                Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
             }
         }
-        binding.layoutCategoryChips.addView(allChip)
+        binding.rvHomeCategories.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = categoryAdapter
+        }
+    }
 
-        allCategories.forEach { cat ->
-            val isSelected = (selectedCategory != null && (
-                selectedCategory.equals(cat.name, ignoreCase = true) ||
-                cat.name.contains(selectedCategory!!, ignoreCase = true) ||
-                selectedCategory!!.contains(cat.name, ignoreCase = true)
-            ))
-            val chip = android.widget.TextView(this).apply {
-                val icon = cat.icon.ifBlank { "🍽️" }
-                text = "$icon ${cat.name}"
-                textSize = 12f
-                setTextColor(if (isSelected) androidx.core.content.ContextCompat.getColor(this@HomeActivity, R.color.primary) else androidx.core.content.ContextCompat.getColor(this@HomeActivity, R.color.text_primary))
-                setBackgroundResource(if (isSelected) R.drawable.bg_chip_selected else R.drawable.bg_chip_unselected)
-                setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
-                val params = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(dpToPx(4), dpToPx(2), dpToPx(4), dpToPx(2))
-                }
-                layoutParams = params
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    onCategorySelected(cat.name, cat.name, this)
-                }
-            }
-            binding.layoutCategoryChips.addView(chip)
+    private fun clearCategoryHighlight() {
+        if (::categoryAdapter.isInitialized) {
+            categoryAdapter.setSelected(null)
         }
     }
 
@@ -661,7 +562,9 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun observeViewModel() {
         viewModel.platformCategories.observe(this) { categories ->
-            renderDynamicCategoryChips(categories)
+            if (::categoryAdapter.isInitialized) {
+                categoryAdapter.submitCategories(categories)
+            }
         }
 
         viewModel.homeDishes.observe(this) { dishes ->

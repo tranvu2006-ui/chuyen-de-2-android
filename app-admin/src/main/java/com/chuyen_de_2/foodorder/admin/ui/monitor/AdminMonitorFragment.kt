@@ -46,21 +46,34 @@ class AdminMonitorFragment : Fragment() {
     }
 
     private fun setupRecyclerViews() {
-        orderAdapter = AdminOrderAdapter()
+        orderAdapter = AdminOrderAdapter { order ->
+            val dialog = EditOrderDialogFragment(order) { updatedOrder ->
+                viewModel.saveOrderFull(updatedOrder)
+            }
+            dialog.show(childFragmentManager, EditOrderDialogFragment.TAG)
+        }
         binding.rvOrders.layoutManager = LinearLayoutManager(requireContext())
         binding.rvOrders.adapter = orderAdapter
 
-        userAdapter = AdminUserAdapter { user ->
-            val actionText = if (user.isActive) "khóa" else "mở khóa"
-            AlertDialog.Builder(requireContext())
-                .setTitle("Xác nhận thay đổi tài khoản")
-                .setMessage("Bạn có chắc chắn muốn $actionText tài khoản '${user.name.ifBlank { user.email }}'?")
-                .setNegativeButton("Hủy", null)
-                .setPositiveButton("Đồng ý") { _, _ ->
-                    viewModel.toggleUserLock(user)
+        userAdapter = AdminUserAdapter(
+            onToggleLock = { user ->
+                val actionText = if (user.isActive) "khóa" else "mở khóa"
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Xác nhận thay đổi tài khoản")
+                    .setMessage("Bạn có chắc chắn muốn $actionText tài khoản '${user.name.ifBlank { user.email }}'?")
+                    .setNegativeButton("Hủy", null)
+                    .setPositiveButton("Đồng ý") { _, _ ->
+                        viewModel.toggleUserLock(user)
+                    }
+                    .show()
+            },
+            onUserClick = { user ->
+                val dialog = EditUserDialogFragment(user) { updatedUser ->
+                    viewModel.saveUserFull(updatedUser)
                 }
-                .show()
-        }
+                dialog.show(childFragmentManager, EditUserDialogFragment.TAG)
+            }
+        )
         binding.rvUsers.layoutManager = LinearLayoutManager(requireContext())
         binding.rvUsers.adapter = userAdapter
     }

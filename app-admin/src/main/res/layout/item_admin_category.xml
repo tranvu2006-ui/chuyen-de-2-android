@@ -32,6 +32,15 @@
                 android:layout_gravity="center"
                 android:textSize="24sp"
                 tools:text="🍚" />
+
+            <ImageView
+                android:id="@+id/ivCategoryIcon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="Icon danh mục"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
         </FrameLayout>
 
         <!-- Info -->
@@ -51,10 +60,23 @@
                 android:textStyle="bold"
                 tools:text="Cơm tấm" />
 
+            <TextView
+                android:id="@+id/tvCategoryDesc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                android:visibility="gone"
+                tools:text="Các món cơm trưa, cơm tấm sườn bì"
+                tools:visibility="visible" />
+
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="4dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 

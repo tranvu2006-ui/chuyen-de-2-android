@@ -20,7 +20,8 @@ class AdminStoreDetailBottomSheetDialogFragment(
     private val store: Store,
     private val onApprove: (Store) -> Unit,
     private val onLock: (Store) -> Unit,
-    private val onApplyPenalty: (storeId: String, tier: String, reason: String) -> Unit
+    private val onApplyPenalty: (storeId: String, tier: String, reason: String) -> Unit,
+    private val onEditAll: ((Store) -> Unit)? = null
 ) : BottomSheetDialogFragment() {
 
     private var _binding: BottomSheetAdminStoreDetailBinding? = null
@@ -97,6 +98,11 @@ class AdminStoreDetailBottomSheetDialogFragment(
     }
 
     private fun setupActions() {
+        binding.btnEditAllStoreDetails.setOnClickListener {
+            dismiss()
+            onEditAll?.invoke(store)
+        }
+
         binding.btnApproveStore.setOnClickListener {
             onApprove(store)
             dismiss()

@@ -132,6 +132,17 @@ class AdminStoreViewModel @Inject constructor(
         }
     }
 
+    fun saveStoreFull(store: Store) {
+        viewModelScope.launch {
+            val result = firebaseRepo.saveStoreFull(store)
+            if (result.isSuccess) {
+                _message.value = "Đã lưu toàn bộ thông tin quán '${store.name}' thành công!"
+            } else {
+                _message.value = "Cập nhật quán thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
     fun clearMessage() {
         _message.value = null
     }

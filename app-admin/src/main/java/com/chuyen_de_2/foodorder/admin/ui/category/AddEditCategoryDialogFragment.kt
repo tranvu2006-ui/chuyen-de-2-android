@@ -6,7 +6,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
+import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.admin.R
 import com.chuyen_de_2.foodorder.admin.databinding.DialogAddEditCategoryBinding
 import com.chuyen_de_2.foodorder.core.data.model.Category
@@ -19,10 +21,9 @@ class AddEditCategoryDialogFragment(
     private var _binding: DialogAddEditCategoryBinding? = null
     private val binding get() = _binding!!
 
-    private var currentEmoji: String = "🍚"
     private val emojiList = listOf(
         "🍚", "🍜", "🧋", "🍟", "🥖", "🥗", "🦐", "🍰",
-        "🍕", "🍔", "🥤", "🍣", "🍗", "☕", "🍧", "🍲",
+        "🍕", "🍗", "☕", "🍲", "🍔", "🥤", "🍣", "🍧",
         "🍳", "🥟", "🌮", "🍢"
     )
 
@@ -39,7 +40,7 @@ class AddEditCategoryDialogFragment(
         super.onViewCreated(view, savedInstanceState)
         setupEmojiPalette()
         populateExistingData()
-        setupActions()
+        setupListeners()
     }
 
     private fun setupEmojiPalette() {
@@ -57,8 +58,8 @@ class AddEditCategoryDialogFragment(
                 gravity = android.view.Gravity.CENTER
                 setBackgroundResource(R.drawable.bg_choice_card_idle)
                 setOnClickListener {
-                    currentEmoji = emoji
-                    binding.tvSelectedEmoji.text = emoji
+                    binding.etCatIconUrl.setText(emoji)
+                    updateIconPreview(emoji)
                 }
             }
             binding.llEmojiPalette.addView(tv)
@@ -69,18 +70,46 @@ class AddEditCategoryDialogFragment(
         if (categoryToEdit != null) {
             binding.tvDialogTitle.text = "Chỉnh Sửa Danh Mục"
             binding.etCatName.setText(categoryToEdit.categoryName)
+            binding.etCatId.setText(categoryToEdit.categoryId)
+            binding.etCatDescription.setText(categoryToEdit.description)
             binding.etCatOrder.setText(categoryToEdit.displayOrder.toString())
             binding.cbIsActive.isChecked = categoryToEdit.isActive
-            currentEmoji = categoryToEdit.iconUrl.ifBlank { "🍽️" }
-            binding.tvSelectedEmoji.text = currentEmoji
+            val icon = categoryToEdit.iconUrl.ifBlank { "🍽️" }
+            binding.etCatIconUrl.setText(icon)
+            updateIconPreview(icon)
         } else {
             binding.tvDialogTitle.text = "Thêm Danh Mục Mới"
-            currentEmoji = "🍚"
-            binding.tvSelectedEmoji.text = currentEmoji
+            binding.etCatIconUrl.setText("🍚")
+            updateIconPreview("🍚")
         }
     }
 
-    private fun setupActions() {
+    private fun updateIconPreview(iconText: String) {
+        val trimmed = iconText.trim()
+        val isUrl = trimmed.startsWith("http://", ignoreCase = true) ||
+                trimmed.startsWith("https://", ignoreCase = true) ||
+                trimmed.startsWith("data:image", ignoreCase = true)
+
+        if (isUrl) {
+            binding.tvSelectedEmoji.visibility = View.GONE
+            binding.ivSelectedIcon.visibility = View.VISIBLE
+            Glide.with(this)
+                .load(trimmed)
+                .placeholder(R.drawable.ic_image)
+                .error(R.drawable.ic_image)
+                .into(binding.ivSelectedIcon)
+        } else {
+            binding.ivSelectedIcon.visibility = View.GONE
+            binding.tvSelectedEmoji.visibility = View.VISIBLE
+            binding.tvSelectedEmoji.text = trimmed.ifBlank { "🍽️" }
+        }
+    }
+
+    private fun setupListeners() {
+        binding.etCatIconUrl.doAfterTextChanged { s ->
+            updateIconPreview(s?.toString().orEmpty())
+        }
+
         binding.btnCancelCat.setOnClickListener {
             dismiss()
         }
@@ -94,13 +123,21 @@ class AddEditCategoryDialogFragment(
 
             val order = binding.etCatOrder.text?.toString()?.toIntOrNull() ?: 1
             val isActive = binding.cbIsActive.isChecked
+            val icon = binding.etCatIconUrl.text?.toString().orEmpty().trim().ifBlank { "🍽️" }
+            val desc = binding.etCatDescription.text?.toString().orEmpty().trim()
+            val customId = binding.etCatId.text?.toString().orEmpty().trim()
+
+            val finalId = if (customId.isNotBlank()) customId
+            else if (categoryToEdit != null && categoryToEdit.categoryId.isNotBlank()) categoryToEdit.categoryId
+            else "cat_" + System.currentTimeMillis()
 
             val finalCat = Category(
-                categoryId = categoryToEdit?.categoryId ?: "",
+                categoryId = finalId,
                 categoryName = name,
-                iconUrl = currentEmoji,
+                iconUrl = icon,
                 displayOrder = order,
-                isActive = isActive
+                isActive = isActive,
+                description = desc
             )
 
             onSave(finalCat)

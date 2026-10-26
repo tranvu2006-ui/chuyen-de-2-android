@@ -3,9 +3,12 @@
 import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
 import com.chuyen_de_2.foodorder.core.data.model.CartPayload
+import com.chuyen_de_2.foodorder.core.data.model.Category
 import com.chuyen_de_2.foodorder.core.data.model.CustomerAddress
 import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.data.model.TrackingLocation
 import com.chuyen_de_2.foodorder.core.data.model.TrustScoreLog
 import com.google.firebase.auth.FirebaseAuth
@@ -813,10 +816,10 @@ class FirebaseRepository @Inject constructor(
                             fallbackList.sortBy { it.displayOrder }
                             trySend(fallbackList)
                         } else {
-                            trySend(getDefaultCategories().filter { includeInactive || it.isActive })
+                            trySend(Category.getDefaultCategories().filter { includeInactive || it.isActive })
                         }
                     }.addOnFailureListener {
-                        trySend(getDefaultCategories().filter { includeInactive || it.isActive })
+                        trySend(Category.getDefaultCategories().filter { includeInactive || it.isActive })
                     }
                 } else {
                     list.sortBy { it.displayOrder }
@@ -836,6 +839,7 @@ class FirebaseRepository @Inject constructor(
     suspend fun saveCategory(category: com.chuyen_de_2.foodorder.core.data.model.Category, desc: String = ""): Result<Unit> {
         return try {
             val id = category.categoryId.ifBlank { "cat-${System.currentTimeMillis()}" }
+            val finalDesc = if (desc.isNotBlank()) desc else category.description
             val map = mapOf<String, Any>(
                 "id" to id,
                 "categoryId" to id,
@@ -843,8 +847,8 @@ class FirebaseRepository @Inject constructor(
                 "categoryName" to category.categoryName,
                 "icon" to category.iconUrl,
                 "iconUrl" to category.iconUrl,
-                "desc" to desc,
-                "description" to desc,
+                "desc" to finalDesc,
+                "description" to finalDesc,
                 "displayOrder" to category.displayOrder,
                 "isActive" to category.isActive,
                 "status" to (if (category.isActive) "ACTIVE" else "HIDDEN"),
@@ -1447,6 +1451,97 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Quản trị viên cập nhật toàn bộ thuộc tính của quán ăn */
+    suspend fun saveStoreFull(store: com.chuyen_de_2.foodorder.core.data.model.Store): Result<Unit> {
+        return try {
+            val storeId = store.id.ifBlank { "store_${System.currentTimeMillis()}" }
+            val finalStore = store.copy(id = storeId)
+            val updates = mapOf<String, Any?>(
+                "id" to finalStore.id,
+                "name" to finalStore.name,
+                "phone" to finalStore.phone,
+                "address" to finalStore.address,
+                "district" to finalStore.district,
+                "latitude" to finalStore.latitude,
+                "longitude" to finalStore.longitude,
+                "imageUrl" to finalStore.imageUrl,
+                "storeStatus" to finalStore.storeStatus,
+                "status" to finalStore.storeStatus,
+                "open" to (finalStore.storeStatus == com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN),
+                "statusId" to finalStore.statusId,
+                "ownerName" to finalStore.ownerName,
+                "openHours" to finalStore.openHours,
+                "prepTime" to finalStore.prepTime,
+                "isVerified" to finalStore.isVerified,
+                "verified" to finalStore.isVerified,
+                "cccdNumber" to finalStore.cccdNumber,
+                "cccdFrontUrl" to finalStore.cccdFrontUrl,
+                "cccdBackUrl" to finalStore.cccdBackUrl,
+                "cccdHoldUrl" to finalStore.cccdHoldUrl,
+                "cccdPortraitUrl" to finalStore.cccdPortraitUrl,
+                "penaltyTier" to finalStore.penaltyTier,
+                "penaltyReason" to finalStore.penaltyReason,
+                "ratingAvg" to finalStore.ratingAvg,
+                "rating" to finalStore.ratingAvg,
+                "deliveryTime" to finalStore.deliveryTime,
+                "category" to finalStore.category,
+                "bankName" to finalStore.bankName,
+                "bankAccountNumber" to finalStore.bankAccountNumber,
+                "bankAccountName" to finalStore.bankAccountName
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Quản trị viên cập nhật toàn bộ thuộc tính của người dùng */
+    suspend fun saveUserFull(user: com.chuyen_de_2.foodorder.core.data.model.User): Result<Unit> {
+        return try {
+            val uid = user.uid.ifBlank { return Result.failure(IllegalArgumentException("User UID cannot be empty")) }
+            val updates = mapOf<String, Any?>(
+                "uid" to uid,
+                "name" to user.name,
+                "email" to user.email,
+                "phone" to user.phone,
+                "role" to user.role,
+                "roleId" to user.roleId,
+                "isActive" to user.isActive,
+                "status" to user.status,
+                "avatarUrl" to user.avatarUrl,
+                "storeId" to user.storeId
+            )
+            database.getReference("users").child(uid).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Quản trị viên cập nhật toàn bộ thuộc tính của đơn hàng */
+    suspend fun saveOrderFull(order: com.chuyen_de_2.foodorder.core.data.model.Order): Result<Unit> {
+        return try {
+            val orderId = order.orderId.ifBlank { return Result.failure(IllegalArgumentException("Order ID cannot be empty")) }
+            val updates = mapOf<String, Any?>(
+                "orderStatus" to order.orderStatus,
+                "status" to order.orderStatus,
+                "paymentMethod" to order.paymentMethod,
+                "note" to order.note,
+                "address" to order.address,
+                "deliveryAddress" to order.deliveryAddress,
+                "shippingFee" to order.shippingFee,
+                "totalPayment" to order.totalPayment,
+                "shipperName" to order.shipperName,
+                "shipperPhone" to order.shipperPhone
+            )
+            database.getReference("orders").child(orderId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Lắng nghe hồ sơ Customers kèm điểm uy tín */
     fun observeAllCustomers(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Customer>> = callbackFlow {
         val ref = database.getReference("customers")
@@ -1488,3 +1583,4 @@ class FirebaseRepository @Inject constructor(
         }
     }
 }
+

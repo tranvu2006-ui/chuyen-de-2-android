@@ -296,6 +296,21 @@
             android:orientation="vertical">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnEditAllStoreDetails"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginBottom="10dp"
+                android:backgroundTint="@color/secondary"
+                android:text="🛠️ Tùy Chỉnh Toàn Bộ Thuộc Tính Quán"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:cornerRadius="12dp"
+                app:icon="@drawable/ic_edit"
+                app:iconGravity="textStart"
+                app:iconTint="@color/white" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnApproveStore"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"

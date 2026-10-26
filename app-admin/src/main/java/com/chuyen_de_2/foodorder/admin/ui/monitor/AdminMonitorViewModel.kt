@@ -118,6 +118,28 @@ class AdminMonitorViewModel @Inject constructor(
         }
     }
 
+    fun saveUserFull(user: User) {
+        viewModelScope.launch {
+            val result = firebaseRepo.saveUserFull(user)
+            if (result.isSuccess) {
+                _message.value = "Đã lưu toàn bộ thông tin người dùng '${user.name.ifBlank { user.email }}'!"
+            } else {
+                _message.value = "Cập nhật người dùng thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun saveOrderFull(order: Order) {
+        viewModelScope.launch {
+            val result = firebaseRepo.saveOrderFull(order)
+            if (result.isSuccess) {
+                _message.value = "Đã lưu toàn bộ thông tin đơn hàng #${order.orderId.takeLast(6)}!"
+            } else {
+                _message.value = "Cập nhật đơn hàng thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
     fun clearMessage() {
         _message.value = null
     }

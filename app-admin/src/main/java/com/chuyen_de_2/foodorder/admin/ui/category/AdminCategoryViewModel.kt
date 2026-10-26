@@ -41,7 +41,7 @@ class AdminCategoryViewModel @Inject constructor(
                 category.copy(categoryId = generatedId)
             } else category
 
-            val result = firebaseRepo.saveCategory(finalCategory)
+            val result = firebaseRepo.saveCategory(finalCategory, finalCategory.description)
             if (result.isSuccess) {
                 _message.value = "Lưu danh mục '${finalCategory.name}' thành công!"
             } else {

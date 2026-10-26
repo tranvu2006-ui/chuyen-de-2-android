@@ -13,7 +13,8 @@ import com.chuyen_de_2.foodorder.core.data.model.User
 import java.util.Locale
 
 class AdminUserAdapter(
-    private val onToggleLock: (User) -> Unit
+    private val onToggleLock: (User) -> Unit,
+    private val onUserClick: ((User) -> Unit)? = null
 ) : ListAdapter<UserWithCustomerInfo, AdminUserAdapter.UserViewHolder>(UserDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
@@ -80,6 +81,10 @@ class AdminUserAdapter(
 
             binding.btnToggleLock.setOnClickListener {
                 onToggleLock(user)
+            }
+
+            itemView.setOnClickListener {
+                onUserClick?.invoke(user)
             }
         }
     }

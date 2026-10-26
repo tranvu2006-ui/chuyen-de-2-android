@@ -1,10 +1,13 @@
 package com.chuyen_de_2.foodorder.admin.ui.category
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.admin.R
 import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminCategoryBinding
 import com.chuyen_de_2.foodorder.core.data.model.Category
 
@@ -29,9 +32,30 @@ class AdminCategoryAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(category: Category) {
-            binding.tvCategoryIcon.text = category.icon.ifBlank { "🍽️" }
+            val icon = category.icon.ifBlank { "🍽️" }
+            if (category.isImageUrl) {
+                binding.tvCategoryIcon.visibility = View.GONE
+                binding.ivCategoryIcon.visibility = View.VISIBLE
+                Glide.with(itemView.context)
+                    .load(icon)
+                    .placeholder(R.drawable.ic_image)
+                    .error(R.drawable.ic_image)
+                    .into(binding.ivCategoryIcon)
+            } else {
+                binding.ivCategoryIcon.visibility = View.GONE
+                binding.tvCategoryIcon.visibility = View.VISIBLE
+                binding.tvCategoryIcon.text = icon
+            }
+
             binding.tvCategoryName.text = category.name
-            binding.tvCategoryOrder.text = "ID: ${category.id} • Thứ tự: #${category.displayOrder}"
+            binding.tvCategoryOrder.text = "Thứ tự: #${category.displayOrder} • ID: ${category.id}"
+
+            if (category.description.isNotBlank()) {
+                binding.tvCategoryDesc.visibility = View.VISIBLE
+                binding.tvCategoryDesc.text = category.description
+            } else {
+                binding.tvCategoryDesc.visibility = View.GONE
+            }
 
             // Detach listener before setting checked to avoid triggering during scroll
             binding.switchActive.setOnCheckedChangeListener(null)

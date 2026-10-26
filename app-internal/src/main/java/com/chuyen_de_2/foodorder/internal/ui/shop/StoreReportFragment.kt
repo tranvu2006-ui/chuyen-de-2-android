@@ -111,8 +111,8 @@ class StoreReportFragment : Fragment() {
                 launch {
                     firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
                         if (store != null) {
-                            val rating = if (store.ratingAvg > 0) store.ratingAvg else 4.9f
-                            binding.tvRatingScore.text = String.format("%.1f", rating)
+                            val rating = store.ratingAvg
+                            binding.tvRatingScore.text = if (rating > 0) String.format("%.1f", rating) else "—"
                         }
                     }
                 }
@@ -204,7 +204,7 @@ class StoreReportFragment : Fragment() {
             order.items.values.forEach { item ->
                 val existing = dishSalesMap[item.dishName]
                 val currentQty = existing?.first ?: 0
-                val price = if (item.price > 0) item.price else 50000L
+                val price = item.price
                 dishSalesMap[item.dishName] = Pair(currentQty + item.quantity, price)
             }
         }

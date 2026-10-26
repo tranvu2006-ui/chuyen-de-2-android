@@ -51,15 +51,15 @@ object GoogleMapUtils {
         "Nhà Bè" to LatLng(10.6953, 106.7274)
     )
 
-    // Tọa độ mẫu của các quán ăn tiêu biểu
-    val STORE_COORDINATES = mapOf(
-        "store_1" to LatLng(10.7769, 106.7009), // Phở Hà Nội 36 - Quận 1
-        "store_2" to LatLng(10.7844, 106.6843), // Cơm Tấm Sài Gòn 1985 - Quận 3
-        "store_3" to LatLng(10.8015, 106.6545), // Bún Bò Huế Cố Đô - Tân Bình
-        "store_4" to LatLng(10.7554, 106.6669), // Trà Sữa Oishi Tea - Quận 5
-        "store_5" to LatLng(10.8039, 106.6974)  // Bánh Mì Chảo Cô Ba - Bình Thạnh
-    )
-
+    /**
+     * Tìm tên Quận / Huyện TP.HCM gần toạ độ GPS nhất dựa trên bảng toạ độ chuẩn
+     */
+    fun findNearestDistrict(lat: Double, lng: Double): String {
+        val target = LatLng(lat, lng)
+        return DISTRICT_COORDINATES.minByOrNull {
+            calculateDistanceKm(target, it.value)
+        }?.key ?: "TP.HCM"
+    }
     /**
      * Chuyển địa chỉ chữ sang LatLng bằng Google Geocoder
      */
@@ -211,10 +211,10 @@ object GoogleMapUtils {
      * Bao gồm Marker Tài xế (Đỏ), Marker Quán (Xanh) và đường nối Polyline (Xanh dương)
      */
     fun getGoogleStaticMapUrl(
-        driverLat: Double = 10.8522,
-        driverLng: Double = 106.7685,
-        destLat: Double = 10.8548,
-        destLng: Double = 106.7720,
+        driverLat: Double,
+        driverLng: Double,
+        destLat: Double,
+        destLng: Double,
         width: Int = 640,
         height: Int = 400,
         apiKey: String = ""
@@ -231,10 +231,10 @@ object GoogleMapUtils {
      * Tạo URL lấy ảnh bản đồ tĩnh OpenStreetMap (Miễn phí 100%, không cần API Key)
      */
     fun getFreeStaticMapUrl(
-        driverLat: Double = 10.8522,
-        driverLng: Double = 106.7685,
-        destLat: Double = 10.8548,
-        destLng: Double = 106.7720,
+        driverLat: Double,
+        driverLng: Double,
+        destLat: Double,
+        destLng: Double,
         width: Int = 640,
         height: Int = 400
     ): String {

@@ -45,6 +45,17 @@ class HomeViewModel @Inject constructor(
     private var currentQuery: String? = null
     private var currentCategory: String? = null
     private var currentNearbyOnly: Boolean = false
+    var currentNearbyMaxDistanceKm: Double = 3.0
+        private set
+    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
+        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun setUserLocation(lat: Double, lng: Double) {
+        if (lat != 0.0 && lng != 0.0) {
+            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
+            _stores.value?.let { processStoresAndDishes(it) }
+        }
+    }
 
     init {
         loadStores()
@@ -81,15 +92,14 @@ class HomeViewModel @Inject constructor(
             pt != Store.PenaltyTier.HIDE
         }
 
-        // 1. Quán gần đây
-        val nearbyList = activeStores.mapIndexed { index, store ->
-            val dist = if (store.latitude != 0.0 && store.longitude != 0.0) {
-                0.8 + (index * 0.4)
-            } else {
-                0.8 + (index * 0.4)
-            }
-            val roundedDist = Math.round(dist * 10.0) / 10.0
-            val etaMinutes = 15 + (index * 5)
+        // 1. Quán gần đây (Sắp xếp theo thứ tự khoảng cách từ gần đến xa)
+        val nearbyList = activeStores.map { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
+                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
+                "$baseTime-${baseTime + 10} phút"
+            } else "15-25 phút"
             val emoji = when {
                 store.name.contains("Trà", true) -> "🍵"
                 store.name.contains("Cơm", true) -> "🍛"
@@ -102,27 +112,30 @@ class HomeViewModel @Inject constructor(
                 name = store.name,
                 address = store.address.ifBlank { "TP.HCM" },
                 distanceKm = roundedDist,
-                eta = "$etaMinutes-${etaMinutes + 5} phút",
-                rating = if (store.ratingAvg > 0) store.ratingAvg else 5.0f,
+                eta = eta,
+                rating = store.ratingAvg,
                 imageUrl = store.imageUrl,
                 emoji = emoji,
                 originalStore = store
             )
         }
-        _nearbyStores.value = nearbyList
+
+        val sortedNearbyList = nearbyList.sortedWith(
+            compareBy<NearbyStoreItem> { if (it.distanceKm > 0.0) 0 else 1 }
+                .thenBy { it.distanceKm }
+        )
+        _nearbyStores.value = sortedNearbyList
 
         // 2. Thu thập các món ăn của quán
         val allDishes = mutableListOf<HomeDishItem>()
 
-        activeStores.forEachIndexed { storeIndex, store ->
-            val dist = 0.8 + (storeIndex * 0.4)
-            val roundedDist = Math.round(dist * 10.0) / 10.0
+        activeStores.forEach { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
 
-            // Lấy món từ store.dishes; nếu quán chưa có món thì dùng các món mặc định của quán đó
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            val dishesToDisplay = availableDishes
 
-            dishesToDisplay.forEach { dish ->
+            availableDishes.forEach { dish ->
                 val platformCat = dish.platformCategory.ifBlank {
                     inferPlatformCategory(dish.name, dish.category)
                 }
@@ -141,17 +154,17 @@ class HomeViewModel @Inject constructor(
                         id = dish.id,
                         name = dish.name,
                         price = dish.basePrice,
-                        originalPrice = if (dish.basePrice > 0) (dish.basePrice * 1.2).toLong() else 0L,
+                        originalPrice = dish.basePrice,
                         storeId = store.id,
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
                         emoji = emoji,
-                        rating = if (dish.ratingAvg > 0) dish.ratingAvg else 4.9f,
-                        soldCount = "${dish.soldCount} đã bán",
+                        rating = dish.ratingAvg,
+                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
-                        promoBadge = if (dish.basePrice >= 50000) "-15%" else "Món ngon",
+                        promoBadge = "",
                         tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
-                        tag2 = "Giao Nhanh",
+                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
                         category = dish.category.ifBlank { store.category },
                         platformCategory = platformCat
                     )
@@ -177,19 +190,35 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Lọc danh sách món ăn */
-    fun filterDishes(query: String? = null, category: String? = null, nearbyOnly: Boolean? = null) {
+    fun filterDishes(
+        query: String? = null,
+        category: String? = null,
+        nearbyOnly: Boolean? = null,
+        maxDistanceKm: Double? = null
+    ) {
         if (query != null) currentQuery = query
         if (category != null) currentCategory = if (category == "ALL") null else category
         if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
+        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
         applyFilters()
     }
 
     private fun applyFilters() {
         var filtered = masterDishList
 
-        // 1. Lọc theo cự ly gần (< 1.5 km)
+        // 1. Lọc theo cự ly gần
         if (currentNearbyOnly) {
-            filtered = filtered.filter { it.distanceKm <= 1.5 }
+            val maxDist = currentNearbyMaxDistanceKm
+            filtered = if (maxDist >= 999.0) {
+                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            } else {
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
+            }
         }
 
         // 2. Lọc theo danh mục
@@ -248,6 +277,30 @@ class HomeViewModel @Inject constructor(
             text.contains("chè") || text.contains("kem") || text.contains("bánh") || text.contains("ăn vặt") || text.contains("tráng miệng") -> "Tráng Miệng / Ăn Vặt"
             else -> "Món Khác"
         }
+    }
+
+    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
+        if (store.latitude != 0.0 && store.longitude != 0.0) {
+            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+        }
+        val distName = store.district.trim()
+        if (distName.isNotBlank()) {
+            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
+            if (exact != null) return exact
+            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
+                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
+            if (fuzzy != null) return fuzzy
+        }
+        return null
+    }
+
+    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
+        if (storeLatLng == null) return 0.0
+        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+            currentUserLatLng,
+            storeLatLng
+        ).toDouble()
+        return Math.round(dist * 10.0) / 10.0
     }
 
     fun loadRestaurants() = loadStores()

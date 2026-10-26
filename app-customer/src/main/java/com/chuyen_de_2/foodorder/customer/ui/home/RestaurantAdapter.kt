@@ -27,8 +27,10 @@ class RestaurantAdapter(
             binding.tvName.text = store.name
             binding.tvAddress.text = store.address
             binding.tvCategory.text = if (store.category.isNotBlank()) store.category else "Ẩm thực"
-            binding.tvDeliveryTime.text = if (store.deliveryTime.isNotBlank()) "⏱ ${store.deliveryTime}" else "⏱ 25-35 phút"
-            binding.tvRating.text = "⭐ ${store.rating}"
+            binding.tvDeliveryTime.text = if (store.deliveryTime.isNotBlank()) "⏱ ${store.deliveryTime}" else ""
+            binding.tvDeliveryTime.visibility = if (store.deliveryTime.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
+            binding.tvRating.text = if (store.rating > 0f) "⭐ ${store.rating}" else ""
+            binding.tvRating.visibility = if (store.rating > 0f) android.view.View.VISIBLE else android.view.View.GONE
 
             // Status badge (ShopeeFood / Oishi style)
             if (store.isOpen) {

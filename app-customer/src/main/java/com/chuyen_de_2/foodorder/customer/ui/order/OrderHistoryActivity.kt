@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.order
+package com.chuyen_de_2.foodorder.customer.ui.order
 
 import android.content.Intent
 import android.net.Uri
@@ -196,8 +196,8 @@ class OrderHistoryActivity : AppCompatActivity() {
         if (countWarning > 0) {
             binding.layoutEmergencyWarningBanner.visibility = View.VISIBLE
             val warnOrder = orders.firstOrNull { it.note.contains("cảnh báo", ignoreCase = true) }
-            val code = warnOrder?.orderId?.takeLast(6)?.uppercase() ?: "88291"
-            binding.tvEmergencyWarningTitle.text = "Đơn #$code đang bị tài xế cảnh báo mất đơn!"
+            val code = warnOrder?.orderId?.takeLast(6)?.uppercase() ?: ""
+            binding.tvEmergencyWarningTitle.text = if (code.isNotBlank()) "Đơn #$code đang bị tài xế cảnh báo mất đơn!" else "Đơn hàng của bạn đang bị tài xế cảnh báo mất đơn!"
         } else {
             binding.layoutEmergencyWarningBanner.visibility = View.GONE
         }

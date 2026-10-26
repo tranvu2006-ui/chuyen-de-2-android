@@ -354,8 +354,8 @@ class OrderListFragment : Fragment() {
                     ).show()
                 }
             }
-            Order.Status.ASSIGNED -> {
-                // BƯỚC 3: XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ ĐÃ NHẬN
+            Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
+                // BƯỚC 3: XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ ĐÃ NHẬN / ĐÃ ĐẾN QUÁN
                 viewModel.handoverToDriver(order.orderId)
                 val driverName = order.shipperName.ifBlank { "tài xế" }
                 Toast.makeText(

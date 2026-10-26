@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.checkout
+package com.chuyen_de_2.foodorder.customer.ui.checkout
 
 import android.Manifest
 import android.app.Activity
@@ -75,6 +75,8 @@ class CheckoutActivity : AppCompatActivity() {
     private var currentSubtotal = 0L
     private var currentShippingFee = 15000L
     private var currentDiscount = 0L
+    private var selectedCustomerLat = 0.0
+    private var selectedCustomerLng = 0.0
 
     private val districts = arrayOf(
         "Quận 1 (Nội thành)",
@@ -97,6 +99,8 @@ class CheckoutActivity : AppCompatActivity() {
             val data = result.data ?: return@registerForActivityResult
             val street = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS) ?: ""
             val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT) ?: ""
+            selectedCustomerLat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            selectedCustomerLng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
 
             if (street.isNotBlank()) {
                 binding.etAddress.setText(street)
@@ -440,9 +444,20 @@ class CheckoutActivity : AppCompatActivity() {
         val fullAddress = if (streetAddress.isNotBlank()) "$streetAddress, $selectedDistrict, TP.HCM" else "$selectedDistrict, TP.HCM"
 
         lifecycleScope.launch {
-            val storeId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: "store_1"
-            val storeLatLng = GoogleMapUtils.STORE_COORDINATES[storeId] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-            val customerLatLng = GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
+            val storeId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: currentTargetShopId
+            val store = currentStore ?: if (storeId.isNotBlank()) firebaseRepository.getStoreOnce(storeId) else null
+            val storeLatLng = if (store != null && store.latitude != 0.0 && store.longitude != 0.0) {
+                com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+            } else if (store != null && store.address.isNotBlank()) {
+                GoogleMapUtils.geocodeAddress(this@CheckoutActivity, "${store.address}, TP.HCM")
+            } else {
+                GoogleMapUtils.DEFAULT_HCMC_LATLNG
+            }
+            val customerLatLng = if (selectedCustomerLat != 0.0 && selectedCustomerLng != 0.0) {
+                com.google.android.gms.maps.model.LatLng(selectedCustomerLat, selectedCustomerLng)
+            } else {
+                GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
+            }
             val distanceKm = GoogleMapUtils.calculateDistanceKm(storeLatLng, customerLatLng)
 
             currentShippingFee = GoogleMapUtils.calculateShippingFeeByDistance(distanceKm)
@@ -499,7 +514,7 @@ class CheckoutActivity : AppCompatActivity() {
                 val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
                 val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
                 val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
-                val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: supportActionBar?.title?.toString() ?: "Phở Hà Nội 36"
+                val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: currentStore?.name ?: supportActionBar?.title?.toString() ?: "Quán Ăn"
 
                 if (binding.rbBanking.isChecked) {
                     // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng (với thông tin tài khoản của Quán)

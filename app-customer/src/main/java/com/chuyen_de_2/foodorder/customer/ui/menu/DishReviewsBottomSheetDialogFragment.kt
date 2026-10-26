@@ -15,8 +15,8 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
     private val binding get() = _binding!!
 
     private var dishName: String = ""
-    private var dishRating: Float = 4.8f
-    private var reviewCount: Int = 128
+    private var dishRating: Float = 0.0f
+    private var reviewCount: Int = 0
 
     private lateinit var reviewsAdapter: DishReviewsAdapter
 
@@ -39,8 +39,8 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         dishName = arguments?.getString(ARG_DISH_NAME) ?: "Món ăn"
-        dishRating = arguments?.getFloat(ARG_DISH_RATING) ?: 4.8f
-        reviewCount = arguments?.getInt(ARG_REVIEW_COUNT) ?: 128
+        dishRating = arguments?.getFloat(ARG_DISH_RATING) ?: 0.0f
+        reviewCount = arguments?.getInt(ARG_REVIEW_COUNT) ?: 0
     }
 
     override fun onCreateView(
@@ -56,8 +56,13 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.tvSheetDishSubtitle.text = dishName
-        binding.tvOverviewScoreNum.text = String.format("%.1f", dishRating)
-        binding.tvOverviewTotalCount.text = "$reviewCount đánh giá"
+        if (reviewCount > 0 && dishRating > 0f) {
+            binding.tvOverviewScoreNum.text = String.format("%.1f", dishRating)
+            binding.tvOverviewTotalCount.text = "$reviewCount đánh giá"
+        } else {
+            binding.tvOverviewScoreNum.text = "--"
+            binding.tvOverviewTotalCount.text = "Chưa có đánh giá"
+        }
 
         binding.btnCloseSheet.setOnClickListener {
             dismiss()

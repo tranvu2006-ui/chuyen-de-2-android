@@ -134,40 +134,11 @@ class NotificationActivity : AppCompatActivity() {
 
                 val items = mutableListOf<NotificationItem>()
 
-                // 1. Tạo thông báo động từ trạng thái các đơn hàng
+                // Tạo thông báo động từ trạng thái các đơn hàng thật trên Firebase
                 orders.sortedByDescending { it.timestamp }.forEach { order ->
                     val notif = createNotificationFromOrder(order)
                     items.add(notif)
                 }
-
-                // 2. Thêm thông báo ưu đãi / chào mừng
-                items.add(
-                    NotificationItem(
-                        id = "promo_welcome",
-                        type = NotificationType.PROMO,
-                        title = "Ưu đãi chào bạn mới Oishi Food!",
-                        body = "Giảm ngay 20.000đ cho đơn hàng đầu tiên với mã OISHI20. Đặt món ngon ngay hôm nay!",
-                        timestamp = System.currentTimeMillis() - 3600_000 * 4,
-                        isUnread = false,
-                        iconRes = R.drawable.ic_tag,
-                        iconColor = 0xFFEE4D2D.toInt(),
-                        iconBgColor = 0xFFFFF1EE.toInt()
-                    )
-                )
-
-                items.add(
-                    NotificationItem(
-                        id = "sys_trust_score",
-                        type = NotificationType.SYSTEM,
-                        title = "Điểm uy tín tài khoản của bạn",
-                        body = "Hoàn tất các đơn hàng thành công giúp tích lũy điểm uy tín và mở khóa thanh toán tiền mặt COD không giới hạn.",
-                        timestamp = System.currentTimeMillis() - 86400_000,
-                        isUnread = false,
-                        iconRes = R.drawable.ic_shield,
-                        iconColor = 0xFF10B981.toInt(),
-                        iconBgColor = 0xFFECFDF5.toInt()
-                    )
-                )
 
                 allNotifications = items
 

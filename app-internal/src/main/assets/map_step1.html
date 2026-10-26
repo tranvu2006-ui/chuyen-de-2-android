@@ -111,6 +111,9 @@
 
     // Hàm gọi API OSRM chỉ đường thật 100% bám theo đường xá thực tế giống Google Maps
     async function fetchRealRoute(dLat, dLng, sLat, sLng) {
+      if (!dLat || !dLng || !sLat || !sLng || (dLat === 0 && dLng === 0) || (sLat === 0 && sLng === 0)) {
+        return;
+      }
       try {
         const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${sLng},${sLat}?overview=full&geometries=geojson`;
         const res = await fetch(url);

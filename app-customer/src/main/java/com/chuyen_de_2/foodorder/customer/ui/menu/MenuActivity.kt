@@ -231,14 +231,19 @@ class MenuActivity : AppCompatActivity() {
         binding.tvDetailDishStore.text = "Quán $shopName"
         binding.tvDetailPriceMain.text = dish.price.toVndCurrency()
 
-        val originalPrice = (dish.price * 1.3).toLong()
-        binding.tvDetailPriceOld.paintFlags = binding.tvDetailPriceOld.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
-        binding.tvDetailPriceOld.text = originalPrice.toVndCurrency()
+        binding.tvDetailPriceOld.visibility = View.GONE
 
-        val rating = if (dish.ratingAvg > 0) dish.ratingAvg else 4.8f
-        val reviewCount = if (dish.reviewCount > 0) dish.reviewCount else 128
-        binding.tvDetailRatingText.text = "⭐ $rating"
-        binding.btnViewDishReviews.text = "⭐ Đánh giá ($reviewCount) ➔"
+        val rating = dish.ratingAvg
+        val reviewCount = dish.reviewCount
+        if (reviewCount > 0 && rating > 0f) {
+            binding.tvDetailRatingText.visibility = View.VISIBLE
+            binding.tvDetailRatingText.text = "⭐ $rating"
+            binding.btnViewDishReviews.visibility = View.VISIBLE
+            binding.btnViewDishReviews.text = "⭐ Đánh giá ($reviewCount) ➔"
+        } else {
+            binding.tvDetailRatingText.visibility = View.GONE
+            binding.btnViewDishReviews.visibility = View.GONE
+        }
 
         binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {
             dish.description
@@ -246,9 +251,9 @@ class MenuActivity : AppCompatActivity() {
             "Món ngon thơm lừng chế biến từ nguyên liệu tươi sạch, giữ trọn hương vị đặc trưng truyền thống."
         }
 
-        if (dish.category.contains("mới", ignoreCase = true) || dish.soldCount > 500) {
+        if (dish.soldCount > 500) {
             binding.tvDetailPromoBadge.visibility = View.VISIBLE
-            binding.tvDetailPromoBadge.text = if (dish.soldCount > 1000) "HOT" else "-25%"
+            binding.tvDetailPromoBadge.text = "HOT"
         } else {
             binding.tvDetailPromoBadge.visibility = View.GONE
         }

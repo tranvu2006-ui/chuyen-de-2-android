@@ -22,9 +22,20 @@ import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
 import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 /**
@@ -55,6 +66,19 @@ class HomeActivity : AppCompatActivity() {
 
     private var selectedCategory: String? = null
     private var isNearbyFiltered: Boolean = false
+    private var selectedNearbyDistanceKm: Double = 3.0
+    private var selectedNearbyDistanceLabel: String = "< 3 km"
+    private var currentLocationName: String = "Đang xác định vị trí..."
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
+            requestFreshGpsLocation()
+        }
+    }
 
     @Inject
     lateinit var authRepository: AuthRepository
@@ -83,6 +107,7 @@ class HomeActivity : AppCompatActivity() {
         setupBottomNav()
         observeViewModel()
         checkUserRoleForBanner()
+        detectUserLocation()
     }
 
     override fun onResume() {
@@ -134,10 +159,12 @@ class HomeActivity : AppCompatActivity() {
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
+            selectedNearbyDistanceKm = 3.0
+            selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
             binding.layoutActiveFilterIndicator.visibility = View.GONE
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false)
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
             binding.etSearch.setText("")
             Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         }
@@ -145,22 +172,133 @@ class HomeActivity : AppCompatActivity() {
         binding.btnClearFilter.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
+            selectedNearbyDistanceKm = 3.0
+            selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
             binding.layoutActiveFilterIndicator.visibility = View.GONE
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false)
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
+        }
+
+        binding.layoutActiveFilterIndicator.setOnClickListener {
+            showNearbyStoresBottomSheet()
+        }
+    }
+
+    /**
+     * Tên chức năng: Phát hiện vị trí người dùng (từ địa chỉ đã lưu hoặc GPS)
+     */
+    private fun detectUserLocation() {
+        lifecycleScope.launch {
+            try {
+                val uid = FirebaseAuth.getInstance().currentUser?.uid
+                if (!uid.isNullOrBlank()) {
+                    val userSnap = FirebaseDatabase.getInstance().getReference("users").child(uid).get().await()
+                    val addr = userSnap.child("address").getValue(String::class.java).orEmpty().trim()
+                    if (addr.isNotBlank()) {
+                        currentLocationName = addr
+                        val shortDistrict = addr.split(",")
+                            .map { it.trim() }
+                            .firstOrNull { it.contains("Quận", true) || it.contains("Thủ Đức", true) || it.contains("Bình Thạnh", true) || it.contains("Gò Vấp", true) || it.contains("Tân Bình", true) || it.contains("Phú Nhuận", true) }
+                            ?: "TP.HCM"
+                        binding.tvLocation.text = "📍 $shortDistrict ▾"
+
+                        val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
+                        if (coords.latitude != 0.0 && coords.longitude != 0.0) {
+                            viewModel.setUserLocation(coords.latitude, coords.longitude)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            checkGpsPermissionAndFetch()
+        }
+    }
+
+    private fun checkGpsPermissionAndFetch(onComplete: (() -> Unit)? = null) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ) {
+            requestFreshGpsLocation(onComplete)
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestFreshGpsLocation(onComplete: (() -> Unit)? = null) {
+        try {
+            val fused = LocationServices.getFusedLocationProviderClient(this)
+            val priority = Priority.PRIORITY_HIGH_ACCURACY
+            fused.getCurrentLocation(priority, null).addOnSuccessListener { loc ->
+                if (loc != null) {
+                    onGpsLocationUpdated(loc.latitude, loc.longitude, onComplete)
+                } else {
+                    fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                        if (fallbackLoc != null) {
+                            onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                        } else {
+                            onComplete?.invoke()
+                        }
+                    }
+                }
+            }.addOnFailureListener {
+                fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                    if (fallbackLoc != null) {
+                        onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                    } else {
+                        onComplete?.invoke()
+                    }
+                }
+            }
+        } catch (_: SecurityException) {
+            onComplete?.invoke()
+        }
+    }
+
+    private fun onGpsLocationUpdated(lat: Double, lng: Double, onComplete: (() -> Unit)? = null) {
+        viewModel.setUserLocation(lat, lng)
+        lifecycleScope.launch {
+            val nearestDistrict = GoogleMapUtils.findNearestDistrict(lat, lng)
+            binding.tvLocation.text = "📍 $nearestDistrict ▾"
+            val reverseAddr = GoogleMapUtils.reverseGeocode(this@HomeActivity, lat, lng)
+            currentLocationName = if (reverseAddr.isNotBlank() && reverseAddr != "TP. Hồ Chí Minh") {
+                reverseAddr
+            } else {
+                "$nearestDistrict, TP.HCM"
+            }
+            onComplete?.invoke()
         }
     }
 
     /**
      * Tên chức năng: Hiển thị Bottom Sheet Modal danh sách Quán Ăn Gần Bạn Nhất
-     * Cách hoạt động: Mở bảng trượt dưới lên hiển thị danh sách quán ăn theo bán kính khoảng cách GPS, hỗ trợ lọc món theo quán gần (< 1.5 km).
+     * Cách hoạt động: Mở bảng trượt dưới lên hiển thị danh sách quán ăn theo bán kính khoảng cách GPS, hỗ trợ lọc món theo quán gần.
      * Luồng hướng tới: Bấm chọn quán -> Mở [MenuActivity] của quán đó.
      */
     private fun showNearbyStoresBottomSheet() {
         val dialog = BottomSheetDialog(this)
         val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
         dialog.setContentView(sheetBinding.root)
+
+        val updateSheetLocation = {
+            sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
+        }
+        updateSheetLocation()
+
+        if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
+            checkGpsPermissionAndFetch {
+                updateSheetLocation()
+            }
+        }
+
+        var currentRadius = selectedNearbyDistanceKm
+        var currentRadiusLabel = selectedNearbyDistanceLabel
 
         val nearbyAdapter = NearbyStoreAdapter { storeItem ->
             dialog.dismiss()
@@ -176,8 +314,76 @@ class HomeActivity : AppCompatActivity() {
             adapter = nearbyAdapter
         }
 
-        val stores = viewModel.nearbyStores.value ?: emptyList()
-        nearbyAdapter.submitList(stores)
+        fun filterAndDisplayStores(allStores: List<NearbyStoreItem>) {
+            val filteredStores = if (currentRadius >= 999.0) {
+                allStores
+            } else {
+                allStores.filter { it.distanceKm in 0.001..currentRadius }
+            }
+            nearbyAdapter.submitList(filteredStores)
+
+            if (filteredStores.isEmpty()) {
+                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\nHãy thử chọn bán kính 5 km hoặc 10 km!"
+                sheetBinding.tvEmptyNearby.visibility = View.VISIBLE
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.GONE
+            } else {
+                sheetBinding.tvEmptyNearby.visibility = View.GONE
+                sheetBinding.tvNearbyStoreCountSummary.text = "Tìm thấy ${filteredStores.size} quán trong bán kính $currentRadiusLabel"
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.VISIBLE
+            }
+
+            sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
+                "Áp Dụng Lọc Món Quán Gần (Tất cả)"
+            } else {
+                "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel)"
+            }
+        }
+
+        // Chọn sẵn Chip khoảng cách hiện tại
+        when (currentRadius) {
+            1.5 -> sheetBinding.chipDist1.isChecked = true
+            3.0 -> sheetBinding.chipDist3.isChecked = true
+            5.0 -> sheetBinding.chipDist5.isChecked = true
+            10.0 -> sheetBinding.chipDist10.isChecked = true
+            else -> sheetBinding.chipDistAll.isChecked = true
+        }
+
+        filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+
+        sheetBinding.chipGroupDistance.setOnCheckedStateChangeListener { _, checkedIds ->
+            when (checkedIds.firstOrNull()) {
+                R.id.chipDist1 -> {
+                    currentRadius = 1.5
+                    currentRadiusLabel = "< 1.5 km"
+                }
+                R.id.chipDist3 -> {
+                    currentRadius = 3.0
+                    currentRadiusLabel = "< 3 km"
+                }
+                R.id.chipDist5 -> {
+                    currentRadius = 5.0
+                    currentRadiusLabel = "< 5 km"
+                }
+                R.id.chipDist10 -> {
+                    currentRadius = 10.0
+                    currentRadiusLabel = "< 10 km"
+                }
+                R.id.chipDistAll -> {
+                    currentRadius = 999.0
+                    currentRadiusLabel = "Tất cả"
+                }
+            }
+            filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+        }
+
+        // Quan sát Realtime để cập nhật khi dữ liệu quán tải xong
+        val nearbyObserver = androidx.lifecycle.Observer<List<NearbyStoreItem>> { updatedStores ->
+            filterAndDisplayStores(updatedStores)
+        }
+        viewModel.nearbyStores.observe(this, nearbyObserver)
+        dialog.setOnDismissListener {
+            viewModel.nearbyStores.removeObserver(nearbyObserver)
+        }
 
         sheetBinding.btnCloseSheet.setOnClickListener {
             dialog.dismiss()
@@ -185,10 +391,12 @@ class HomeActivity : AppCompatActivity() {
 
         sheetBinding.btnFilterNearbyOnly.setOnClickListener {
             dialog.dismiss()
+            selectedNearbyDistanceKm = currentRadius
+            selectedNearbyDistanceLabel = currentRadiusLabel
             isNearbyFiltered = true
             binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-            binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Món từ các quán gần (< 1.5 km)"
-            viewModel.filterDishes(nearbyOnly = true)
+            binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Món từ các quán trong bán kính $selectedNearbyDistanceLabel"
+            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
         }
 
         dialog.show()

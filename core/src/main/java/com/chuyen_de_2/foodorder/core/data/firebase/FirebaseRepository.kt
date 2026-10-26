@@ -34,7 +34,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class FirebaseRepository @Inject constructor(
-    private val database: FirebaseDatabase,
+    val database: FirebaseDatabase,
     private val auth: FirebaseAuth
 ) {
     init {
@@ -113,10 +113,26 @@ class FirebaseRepository @Inject constructor(
             val targetStatus = order.status.ifBlank { order.orderStatus.ifBlank { Order.Status.PENDING } }
             val targetTimestamp = if (order.createdAt > 0) order.createdAt else if (order.timestamp > 0) order.timestamp else now
 
+            var targetShopPhone = order.shopPhone.trim()
+            var targetShopName = order.shopName.trim()
+            if ((targetShopPhone.isBlank() || targetShopName.isBlank()) && targetStoreId.isNotBlank()) {
+                try {
+                    val storeSnap = database.getReference("stores").child(targetStoreId).get().await()
+                    if (targetShopPhone.isBlank()) {
+                        targetShopPhone = storeSnap.child("phone").getValue(String::class.java).orEmpty().trim()
+                    }
+                    if (targetShopName.isBlank()) {
+                        targetShopName = storeSnap.child("name").getValue(String::class.java).orEmpty().trim()
+                    }
+                } catch (_: Exception) {}
+            }
+
             val orderWithId = order.copy(
                 orderId = orderId,
                 storeId = targetStoreId,
                 shopId = targetStoreId,
+                shopName = targetShopName.ifBlank { order.shopName },
+                shopPhone = targetShopPhone,
                 deliveryAddress = targetAddress,
                 address = targetAddress,
                 totalPayment = targetTotal,
@@ -610,7 +626,9 @@ class FirebaseRepository @Inject constructor(
         bankAccountNumber: String = "",
         bankAccountName: String = "",
         bankBin: String = "",
-        imageUrl: String = ""
+        imageUrl: String = "",
+        latitude: Double = 0.0,
+        longitude: Double = 0.0
     ): Result<Unit> {
         return try {
             val updates = mutableMapOf<String, Any>(
@@ -627,6 +645,8 @@ class FirebaseRepository @Inject constructor(
             if (bankAccountName.isNotBlank()) updates["bankAccountName"] = bankAccountName
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin
             if (imageUrl.isNotBlank()) updates["imageUrl"] = imageUrl
+            if (latitude != 0.0) updates["latitude"] = latitude
+            if (longitude != 0.0) updates["longitude"] = longitude
 
             database.getReference("stores").child(storeId).updateChildren(updates).await()
             Result.success(Unit)

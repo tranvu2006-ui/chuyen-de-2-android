@@ -26,11 +26,11 @@ class OrderSuccessActivity : AppCompatActivity() {
         InsetUtils.applyNavigationBarPadding(binding.bottomBar)
 
         val orderId = intent.getStringExtra(Constants.EXTRA_ORDER_ID) ?: ""
-        val shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Phở Hà Nội 36"
-        val address = intent.getStringExtra("extra_address") ?: "TP. Hồ Chí Minh"
-        val totalAmount = intent.getLongExtra("extra_amount", 130000L)
-        val subtotal = intent.getLongExtra("extra_subtotal", 115000L)
-        val shippingFee = intent.getLongExtra("extra_shipping_fee", 15000L)
+        val shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Quán Ăn"
+        val address = intent.getStringExtra("extra_address") ?: ""
+        val totalAmount = intent.getLongExtra("extra_amount", 0L)
+        val subtotal = intent.getLongExtra("extra_subtotal", 0L)
+        val shippingFee = intent.getLongExtra("extra_shipping_fee", 0L)
         val discount = intent.getLongExtra("extra_discount", 0L)
         val paymentMethod = intent.getStringExtra("extra_payment_method") ?: "Tiền mặt khi nhận hàng (COD)"
 
@@ -55,8 +55,8 @@ class OrderSuccessActivity : AppCompatActivity() {
         totalAmount: Long,
         paymentMethod: String
     ) {
-        val displayOrderId = if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else "DH8888"
-        binding.tvOrderId.text = "🏷️ Mã đơn: #$displayOrderId • Quán: $shopName"
+        val displayOrderId = if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else ""
+        binding.tvOrderId.text = if (displayOrderId.isNotBlank()) "🏷️ Mã đơn: #$displayOrderId • Quán: $shopName" else "🏷️ Quán: $shopName"
         binding.tvAddress.text = "📍 Địa chỉ: $address"
 
         binding.tvSubtotal.text = subtotal.toVndCurrency()

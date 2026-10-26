@@ -85,8 +85,8 @@ class CheckoutViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Lấy thông tin tên, SĐT và Gmail của khách để gắn vào đơn hàng và đồng bộ lên hồ sơ
-                var customerName = firebaseUser.displayName.orEmpty().trim()
-                var customerPhone = firebaseUser.phoneNumber.orEmpty().trim()
+                var resolvedCustomerName = customerName.trim().ifBlank { firebaseUser.displayName.orEmpty().trim() }
+                var resolvedCustomerPhone = customerPhone.trim().ifBlank { firebaseUser.phoneNumber.orEmpty().trim() }
                 val customerEmail = firebaseUser.email.orEmpty().trim()
 
                 try {
@@ -114,15 +114,16 @@ class CheckoutViewModel @Inject constructor(
 
                     val dbName = userSnap.child("name").getValue(String::class.java).orEmpty().trim()
                     val dbPhone = userSnap.child("phone").getValue(String::class.java).orEmpty().trim()
-                    if (dbName.isNotBlank()) customerName = dbName
-                    if (dbPhone.isNotBlank()) customerPhone = dbPhone
+                    if (resolvedCustomerName.isBlank() && dbName.isNotBlank()) resolvedCustomerName = dbName
+                    if (resolvedCustomerPhone.isBlank() && dbPhone.isNotBlank()) resolvedCustomerPhone = dbPhone
 
                     val profileUpdates = mutableMapOf<String, Any>("uid" to userId)
                     if (customerEmail.isNotBlank()) profileUpdates["email"] = customerEmail
-                    if (customerName.isBlank() && customerEmail.isNotBlank()) {
-                        customerName = customerEmail.substringBefore("@")
+                    if (resolvedCustomerName.isBlank() && customerEmail.isNotBlank()) {
+                        resolvedCustomerName = customerEmail.substringBefore("@")
                     }
-                    if (customerName.isNotBlank()) profileUpdates["name"] = customerName
+                    if (resolvedCustomerName.isNotBlank()) profileUpdates["name"] = resolvedCustomerName
+                    if (resolvedCustomerPhone.isNotBlank()) profileUpdates["phone"] = resolvedCustomerPhone
                     if (address.isNotBlank()) profileUpdates["address"] = address
                     database.getReference("users").child(userId).updateChildren(profileUpdates)
                     database.getReference("customers").child(userId).updateChildren(profileUpdates)
@@ -132,7 +133,7 @@ class CheckoutViewModel @Inject constructor(
                         _isLoading.value = false
                         return@launch
                     }
-                    if (customerName.isBlank()) customerName = customerEmail.substringBefore("@")
+                    if (resolvedCustomerName.isBlank()) resolvedCustomerName = customerEmail.substringBefore("@")
                 }
 
                 var lastCreatedOrderId = ""
@@ -141,13 +142,21 @@ class CheckoutViewModel @Inject constructor(
                     val token = (100000..999999).random().toString()
                     val finalPayment = maxOf(0L, cart.totalAmount + shippingFee - discount)
 
+                    val targetStore = try {
+                        firebaseRepository.getStoreOnce(cart.shopId)
+                    } catch (_: Exception) { null }
+
+                    val resolvedShopPhone = targetStore?.phone.orEmpty().trim()
+                    val resolvedShopName = targetStore?.name?.ifBlank { cart.shopName } ?: cart.shopName
+
                     val order = Order(
                         customerId = userId,
-                        customerName = customerName.ifBlank { firebaseUser.displayName?.ifBlank { "Khách hàng" } ?: "Khách hàng" },
-                        customerPhone = customerPhone,
+                        customerName = resolvedCustomerName.ifBlank { firebaseUser.displayName?.ifBlank { "Khách hàng" } ?: "Khách hàng" },
+                        customerPhone = resolvedCustomerPhone,
                         storeId = cart.shopId,
                         shopId = cart.shopId,
-                        shopName = cart.shopName,
+                        shopName = resolvedShopName,
+                        shopPhone = resolvedShopPhone,
                         status = Order.Status.PENDING,
                         orderStatus = Order.Status.PENDING,
                         total = finalPayment,

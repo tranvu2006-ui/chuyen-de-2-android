@@ -1,5 +1,7 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -8,6 +10,7 @@ import com.google.gson.annotations.SerializedName
  * 4 trạng thái: PENDING → OPEN / LOCKED / CLOSED
  * Mapping: Bảng 5 - stores (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class Store(
     @SerializedName("id")
     val id: String = "",
@@ -108,11 +111,14 @@ data class Store(
     val dishes: Map<String, Dish> = emptyMap()
 ) {
     /** Thuộc tính phụ trợ tương thích UI */
+    @get:Exclude
     val isOpen: Boolean
         get() = storeStatus.equals(StoreStatus.OPEN, ignoreCase = true)
 
+    @get:Exclude
     val rating: Float
         get() = ratingAvg
+
     /** Trạng thái quán ăn — Admin duyệt */
     object StoreStatus {
         const val PENDING = "PENDING"

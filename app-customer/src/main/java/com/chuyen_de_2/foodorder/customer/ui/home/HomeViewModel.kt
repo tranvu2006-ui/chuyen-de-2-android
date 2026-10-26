@@ -31,6 +31,10 @@ class HomeViewModel @Inject constructor(
     private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
     val hotDishes: LiveData<List<HotDish>> = _hotDishes
 
+    // Danh sách danh mục nền tảng thời gian thực từ Firebase
+    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
+    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
+
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
@@ -41,6 +45,17 @@ class HomeViewModel @Inject constructor(
     private var currentQuery: String? = null
     private var currentCategory: String? = null
     private var currentNearbyOnly: Boolean = false
+    var currentNearbyMaxDistanceKm: Double = 3.0
+        private set
+    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
+        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun setUserLocation(lat: Double, lng: Double) {
+        if (lat != 0.0 && lng != 0.0) {
+            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
+            _stores.value?.let { processStoresAndDishes(it) }
+        }
+    }
 
     init {
         loadStores()
@@ -58,11 +73,18 @@ class HomeViewModel @Inject constructor(
                 processStoresAndDishes(firebaseStores)
             }
         }
+
+        viewModelScope.launch {
+            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
+            firebaseRepository.observeCategories().collectLatest { cats ->
+                _platformCategories.value = cats
+            }
+        }
     }
 
     private fun processStoresAndDishes(storeList: List<Store>) {
         // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
-        var activeStores = storeList.filter { store ->
+        val activeStores = storeList.filter { store ->
             val st = store.storeStatus.uppercase()
             val pt = store.penaltyTier.uppercase()
             st != Store.StoreStatus.LOCKED &&
@@ -70,25 +92,14 @@ class HomeViewModel @Inject constructor(
             pt != Store.PenaltyTier.HIDE
         }
 
-        // Fallback: nếu Firebase chưa có quán nào, tự tạo các quán tiêu biểu
-        if (activeStores.isEmpty()) {
-            activeStores = listOf(
-                Store(id = "shop_01", name = "Cơm Tấm Sài Gòn - Nguyễn Trãi", address = "128 Nguyễn Trãi, P. Bến Thành, Q.1", category = "Cơm"),
-                Store(id = "shop_02", name = "Phở Bò Gia Truyền Hà Nội", address = "45 Lê Lợi, P. Bến Nghé, Q.1", category = "Bún/Phở"),
-                Store(id = "shop_05", name = "Hồng Trà Ngô Gia - Thủ Đức", address = "28 Tô Vĩnh Diện, P. Linh Chiểu, Thủ Đức", category = "Trà Sữa"),
-                Store(id = "shop_06", name = "Gà Rán Giòn Cay Oishi", address = "82 Hai Bà Trưng, P. Đa Kao, Q.1", category = "Gà Rán")
-            )
-        }
-
-        // 1. Quán gần đây
-        val nearbyList = activeStores.mapIndexed { index, store ->
-            val dist = if (store.latitude != 0.0 && store.longitude != 0.0) {
-                0.8 + (index * 0.4)
-            } else {
-                0.8 + (index * 0.4)
-            }
-            val roundedDist = Math.round(dist * 10.0) / 10.0
-            val etaMinutes = 15 + (index * 5)
+        // 1. Quán gần đây (Sắp xếp theo thứ tự khoảng cách từ gần đến xa)
+        val nearbyList = activeStores.map { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
+                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
+                "$baseTime-${baseTime + 10} phút"
+            } else "15-25 phút"
             val emoji = when {
                 store.name.contains("Trà", true) -> "🍵"
                 store.name.contains("Cơm", true) -> "🍛"
@@ -101,54 +112,66 @@ class HomeViewModel @Inject constructor(
                 name = store.name,
                 address = store.address.ifBlank { "TP.HCM" },
                 distanceKm = roundedDist,
-                eta = "$etaMinutes-${etaMinutes + 5} phút",
-                rating = if (store.ratingAvg > 0) store.ratingAvg else 5.0f,
+                eta = eta,
+                rating = store.ratingAvg,
                 imageUrl = store.imageUrl,
                 emoji = emoji,
                 originalStore = store
             )
         }
-        _nearbyStores.value = nearbyList
+
+        val sortedNearbyList = nearbyList.sortedWith(
+            compareBy<NearbyStoreItem> { if (it.distanceKm > 0.0) 0 else 1 }
+                .thenBy { it.distanceKm }
+        )
+        _nearbyStores.value = sortedNearbyList
 
         // 2. Thu thập các món ăn của quán
         val allDishes = mutableListOf<HomeDishItem>()
 
-        activeStores.forEachIndexed { storeIndex, store ->
-            val dist = 0.8 + (storeIndex * 0.4)
-            val roundedDist = Math.round(dist * 10.0) / 10.0
+        activeStores.forEach { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
 
-            // Lấy món từ store.dishes; nếu quán chưa có món thì dùng các món mặc định của quán đó
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            val dishesToDisplay = if (availableDishes.isNotEmpty()) availableDishes else getDefaultDishesForStore(store.id, store.name)
 
-            dishesToDisplay.forEach { dish ->
+            availableDishes.forEach { dish ->
+                val platformCat = dish.platformCategory.ifBlank {
+                    inferPlatformCategory(dish.name, dish.category)
+                }
                 val emoji = when {
-                    dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
-                    dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍛"
-                    dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
-                    dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
-                    dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
-                    dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
-                    dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
-                    else -> "🍲"
+                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
+                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
+                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
+                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
+                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
+                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
+                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
+                    platformCat.contains("Chay", true) -> "🥗"
+                    platformCat.contains("Hải sản", true) -> "🦐"
+                    platformCat.contains("Ăn vặt", true) -> "🍟"
+                    platformCat.contains("Tráng miệng", true) -> "🍰"
+                    platformCat.contains("Lẩu", true) -> "🍲"
+                    else -> "🍽️"
                 }
                 allDishes.add(
                     HomeDishItem(
                         id = dish.id,
                         name = dish.name,
                         price = dish.basePrice,
-                        originalPrice = if (dish.basePrice > 0) (dish.basePrice * 1.2).toLong() else 0L,
+                        originalPrice = dish.basePrice,
                         storeId = store.id,
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
                         emoji = emoji,
-                        rating = if (dish.ratingAvg > 0) dish.ratingAvg else 4.9f,
-                        soldCount = "${if (dish.soldCount > 0) dish.soldCount else (120 + storeIndex * 45)} đã bán",
+                        rating = dish.ratingAvg,
+                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
-                        promoBadge = if (dish.basePrice >= 50000) "-15%" else "Món ngon",
-                        tag1 = if (dish.category.isNotBlank()) dish.category else "Món của quán",
-                        tag2 = "Giao Nhanh",
-                        category = dish.category.ifBlank { store.category }
+                        promoBadge = "",
+                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
+                        category = dish.category.ifBlank { store.category },
+                        platformCategory = platformCat
                     )
                 )
             }
@@ -171,62 +194,43 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun getDefaultDishesForStore(storeId: String, storeName: String): List<com.chuyen_de_2.foodorder.core.data.model.Dish> {
-        return when (storeId) {
-            "shop_02" -> listOf(
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_02_01", storeId = "shop_02", name = "Phở Bò Tái Lăn Hà Nội", basePrice = 65000, category = "Bún/Phở", imageUrl = "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_02_02", storeId = "shop_02", name = "Phở Đặc Biệt (Tái, Nạm, Gầu)", basePrice = 75000, category = "Bún/Phở", imageUrl = "https://images.unsplash.com/photo-1555126634-323283e090fa?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_02_03", storeId = "shop_02", name = "Quẩy Giòn Hà Nội", basePrice = 10000, category = "Ăn vặt", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400")
-            )
-            "shop_03" -> listOf(
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_03_01", storeId = "shop_03", name = "Bún Bò Huế Đặc Biệt", basePrice = 60000, category = "Bún/Phở", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_03_02", storeId = "shop_03", name = "Bún Bò Giò Heo Chả Cua", basePrice = 65000, category = "Bún/Phở", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400")
-            )
-            "shop_04" -> listOf(
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_04_01", storeId = "shop_04", name = "Bánh Mì Pate Chả Đặc Biệt Huỳnh Hoa", basePrice = 58000, category = "Bánh mì", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_04_02", storeId = "shop_04", name = "Bánh Mì Thịt Nướng Bơ Tỏi", basePrice = 45000, category = "Bánh mì", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400")
-            )
-            "shop_05" -> listOf(
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_05_01", storeId = "shop_05", name = "Trà Sữa Trân Châu Hoàng Gia", basePrice = 45000, category = "Trà Sữa", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1558857563-b371033873b8?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_05_02", storeId = "shop_05", name = "Trà Sữa Oolong Nướng", basePrice = 48000, category = "Trà Sữa", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_05_03", storeId = "shop_05", name = "Hồng Trà Đào Cam Sả", basePrice = 42000, category = "Trà Sữa", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
-            )
-            "shop_06" -> listOf(
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_06_01", storeId = "shop_06", name = "Combo 2 Miếng Gà Rán Giòn Cay", basePrice = 79000, category = "Gà Rán", imageUrl = "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_06_02", storeId = "shop_06", name = "Cánh Gà Sốt Chua Ngọt Hàn Quốc", basePrice = 85000, category = "Gà Rán", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400")
-            )
-            else -> listOf(
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_${storeId}_01", storeId = storeId, name = "Cơm sườn nướng than hoa", basePrice = 55000, category = "Cơm Trưa", imageUrl = "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_${storeId}_02", storeId = storeId, name = "Cơm tấm bì chả đặc biệt", basePrice = 40000, category = "Cơm Trưa", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_${storeId}_03", storeId = storeId, name = "Sườn cốt lết chiên giòn", basePrice = 60000, category = "Cơm Trưa", imageUrl = "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_${storeId}_04", storeId = storeId, name = "Canh chua cá lóc", basePrice = 35000, category = "Cơm Trưa", imageUrl = "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400"),
-                com.chuyen_de_2.foodorder.core.data.model.Dish(id = "dish_${storeId}_05", storeId = storeId, name = "Trà Ô Long Xí Muội", basePrice = 28000, category = "Trà Sữa", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
-            )
-        }
-    }
-
     /** Lọc danh sách món ăn */
-    fun filterDishes(query: String? = null, category: String? = null, nearbyOnly: Boolean? = null) {
+    fun filterDishes(
+        query: String? = null,
+        category: String? = null,
+        nearbyOnly: Boolean? = null,
+        maxDistanceKm: Double? = null
+    ) {
         if (query != null) currentQuery = query
         if (category != null) currentCategory = if (category == "ALL") null else category
         if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
+        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
         applyFilters()
     }
 
     private fun applyFilters() {
         var filtered = masterDishList
 
-        // 1. Lọc theo cự ly gần (< 1.5 km)
+        // 1. Lọc theo cự ly gần
         if (currentNearbyOnly) {
-            filtered = filtered.filter { it.distanceKm <= 1.5 }
+            val maxDist = currentNearbyMaxDistanceKm
+            filtered = if (maxDist >= 999.0) {
+                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            } else {
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
+            }
         }
 
         // 2. Lọc theo danh mục
         val cat = currentCategory
         if (!cat.isNullOrBlank()) {
             filtered = filtered.filter { dish ->
-                dish.category.contains(cat, ignoreCase = true) ||
-                dish.name.contains(cat, ignoreCase = true)
+                matchesCategory(dish, cat)
             }
         }
 
@@ -236,11 +240,104 @@ class HomeViewModel @Inject constructor(
             filtered = filtered.filter { dish ->
                 dish.name.lowercase().contains(q) ||
                 dish.storeName.lowercase().contains(q) ||
-                dish.category.lowercase().contains(q)
+                dish.category.lowercase().contains(q) ||
+                dish.platformCategory.lowercase().contains(q)
             }
         }
 
         _homeDishes.value = filtered
+    }
+
+    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
+        val target = filterCat.trim().lowercase()
+        val pCat = dish.platformCategory.lowercase()
+        val sCat = dish.category.lowercase()
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val combined = "$name $pCat $sCat $store"
+
+        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
+        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
+        if (name.contains(target)) return true
+
+        if (target.contains("cơm")) {
+            return combined.contains("cơm")
+        }
+        if (target.contains("trà") || target.contains("nước") || target.contains("uống")) {
+            return combined.contains("trà") || combined.contains("nước") || combined.contains("uống") || combined.contains("sữa") || combined.contains("sinh tố")
+        }
+        if (target.contains("phở") || target.contains("bún") || target.contains("mì") || target.contains("hủ tiếu")) {
+            return combined.contains("phở") || combined.contains("bún") || combined.contains("mì") || combined.contains("hủ tiếu") || combined.contains("miến")
+        }
+        if (target.contains("gà")) {
+            return combined.contains("gà")
+        }
+        if (target.contains("bánh mì")) {
+            return combined.contains("bánh mì") || combined.contains("banh mi")
+        }
+        if (target.contains("pizza")) {
+            return combined.contains("pizza")
+        }
+        if (target.contains("cà phê") || target.contains("cafe") || target.contains("coffee")) {
+            return combined.contains("cà phê") || combined.contains("cafe") || combined.contains("coffee")
+        }
+        if (target.contains("ăn vặt") || target.contains("tráng miệng") || target.contains("chè") || target.contains("kem")) {
+            return combined.contains("ăn vặt") || combined.contains("tráng miệng") || combined.contains("chè") || combined.contains("kem") || combined.contains("bánh") || combined.contains("khoai") || combined.contains("nem")
+        }
+        if (target.contains("chay")) {
+            return combined.contains("chay")
+        }
+        if (target.contains("hải sản")) {
+            return combined.contains("hải sản") || combined.contains("tôm") || combined.contains("cua") || combined.contains("mực") || combined.contains("cá") || combined.contains("ốc")
+        }
+        if (target.contains("lẩu")) {
+            return combined.contains("lẩu")
+        }
+
+        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
+        return keywords.any { kw -> combined.contains(kw) }
+    }
+
+    private fun inferPlatformCategory(name: String, category: String): String {
+        val text = "$name $category".lowercase()
+        return when {
+            text.contains("cơm") -> "Cơm"
+            text.contains("trà") || text.contains("nước") || text.contains("uống") -> "Trà sữa & Nước"
+            text.contains("bún") || text.contains("phở") || text.contains("hủ tiếu") || text.contains("mì") -> "Bún - Phở"
+            text.contains("gà") -> "Gà rán"
+            text.contains("bánh mì") -> "Bánh mì"
+            text.contains("pizza") -> "Pizza"
+            text.contains("cà phê") || text.contains("cafe") || text.contains("coffee") -> "Cà phê"
+            text.contains("lẩu") -> "Lẩu / Món Nước"
+            text.contains("chay") -> "Món chay"
+            text.contains("hải sản") || text.contains("tôm") || text.contains("cua") || text.contains("cá") || text.contains("mực") -> "Hải sản"
+            text.contains("chè") || text.contains("kem") || text.contains("bánh") || text.contains("ăn vặt") || text.contains("tráng miệng") -> "Đồ ăn vặt"
+            else -> "Món Khác"
+        }
+    }
+
+    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
+        if (store.latitude != 0.0 && store.longitude != 0.0) {
+            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+        }
+        val distName = store.district.trim()
+        if (distName.isNotBlank()) {
+            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
+            if (exact != null) return exact
+            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
+                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
+            if (fuzzy != null) return fuzzy
+        }
+        return null
+    }
+
+    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
+        if (storeLatLng == null) return 0.0
+        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+            currentUserLatLng,
+            storeLatLng
+        ).toDouble()
+        return Math.round(dist * 10.0) / 10.0
     }
 
     fun loadRestaurants() = loadStores()

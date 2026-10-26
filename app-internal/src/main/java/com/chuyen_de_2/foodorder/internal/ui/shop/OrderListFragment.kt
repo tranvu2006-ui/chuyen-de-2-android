@@ -64,7 +64,7 @@ class OrderListFragment : Fragment() {
 
     private val viewModel: ShopViewModel by viewModels()
     private lateinit var adapter: OrderAdapter
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -354,8 +354,8 @@ class OrderListFragment : Fragment() {
                     ).show()
                 }
             }
-            Order.Status.ASSIGNED -> {
-                // BƯỚC 3: XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ ĐÃ NHẬN
+            Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
+                // BƯỚC 3: XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ ĐÃ NHẬN / ĐÃ ĐẾN QUÁN
                 viewModel.handoverToDriver(order.orderId)
                 val driverName = order.shipperName.ifBlank { "tài xế" }
                 Toast.makeText(

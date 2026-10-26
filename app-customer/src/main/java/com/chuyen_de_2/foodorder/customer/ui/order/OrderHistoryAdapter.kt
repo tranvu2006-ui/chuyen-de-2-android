@@ -19,6 +19,7 @@ import java.util.Locale
 
 class OrderHistoryAdapter(
     private val onTrackClick: (Order) -> Unit,
+    private val onPayClick: (Order) -> Unit,
     private val onComplaintClick: (Order) -> Unit,
     private val onReorderClick: (Order) -> Unit,
     private val onViewProofClick: (Order) -> Unit,
@@ -119,29 +120,39 @@ class OrderHistoryAdapter(
                     // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
                     val isUnpaid = (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L)
                     if (isUnpaid) {
+                        val customerReportedPayment = order.payment?.status == "CUSTOMER_REPORTED"
                         binding.cardOrder.strokeColor = Color.parseColor("#FDBA74")
                         binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFCF9"))
 
-                        binding.tvOrderStatusBadge.text = "⏳ Chờ thanh toán"
+                        binding.tvOrderStatusBadge.text =
+                            if (customerReportedPayment) "⏳ Chờ quán xác nhận thanh toán" else "⏳ Chờ thanh toán"
                         binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
                         binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
 
                         binding.tvShipperInfo.visibility = View.GONE
 
                         binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = "💡"
-                        binding.tvAlertTitle.text = "Chưa hoàn tất thanh toán"
-                        binding.tvAlertCountdown.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = if (customerReportedPayment) "✓" else "💡"
+                        binding.tvAlertTitle.text =
+                            if (customerReportedPayment) "Đã báo chuyển khoản" else "Chưa hoàn tất thanh toán"
+                        binding.tvAlertCountdown.visibility = if (customerReportedPayment) View.GONE else View.VISIBLE
                         binding.tvAlertCountdown.text = "28:40"
-                        binding.tvAlertMessage.text = "Vui lòng thanh toán để quán nhận đơn và chế biến."
+                        binding.tvAlertMessage.text = if (customerReportedPayment) {
+                            "Đơn đang chờ quán xác nhận đã nhận được tiền."
+                        } else {
+                            "Vui lòng thanh toán để quán nhận đơn và chế biến."
+                        }
 
                         binding.btnActionSecondary.visibility = View.VISIBLE
                         binding.btnActionSecondary.text = "✕ Hủy đơn"
                         binding.btnActionSecondary.setOnClickListener { onComplaintClick(order) }
 
-                        binding.btnActionPrimary.text = "💳 Thanh Toán Ngay ➔"
+                        binding.btnActionPrimary.text =
+                            if (customerReportedPayment) "Chi Tiết Đơn ➔" else "💳 Thanh Toán Ngay ➔"
                         binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
-                        binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                        binding.btnActionPrimary.setOnClickListener {
+                            if (customerReportedPayment) onTrackClick(order) else onPayClick(order)
+                        }
                     } else {
                         // CHỜ QUÁN XÁC NHẬN
                         binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
@@ -175,21 +186,36 @@ class OrderHistoryAdapter(
                     binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
                     binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
 
-                    binding.tvOrderStatusBadge.text = "🍳 Đang nấu món"
+                    val customerReportedVnPay = order.payment?.status == "CUSTOMER_REPORTED"
+                    binding.tvOrderStatusBadge.text =
+                        if (customerReportedVnPay) "⏱️ Chờ quán xác nhận" else "🍳 Đang nấu món"
                     binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
                     binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
 
                     binding.tvShipperInfo.visibility = View.VISIBLE
-                    binding.tvShipperInfo.text = "👨‍🍳 Quán đang nấu món và đóng gói"
+                    binding.tvShipperInfo.text = if (customerReportedVnPay) {
+                        "👨‍🍳 Quán đang nhận đơn và chuẩn bị pha chế"
+                    } else {
+                        "👨‍🍳 Quán đang nấu món và đóng gói"
+                    }
                     binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
 
-                    binding.layoutAlertBox.visibility = View.GONE
+                    binding.layoutAlertBox.visibility = if (customerReportedVnPay) View.VISIBLE else View.GONE
+                    if (customerReportedVnPay) {
+                        binding.tvAlertIcon.text = "✓"
+                        binding.tvAlertTitle.text = "Đã nhận đơn"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
+                    }
 
                     binding.btnActionSecondary.visibility = View.VISIBLE
                     binding.btnActionSecondary.text = "📞 Gọi Quán"
-                    binding.btnActionSecondary.setOnClickListener { onCallClick("02838229999") }
+                    binding.btnActionSecondary.setOnClickListener {
+                        onCallClick(order.shopPhone.ifBlank { "02838229999" })
+                    }
 
-                    binding.btnActionPrimary.text = "Theo Dõi Đơn ➔"
+                    binding.btnActionPrimary.text =
+                        if (customerReportedVnPay) "Chi Tiết Đơn ➔" else "Theo Dõi Đơn ➔"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
                     binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
                 }

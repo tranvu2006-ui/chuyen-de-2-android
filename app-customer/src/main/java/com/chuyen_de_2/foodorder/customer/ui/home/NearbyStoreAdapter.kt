@@ -42,7 +42,7 @@ class NearbyStoreAdapter(
             val context = binding.root.context
             binding.tvNearbyStoreName.text = store.name
             binding.tvNearbyStoreAddress.text = if (store.address.startsWith("📍")) store.address else "📍 ${store.address}"
-            binding.tvNearbyDistance.text = "📍 ${store.distanceKm} km"
+            binding.tvNearbyDistance.text = if (store.distanceKm > 0.0) "📍 ${store.distanceKm} km" else "📍 Gần bạn"
             binding.tvNearbyEta.text = "⏱ ${store.eta}"
             binding.tvNearbyRating.text = "⭐ ${store.rating}"
 

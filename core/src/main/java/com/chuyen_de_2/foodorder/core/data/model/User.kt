@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -7,6 +8,7 @@ import com.google.gson.annotations.SerializedName
  * 4 Roles: ADMIN, CUSTOMER, MERCHANT, DRIVER
  * Mapping: Bảng 1 - users (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class User(
     @SerializedName("uid")
     val uid: String = "",

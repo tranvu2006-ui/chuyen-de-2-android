@@ -201,7 +201,7 @@ class AuthRepository @Inject constructor(
                     val randomCode = "TX-" + (10..99).random()
                     val driver = Driver(
                         driverId = firebaseUser.uid,
-                        storeId = assignedStoreId.ifBlank { "shop_01" },
+                        storeId = assignedStoreId,
                         driverCode = randomCode,
                         name = name.trim(),
                         phone = phone.trim(),

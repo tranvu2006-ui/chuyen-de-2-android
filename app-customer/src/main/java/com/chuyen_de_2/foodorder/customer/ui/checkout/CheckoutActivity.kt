@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.checkout
+package com.chuyen_de_2.foodorder.customer.ui.checkout
 
 import android.Manifest
 import android.app.Activity
@@ -45,11 +45,12 @@ import javax.inject.Inject
  *  - Hỗ trợ chọn địa chỉ từ Sổ địa chỉ đã lưu hoặc ghim vị trí trực tiếp trên bản đồ qua [SelectLocationActivity].
  *  - Tự động tính toán phí vận chuyển (Shipping Fee) dựa trên khoảng cách giữa tọa độ Quán và Khách hàng.
  *  - Áp dụng mã giảm giá voucher khuyến mãi (nếu có).
- *  - Hỗ trợ các phương thức thanh toán: Tiền mặt (COD) hoặc Chuyển khoản Ngân hàng (VietQR Napas).
+ *  - Hỗ trợ các phương thức thanh toán: COD, VietQR hoặc cổng VNPay.
  *  - Ghi nhận đơn hàng mới (Status: PENDING) lên Firestore.
  * Luồng hướng tới:
  *  - Thanh toán COD -> Chuyển sang [OrderSuccessActivity].
  *  - Thanh toán VietQR -> Chuyển sang [PaymentActivity] để quét mã chuyển khoản.
+ *  - Thanh toán VNPay -> Chuyển sang [com.chuyen_de_2.foodorder.customer.ui.payment.VnPayActivity].
  *  - Bấm chọn vị trí bản đồ -> Mở [SelectLocationActivity].
  */
 @AndroidEntryPoint
@@ -75,6 +76,8 @@ class CheckoutActivity : AppCompatActivity() {
     private var currentSubtotal = 0L
     private var currentShippingFee = 15000L
     private var currentDiscount = 0L
+    private var selectedCustomerLat = 0.0
+    private var selectedCustomerLng = 0.0
 
     private val districts = arrayOf(
         "Quận 1 (Nội thành)",
@@ -97,6 +100,8 @@ class CheckoutActivity : AppCompatActivity() {
             val data = result.data ?: return@registerForActivityResult
             val street = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS) ?: ""
             val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT) ?: ""
+            selectedCustomerLat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            selectedCustomerLng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
 
             if (street.isNotBlank()) {
                 binding.etAddress.setText(street)
@@ -252,6 +257,7 @@ class CheckoutActivity : AppCompatActivity() {
             val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
 
             val paymentMethod = when {
+                binding.rbVnPay.isChecked -> Order.PaymentMethod.VNPAY
                 binding.rbBanking.isChecked -> Order.PaymentMethod.BANKING
                 else -> Order.PaymentMethod.COD
             }
@@ -440,9 +446,20 @@ class CheckoutActivity : AppCompatActivity() {
         val fullAddress = if (streetAddress.isNotBlank()) "$streetAddress, $selectedDistrict, TP.HCM" else "$selectedDistrict, TP.HCM"
 
         lifecycleScope.launch {
-            val storeId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: "store_1"
-            val storeLatLng = GoogleMapUtils.STORE_COORDINATES[storeId] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-            val customerLatLng = GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
+            val storeId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: currentTargetShopId
+            val store = currentStore ?: if (storeId.isNotBlank()) firebaseRepository.getStoreOnce(storeId) else null
+            val storeLatLng = if (store != null && store.latitude != 0.0 && store.longitude != 0.0) {
+                com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+            } else if (store != null && store.address.isNotBlank()) {
+                GoogleMapUtils.geocodeAddress(this@CheckoutActivity, "${store.address}, TP.HCM")
+            } else {
+                GoogleMapUtils.DEFAULT_HCMC_LATLNG
+            }
+            val customerLatLng = if (selectedCustomerLat != 0.0 && selectedCustomerLng != 0.0) {
+                com.google.android.gms.maps.model.LatLng(selectedCustomerLat, selectedCustomerLng)
+            } else {
+                GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
+            }
             val distanceKm = GoogleMapUtils.calculateDistanceKm(storeLatLng, customerLatLng)
 
             currentShippingFee = GoogleMapUtils.calculateShippingFeeByDistance(distanceKm)
@@ -499,9 +516,23 @@ class CheckoutActivity : AppCompatActivity() {
                 val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
                 val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
                 val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
-                val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: supportActionBar?.title?.toString() ?: "Phở Hà Nội 36"
+                val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: currentStore?.name ?: supportActionBar?.title?.toString() ?: "Quán Ăn"
 
-                if (binding.rbBanking.isChecked) {
+                if (binding.rbVnPay.isChecked) {
+                    startActivity(
+                        com.chuyen_de_2.foodorder.customer.ui.payment.VnPayActivity.createIntent(
+                            context = this,
+                            orderId = orderId,
+                            shopName = targetShopName,
+                            address = fullAddress,
+                            amount = finalTotal,
+                            subtotal = currentSubtotal,
+                            shippingFee = currentShippingFee,
+                            discount = currentDiscount,
+                            orderItems = buildPaymentItemSummary()
+                        )
+                    )
+                } else if (binding.rbBanking.isChecked) {
                     // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng (với thông tin tài khoản của Quán)
                     val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
                         putExtra(Constants.EXTRA_ORDER_ID, orderId)
@@ -538,6 +569,14 @@ class CheckoutActivity : AppCompatActivity() {
                 Toast.makeText(this, error.message ?: "Lỗi đặt đơn", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun buildPaymentItemSummary(): String {
+        return viewModel.carts.value.orEmpty().flatMap { cart ->
+            cart.items.values.map { item ->
+                "${item.quantity}x ${item.name}${if (item.options.isNotBlank()) " (${item.options})" else ""} — ${(item.price * item.quantity).toVndCurrency()}"
+            }
+        }.joinToString("\n")
     }
 
     /** Lắng nghe thông tin tài khoản ngân hàng của quán để hiển thị cho khách xem trước */

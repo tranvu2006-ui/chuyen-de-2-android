@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.order
+package com.chuyen_de_2.foodorder.customer.ui.order
 
 import android.content.Intent
 import android.net.Uri
@@ -12,12 +12,16 @@ import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityOrderHistoryBinding
 import com.chuyen_de_2.foodorder.customer.ui.complaint.ComplaintActivity
 import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
+import com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity
+import com.chuyen_de_2.foodorder.customer.ui.payment.VnPayActivity
 import com.chuyen_de_2.foodorder.customer.ui.tracking.TrackingActivity
 import com.google.firebase.auth.FirebaseAuth
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -77,10 +81,79 @@ class OrderHistoryActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         adapter = OrderHistoryAdapter(
             onTrackClick = { order ->
-                val intent = Intent(this, TrackingActivity::class.java).apply {
-                    putExtra(Constants.EXTRA_ORDER_ID, order.orderId)
+                if (
+                    order.paymentMethod == Order.PaymentMethod.VNPAY &&
+                    order.status == Order.Status.PENDING &&
+                    order.totalPayment == 0L &&
+                    order.payment?.status != "CUSTOMER_REPORTED"
+                ) {
+                    val subtotal = order.subtotalAmount
+                    val shippingFee = order.shippingFee
+                    startActivity(
+                        VnPayActivity.createIntent(
+                            context = this,
+                            orderId = order.orderId,
+                            shopName = order.effectiveShopName,
+                            address = order.effectiveAddress,
+                            amount = order.total,
+                            subtotal = subtotal,
+                            shippingFee = shippingFee,
+                            discount = maxOf(0L, subtotal + shippingFee - order.total),
+                            orderItems = order.items.values.joinToString("\n") { item ->
+                                "${item.quantity}x ${item.name} — ${(item.price * item.quantity).toVndCurrency()}"
+                            }
+                        )
+                    )
+                } else {
+                    val intent = Intent(this, TrackingActivity::class.java).apply {
+                        putExtra(Constants.EXTRA_ORDER_ID, order.orderId)
+                    }
+                    startActivity(intent)
                 }
-                startActivity(intent)
+            },
+            onPayClick = { order ->
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("Chọn phương thức thanh toán")
+                    .setItems(arrayOf("VietQR", "VNPay")) { _, selection ->
+                        val orderId = order.orderId
+                        val subtotal = order.subtotalAmount
+                        val shippingFee = order.shippingFee
+                        val amount = order.effectiveTotal
+                        val discount = maxOf(0L, subtotal + shippingFee - amount)
+                        val orderItems = order.items.values.joinToString("\n") { item ->
+                            "${item.quantity}x ${item.name} — ${(item.price * item.quantity).toVndCurrency()}"
+                        }
+
+                        if (selection == 0) {
+                            startActivity(Intent(this, PaymentActivity::class.java).apply {
+                                putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                                putExtra(Constants.EXTRA_SHOP_ID, order.effectiveStoreId)
+                                putExtra(Constants.EXTRA_SHOP_NAME, order.effectiveShopName)
+                                putExtra("extra_address", order.effectiveAddress)
+                                putExtra("extra_amount", amount)
+                                putExtra("extra_subtotal", subtotal)
+                                putExtra("extra_shipping_fee", shippingFee)
+                                putExtra("extra_discount", discount)
+                                putExtra("extra_channel", "bank")
+                            })
+                        } else {
+                            startActivity(
+                                VnPayActivity.createIntent(
+                                    context = this,
+                                    orderId = orderId,
+                                    shopName = order.effectiveShopName,
+                                    address = order.effectiveAddress,
+                                    amount = amount,
+                                    subtotal = subtotal,
+                                    shippingFee = shippingFee,
+                                    discount = discount,
+                                    orderItems = orderItems
+                                )
+                            )
+                        }
+                    }
+                    .setNegativeButton("Đóng", null)
+                    .show()
             },
             onComplaintClick = { order ->
                 val intent = Intent(this, ComplaintActivity::class.java).apply {
@@ -196,8 +269,8 @@ class OrderHistoryActivity : AppCompatActivity() {
         if (countWarning > 0) {
             binding.layoutEmergencyWarningBanner.visibility = View.VISIBLE
             val warnOrder = orders.firstOrNull { it.note.contains("cảnh báo", ignoreCase = true) }
-            val code = warnOrder?.orderId?.takeLast(6)?.uppercase() ?: "88291"
-            binding.tvEmergencyWarningTitle.text = "Đơn #$code đang bị tài xế cảnh báo mất đơn!"
+            val code = warnOrder?.orderId?.takeLast(6)?.uppercase() ?: ""
+            binding.tvEmergencyWarningTitle.text = if (code.isNotBlank()) "Đơn #$code đang bị tài xế cảnh báo mất đơn!" else "Đơn hàng của bạn đang bị tài xế cảnh báo mất đơn!"
         } else {
             binding.layoutEmergencyWarningBanner.visibility = View.GONE
         }

@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -7,6 +8,7 @@ import com.google.gson.annotations.SerializedName
  * Giao diện: khách/b11.html — Trang cá nhân + Thẻ Điểm Uy Tín
  * Mapping: Bảng 2 - customers (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class Customer(
     @SerializedName("customerId")
     val customerId: String = "",

@@ -142,7 +142,7 @@ class ProfileActivity : AppCompatActivity() {
     private fun loadUserProfile() {
         val currentUser = firebaseAuth.currentUser
         if (currentUser != null) {
-            binding.tvUserEmail.text = currentUser.email ?: "customer@oishifood.vn"
+            binding.tvUserEmail.text = currentUser.email ?: ""
 
             lifecycleScope.launch {
                 val userResult = authRepository.getCurrentUserData()

@@ -274,13 +274,19 @@ class StoreVerificationActivity : AppCompatActivity() {
             return
         }
 
-        // Tọa độ GPS theo quận TP.HCM
-        val coords = GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-
-        binding.progressBarVerification.visibility = View.VISIBLE
-        binding.btnSubmitVerification.isEnabled = false
-
         lifecycleScope.launch {
+            binding.progressBarVerification.visibility = View.VISIBLE
+            binding.btnSubmitVerification.isEnabled = false
+
+            // Geocode địa chỉ thực tế của quán, fallback về trung tâm quận nếu không tìm thấy
+            val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
+            val coords = try {
+                val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
+                if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+            } catch (_: Exception) {
+                GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+            }
             val user = authRepository.currentUser
             val uid = user?.uid.orEmpty()
             if (currentStoreId.isBlank()) {

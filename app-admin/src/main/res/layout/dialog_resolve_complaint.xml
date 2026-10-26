@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Xử Lý Khiếu Nại Đơn Hàng"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvDialogComplaintRef"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp"
+            tools:text="Đơn: ORD-123 • Quán: store_01" />
+
+        <TextView
+            android:id="@+id/tvDialogReasonContent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_choice_card_idle"
+            android:padding="12dp"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            tools:text="Nội dung: Món giao thiếu và không đạt chất lượng." />
+
+        <!-- Decision Group -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="1. Quyết định xử lý khiếu nại:"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/rgComplaintDecision"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp">
+
+            <RadioButton
+                android:id="@+id/rbResolveApprove"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Chấp thuận khiếu nại (RESOLVED)"
+                android:textColor="@color/brand_green"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <RadioButton
+                android:id="@+id/rbResolveReject"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Bác bỏ khiếu nại (REJECTED)"
+                android:textColor="@color/danger"
+                android:textSize="13sp" />
+        </RadioGroup>
+
+        <!-- Store Penalty Tier -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="2. Áp dụng mức phạt Quán ăn (Store):"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <RadioGroup
+            android:id="@+id/rgComplaintPenalty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp">
+
+            <RadioButton
+                android:id="@+id/rbPenaltyNone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Không phạt (NONE)"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
+
+            <RadioButton
+                android:id="@+id/rbPenaltyWarn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Mức 1: Cảnh cáo quán (WARN)"
+                android:textColor="@color/brand_orange"
+                android:textSize="13sp" />
+
+            <RadioButton
+                android:id="@+id/rbPenaltyHide"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Mức 2: Tạm ẩn quán 3 ngày (HIDE)"
+                android:textColor="@color/brand_orange"
+                android:textSize="13sp" />
+
+            <RadioButton
+                android:id="@+id/rbPenaltyLock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Mức 3: Khóa tài khoản quán (LOCK)"
+                android:textColor="@color/danger"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </RadioGroup>
+
+        <!-- Admin Note -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilAdminNote"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:hint="3. Ghi chú kết luận của Quản trị viên"
+            app:boxStrokeColor="@color/primary">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etAdminNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lines="2"
+                android:textSize="13sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCancelResolve"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Hủy"
+                android:textColor="@color/text_secondary" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSubmitResolve"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="@color/primary"
+                android:text="XÁC NHẬN GIẢI QUYẾT"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                app:cornerRadius="10dp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

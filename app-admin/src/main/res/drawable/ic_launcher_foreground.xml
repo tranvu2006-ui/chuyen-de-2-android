@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group>
+        <!-- Clipboard body -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36,32h36c2.2,0 4,1.8 4,4v38c0,2.2 -1.8,4 -4,4H36c-2.2,0 -4,-1.8 -4,-4V36c0,-2.2 1.8,-4 4,-4z" />
+        <!-- Inner background cutout -->
+        <path
+            android:fillColor="#1B2838"
+            android:pathData="M36,36h36v34H36z" />
+        <!-- Top Clip -->
+        <path
+            android:fillColor="#2EC4B6"
+            android:pathData="M44,27h20c1.1,0 2,0.9 2,2v6H42v-6c0,-1.1 0.9,-2 2,-2z" />
+        <!-- Checkmark -->
+        <path
+            android:fillColor="#2EC4B6"
+            android:pathData="M50.5,55.5l-6,-6l-2.8,2.8l8.8,8.8l18,-18l-2.8,-2.8z" />
+        <!-- Delivery item line -->
+        <path
+            android:fillColor="#8899A6"
+            android:pathData="M42,66h24v3H42z" />
+    </group>
+</vector>

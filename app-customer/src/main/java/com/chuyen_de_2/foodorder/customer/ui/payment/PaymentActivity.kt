@@ -52,9 +52,9 @@ class PaymentActivity : AppCompatActivity() {
         val shopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: ""
         val shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Quán Ăn Oishi"
         val address = intent.getStringExtra("extra_address") ?: ""
-        val amount = intent.getLongExtra("extra_amount", 130000L)
-        val subtotal = intent.getLongExtra("extra_subtotal", 115000L)
-        val shippingFee = intent.getLongExtra("extra_shipping_fee", 15000L)
+        val amount = intent.getLongExtra("extra_amount", 0L)
+        val subtotal = intent.getLongExtra("extra_subtotal", 0L)
+        val shippingFee = intent.getLongExtra("extra_shipping_fee", 0L)
         val discount = intent.getLongExtra("extra_discount", 0L)
 
         // 1. Nhận thông tin ngân hàng truyền qua Intent (nếu có)
@@ -119,7 +119,7 @@ class PaymentActivity : AppCompatActivity() {
     private fun renderPaymentUI(orderId: String, amount: Long) {
         binding.tvAmountValue.text = amount.toVndCurrency()
 
-        val transferSyntax = "OISHI ${if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else "DH8888"}"
+        val transferSyntax = "OISHI ${if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else ""}".trim()
 
         binding.tvPayTypeBadge.text = if (currentBankName.isNotBlank()) "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (${currentBankName.uppercase()})" else "🏦 VIETQR LIÊN NGÂN HÀNG 24/7"
         binding.tvBankName.text = currentBankName.ifBlank { "Chưa cập nhật" }

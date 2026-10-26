@@ -50,7 +50,7 @@ class StoreProfileFragment : Fragment() {
     @Inject
     lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
     private var currentStore: Store? = null
 
     override fun onCreateView(
@@ -301,6 +301,15 @@ class StoreProfileFragment : Fragment() {
             btnSave.isEnabled = false
 
             viewLifecycleOwner.lifecycleScope.launch {
+                val fullAddress = if (newAddress.isNotBlank()) "$newAddress, $newDistrict, TP.HCM" else "$newDistrict, TP.HCM"
+                val coords = try {
+                    val resolved = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.geocodeAddress(requireContext(), fullAddress)
+                    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                    else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                } catch (_: Exception) {
+                    com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                }
+
                 val result = firebaseRepository.updateStoreProfile(
                     storeId = currentStoreId,
                     name = newName,
@@ -313,7 +322,9 @@ class StoreProfileFragment : Fragment() {
                     bankName = newBankName,
                     bankAccountNumber = newBankNo,
                     bankAccountName = newBankOwnerName,
-                    bankBin = newBankBin
+                    bankBin = newBankBin,
+                    latitude = coords.latitude,
+                    longitude = coords.longitude
                 )
 
                 if (result.isSuccess) {

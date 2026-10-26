@@ -67,15 +67,17 @@
         android:paddingVertical="8dp">
 
         <TextView
+            android:id="@+id/tvSheetCurrentLocation"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Vị trí hiện tại: Phường Đa Kao, Quận 1, TP.HCM"
+            android:text="Vị trí hiện tại: TP. Hồ Chí Minh"
             android:textColor="#1E40AF"
             android:textSize="11sp"
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/tvGpsStatusBadge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="#DBEAFE"
@@ -87,6 +89,92 @@
             android:textStyle="bold" />
     </LinearLayout>
 
+    <!-- Bộ chọn bán kính khoảng cách (Chips / Pills) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="18dp"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:text="Bán kính:"
+            android:textColor="#475569"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupDistance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:selectionRequired="true"
+                app:singleLine="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDist1"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&lt; 1.5 km"
+                    android:textSize="11.5sp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDist3"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="&lt; 3 km"
+                    android:textSize="11.5sp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDist5"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&lt; 5 km"
+                    android:textSize="11.5sp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDist10"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&lt; 10 km"
+                    android:textSize="11.5sp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDistAll"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tất cả"
+                    android:textSize="11.5sp" />
+            </com.google.android.material.chip.ChipGroup>
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <!-- Subtitle số lượng quán tìm thấy -->
+    <TextView
+        android:id="@+id/tvNearbyStoreCountSummary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="18dp"
+        android:layout_marginBottom="6dp"
+        android:textColor="#64748B"
+        android:textSize="11.5sp"
+        android:visibility="gone" />
+
     <!-- Danh sách quán cuộn dọc (b1.html: nearby-stores-scroll) -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvNearbyStores"
@@ -96,7 +184,19 @@
         android:maxHeight="380dp"
         android:paddingHorizontal="18dp" />
 
-    <!-- Nút Lọc món quán gần (< 1.5 km) (b1.html: btn-nearby-filter-apply) -->
+    <!-- Thông báo danh sách trống -->
+    <TextView
+        android:id="@+id/tvEmptyNearby"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="28dp"
+        android:text="Đang tìm kiếm quán ăn gần bạn..."
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <!-- Nút Lọc món quán gần (< 3.0 km) (b1.html: btn-nearby-filter-apply) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -112,7 +212,7 @@
             android:layout_width="match_parent"
             android:layout_height="46dp"
             android:backgroundTint="#10B981"
-            android:text="Chỉ Lọc Món Các Quán Gần (&lt; 1.5 km)"
+            android:text="Chỉ Lọc Món Các Quán Gần Nhất"
             android:textAllCaps="false"
             android:textColor="@color/white"
             android:textSize="13sp"

@@ -21,6 +21,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.lifecycle.lifecycleScope
@@ -63,7 +64,11 @@ class MenuManageFragment : Fragment() {
     private lateinit var adapter: ManageDishAdapter
     private val dishList = mutableListOf<Dish>()
     private var isCheckedIn = true
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
+    private var platformCategories: MutableList<String> = mutableListOf(
+        "Cơm", "Bún - Phở", "Trà sữa & Nước", "Gà rán", "Bánh mì", "Pizza", "Cà phê", "Đồ ăn vặt", "Món chay", "Hải sản", "Tráng miệng", "Lẩu / Món Nước", "Món Khác"
+    )
+    private var platformCategoryObjects: List<com.chuyen_de_2.foodorder.core.data.model.Category> = emptyList()
 
     var onNavigateToOrdersListener: (() -> Unit)? = null
 
@@ -85,6 +90,7 @@ class MenuManageFragment : Fragment() {
         setupUI()
         setupRecyclerView()
         resolveCurrentStoreIdAndObserve()
+        observePlatformCategories()
     }
 
     /**
@@ -105,60 +111,27 @@ class MenuManageFragment : Fragment() {
      * Cách hoạt động: Lắng nghe flow từ `firebaseRepository.observeStoreDishes`. Nếu quán mới chưa có món, tự động sinh bộ món mẫu.
      * Luồng hướng tới: Cập nhật RecyclerView hiển thị danh sách món.
      */
-    private fun observeStoreDishes() {
+    private fun observePlatformCategories() {
         viewLifecycleOwner.lifecycleScope.launch {
-            firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
-                dishList.clear()
-                if (dishes.isNotEmpty()) {
-                    dishList.addAll(dishes)
-                } else {
-                    dishList.addAll(getDefaultShopDishes(currentStoreId))
-                    // Tự động đẩy món mặc định lên Firebase nếu quán chưa có món
-                    dishList.forEach { dish ->
-                        firebaseRepository.saveStoreDish(currentStoreId, dish)
-                    }
+            firebaseRepository.observeCategories(includeInactive = false).collectLatest { cats ->
+                if (cats.isNotEmpty()) {
+                    platformCategoryObjects = cats
+                    val names = cats.map { it.categoryName }.toMutableList()
+                    if (!names.contains("Món Khác")) names.add("Món Khác")
+                    platformCategories = names
                 }
-                updateList()
             }
         }
     }
 
-    /**
-     * Tên chức năng: Tạo danh sách món mẫu theo từng loại hình quán ăn
-     * Cách hoạt động: Cung cấp danh sách Dish mặc định cho các quán mới khởi tạo (Cơm tấm, Phở, Bún bò, Bánh mì, Trà sữa, Gà rán).
-     * Luồng hướng tới: Điền dữ liệu ban đầu cho quán.
-     */
-    private fun getDefaultShopDishes(storeId: String): List<Dish> {
-        return when (storeId) {
-            "shop_02" -> listOf(
-                Dish(id = "dish_02_01", storeId = "shop_02", name = "Phở Bò Tái Lăn Hà Nội", basePrice = 65000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=400"),
-                Dish(id = "dish_02_02", storeId = "shop_02", name = "Phở Đặc Biệt (Tái, Nạm, Gầu)", basePrice = 75000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1555126634-323283e090fa?w=400"),
-                Dish(id = "dish_02_03", storeId = "shop_02", name = "Quẩy Giòn Hà Nội", basePrice = 10000, category = "Kèm", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400")
-            )
-            "shop_03" -> listOf(
-                Dish(id = "dish_03_01", storeId = "shop_03", name = "Bún Bò Huế Đặc Biệt", basePrice = 60000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400"),
-                Dish(id = "dish_03_02", storeId = "shop_03", name = "Bún Bò Giò Heo Chả Cua", basePrice = 65000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400")
-            )
-            "shop_04" -> listOf(
-                Dish(id = "dish_04_01", storeId = "shop_04", name = "Bánh Mì Pate Chả Đặc Biệt Huỳnh Hoa", basePrice = 58000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400"),
-                Dish(id = "dish_04_02", storeId = "shop_04", name = "Bánh Mì Thịt Nướng Bơ Tỏi", basePrice = 45000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400")
-            )
-            "shop_05" -> listOf(
-                Dish(id = "dish_05_01", storeId = "shop_05", name = "Trà Sữa Trân Châu Hoàng Gia", basePrice = 45000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1558857563-b371033873b8?w=400"),
-                Dish(id = "dish_05_02", storeId = "shop_05", name = "Trà Sữa Oolong Nướng", basePrice = 48000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
-            )
-            "shop_06" -> listOf(
-                Dish(id = "dish_06_01", storeId = "shop_06", name = "Combo 2 Miếng Gà Rán Giòn Cay", basePrice = 79000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400"),
-                Dish(id = "dish_06_02", storeId = "shop_06", name = "Cánh Gà Sốt Chim Ngọt Hàn Quốc", basePrice = 85000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400")
-            )
-            else -> listOf(
-                Dish(id = "dish_01_01", storeId = "shop_01", name = "Cơm sườn nướng than hoa", basePrice = 55000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400"),
-                Dish(id = "dish_01_02", storeId = "shop_01", name = "Cơm tấm bì chả đặc biệt", basePrice = 40000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400"),
-                Dish(id = "dish_01_03", storeId = "shop_01", name = "Sườn cốt lết chiên giòn", basePrice = 60000, category = "Món chính", imageUrl = "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400"),
-                Dish(id = "dish_01_04", storeId = "shop_01", name = "Canh chua cá lóc", basePrice = 35000, category = "Canh", imageUrl = "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400"),
-                Dish(id = "dish_01_05", storeId = "shop_01", name = "Gỏi cuốn tôm thịt", basePrice = 30000, category = "Khai vị", imageUrl = "https://images.unsplash.com/photo-1562967916-eb82221dfb92?w=400"),
-                Dish(id = "dish_01_06", storeId = "shop_01", name = "Trà Ô Long Xí Muội", basePrice = 28000, category = "Nước uống", hasOptions = true, imageUrl = "https://images.unsplash.com/photo-1556881286-fc6915169721?w=400")
-            )
+    private fun observeStoreDishes() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            if (currentStoreId.isBlank()) return@launch
+            firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
+                dishList.clear()
+                dishList.addAll(dishes)
+                updateList()
+            }
         }
     }
 
@@ -362,15 +335,49 @@ class MenuManageFragment : Fragment() {
         val etName = dialog.findViewById<EditText>(R.id.etDishName)
         val etPrice = dialog.findViewById<EditText>(R.id.etDishPrice)
         val spinnerCategory = dialog.findViewById<Spinner>(R.id.spinnerDishCategory)
+        val spinnerPlatformCategory = dialog.findViewById<Spinner>(R.id.spinnerPlatformCategory)
         val etDescription = dialog.findViewById<EditText>(R.id.etDishDescription)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelDish)
         val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveDish)
 
         var currentImageUrl = editingDish?.imageUrl.orEmpty()
 
-        val categories = arrayOf("Món chính", "Canh", "Khai vị", "Nước uống", "Ăn Vặt", "Trà Trái Cây", "Trà Sữa", "Cơm Phần", "Món Khác")
-        val spinnerAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, categories)
-        spinnerCategory.adapter = spinnerAdapter
+        val storeCategories = arrayOf("Món chính", "Canh", "Khai vị", "Món ăn kèm", "Nước uống", "Ăn Vặt", "Trà Trái Cây", "Trà Sữa", "Cơm Phần", "Món Khác")
+        val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeCategories)
+        spinnerCategory.adapter = storeAdapter
+
+        val platformAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, platformCategories.toTypedArray())
+        spinnerPlatformCategory.adapter = platformAdapter
+
+        var userSelectedPlatformCategory = false
+        spinnerPlatformCategory.setOnTouchListener { _, _ ->
+            userSelectedPlatformCategory = true
+            false
+        }
+
+        // Tự động gợi ý danh mục nền tảng khi gõ tên món nếu tạo mới
+        etName.doAfterTextChanged { text ->
+            if (!userSelectedPlatformCategory && editingDish == null) {
+                val input = text?.toString().orEmpty().lowercase()
+                val suggestedIndex = when {
+                    input.contains("cơm") -> platformCategories.indexOfFirst { it.contains("cơm", true) }
+                    input.contains("trà") || input.contains("nước") || input.contains("uống") -> platformCategories.indexOfFirst { it.contains("trà", true) || it.contains("nước", true) }
+                    input.contains("bún") || input.contains("phở") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOfFirst { it.contains("bún", true) || it.contains("phở", true) || it.contains("mì", true) }
+                    input.contains("gà") -> platformCategories.indexOfFirst { it.contains("gà", true) }
+                    input.contains("bánh mì") -> platformCategories.indexOfFirst { it.contains("bánh mì", true) }
+                    input.contains("pizza") -> platformCategories.indexOfFirst { it.contains("pizza", true) }
+                    input.contains("cà phê") || input.contains("cafe") || input.contains("coffee") -> platformCategories.indexOfFirst { it.contains("cà phê", true) || it.contains("cafe", true) }
+                    input.contains("lẩu") -> platformCategories.indexOfFirst { it.contains("lẩu", true) }
+                    input.contains("chay") -> platformCategories.indexOfFirst { it.contains("chay", true) }
+                    input.contains("hải sản") || input.contains("tôm") || input.contains("cua") || input.contains("cá") || input.contains("mực") -> platformCategories.indexOfFirst { it.contains("hải sản", true) }
+                    input.contains("chè") || input.contains("kem") || input.contains("bánh") || input.contains("ăn vặt") || input.contains("tráng miệng") -> platformCategories.indexOfFirst { it.contains("ăn vặt", true) || it.contains("tráng miệng", true) }
+                    else -> -1
+                }
+                if (suggestedIndex >= 0) {
+                    spinnerPlatformCategory.setSelection(suggestedIndex)
+                }
+            }
+        }
 
         // Thiết lập dữ liệu ban đầu
         if (editingDish != null) {
@@ -383,8 +390,21 @@ class MenuManageFragment : Fragment() {
                 etImageUrl.setText(editingDish.imageUrl)
             }
             loadPreviewImage(ivPreview, editingDish.imageUrl)
-            val catIndex = categories.indexOf(editingDish.category)
+            val catIndex = storeCategories.indexOf(editingDish.category)
             if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
+
+            val platIndex = platformCategories.indexOfFirst {
+                it.equals(editingDish.platformCategory, ignoreCase = true) ||
+                it.equals(editingDish.categoryId, ignoreCase = true)
+            }
+            if (platIndex >= 0) {
+                spinnerPlatformCategory.setSelection(platIndex)
+            } else {
+                val fallbackIndex = platformCategories.indexOfFirst {
+                    editingDish.platformCategory.isNotBlank() && it.contains(editingDish.platformCategory, true)
+                }
+                if (fallbackIndex >= 0) spinnerPlatformCategory.setSelection(fallbackIndex)
+            }
         } else {
             tvTitle.text = "Thêm Món Mới Vào Menu"
             loadPreviewImage(ivPreview, "")
@@ -424,7 +444,8 @@ class MenuManageFragment : Fragment() {
         btnSave.setOnClickListener {
             val name = etName.text.toString().trim()
             val priceStr = etPrice.text.toString().trim()
-            val category = spinnerCategory.selectedItem.toString()
+            val category = spinnerCategory.selectedItem?.toString().orEmpty().ifBlank { "Món chính" }
+            val platformCategory = spinnerPlatformCategory.selectedItem?.toString().orEmpty().ifBlank { "Món Khác" }
             val description = etDescription.text.toString().trim()
             val typedUrl = etImageUrl.text.toString().trim()
 
@@ -440,6 +461,8 @@ class MenuManageFragment : Fragment() {
             }
 
             val price = priceStr.toLongOrNull() ?: 0L
+            val matchedCategory = platformCategoryObjects.find { it.categoryName.equals(platformCategory, ignoreCase = true) }
+            val finalCategoryId = matchedCategory?.categoryId?.ifBlank { null } ?: "cat_other"
 
             if (editingDish != null) {
                 // Sửa món
@@ -447,6 +470,8 @@ class MenuManageFragment : Fragment() {
                     name = name,
                     basePrice = price,
                     category = category,
+                    platformCategory = platformCategory,
+                    categoryId = finalCategoryId,
                     description = description,
                     imageUrl = finalImageUrl,
                     storeId = currentStoreId
@@ -468,6 +493,8 @@ class MenuManageFragment : Fragment() {
                     name = name,
                     basePrice = price,
                     category = category,
+                    platformCategory = platformCategory,
+                    categoryId = finalCategoryId,
                     description = description,
                     imageUrl = finalImageUrl,
                     isAvailable = true

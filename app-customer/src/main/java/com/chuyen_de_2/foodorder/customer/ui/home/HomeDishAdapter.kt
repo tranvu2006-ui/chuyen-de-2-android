@@ -21,13 +21,14 @@ data class HomeDishItem(
     val storeName: String,
     val imageUrl: String = "",
     val emoji: String = "🍲",
-    val rating: Float = 4.8f,
-    val soldCount: String = "1.2k đã bán",
-    val distanceKm: Double = 1.2,
+    val rating: Float = 0f,
+    val soldCount: String = "",
+    val distanceKm: Double = 0.0,
     val promoBadge: String = "",
-    val tag1: String = "Bán Chạy Nhất",
-    val tag2: String = "Freeship Extra",
-    val category: String = ""
+    val tag1: String = "",
+    val tag2: String = "",
+    val category: String = "",
+    val platformCategory: String = ""
 )
 
 class HomeDishAdapter(
@@ -66,8 +67,9 @@ class HomeDishAdapter(
             // Meta đánh giá & cự ly km
             val cleanSoldCount = dish.soldCount.replace("đã bán", "").trim()
             val soldDisplay = if (cleanSoldCount.isNotBlank()) "($cleanSoldCount)" else ""
-            binding.tvRatingMeta.text = "⭐ ${dish.rating} $soldDisplay".trim()
-            binding.tvDistanceMeta.text = "📍 ${dish.distanceKm} km"
+            binding.tvRatingMeta.text = if (dish.rating > 0) "⭐ ${dish.rating} $soldDisplay".trim() else if (soldDisplay.isNotBlank()) soldDisplay else "Món mới"
+            binding.tvDistanceMeta.text = if (dish.distanceKm > 0.0) "📍 ${dish.distanceKm} km" else ""
+            binding.tvDistanceMeta.visibility = if (dish.distanceKm > 0.0) View.VISIBLE else View.GONE
 
             // Badge khuyến mãi
             if (dish.promoBadge.isNotBlank()) {

@@ -136,14 +136,28 @@ class SelectLocationActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun locateCurrentGps() {
         try {
             val fusedClient = LocationServices.getFusedLocationProviderClient(this)
-            fusedClient.lastLocation.addOnSuccessListener { loc ->
+            val priority = com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
+            fusedClient.getCurrentLocation(priority, null).addOnSuccessListener { loc ->
                 if (loc != null) {
                     moveMapTo(loc.latitude, loc.longitude)
                 } else {
-                    Toast.makeText(this, "Đang tìm tín hiệu GPS...", Toast.LENGTH_SHORT).show()
+                    fusedClient.lastLocation.addOnSuccessListener { fallbackLoc ->
+                        if (fallbackLoc != null) {
+                            moveMapTo(fallbackLoc.latitude, fallbackLoc.longitude)
+                        } else {
+                            Toast.makeText(this, "Đang tìm tín hiệu GPS...", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }.addOnFailureListener {
+                fusedClient.lastLocation.addOnSuccessListener { fallbackLoc ->
+                    if (fallbackLoc != null) {
+                        moveMapTo(fallbackLoc.latitude, fallbackLoc.longitude)
+                    }
                 }
             }
         } catch (_: SecurityException) {}
@@ -161,10 +175,7 @@ class SelectLocationActivity : AppCompatActivity() {
             delay(250)
 
             // 1. Thuật toán không gian: Tìm Quận gần nhất theo khoảng cách GPS (chính xác 100%)
-            val targetLatLng = LatLng(lat, lng)
-            val nearestDistrictKey = GoogleMapUtils.DISTRICT_COORDINATES.minByOrNull {
-                GoogleMapUtils.calculateDistanceKm(targetLatLng, it.value)
-            }?.key ?: "Quận 1"
+            val nearestDistrictKey = GoogleMapUtils.findNearestDistrict(lat, lng)
 
             // 2. Tra cứu chi tiết qua Android Geocoder
             val rawAddress = withContext(Dispatchers.IO) {

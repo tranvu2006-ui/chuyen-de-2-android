@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.internal.ui.ship
+package com.chuyen_de_2.foodorder.internal.ui.ship
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -92,12 +92,13 @@ class DeliveryTripActivity : AppCompatActivity() {
     private val completedBundleOrderIds = mutableSetOf<String>()
 
     // Tọa độ GPS thực tế của Shipper và Điểm đến
-    private var driverLat: Double = 10.8522
-    private var driverLng: Double = 106.7685
-    private var storeLat: Double = 10.8548
-    private var storeLng: Double = 106.7720
-    private var customerLat: Double = 10.8580
-    private var customerLng: Double = 106.7765
+    private var driverLat: Double = 0.0
+    private var driverLng: Double = 0.0
+    private var storeLat: Double = 0.0
+    private var storeLng: Double = 0.0
+    private var customerLat: Double = 0.0
+    private var customerLng: Double = 0.0
+    private var storePhone: String = ""
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -364,8 +365,12 @@ class DeliveryTripActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
-                    evaluateJavascript("setDestination($storeLat, $storeLng);", null)
+                    if (driverLat != 0.0 && driverLng != 0.0) {
+                        evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                    }
+                    if (storeLat != 0.0 && storeLng != 0.0) {
+                        evaluateJavascript("setDestination($storeLat, $storeLng);", null)
+                    }
                 }
             }
             loadUrl("file:///android_asset/map_step1.html")
@@ -379,9 +384,13 @@ class DeliveryTripActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
-                    val name = currentOrder?.customerName ?: "Khách hàng"
-                    evaluateJavascript("setDestination($customerLat, $customerLng, '$name');", null)
+                    if (driverLat != 0.0 && driverLng != 0.0) {
+                        evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                    }
+                    if (customerLat != 0.0 && customerLng != 0.0) {
+                        val name = currentOrder?.customerName ?: "Khách hàng"
+                        evaluateJavascript("setDestination($customerLat, $customerLng, '$name');", null)
+                    }
                 }
             }
             loadUrl("file:///android_asset/map_step3.html")
@@ -630,8 +639,33 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.tvStep1StoreName.text = storeName
         binding.tvTripStoreBadge.text = storeName
 
+        val targetStoreId = order.effectiveStoreId
+        if (targetStoreId.isNotBlank()) {
+            lifecycleScope.launch {
+                try {
+                    val store = firebaseRepository.getStoreOnce(targetStoreId)
+                    if (store != null) {
+                        if (store.phone.isNotBlank()) {
+                            storePhone = store.phone.trim()
+                        }
+                        if (store.latitude != 0.0 && store.longitude != 0.0) {
+                            storeLat = store.latitude
+                            storeLng = store.longitude
+                        } else if (store.address.isNotBlank()) {
+                            val coords = GoogleMapUtils.geocodeAddress(this@DeliveryTripActivity, store.address)
+                            storeLat = coords.latitude
+                            storeLng = coords.longitude
+                        }
+                        if (storeLat != 0.0 && storeLng != 0.0) {
+                            binding.webViewMapStep1.evaluateJavascript("setDestination($storeLat, $storeLng);", null)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
         val cusName = order.customerName.ifBlank { "Khách hàng" }
-        binding.tvStep3CustomerName.text = "$cusName (⭐ 98/100)"
+        binding.tvStep3CustomerName.text = cusName
         binding.tvStep3CustomerPhone.text = order.customerPhone.ifBlank { "Chưa cập nhật SĐT" }
 
         val dest = order.address.ifBlank { "Địa chỉ giao hàng" }
@@ -644,7 +678,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.tvStep3CustomerNote.visibility = View.GONE
         }
 
-        val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
+        val fee = order.shippingFee
         val totalPayment = if (order.totalPayment > 0) order.totalPayment else (order.total + fee)
 
         val isCod = order.paymentMethod.equals("COD", ignoreCase = true)
@@ -668,9 +702,11 @@ class DeliveryTripActivity : AppCompatActivity() {
                 val coords = GoogleMapUtils.geocodeAddress(this@DeliveryTripActivity, dest)
                 customerLat = coords.latitude
                 customerLng = coords.longitude
-                binding.webViewMapStep3.evaluateJavascript("setDestination($customerLat, $customerLng, '$cusName');", null)
+                if (customerLat != 0.0 && customerLng != 0.0) {
+                    binding.webViewMapStep3.evaluateJavascript("setDestination($customerLat, $customerLng, '$cusName');", null)
+                }
             } catch (e: Exception) {
-                // Giữ nguyên tọa độ mặc định nếu lỗi mạng
+                // Giữ nguyên tọa độ nếu lỗi mạng
             }
         }
     }
@@ -749,8 +785,12 @@ class DeliveryTripActivity : AppCompatActivity() {
             cardBinding.tvBundleDeliveryAddress.text = "📍 ${order.address.ifBlank { "Địa chỉ giao hàng" }}"
 
             cardBinding.btnCallBundleCustomer.setOnClickListener {
-                val phone = order.customerPhone.ifBlank { "19001234" }
-                startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+                val phone = order.customerPhone
+                if (phone.isNotBlank()) {
+                    startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+                } else {
+                    Toast.makeText(this@DeliveryTripActivity, "Khách hàng chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
+                }
             }
 
             // Danh sách món ăn
@@ -1079,14 +1119,22 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         // Bước 1: Gọi điện cho quán
         binding.btnCallStoreStep1.setOnClickListener {
-            val phone = currentOrder?.shopPhone?.ifBlank { "19001234" } ?: "19001234"
-            startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+            val phone = currentOrder?.shopPhone?.ifBlank { storePhone } ?: storePhone
+            if (phone.isNotBlank()) {
+                startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+            } else {
+                Toast.makeText(this, "Quán chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
+            }
         }
 
         // Bước 2: Gọi quán
         binding.btnCallStoreStep2.setOnClickListener {
-            val phone = bundleOrders.firstOrNull()?.shopPhone?.ifBlank { "19001234" } ?: "19001234"
-            startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+            val phone = bundleOrders.firstOrNull()?.shopPhone?.ifBlank { storePhone } ?: currentOrder?.shopPhone?.ifBlank { storePhone } ?: storePhone
+            if (phone.isNotBlank()) {
+                startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+            } else {
+                Toast.makeText(this, "Quán chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
+            }
         }
 
         // Bước 2: Checklist chọn tất cả (5.html: btn-check-all)
@@ -1133,8 +1181,12 @@ class DeliveryTripActivity : AppCompatActivity() {
         // Bước 3: Gọi khách
         binding.btnCallCustomerStep3.setOnClickListener {
             val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
-            val phone = targetOrder?.customerPhone?.ifBlank { "19001234" } ?: "19001234"
-            startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+            val phone = targetOrder?.customerPhone.orEmpty()
+            if (phone.isNotBlank()) {
+                startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+            } else {
+                Toast.makeText(this, "Khách hàng chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
+            }
         }
 
         // Bước 3: Nhắn tin khách (6.html: modal chat)
@@ -1625,9 +1677,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                         .show()
                 } else {
                     val totalFee = if (isBundleMode) {
-                        bundleOrders.sumOf { if (it.shippingFee > 0) it.shippingFee else 25000L }
+                        bundleOrders.sumOf { if (it.shippingFee > 0) it.shippingFee else 15000L }
                     } else {
-                        25000L
+                        currentOrder?.shippingFee?.takeIf { it > 0 } ?: 15000L
                     }
                     val allCodes = if (isBundleMode) {
                         bundleOrders.joinToString(", ") { "#ORD-" + QRCodeUtils.getShortOrderCode(it.orderId) }

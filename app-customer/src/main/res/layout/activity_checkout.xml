@@ -357,6 +357,16 @@
                             android:text="Chuyển khoản ngân hàng (VietQR / Chuyển 24/7)"
                             android:textColor="#1E293B"
                             android:textSize="13.5sp" />
+
+                        <RadioButton
+                            android:id="@+id/rbVnPay"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:buttonTint="@color/primary"
+                            android:text="Thanh toán trực tuyến qua VNPay"
+                            android:textColor="#1E293B"
+                            android:textSize="13.5sp" />
                     </RadioGroup>
 
                     <!-- Khung thông tin Chuyển khoản ngân hàng chuẩn MB Bank screenshot -->

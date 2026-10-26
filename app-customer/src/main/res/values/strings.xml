@@ -18,7 +18,7 @@
     <string name="home_title">Oishi Food</string>
     <string name="empty_restaurants">Chưa có món ăn nào trong hệ thống.\nQuán ăn vui lòng thêm món vào thực đơn để hiển thị tại đây!</string>
     <string name="search_hint">Tìm món ngon, quán ăn tại TP.HCM...</string>
-    <string name="location_default">📍 Q.1, TP.HCM ▾</string>
+    <string name="location_default">📍 Đang định vị... ▾</string>
     <string name="section_popular_restaurants">Quán ngon gần bạn</string>
     <string name="view_all">Xem tất cả</string>
     <string name="banner_badge">🔥 HOT TRENDING</string>

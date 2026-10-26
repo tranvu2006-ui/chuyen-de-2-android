@@ -2476,7 +2476,11 @@
               <h2>Quản Lý Danh Mục Nền Tảng</h2>
               <p>Thêm mới, chỉnh sửa icon, tên danh mục món ăn hiển thị trên App Khách Hàng</p>
             </div>
-            <div class="panel-actions">
+            <div class="panel-actions" style="display: flex; gap: 8px;">
+              <button class="btn btn-outline" onclick="restoreDefaultCategories()" title="Khôi phục 11 danh mục ẩm thực chuẩn của hệ thống">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                <span>Khôi Phục Danh Mục Chuẩn</span>
+              </button>
               <button class="btn btn-primary" onclick="openAddCategoryModal()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                 <span>Thêm Danh Mục Mới</span>
@@ -3068,9 +3072,39 @@
         <div class="modal-body">
           <div class="form-group">
             <label class="form-label">Tên Danh Mục <span class="req">*</span></label>
-            <input type="text" class="form-control" id="form-cat-name" placeholder="VD: Bún & Phở Nóng, Đồ Ăn Nhanh..." required>
+            <input type="text" class="form-control" id="form-cat-name" placeholder="VD: Bún/Phở, Trà Sữa, Gà Rán..." required>
           </div>
-          <input type="hidden" id="form-cat-icon" value="">
+          <div class="form-group">
+            <label class="form-label">Biểu tượng / Emoji <span class="req">*</span></label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="text" class="form-control" id="form-cat-icon" placeholder="VD: 🍚 hoặc link ảnh" style="font-size: 20px; width: 140px; text-align: center;" required oninput="updateCatIconPreview(this.value)">
+              <div id="cat-icon-preview" style="width: 44px; height: 44px; border-radius: 10px; background: var(--bg-hover); display: flex; align-items: center; justify-content: center; font-size: 24px; border: 1px solid var(--border);">🍽️</div>
+            </div>
+            <div style="margin-top: 8px;">
+              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Bấm chọn nhanh biểu tượng:</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;" id="quick-emoji-list">
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍚')" style="font-size: 16px; padding: 4px 8px;">🍚</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🧋')" style="font-size: 16px; padding: 4px 8px;">🧋</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍜')" style="font-size: 16px; padding: 4px 8px;">🍜</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍗')" style="font-size: 16px; padding: 4px 8px;">🍗</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥖')" style="font-size: 16px; padding: 4px 8px;">🥖</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍕')" style="font-size: 16px; padding: 4px 8px;">🍕</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('☕')" style="font-size: 16px; padding: 4px 8px;">☕</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍰')" style="font-size: 16px; padding: 4px 8px;">🍰</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍲')" style="font-size: 16px; padding: 4px 8px;">🍲</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥗')" style="font-size: 16px; padding: 4px 8px;">🥗</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍽️')" style="font-size: 16px; padding: 4px 8px;">🍽️</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍔')" style="font-size: 16px; padding: 4px 8px;">🍔</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥤')" style="font-size: 16px; padding: 4px 8px;">🥤</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍣')" style="font-size: 16px; padding: 4px 8px;">🍣</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍩')" style="font-size: 16px; padding: 4px 8px;">🍩</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Thứ tự ưu tiên hiển thị (1 - 99)</label>
+            <input type="number" class="form-control" id="form-cat-order" min="1" max="99" value="1">
+          </div>
           <div class="form-group">
             <label class="form-label">Mô tả ngắn</label>
             <textarea class="form-control" id="form-cat-desc" placeholder="Mô tả về loại ẩm thực thuộc danh mục này..."></textarea>
@@ -3818,14 +3852,26 @@
     /* ========================================================
        1. INITIAL STATE (100% REAL FIREBASE REALTIME DATA)
        ======================================================== */
-    const DEFAULT_CATEGORIES = [];
+    const DEFAULT_CATEGORIES = [
+      { id: 'cat-rice', categoryId: 'cat-rice', name: 'Cơm Trưa', categoryName: 'Cơm Trưa', icon: '🍚', iconUrl: '🍚', desc: 'Cơm phần, cơm tấm, cơm văn phòng, cơm gà, cơm sườn', description: 'Cơm phần, cơm tấm, cơm văn phòng, cơm gà, cơm sườn', displayOrder: 1, status: 'ACTIVE', isActive: true },
+      { id: 'cat-milktea', categoryId: 'cat-milktea', name: 'Trà Sữa', categoryName: 'Trà Sữa', icon: '🧋', iconUrl: '🧋', desc: 'Trà sữa trân châu, trà trái cây tươi, macchiato, trà đào', description: 'Trà sữa trân châu, trà trái cây tươi, macchiato, trà đào', displayOrder: 2, status: 'ACTIVE', isActive: true },
+      { id: 'cat-noodle', categoryId: 'cat-noodle', name: 'Bún/Phở', categoryName: 'Bún/Phở', icon: '🍜', iconUrl: '🍜', desc: 'Bún bò Huế, phở bò tái nạm, hủ tiếu, mì Quảng, miến gà', description: 'Bún bò Huế, phở bò tái nạm, hủ tiếu, mì Quảng, miến gà', displayOrder: 3, status: 'ACTIVE', isActive: true },
+      { id: 'cat-chicken', categoryId: 'cat-chicken', name: 'Gà Rán', categoryName: 'Gà Rán', icon: '🍗', iconUrl: '🍗', desc: 'Gà rán giòn cay, gà sốt cay ngọt Hàn Quốc, burger gà', description: 'Gà rán giòn cay, gà sốt cay ngọt Hàn Quốc, burger gà', displayOrder: 4, status: 'ACTIVE', isActive: true },
+      { id: 'cat-bread', categoryId: 'cat-bread', name: 'Bánh Mì', categoryName: 'Bánh Mì', icon: '🥖', iconUrl: '🥖', desc: 'Bánh mì thịt nướng, bánh mì chảo, bánh mì que, bánh mì pate', description: 'Bánh mì thịt nướng, bánh mì chảo, bánh mì que, bánh mì pate', displayOrder: 5, status: 'ACTIVE', isActive: true },
+      { id: 'cat-pizza', categoryId: 'cat-pizza', name: 'Pizza', categoryName: 'Pizza', icon: '🍕', iconUrl: '🍕', desc: 'Pizza phô mai béo ngậy, pizza hải sản, pasta sốt bò băm', description: 'Pizza phô mai béo ngậy, pizza hải sản, pasta sốt bò băm', displayOrder: 6, status: 'ACTIVE', isActive: true },
+      { id: 'cat-coffee', categoryId: 'cat-coffee', name: 'Cà Phê', categoryName: 'Cà Phê', icon: '☕', iconUrl: '☕', desc: 'Cà phê phin truyền thống, bạc xỉu, cappuccino, cold brew', description: 'Cà phê phin truyền thống, bạc xỉu, cappuccino, cold brew', displayOrder: 7, status: 'ACTIVE', isActive: true },
+      { id: 'cat-dessert', categoryId: 'cat-dessert', name: 'Tráng Miệng / Ăn Vặt', categoryName: 'Tráng Miệng / Ăn Vặt', icon: '🍰', iconUrl: '🍰', desc: 'Chè bưởi, bánh ngọt, bánh crepe, kem tươi, đồ ăn vặt', description: 'Chè bưởi, bánh ngọt, bánh crepe, kem tươi, đồ ăn vặt', displayOrder: 8, status: 'ACTIVE', isActive: true },
+      { id: 'cat-hotpot', categoryId: 'cat-hotpot', name: 'Lẩu / Món Nước', categoryName: 'Lẩu / Món Nước', icon: '🍲', iconUrl: '🍲', desc: 'Lẩu thái chua cay, lẩu bò nhúng giấm, lẩu riêu cua, canh hầm', description: 'Lẩu thái chua cay, lẩu bò nhúng giấm, lẩu riêu cua, canh hầm', displayOrder: 9, status: 'ACTIVE', isActive: true },
+      { id: 'cat-vegetarian', categoryId: 'cat-vegetarian', name: 'Đồ Chay', categoryName: 'Đồ Chay', icon: '🥗', iconUrl: '🥗', desc: 'Cơm chay dinh dưỡng, bún nấm thanh đạm, rau củ thanh nhiệt', description: 'Cơm chay dinh dưỡng, bún nấm thanh đạm, rau củ thanh nhiệt', displayOrder: 10, status: 'ACTIVE', isActive: true },
+      { id: 'cat-other', categoryId: 'cat-other', name: 'Món Khác', categoryName: 'Món Khác', icon: '🍽️', iconUrl: '🍽️', desc: 'Món ăn đặc sản địa phương và thực đơn ẩm thực phong phú khác', description: 'Món ăn đặc sản địa phương và thực đơn ẩm thực phong phú khác', displayOrder: 11, status: 'ACTIVE', isActive: true }
+    ];
     const DEFAULT_CUSTOMERS = [];
     const DEFAULT_STORES = [];
     const DEFAULT_COMPLAINTS = [];
     const DEFAULT_LOGS = [];
 
     // Xóa cache dữ liệu mẫu cũ trong trình duyệt để chỉ hiển thị dữ liệu thực từ Firebase
-    ['oishi_admin_categories', 'oishi_admin_customers', 'oishi_admin_stores', 'oishi_admin_complaints', 'oishi_admin_reviews', 'oishi_admin_logs'].forEach(k => {
+    ['oishi_admin_customers', 'oishi_admin_stores', 'oishi_admin_complaints', 'oishi_admin_reviews', 'oishi_admin_logs'].forEach(k => {
       try { localStorage.removeItem(k); } catch (_) {}
     });
 
@@ -3854,7 +3900,7 @@
     let rawFbOrders = {};
     let rawFbComplaints = {};
 
-    let categories = [];
+    let categories = [...DEFAULT_CATEGORIES];
     let customers = [];
     let stores = [];
     let complaints = [];
@@ -4307,7 +4353,6 @@
     }
 
     const LEGACY_MOCK_IDS = new Set([
-      'cat-1', 'cat-2', 'cat-3', 'cat-4', 'cat-5', 'cat-6', 'cat-7', 'cat-8',
       'KN-201', 'KN-202', 'KN-203', 'KN-204', 'KN-205', 'KN-206',
       'store-1', 'store-2', 'store-3', 'store-4', 'store-5', 'store-6', 'store-7', 'store-8',
       'cust-1', 'cust-2', 'cust-3', 'cust-4', 'cust-5', 'cust-6', 'cust-7', 'cust-8'
@@ -4404,33 +4449,74 @@
         renderKPIs();
       });
 
-      // 7. CATEGORIES listener (menus/categories)
-      fbDb.ref('menus/categories').on('value', snap => {
-        const val = snap.val();
-        if (val && typeof val === 'object') {
-          const validEntries = [];
-          Object.entries(val).forEach(([id, c]) => {
-            if (LEGACY_MOCK_IDS.has(id)) {
-              fbDb.ref(`menus/categories/${id}`).remove().catch(() => {});
-            } else {
-              validEntries.push([id, c]);
-            }
-          });
-          categories = validEntries.map(([id, c]) => ({
+      // 7. CATEGORIES listener (đồng bộ node categories & menus/categories)
+      const handleCategoriesSnapshot = (val) => {
+        if (val && typeof val === 'object' && Object.keys(val).length > 0) {
+          categories = Object.entries(val).map(([id, c], idx) => ({
             ...c,
-            id: c.id || id,
-            name: c.name || 'Danh mục',
-            icon: c.icon || '',
+            id: c.id || c.categoryId || id,
+            categoryId: c.categoryId || c.id || id,
+            name: c.name || c.categoryName || 'Danh mục',
+            categoryName: c.categoryName || c.name || 'Danh mục',
+            icon: c.icon || c.iconUrl || '🍽️',
+            iconUrl: c.iconUrl || c.icon || '🍽️',
             desc: c.desc || c.description || '',
+            description: c.description || c.desc || '',
+            displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
             count: c.count || 0,
-            status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE')
-          }));
+            status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
+            isActive: c.isActive !== false && c.status !== 'HIDDEN'
+          })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
         } else {
-          categories = [];
+          // Nếu rỗng, kiểm tra menus/categories
+          fbDb.ref('menus/categories').once('value').then(mSnap => {
+            const mVal = mSnap.val();
+            if (mVal && typeof mVal === 'object' && Object.keys(mVal).length > 0) {
+              categories = Object.entries(mVal).map(([id, c], idx) => ({
+                ...c,
+                id: c.id || c.categoryId || id,
+                categoryId: c.categoryId || c.id || id,
+                name: c.name || c.categoryName || 'Danh mục',
+                categoryName: c.categoryName || c.name || 'Danh mục',
+                icon: c.icon || c.iconUrl || '🍽️',
+                iconUrl: c.iconUrl || c.icon || '🍽️',
+                desc: c.desc || c.description || '',
+                description: c.description || c.desc || '',
+                displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
+                count: c.count || 0,
+                status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
+                isActive: c.isActive !== false && c.status !== 'HIDDEN'
+              })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+              // Migrate sang cả categories
+              const mig = {};
+              categories.forEach(item => { mig[`categories/${item.id}`] = item; });
+              fbDb.ref().update(mig).catch(() => {});
+            } else {
+              // Cả 2 đều rỗng -> Tự động seed 11 danh mục nền tảng mặc định!
+              categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+              seedDefaultCategories();
+            }
+            renderCategories();
+            renderKPIs();
+            populateStoreCategoryDropdowns();
+          });
+          return;
         }
         renderCategories();
         renderKPIs();
         populateStoreCategoryDropdowns();
+      };
+
+      fbDb.ref('categories').on('value', snap => {
+        handleCategoriesSnapshot(snap.val());
+      }, err => {
+        fbDb.ref('menus/categories').on('value', mSnap => {
+          handleCategoriesSnapshot(mSnap.val());
+        });
+      });
+
+      fbDb.ref('menus/categories').on('value', snap => {
+        if (snap.val()) handleCategoriesSnapshot(snap.val());
       });
 
       // 8. ADMIN LOGS listener (menus/admin_logs)
@@ -4469,7 +4555,7 @@
           fbDb.ref('drivers').once('value'),
           fbDb.ref('orders').once('value'),
           fbDb.ref('complaints').once('value'),
-          fbDb.ref('menus/categories').once('value'),
+          fbDb.ref('categories').once('value'),
           fbDb.ref('menus/admin_logs').limitToLast(25).once('value'),
           fbDb.ref('dish_reviews').once('value')
         ]);
@@ -4479,18 +4565,28 @@
         rawFbDrivers = drSnap.val() || {};
         rawFbOrders = odSnap.val() || {};
         rawFbComplaints = cpSnap.val() || {};
-        const catVal = catSnap.val();
-        categories = (catVal && typeof catVal === 'object')
-          ? Object.entries(catVal).map(([id, c]) => ({
+        let catVal = catSnap.val();
+        if (!catVal || typeof catVal !== 'object' || Object.keys(catVal).length === 0) {
+          const mSnap = await fbDb.ref('menus/categories').once('value');
+          catVal = mSnap.val();
+        }
+        categories = (catVal && typeof catVal === 'object' && Object.keys(catVal).length > 0)
+          ? Object.entries(catVal).map(([id, c], idx) => ({
               ...c,
-              id: c.id || id,
-              name: c.name || 'Danh mục',
-              icon: c.icon || '',
+              id: c.id || c.categoryId || id,
+              categoryId: c.categoryId || c.id || id,
+              name: c.name || c.categoryName || 'Danh mục',
+              categoryName: c.categoryName || c.name || 'Danh mục',
+              icon: c.icon || c.iconUrl || '🍽️',
+              iconUrl: c.iconUrl || c.icon || '🍽️',
               desc: c.desc || c.description || '',
+              description: c.description || c.desc || '',
+              displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
               count: c.count || 0,
-              status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE')
-            }))
-          : [];
+              status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
+              isActive: c.isActive !== false && c.status !== 'HIDDEN'
+            })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+          : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
         const logVal = logSnap.val();
         systemLogs = (logVal && typeof logVal === 'object')
           ? Object.values(logVal).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
@@ -4912,10 +5008,94 @@
     }
 
     /* ========================================================
-       7. CATEGORY MANAGEMENT
+       7. CATEGORY MANAGEMENT (QUẢN LÝ DANH MỤC NỀN TẢNG)
        ======================================================== */
     function filterCategories() {
       renderCategories();
+    }
+
+    function updateCatIconPreview(val) {
+      const preview = document.getElementById('cat-icon-preview');
+      if (!preview) return;
+      const clean = (val || '').trim();
+      if (!clean) {
+        preview.innerHTML = '🍽️';
+        return;
+      }
+      if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('/')) {
+        preview.innerHTML = `<img src="${clean}" style="width: 28px; height: 28px; object-fit: contain;">`;
+      } else {
+        preview.innerHTML = `<span style="font-size: 22px;">${clean}</span>`;
+      }
+    }
+
+    function selectQuickEmoji(emoji) {
+      const input = document.getElementById('form-cat-icon');
+      if (input) {
+        input.value = emoji;
+        updateCatIconPreview(emoji);
+      }
+    }
+
+    function seedDefaultCategories(force = false) {
+      if (!fbDb || !isFirebaseReady) return;
+      const updates = {};
+      DEFAULT_CATEGORIES.forEach((cat, idx) => {
+        const item = {
+          ...cat,
+          id: cat.id,
+          categoryId: cat.id,
+          name: cat.name,
+          categoryName: cat.name,
+          icon: cat.icon,
+          iconUrl: cat.icon,
+          desc: cat.desc,
+          description: cat.desc,
+          displayOrder: idx + 1,
+          status: 'ACTIVE',
+          isActive: true,
+          updatedAt: Date.now()
+        };
+        updates[`categories/${cat.id}`] = item;
+        updates[`menus/categories/${cat.id}`] = item;
+      });
+      fbDb.ref().update(updates).then(() => {
+        addLog('Khởi tạo tự động 11 danh mục nền tảng mặc định trên Firebase', 'success');
+      }).catch(err => {
+        console.error('Lỗi seed default categories:', err);
+      });
+    }
+
+    function restoreDefaultCategories() {
+      if (!confirm('Khôi phục lại 11 danh mục ẩm thực chuẩn của hệ thống? Dữ liệu danh mục chuẩn (Cơm Trưa, Trà Sữa, Bún/Phở, Gà Rán, Bánh Mì, Pizza, Cà Phê, Tráng Miệng, Lẩu, Đồ Chay, Món Khác) sẽ được cập nhật lên Firebase.')) {
+        return;
+      }
+      categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+      if (fbDb && isFirebaseReady) {
+        seedDefaultCategories(true);
+      }
+      renderCategories();
+      renderKPIs();
+      populateStoreCategoryDropdowns();
+      addLog('Admin khôi phục danh mục nền tảng chuẩn', 'info');
+      showToast('Đã khôi phục thành công 11 danh mục nền tảng chuẩn!', 'success');
+    }
+
+    function matchCategoryKeywords(catName, dishName, storeCat) {
+      const c = (catName || '').toLowerCase();
+      const d = (dishName || '').toLowerCase();
+      const s = (storeCat || '').toLowerCase();
+      if (c.includes('cơm')) return d.includes('cơm') || s.includes('cơm');
+      if (c.includes('trà sữa') || c.includes('trà')) return d.includes('trà') || s.includes('trà') || d.includes('milk tea');
+      if (c.includes('bún') || c.includes('phở')) return d.includes('bún') || d.includes('phở') || d.includes('hủ tiếu') || d.includes('mì') || s.includes('bún') || s.includes('phở');
+      if (c.includes('gà')) return d.includes('gà') || s.includes('gà');
+      if (c.includes('bánh mì')) return d.includes('bánh mì') || s.includes('bánh mì');
+      if (c.includes('pizza')) return d.includes('pizza') || d.includes('pasta') || s.includes('pizza');
+      if (c.includes('cà phê')) return d.includes('cà phê') || d.includes('cafe') || d.includes('coffee') || s.includes('cà phê');
+      if (c.includes('tráng miệng') || c.includes('ăn vặt')) return d.includes('chè') || d.includes('kem') || d.includes('bánh') || d.includes('ăn vặt') || s.includes('ăn vặt');
+      if (c.includes('lẩu')) return d.includes('lẩu') || d.includes('canh') || s.includes('lẩu');
+      if (c.includes('chay')) return d.includes('chay') || s.includes('chay');
+      return false;
     }
 
     function renderCategories() {
@@ -4931,8 +5111,26 @@
       stores.forEach(s => {
         if (s.dishes && typeof s.dishes === 'object') {
           Object.values(s.dishes).forEach(d => {
-            const catName = (d.categoryId || d.category || 'Món chính').trim();
-            realDishCounts[catName] = (realDishCounts[catName] || 0) + 1;
+            const dPlatform = (d.platformCategory || '').trim();
+            const dStoreCat = (d.category || '').trim();
+            const dCatId = (d.categoryId || '').trim();
+            const dName = (d.name || '').trim();
+
+            categories.forEach(cat => {
+              let matched = false;
+              if (dPlatform && dPlatform.toLowerCase() === cat.name.toLowerCase()) {
+                matched = true;
+              } else if (dCatId && (dCatId === cat.id || dCatId === cat.categoryId)) {
+                matched = true;
+              } else if (dStoreCat && dStoreCat.toLowerCase() === cat.name.toLowerCase()) {
+                matched = true;
+              } else if (matchCategoryKeywords(cat.name, dName, dStoreCat)) {
+                matched = true;
+              }
+              if (matched) {
+                realDishCounts[cat.id] = (realDishCounts[cat.id] || 0) + 1;
+              }
+            });
           });
         }
       });
@@ -4943,19 +5141,26 @@
         return matchSearch && matchStatus;
       });
 
-      // Cập nhật text số lượng mượt mà, không giật layout
       if (counter && counter.textContent !== String(filtered.length)) {
         counter.textContent = filtered.length;
       }
+      const catBadgeEl = document.getElementById('badge-cat-count');
+      if (catBadgeEl && catBadgeEl.textContent !== String(categories.length)) {
+        catBadgeEl.textContent = categories.length;
+      }
+      const kpiCatEl = document.getElementById('kpi-total-cats');
+      if (kpiCatEl && kpiCatEl.textContent !== String(categories.length)) {
+        kpiCatEl.textContent = categories.length;
+      }
 
-      // Kiểm tra chữ ký nội dung: nếu dữ liệu không thay đổi -> không đụng vào DOM, triệt tiêu 100% hiện tượng nháy
       const currentSignature = JSON.stringify(filtered.map(c => ({
         id: c.id,
         name: c.name,
-        icon: c.icon,
+        icon: c.icon || c.iconUrl,
         desc: c.desc,
         status: c.status,
-        count: realDishCounts[c.name] !== undefined ? realDishCounts[c.name] : (c.count || 0)
+        order: c.displayOrder,
+        count: realDishCounts[c.id] || 0
       })));
 
       if (container.dataset.renderedSig === currentSignature) {
@@ -4965,10 +5170,11 @@
 
       if (filtered.length === 0) {
         container.innerHTML = `
-          <div class="empty-state" style="grid-column: 1 / -1;">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <h3>Không tìm thấy danh mục phù hợp</h3>
-            <p>Vui lòng thử từ khóa tìm kiếm khác hoặc bấm "Thêm Danh Mục Mới"</p>
+          <div class="empty-state" style="grid-column: 1 / -1; padding: 48px 24px; text-align: center;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <h3 style="margin-top: 14px; font-size: 16px;">Không tìm thấy danh mục phù hợp</h3>
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: 6px;">Vui lòng thử từ khóa tìm kiếm khác hoặc bấm "Khôi Phục Danh Mục Chuẩn"</p>
+            <button class="btn btn-outline btn-sm" onclick="restoreDefaultCategories()" style="margin-top: 14px;">Khôi Phục Danh Mục Chuẩn</button>
           </div>
         `;
         return;
@@ -4976,33 +5182,49 @@
 
       const htmlCards = filtered.map(c => {
         const isHidden = c.status === 'HIDDEN';
-        const displayCount = realDishCounts[c.name] !== undefined ? realDishCounts[c.name] : (c.count || 0);
+        const displayCount = realDishCounts[c.id] !== undefined ? realDishCounts[c.id] : (c.count || 0);
+
+        let iconContent = '';
+        const iconVal = (c.icon || c.iconUrl || '').trim();
+        if (iconVal.startsWith('http://') || iconVal.startsWith('https://') || iconVal.startsWith('/')) {
+          iconContent = `<img src="${iconVal}" alt="${c.name}" style="width: 28px; height: 28px; object-fit: contain;">`;
+        } else if (iconVal) {
+          iconContent = `<span style="font-size: 26px; line-height: 1;">${iconVal}</span>`;
+        } else {
+          iconContent = (c.name || 'DM').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+        }
+
         return `
-          <div class="category-card">
+          <div class="category-card" data-cat-id="${c.id}">
             <div class="cat-header">
-              <div class="cat-icon-box">${(c.name || 'DM').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}</div>
+              <div class="cat-icon-box">${iconContent}</div>
               <div class="cat-info">
-                <h3>${c.name}</h3>
-                <p>${c.desc || 'Chưa có mô tả chi tiết'}</p>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <h3 style="margin: 0; font-size: 15px; font-weight: 700;">${c.name}</h3>
+                  <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">#${c.displayOrder || 1}</span>
+                </div>
+                <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">${c.desc || c.description || 'Chưa có mô tả chi tiết'}</p>
               </div>
             </div>
-            <div class="cat-stats">
-              <div>Số món: <strong>${displayCount} món</strong></div>
+            <div class="cat-stats" style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+              <div style="font-size: 12px; color: var(--text-muted);">
+                Số món: <strong style="color: var(--text-main); font-weight: 700;">${displayCount} món</strong>
+              </div>
               <div>
                 ${isHidden 
-                  ? '<span class="badge badge-warning"><span class="badge-dot"></span>Tạm ẩn</span>'
-                  : '<span class="badge badge-active"><span class="badge-dot"></span>Hiển thị</span>'
+                  ? '<span class="badge badge-warning" style="font-size: 11px;"><span class="badge-dot"></span>Tạm ẩn</span>'
+                  : '<span class="badge badge-active" style="font-size: 11px;"><span class="badge-dot"></span>Hiển thị</span>'
                 }
               </div>
             </div>
-            <div class="cat-actions">
-              <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị' : 'Ẩn khỏi menu'}">
+            <div class="cat-actions" style="margin-top: 12px; display: flex; gap: 6px;">
+              <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị trên app' : 'Tạm ẩn khỏi app'}">
                 ${isHidden ? '👁️ Bật' : '🚫 Ẩn'}
               </button>
-              <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')">
+              <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')" title="Chỉnh sửa danh mục">
                 ✏️ Sửa
               </button>
-              <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')">
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')" title="Xóa danh mục">
                 🗑️ Xóa
               </button>
             </div>
@@ -5017,7 +5239,9 @@
       document.getElementById('modal-cat-title').textContent = 'Thêm Danh Mục Món Mới';
       document.getElementById('form-cat-id').value = '';
       document.getElementById('form-cat-name').value = '';
-      document.getElementById('form-cat-icon').value = '';
+      document.getElementById('form-cat-icon').value = '🍽️';
+      updateCatIconPreview('🍽️');
+      document.getElementById('form-cat-order').value = categories.length + 1;
       document.getElementById('form-cat-desc').value = '';
       document.getElementById('form-cat-status').value = 'ACTIVE';
       openModal('modal-category');
@@ -5029,9 +5253,12 @@
       document.getElementById('modal-cat-title').textContent = 'Chỉnh Sửa Danh Mục: ' + cat.name;
       document.getElementById('form-cat-id').value = cat.id;
       document.getElementById('form-cat-name').value = cat.name;
-      document.getElementById('form-cat-icon').value = cat.icon;
-      document.getElementById('form-cat-desc').value = cat.desc || '';
-      document.getElementById('form-cat-status').value = cat.status;
+      const iconVal = cat.icon || cat.iconUrl || '🍽️';
+      document.getElementById('form-cat-icon').value = iconVal;
+      updateCatIconPreview(iconVal);
+      document.getElementById('form-cat-order').value = cat.displayOrder || 1;
+      document.getElementById('form-cat-desc').value = cat.desc || cat.description || '';
+      document.getElementById('form-cat-status').value = cat.status || (cat.isActive === false ? 'HIDDEN' : 'ACTIVE');
       openModal('modal-category');
     }
 
@@ -5039,7 +5266,8 @@
       e.preventDefault();
       const catId = document.getElementById('form-cat-id').value;
       const name = document.getElementById('form-cat-name').value.trim();
-      const icon = document.getElementById('form-cat-icon').value.trim();
+      const icon = document.getElementById('form-cat-icon').value.trim() || '🍽️';
+      const order = parseInt(document.getElementById('form-cat-order')?.value, 10) || 1;
       const desc = document.getElementById('form-cat-desc').value.trim();
       const status = document.getElementById('form-cat-status').value;
 
@@ -5048,42 +5276,49 @@
         return;
       }
 
+      const targetId = catId || ('cat-' + Date.now());
+      const catObj = {
+        id: targetId,
+        categoryId: targetId,
+        name: name,
+        categoryName: name,
+        icon: icon,
+        iconUrl: icon,
+        desc: desc,
+        description: desc,
+        displayOrder: order,
+        count: 0,
+        status: status,
+        isActive: status === 'ACTIVE',
+        updatedAt: Date.now()
+      };
+
       if (catId) {
         const idx = categories.findIndex(c => c.id === catId);
         if (idx !== -1) {
-          categories[idx].name = name;
-          categories[idx].icon = icon;
-          categories[idx].desc = desc;
-          categories[idx].status = status;
-          if (fbDb && isFirebaseReady) {
-            fbDb.ref(`menus/categories/${catId}`).update({
-              id: catId, name, icon, desc, description: desc, status, isActive: status === 'ACTIVE'
-            }).catch(() => {});
-          }
-          addLog(`Chỉnh sửa danh mục "${name}"`, 'info');
-          showToast(`Đã cập nhật danh mục "${name}" trên Firebase!`, 'success');
+          categories[idx] = { ...categories[idx], ...catObj };
         }
+        addLog(`Chỉnh sửa danh mục "${name}"`, 'info');
+        showToast(`Đã cập nhật danh mục "${name}" trên Firebase!`, 'success');
       } else {
-        const newId = 'cat-' + Date.now();
-        const newCat = {
-          id: newId,
-          name: name,
-          icon: icon || '',
-          desc: desc,
-          description: desc,
-          count: 0,
-          status: status,
-          isActive: status === 'ACTIVE'
-        };
-        categories.unshift(newCat);
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`menus/categories/${newId}`).set(newCat).catch(() => {});
-        }
+        categories.push(catObj);
         addLog(`Thêm mới danh mục "${name}"`, 'success');
         showToast(`Đã tạo mới danh mục "${name}" trên Firebase!`, 'success');
       }
 
-      saveState();
+      categories.sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+
+      // Đồng bộ cả 2 node trên Firebase: menus/categories & categories
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`menus/categories/${targetId}`).set(catObj).then(() => {
+          showToast(`Đã lưu danh mục "${name}" lên Firebase thành công!`, 'success');
+        }).catch(err => {
+          console.error('Lỗi lưu menus/categories:', err);
+          showToast('Lỗi khi lưu lên Firebase: ' + (err.message || err), 'danger');
+        });
+        fbDb.ref(`categories/${targetId}`).set(catObj).catch(() => {});
+      }
+
       closeModal('modal-category');
       renderCategories();
       renderKPIs();
@@ -5094,27 +5329,37 @@
       const cat = categories.find(c => c.id === catId);
       if (!cat) return;
       cat.status = cat.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
+      cat.isActive = cat.status === 'ACTIVE';
+      cat.updatedAt = Date.now();
+
       if (fbDb && isFirebaseReady) {
-        fbDb.ref(`menus/categories/${catId}`).update({
-          status: cat.status,
-          isActive: cat.status === 'ACTIVE'
-        }).catch(() => {});
+        const updates = {};
+        updates[`categories/${catId}/status`] = cat.status;
+        updates[`categories/${catId}/isActive`] = cat.isActive;
+        updates[`categories/${catId}/updatedAt`] = cat.updatedAt;
+        updates[`menus/categories/${catId}/status`] = cat.status;
+        updates[`menus/categories/${catId}/isActive`] = cat.isActive;
+        updates[`menus/categories/${catId}/updatedAt`] = cat.updatedAt;
+        fbDb.ref().update(updates).catch(() => {});
       }
-      saveState();
       renderCategories();
       addLog(`Chuyển trạng thái danh mục "${cat.name}" sang ${cat.status === 'ACTIVE' ? 'Hiển thị' : 'Tạm ẩn'}`, 'info');
-      showToast(`Đã ${cat.status === 'ACTIVE' ? 'hiển thị' : 'tạm ẩn'} danh mục ${cat.name}`, 'info');
+      showToast(`Đã ${cat.status === 'ACTIVE' ? 'bật hiển thị' : 'tạm ẩn'} danh mục ${cat.name}`, 'info');
     }
 
     function deleteCategory(catId) {
       const cat = categories.find(c => c.id === catId);
       if (!cat) return;
-      if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Thao tác này không thể hoàn tác.`)) {
+      if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Thao tác này sẽ xóa khỏi hệ thống.`)) {
         categories = categories.filter(c => c.id !== catId);
         if (fbDb && isFirebaseReady) {
-          fbDb.ref(`menus/categories/${catId}`).remove().catch(() => {});
+          fbDb.ref(`menus/categories/${catId}`).remove().then(() => {
+            showToast(`Đã xóa danh mục "${cat.name}" khỏi Firebase`, 'info');
+          }).catch(err => {
+            console.error('Lỗi xóa menus/categories:', err);
+          });
+          fbDb.ref(`categories/${catId}`).remove().catch(() => {});
         }
-        saveState();
         renderCategories();
         renderKPIs();
         populateStoreCategoryDropdowns();

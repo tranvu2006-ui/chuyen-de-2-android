@@ -15,6 +15,7 @@ object Constants {
     const val PATH_CARTS = "carts"
     const val PATH_ORDERS = "orders"
     const val PATH_TRACKING = "tracking"
+    const val VNPAY_BACKEND_URL = "https://delicate-tooth-ec63.hothivananh180206.workers.dev"
 
     // Intent Extras
     const val EXTRA_SHOP_ID = "extra_shop_id"

@@ -1,60 +1,71 @@
 {
   "rules": {
+    ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || auth.token.admin == true)",
+    ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || auth.token.admin == true)",
     "roles": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'ADMIN'"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
     },
     "user_statuses": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'ADMIN'"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
     },
     "approval_statuses": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'ADMIN'"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
     },
     "store_statuses": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'ADMIN'"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
     },
     "penalty_tiers": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'ADMIN'"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
     },
     "delivery_time_frames": {
       ".read": true,
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'ADMIN'"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
     },
     "users": {
-      ".indexOn": ["role", "status", "email"],
+      ".indexOn": [
+        "role",
+        "status",
+        "email"
+      ],
       ".read": "auth != null",
       "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
       }
     },
     "customers": {
       ".read": "auth != null",
       "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
       }
     },
     "merchants": {
       ".read": "auth != null",
       "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
       }
     },
     "bank_accounts": {
-      ".indexOn": ["userId"],
+      ".indexOn": [
+        "userId"
+      ],
       ".read": "auth != null",
       "$bankAccountId": {
-        ".write": "auth != null && (data.child('userId').val() == auth.uid || newData.child('userId').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'ADMIN')"
+        ".write": "auth != null && (data.child('userId').val() == auth.uid || newData.child('userId').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
       }
     },
     "drivers": {
-      ".indexOn": ["dutyStatus", "storeId"],
+      ".indexOn": [
+        "dutyStatus",
+        "storeId"
+      ],
       ".read": "auth != null",
       "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
       }
     },
     "stores": {
@@ -63,12 +74,18 @@
     },
     "carts": {
       "$userId": {
-        ".read": "auth != null && auth.uid == $userId",
-        ".write": "auth != null && auth.uid == $userId"
+        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')",
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
       }
     },
     "orders": {
-      ".indexOn": ["customerId", "shipperId", "shopId", "status", "timestamp"],
+      ".indexOn": [
+        "customerId",
+        "shipperId",
+        "shopId",
+        "status",
+        "timestamp"
+      ],
       ".read": "auth != null",
       "$orderId": {
         ".write": "auth != null"
@@ -82,18 +99,26 @@
     },
     "restaurants": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+    },
+    "categories": {
+      ".read": true,
+      ".write": "auth != null"
     },
     "menus": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
     },
     "combos": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
     },
     "dish_reviews": {
-      ".indexOn": ["dishId", "orderId", "customerId"],
+      ".indexOn": [
+        "dishId",
+        "orderId",
+        "customerId"
+      ],
       ".read": true,
       "$reviewId": {
         ".write": "auth != null"
@@ -107,12 +132,15 @@
     },
     "customer_addresses": {
       "$userId": {
-        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN')",
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN')"
+        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')",
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.email == 'admin@foodorder.com' || auth.token.email == 'admin.long@oishifood.vn')"
       }
     },
     "trust_score_logs": {
-      ".indexOn": ["customerId", "orderId"],
+      ".indexOn": [
+        "customerId",
+        "orderId"
+      ],
       ".read": "auth != null",
       "$logId": {
         ".write": "auth != null"

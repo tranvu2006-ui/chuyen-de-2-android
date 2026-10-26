@@ -50,7 +50,7 @@ class DriverListFragment : Fragment() {
     lateinit var auth: FirebaseAuth
 
     private lateinit var adapter: DriverAdapter
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -177,21 +177,15 @@ class DriverListFragment : Fragment() {
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
         val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitDriver)
 
-        // Tự động tạo mã tài xế và gợi ý email
-        val randomNum = (10..99).random()
-        etCode.setText("TX-$randomNum")
-        etEmail.setText("driver$randomNum@oishi.vn")
-        etPassword.setText("123456")
-
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
 
         btnSubmit.setOnClickListener {
             val name = etName.text.toString().trim()
             val phone = etPhone.text.toString().trim()
-            val code = etCode.text.toString().trim().ifBlank { "TX-$randomNum" }
+            val code = etCode.text.toString().trim()
             val plate = etPlate.text.toString().trim()
-            val model = etModel.text.toString().trim().ifBlank { "Honda Wave Alpha" }
+            val model = etModel.text.toString().trim()
             val email = etEmail.text.toString().trim()
             val pass = etPassword.text.toString().trim()
 

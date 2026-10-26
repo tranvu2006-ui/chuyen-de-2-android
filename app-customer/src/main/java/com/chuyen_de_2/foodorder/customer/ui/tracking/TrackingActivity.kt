@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.customer.ui.tracking
+package com.chuyen_de_2.foodorder.customer.ui.tracking
 
 import android.content.Intent
 import android.net.Uri
@@ -32,8 +32,10 @@ import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Màn hình Theo Dõi Đơn Hàng (TrackingActivity)
@@ -64,6 +66,9 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var binding: ActivityTrackingBinding
     private val viewModel: TrackingViewModel by viewModels()
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
 
     private var googleMap: GoogleMap? = null
     private var shipperMarker: Marker? = null
@@ -271,6 +276,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             binding.btnCallShop.text = "📞 Gọi Cho Quán ($currentStoreName)"
             binding.shipperRole.text = "Nhân viên giao hàng • $currentStoreName"
         }
+        currentStorePhone = order.shopPhone
+        currentShipperPhone = order.shipperPhone
 
         // Cập nhật tài xế
         if (order.shipperName.isNotBlank()) {
@@ -310,8 +317,18 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 val cLatLng = GoogleMapUtils.geocodeAddress(this@TrackingActivity, order.address)
                 customerLatLng = cLatLng
 
-                val sLatLng = GoogleMapUtils.STORE_COORDINATES[order.shopId]
-                    ?: GoogleMapUtils.findFallbackDistrict(order.shopName)
+                val store = firebaseRepository.getStoreOnce(order.storeId.ifBlank { order.shopId })
+                if (currentStorePhone.isBlank() && store != null && store.phone.isNotBlank()) {
+                    currentStorePhone = store.phone
+                }
+
+                val sLatLng = if (store != null && store.latitude != 0.0 && store.longitude != 0.0) {
+                    LatLng(store.latitude, store.longitude)
+                } else if (store != null && store.address.isNotBlank()) {
+                    GoogleMapUtils.geocodeAddress(this@TrackingActivity, "${store.address}, TP.HCM")
+                } else {
+                    GoogleMapUtils.findFallbackDistrict(order.shopName)
+                }
                 storeLatLng = sLatLng
 
                 if (storeMarker == null) {
@@ -644,6 +661,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Hình thức thanh toán
         val payMethodStr = when (order.paymentMethod) {
+            Order.PaymentMethod.VNPAY -> "VNPay (Đã thanh toán)"
             Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
             else -> "Tiền mặt khi nhận món (COD)"
         }

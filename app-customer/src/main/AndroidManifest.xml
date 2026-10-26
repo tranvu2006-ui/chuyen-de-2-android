@@ -76,6 +76,12 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.FoodOrder.Customer" />
 
+        <activity
+            android:name=".ui.payment.VnPayActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
         <!-- Order Success (b8_success.html) -->
         <activity
             android:name=".ui.order.OrderSuccessActivity"

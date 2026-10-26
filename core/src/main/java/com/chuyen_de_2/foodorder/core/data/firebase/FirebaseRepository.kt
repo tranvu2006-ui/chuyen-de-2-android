@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.core.data.firebase
+﻿package com.chuyen_de_2.foodorder.core.data.firebase
 
 import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
@@ -8,6 +8,9 @@ import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.data.model.TrackingLocation
 import com.chuyen_de_2.foodorder.core.data.model.TrustScoreLog
+import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.VnPayHelper
+import com.chuyen_de_2.foodorder.core.util.VnPayResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -15,10 +18,18 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.MutableData
 import com.google.firebase.database.Transaction
 import com.google.firebase.database.ValueEventListener
+import com.google.gson.Gson
+import com.google.gson.JsonParser
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,9 +45,12 @@ import javax.inject.Singleton
  */
 @Singleton
 class FirebaseRepository @Inject constructor(
-    private val database: FirebaseDatabase,
+    val database: FirebaseDatabase,
     private val auth: FirebaseAuth
 ) {
+    private val vnPayHttpClient = OkHttpClient()
+    private val gson = Gson()
+
     init {
         try {
             // Giữ kết nối socket và cache sync liên tục để tránh độ trễ khi chuyển màn hình
@@ -106,9 +120,48 @@ class FirebaseRepository @Inject constructor(
             val ref = database.getReference("orders").push()
             val orderId = ref.key ?: return Result.failure(Exception("Không tạo được order ID"))
 
+            val now = System.currentTimeMillis()
+            val targetStoreId = order.storeId.ifBlank { order.shopId }
+            val targetAddress = order.deliveryAddress.ifBlank { order.address }
+            val targetTotal = if (order.paymentMethod == Order.PaymentMethod.VNPAY) {
+                order.total
+            } else if (order.totalPayment > 0) {
+                order.totalPayment
+            } else {
+                order.total
+            }
+            val targetPaymentAmount = if (order.paymentMethod == Order.PaymentMethod.VNPAY) 0L else targetTotal
+            val targetStatus = order.status.ifBlank { order.orderStatus.ifBlank { Order.Status.PENDING } }
+            val targetTimestamp = if (order.createdAt > 0) order.createdAt else if (order.timestamp > 0) order.timestamp else now
+
+            var targetShopPhone = order.shopPhone.trim()
+            var targetShopName = order.shopName.trim()
+            if ((targetShopPhone.isBlank() || targetShopName.isBlank()) && targetStoreId.isNotBlank()) {
+                try {
+                    val storeSnap = database.getReference("stores").child(targetStoreId).get().await()
+                    if (targetShopPhone.isBlank()) {
+                        targetShopPhone = storeSnap.child("phone").getValue(String::class.java).orEmpty().trim()
+                    }
+                    if (targetShopName.isBlank()) {
+                        targetShopName = storeSnap.child("name").getValue(String::class.java).orEmpty().trim()
+                    }
+                } catch (_: Exception) {}
+            }
+
             val orderWithId = order.copy(
                 orderId = orderId,
-                timestamp = System.currentTimeMillis()
+                storeId = targetStoreId,
+                shopId = targetStoreId,
+                shopName = targetShopName.ifBlank { order.shopName },
+                shopPhone = targetShopPhone,
+                deliveryAddress = targetAddress,
+                address = targetAddress,
+                totalPayment = targetPaymentAmount,
+                total = targetTotal,
+                status = targetStatus,
+                orderStatus = targetStatus,
+                createdAt = targetTimestamp,
+                timestamp = targetTimestamp
             )
             ref.setValue(orderWithId).await()
 
@@ -299,6 +352,135 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    suspend fun createVnPayPayment(orderId: String): String {
+        val data = callVnPayBackend("createVnPayPayment", mapOf("orderId" to orderId))
+        return data.get("url")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: throw IllegalStateException("VNPay backend did not return a payment URL")
+    }
+
+    suspend fun verifyVnPayReturn(returnUrl: String): VnPayResult {
+        val data = callVnPayBackend("verifyVnPayReturn", mapOf("returnUrl" to returnUrl))
+        val responseCode = data.get("responseCode")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: throw IllegalStateException("VNPay backend omitted the response code")
+        val transactionStatus = data.get("transactionStatus")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
+        return VnPayResult(
+            success = data.get("success")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: false,
+            responseCode = responseCode,
+            transactionStatus = transactionStatus,
+            txnRef = data.get("txnRef")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty(),
+            transactionNo = data.get("transactionNo")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty(),
+            amountVnd = data.get("amountVnd")?.takeIf { it.isJsonPrimitive }?.asLong ?: 0L,
+            bankCode = data.get("bankCode")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty(),
+            payDate = data.get("payDate")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty(),
+            message = VnPayHelper.messageForCode(responseCode),
+            hashValid = true
+        )
+    }
+
+    suspend fun recordVnPayPayment(orderId: String, result: VnPayResult) {
+        val paymentUpdates = mutableMapOf<String, Any>(
+            "provider" to "VNPAY",
+            "method" to Order.PaymentMethod.VNPAY,
+            "status" to if (result.success) "PAID" else "FAILED",
+            "message" to result.message,
+            "amount" to result.amountVnd,
+            "currency" to "VND",
+            "transactionReference" to result.txnRef,
+            "transactionNo" to result.transactionNo,
+            "bankCode" to result.bankCode,
+            "payDate" to result.payDate,
+            "responseCode" to result.responseCode,
+            "transactionStatus" to result.transactionStatus
+        )
+        if (result.success) paymentUpdates["paidAt"] = System.currentTimeMillis()
+
+        val updates = paymentUpdates.mapKeys { "payment/${it.key}" }.toMutableMap<String, Any>()
+        if (result.success) {
+            updates["totalPayment"] = result.amountVnd
+            updates["status"] = Order.Status.PREPARING
+            updates["orderStatus"] = Order.Status.PREPARING
+        }
+
+        database.getReference("orders")
+            .child(orderId)
+            .updateChildren(updates)
+            .await()
+    }
+
+    suspend fun markVnPayPaymentPending(orderId: String) {
+        database.getReference("orders")
+            .child(orderId)
+            .child("payment")
+            .updateChildren(
+                mapOf<String, Any?>(
+                    "status" to "PENDING",
+                    "message" to "Chờ thanh toán VNPay",
+                    "transactionReference" to null,
+                    "transactionNo" to null,
+                    "bankCode" to null,
+                    "payDate" to null,
+                    "responseCode" to null,
+                    "transactionStatus" to null,
+                    "paidAt" to null
+                )
+            )
+            .await()
+    }
+
+    suspend fun markVnPayPaymentReportedByCustomer(orderId: String, amountVnd: Long) {
+        val orderRef = database.getReference("orders").child(orderId)
+        val orderSnapshot = orderRef.get().await()
+        val signedInUserId = auth.currentUser?.uid
+            ?: throw IllegalStateException("Vui lòng đăng nhập lại trước khi xác nhận thanh toán.")
+        val status = orderSnapshot.child("status").getValue(String::class.java).orEmpty()
+        val orderStatus = orderSnapshot.child("orderStatus").getValue(String::class.java).orEmpty()
+
+        if (
+            orderSnapshot.child("customerId").getValue(String::class.java) != signedInUserId ||
+            orderSnapshot.child("paymentMethod").getValue(String::class.java) != Order.PaymentMethod.VNPAY ||
+            (status != Order.Status.PENDING && orderStatus != Order.Status.PENDING) ||
+            orderSnapshot.child("total").getValue(Long::class.java) != amountVnd
+        ) {
+            throw IllegalStateException("Đơn hàng không còn chờ xác nhận thanh toán VNPay.")
+        }
+
+        orderRef.updateChildren(
+            mapOf(
+                "payment/provider" to "VNPAY",
+                "payment/method" to Order.PaymentMethod.VNPAY,
+                "payment/status" to "CUSTOMER_REPORTED",
+                "payment/message" to "Khách đã báo chuyển khoản VNPay; chờ quán xác nhận",
+                "payment/amount" to amountVnd,
+                "payment/currency" to "VND",
+                "payment/customerReportedAt" to System.currentTimeMillis(),
+                "status" to Order.Status.PREPARING,
+                "orderStatus" to Order.Status.PREPARING
+            )
+        ).await()
+    }
+
+    private suspend fun callVnPayBackend(endpoint: String, payload: Map<String, String>) = withContext(Dispatchers.IO) {
+        val idToken = auth.currentUser?.getIdToken(false)?.await()?.token
+            ?: throw IllegalStateException("Vui lòng đăng nhập lại trước khi thanh toán.")
+        val request = Request.Builder()
+            .url("${Constants.VNPAY_BACKEND_URL.trimEnd('/')}/$endpoint")
+            .header("Authorization", "Bearer $idToken")
+            .post(gson.toJson(payload).toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .build()
+
+        vnPayHttpClient.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string().orEmpty()
+            val json = responseBody.takeIf { it.isNotBlank() }?.let { JsonParser.parseString(it) }
+                ?.takeIf { it.isJsonObject }?.asJsonObject
+                ?: throw IllegalStateException("VNPay backend returned an invalid response")
+            if (!response.isSuccessful) {
+                val message = json.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+                throw IllegalStateException(message ?: "VNPay backend returned HTTP ${response.code}")
+            }
+            json
+        }
+    }
+
     /** Cập nhật trạng thái đơn hàng và đồng bộ hai chiều status/orderStatus */
     suspend fun updateOrderStatus(orderId: String, status: String) {
         val updates = mutableMapOf<String, Any>(
@@ -450,10 +632,19 @@ class FirebaseRepository @Inject constructor(
                                     ?: 0L
                                 val dImg = dChild.child("imageUrl").getValue(String::class.java) ?: ""
                                 val dCat = dChild.child("category").getValue(String::class.java) ?: ""
+                                val dPlatformCat = dChild.child("platformCategory").getValue(String::class.java)
+                                    ?: dChild.child("categoryId").getValue(String::class.java) ?: ""
                                 if (dName.isNotBlank()) {
                                     val dId = dChild.key ?: ""
                                     dishesMap[dId] = com.chuyen_de_2.foodorder.core.data.model.Dish(
-                                        id = dId, storeId = storeId, name = dName, basePrice = dPrice, imageUrl = dImg, category = dCat
+                                        id = dId,
+                                        storeId = storeId,
+                                        name = dName,
+                                        basePrice = dPrice,
+                                        imageUrl = dImg,
+                                        category = dCat,
+                                        platformCategory = dPlatformCat,
+                                        categoryId = dPlatformCat
                                     )
                                 }
                             }
@@ -585,7 +776,9 @@ class FirebaseRepository @Inject constructor(
         bankAccountNumber: String = "",
         bankAccountName: String = "",
         bankBin: String = "",
-        imageUrl: String = ""
+        imageUrl: String = "",
+        latitude: Double = 0.0,
+        longitude: Double = 0.0
     ): Result<Unit> {
         return try {
             val updates = mutableMapOf<String, Any>(
@@ -602,6 +795,8 @@ class FirebaseRepository @Inject constructor(
             if (bankAccountName.isNotBlank()) updates["bankAccountName"] = bankAccountName
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin
             if (imageUrl.isNotBlank()) updates["imageUrl"] = imageUrl
+            if (latitude != 0.0) updates["latitude"] = latitude
+            if (longitude != 0.0) updates["longitude"] = longitude
 
             database.getReference("stores").child(storeId).updateChildren(updates).await()
             Result.success(Unit)
@@ -706,6 +901,141 @@ class FirebaseRepository @Inject constructor(
                 "open" to isOpen
             )
             database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ==================== DANH MỤC NỀN TẢNG (CATEGORIES) ====================
+
+    /** Lắng nghe danh sách danh mục nền tảng theo thời gian thực (từ Firebase) */
+    fun observeCategories(includeInactive: Boolean = false): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = callbackFlow {
+        val ref = database.getReference("categories")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Category>()
+                for (child in snapshot.children) {
+                    val catId = child.key ?: ""
+                    val catName = child.child("categoryName").getValue(String::class.java)
+                        ?: child.child("name").getValue(String::class.java) ?: ""
+                    val iconUrl = child.child("iconUrl").getValue(String::class.java)
+                        ?: child.child("icon").getValue(String::class.java) ?: "🍽️"
+                    val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                    val isActive = child.child("isActive").getValue(Boolean::class.java)
+                        ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
+
+                    if (catName.isNotBlank() && (includeInactive || isActive)) {
+                        list.add(com.chuyen_de_2.foodorder.core.data.model.Category(
+                            categoryId = catId,
+                            categoryName = catName,
+                            iconUrl = iconUrl,
+                            displayOrder = displayOrder,
+                            isActive = isActive
+                        ))
+                    }
+                }
+                if (list.isEmpty()) {
+                    // Fallback sang menus/categories nếu categories chưa có
+                    database.getReference("menus/categories").get().addOnSuccessListener { mSnap ->
+                        val fallbackList = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Category>()
+                        for (child in mSnap.children) {
+                            val catId = child.key ?: ""
+                            val catName = child.child("categoryName").getValue(String::class.java)
+                                ?: child.child("name").getValue(String::class.java) ?: ""
+                            val iconUrl = child.child("iconUrl").getValue(String::class.java)
+                                ?: child.child("icon").getValue(String::class.java) ?: "🍽️"
+                            val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                            val isActive = child.child("isActive").getValue(Boolean::class.java)
+                                ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
+
+                            if (catName.isNotBlank() && (includeInactive || isActive)) {
+                                fallbackList.add(com.chuyen_de_2.foodorder.core.data.model.Category(
+                                    categoryId = catId,
+                                    categoryName = catName,
+                                    iconUrl = iconUrl,
+                                    displayOrder = displayOrder,
+                                    isActive = isActive
+                                ))
+                            }
+                        }
+                        if (fallbackList.isNotEmpty()) {
+                            fallbackList.sortBy { it.displayOrder }
+                            trySend(fallbackList)
+                        } else {
+                            trySend(getDefaultCategories().filter { includeInactive || it.isActive })
+                        }
+                    }.addOnFailureListener {
+                        trySend(getDefaultCategories().filter { includeInactive || it.isActive })
+                    }
+                } else {
+                    list.sortBy { it.displayOrder }
+                    trySend(list)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lưu / cập nhật danh mục nền tảng lên Firebase */
+    suspend fun saveCategory(category: com.chuyen_de_2.foodorder.core.data.model.Category, desc: String = ""): Result<Unit> {
+        return try {
+            val id = category.categoryId.ifBlank { "cat-${System.currentTimeMillis()}" }
+            val map = mapOf<String, Any>(
+                "id" to id,
+                "categoryId" to id,
+                "name" to category.categoryName,
+                "categoryName" to category.categoryName,
+                "icon" to category.iconUrl,
+                "iconUrl" to category.iconUrl,
+                "desc" to desc,
+                "description" to desc,
+                "displayOrder" to category.displayOrder,
+                "isActive" to category.isActive,
+                "status" to (if (category.isActive) "ACTIVE" else "HIDDEN"),
+                "updatedAt" to System.currentTimeMillis()
+            )
+            val updates = mapOf<String, Any>(
+                "categories/$id" to map,
+                "menus/categories/$id" to map
+            )
+            database.reference.updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa danh mục nền tảng khỏi Firebase */
+    /** Bật / tắt hiển thị danh mục trên ứng dụng Khách */
+    suspend fun toggleCategoryActive(categoryId: String, isActive: Boolean): Result<Unit> {
+        return try {
+            val status = if (isActive) "ACTIVE" else "HIDDEN"
+            val updates = mapOf<String, Any?>(
+                "categories/$categoryId/isActive" to isActive,
+                "categories/$categoryId/status" to status,
+                "menus/categories/$categoryId/isActive" to isActive,
+                "menus/categories/$categoryId/status" to status
+            )
+            database.reference.updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteCategory(categoryId: String): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any?>(
+                "categories/$categoryId" to null,
+                "menus/categories/$categoryId" to null
+            )
+            database.reference.updateChildren(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -1119,6 +1449,188 @@ class FirebaseRepository @Inject constructor(
             for (child in snapshot.children) {
                 val isTarget = (child.key == addressId)
                 child.ref.child("isDefault").setValue(isTarget).await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ==================== QUẢN TRỊ VIÊN HỆ THỐNG (ADMIN PORTAL) ====================
+
+    /** Lắng nghe toàn bộ khiếu nại theo thời gian thực (cho Admin xử lý) */
+    fun observeAllComplaints(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Complaint>> = callbackFlow {
+        val ref = database.getReference("complaints")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Complaint>()
+                for (child in snapshot.children) {
+                    val c = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+                    if (c != null) {
+                        val cId = if (c.complaintId.isBlank()) child.key ?: "" else c.complaintId
+                        list.add(c.copy(complaintId = cId))
+                    }
+                }
+                trySend(list.sortedByDescending { it.createdAt })
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Xử lý khiếu nại và áp dụng mức phạt cho Quán ăn */
+    suspend fun resolveComplaint(
+        complaintId: String,
+        status: String,
+        penaltyApplied: String = "NONE",
+        adminNote: String = "",
+        storeId: String = ""
+    ): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "status" to status,
+                "penaltyApplied" to penaltyApplied,
+                "adminNote" to adminNote
+            )
+            database.getReference("complaints").child(complaintId).updateChildren(updates).await()
+
+            if (storeId.isNotBlank() && penaltyApplied != "NONE") {
+                updateStorePenalty(storeId, penaltyApplied, adminNote)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Cập nhật mức chế tài xử phạt Quán ăn (WARN, HIDE, LOCK) */
+    suspend fun updateStorePenalty(
+        storeId: String,
+        penaltyTier: String,
+        reason: String
+    ): Result<Unit> {
+        return try {
+            val tierId = when (penaltyTier) {
+                com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.WARN -> 1
+                com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.HIDE -> 2
+                com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK -> 3
+                else -> 0
+            }
+            val storeStatus = if (penaltyTier == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK) {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED
+            } else {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
+            }
+            val updates = mapOf<String, Any>(
+                "penaltyTier" to penaltyTier,
+                "penaltyTierId" to tierId,
+                "penaltyReason" to reason,
+                "storeStatus" to storeStatus,
+                "status" to storeStatus,
+                "open" to (storeStatus == com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN)
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Duyệt hoặc từ chối hồ sơ Quán ăn (Admin CCCD review) */
+    suspend fun verifyStore(storeId: String, isApproved: Boolean): Result<Unit> {
+        return try {
+            val status = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
+                         else com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED
+            val updates = mapOf<String, Any>(
+                "isVerified" to isApproved,
+                "verified" to isApproved,
+                "storeStatus" to status,
+                "status" to status,
+                "open" to isApproved
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lắng nghe toàn bộ tài khoản Users */
+    fun observeAllUsers(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.User>> = callbackFlow {
+        val ref = database.getReference("users")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.User>()
+                for (child in snapshot.children) {
+                    val u = child.getValue(com.chuyen_de_2.foodorder.core.data.model.User::class.java)
+                    if (u != null) {
+                        val uid = if (u.uid.isBlank()) child.key ?: "" else u.uid
+                        list.add(u.copy(uid = uid))
+                    }
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Khóa / Mở khóa tài khoản người dùng */
+    suspend fun updateUserStatus(uid: String, status: String, isActive: Boolean): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "status" to status,
+                "isActive" to isActive
+            )
+            database.getReference("users").child(uid).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lắng nghe hồ sơ Customers kèm điểm uy tín */
+    fun observeAllCustomers(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Customer>> = callbackFlow {
+        val ref = database.getReference("customers")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Customer>()
+                for (child in snapshot.children) {
+                    val c = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Customer::class.java)
+                    if (c != null) {
+                        val cId = if (c.customerId.isBlank()) child.key ?: "" else c.customerId
+                        list.add(c.copy(customerId = cId))
+                    }
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Danh mục nền tảng mặc định tiêu chuẩn */
+    fun getDefaultCategories(): List<com.chuyen_de_2.foodorder.core.data.model.Category> =
+        com.chuyen_de_2.foodorder.core.data.model.Category.getDefaultCategories()
+
+    /** Khôi phục 12 danh mục chuẩn hệ thống Oishi Food */
+    suspend fun restoreDefaultCategories(): Result<Unit> {
+        return try {
+            val defaults = getDefaultCategories()
+            for (cat in defaults) {
+                saveCategory(cat)
             }
             Result.success(Unit)
         } catch (e: Exception) {

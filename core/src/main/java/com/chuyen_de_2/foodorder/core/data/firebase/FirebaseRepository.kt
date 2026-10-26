@@ -397,8 +397,8 @@ class FirebaseRepository @Inject constructor(
         val updates = paymentUpdates.mapKeys { "payment/${it.key}" }.toMutableMap<String, Any>()
         if (result.success) {
             updates["totalPayment"] = result.amountVnd
-            updates["status"] = Order.Status.PREPARING
-            updates["orderStatus"] = Order.Status.PREPARING
+            updates["status"] = Order.Status.PENDING
+            updates["orderStatus"] = Order.Status.PENDING
         }
 
         database.getReference("orders")
@@ -453,8 +453,8 @@ class FirebaseRepository @Inject constructor(
                 "payment/amount" to amountVnd,
                 "payment/currency" to "VND",
                 "payment/customerReportedAt" to System.currentTimeMillis(),
-                "status" to Order.Status.PREPARING,
-                "orderStatus" to Order.Status.PREPARING
+                "status" to Order.Status.PENDING,
+                "orderStatus" to Order.Status.PENDING
             )
         ).await()
     }

@@ -88,6 +88,11 @@ class OrderListFragment : Fragment() {
         resolveCurrentStoreIdAndObserve()
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.refreshOrders()
+    }
+
     /**
      * Tên chức năng: Xác định định danh Cửa hàng (Store ID Resolver)
      * Cách hoạt động: Lấy UID người dùng hiện tại, tra cứu bảng stores để tìm storeId quản lý, sau đó cấp phát cho ViewModel.

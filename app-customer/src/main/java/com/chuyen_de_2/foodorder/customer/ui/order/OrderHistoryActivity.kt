@@ -24,6 +24,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -55,6 +56,7 @@ class OrderHistoryActivity : AppCompatActivity() {
 
     private var allOrders: List<Order> = emptyList()
     private var currentFilterTab: String = "ALL"
+    private var ordersJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,7 +70,17 @@ class OrderHistoryActivity : AppCompatActivity() {
         setupRecyclerView()
         setupTabs()
         setupEmergencyBanner()
+    }
+
+    override fun onStart() {
+        super.onStart()
         loadOrders()
+    }
+
+    override fun onStop() {
+        ordersJob?.cancel()
+        ordersJob = null
+        super.onStop()
     }
 
     private fun setupHeader() {
@@ -234,7 +246,8 @@ class OrderHistoryActivity : AppCompatActivity() {
 
         binding.progressBar.visibility = View.VISIBLE
 
-        lifecycleScope.launch {
+        ordersJob?.cancel()
+        ordersJob = lifecycleScope.launch {
             firebaseRepository.observeOrdersByCustomer(currentUserId).collectLatest { orders ->
                 binding.progressBar.visibility = View.GONE
                 allOrders = orders

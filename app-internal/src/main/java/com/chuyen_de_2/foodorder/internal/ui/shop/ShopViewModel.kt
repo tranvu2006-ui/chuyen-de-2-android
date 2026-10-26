@@ -9,6 +9,7 @@ import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -63,9 +64,10 @@ class ShopViewModel @Inject constructor(
     val activeShippers: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.User>> = _activeShippers
 
     private var previousOrderCount = 0
+    private var ordersObservationJob: Job? = null
 
     init {
-        observeOrders()
+        refreshOrders()
         observeShippers()
     }
 
@@ -153,8 +155,9 @@ class ShopViewModel @Inject constructor(
         }
     }
 
-    private fun observeOrders() {
-        viewModelScope.launch {
+    fun refreshOrders() {
+        ordersObservationJob?.cancel()
+        ordersObservationJob = viewModelScope.launch {
             firebaseRepository.observeAllOrders().collectLatest { orders ->
                 val pendingCount = orders.count { it.status == Order.Status.PENDING }
                 if (pendingCount > previousOrderCount && previousOrderCount > 0) {

@@ -30,6 +30,7 @@ import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Dish
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentMenuManageBinding
 import com.google.android.material.button.MaterialButton
@@ -184,7 +185,7 @@ class MenuManageFragment : Fragment() {
 
         // 4. Nút Tạo Combo & Thêm Món
         binding.btnCreateCombo.setOnClickListener {
-            Toast.makeText(requireContext(), "✨ Tính năng Tạo Combo đang được kích hoạt!", Toast.LENGTH_SHORT).show()
+            showCreateComboDialog()
         }
 
         binding.btnAddFood.setOnClickListener {
@@ -838,6 +839,177 @@ class MenuManageFragment : Fragment() {
             }
             .setNegativeButton("Hủy", null)
             .show()
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại Tạo Combo Món Mới
+     * Đặc điểm:
+     *  - Quán chọn các món lẻ đưa vào combo kèm số lượng.
+     *  - Hệ thống tự động tính tổng giá gốc của các món lẻ.
+     *  - Quán TỰ DO CHỈNH GIÁ BÁN combo theo ý muốn.
+     *  - Hệ thống tính toán và hiển thị % tiết kiệm cho khách hàng.
+     */
+    private fun showCreateComboDialog() {
+        val availableDishes = dishList.filter { !it.isCombo }
+        if (availableDishes.size < 2) {
+            Toast.makeText(requireContext(), "Quán cần có ít nhất 2 món lẻ trong thực đơn để tạo Combo!", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_create_combo)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.94).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etComboName = dialog.findViewById<EditText>(R.id.etComboName)
+        val tvSelectCountNote = dialog.findViewById<TextView>(R.id.tvSelectCountNote)
+        val rvSelectDishes = dialog.findViewById<RecyclerView>(R.id.rvSelectDishes)
+        val tvOriginalPriceTotal = dialog.findViewById<TextView>(R.id.tvOriginalPriceTotal)
+        val etComboPrice = dialog.findViewById<EditText>(R.id.etComboPrice)
+        val tvSavingsNote = dialog.findViewById<TextView>(R.id.tvSavingsNote)
+        val ivComboPreview = dialog.findViewById<ImageView>(R.id.ivComboPreview)
+        val btnPickComboImage = dialog.findViewById<MaterialButton>(R.id.btnPickComboImage)
+        val etComboDescription = dialog.findViewById<EditText>(R.id.etComboDescription)
+        val btnCancelCombo = dialog.findViewById<MaterialButton>(R.id.btnCancelCombo)
+        val btnSaveCombo = dialog.findViewById<MaterialButton>(R.id.btnSaveCombo)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseComboDialog)
+
+        var pickedImageBase64: String = ""
+
+        lateinit var comboAdapter: SelectComboDishAdapter
+
+        fun updatePriceCalculation() {
+            val totalOriginal = comboAdapter.calculateTotalOriginalPrice()
+            tvOriginalPriceTotal.text = totalOriginal.toVndCurrency()
+            val selected = comboAdapter.getSelectedItems()
+            tvSelectCountNote.text = if (selected.isEmpty()) {
+                "Chọn ít nhất 2 món ăn / thức uống"
+            } else {
+                "Đã chọn ${selected.size} món (tổng ${selected.sumOf { it.quantity }} phần)"
+            }
+
+            val priceInput = etComboPrice.text.toString().trim().toLongOrNull() ?: 0L
+            if (priceInput > 0L && totalOriginal > priceInput) {
+                val diff = totalOriginal - priceInput
+                val pct = ((diff.toDouble() / totalOriginal.toDouble()) * 100).toInt()
+                tvSavingsNote.text = "🎉 Tiết kiệm ${diff.toVndCurrency()} (-$pct%) cho khách!"
+                tvSavingsNote.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            } else if (priceInput >= totalOriginal && totalOriginal > 0L) {
+                tvSavingsNote.text = "💡 Giá bán nên thấp hơn tổng giá gốc để thu hút khách mua hơn"
+                tvSavingsNote.setTextColor(ContextCompat.getColor(requireContext(), R.color.primary))
+            } else {
+                tvSavingsNote.text = "💡 Giá bán Combo do Quán tự quyết định theo ý muốn"
+                tvSavingsNote.setTextColor(Color.parseColor("#9A3412"))
+            }
+
+            // Nếu chưa chọn ảnh và có chọn món, lấy ảnh món đầu tiên làm preview
+            if (pickedImageBase64.isBlank()) {
+                val firstWithImg = selected.firstOrNull { it.dish.imageUrl.isNotBlank() }
+                if (firstWithImg != null) {
+                    loadPreviewImage(ivComboPreview, firstWithImg.dish.imageUrl)
+                } else {
+                    ivComboPreview.setImageResource(R.drawable.ic_sparkles)
+                }
+            }
+        }
+
+        comboAdapter = SelectComboDishAdapter {
+            updatePriceCalculation()
+        }
+
+        rvSelectDishes.layoutManager = LinearLayoutManager(requireContext())
+        rvSelectDishes.adapter = comboAdapter
+        comboAdapter.submitDishes(availableDishes)
+
+        etComboPrice.doAfterTextChanged {
+            updatePriceCalculation()
+        }
+
+        btnPickComboImage.setOnClickListener {
+            onImagePickedCallback = { base64 ->
+                pickedImageBase64 = base64
+                loadPreviewImage(ivComboPreview, base64)
+            }
+            pickImageLauncher.launch("image/*")
+        }
+
+        btnCancelCombo.setOnClickListener { dialog.dismiss() }
+        btnClose.setOnClickListener { dialog.dismiss() }
+
+        btnSaveCombo.setOnClickListener {
+            val name = etComboName.text.toString().trim()
+            if (name.isBlank()) {
+                Toast.makeText(requireContext(), "Vui lòng nhập tên Combo!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val selectedItems = comboAdapter.getSelectedItems()
+            if (selectedItems.size < 2) {
+                Toast.makeText(requireContext(), "Vui lòng chọn ít nhất 2 món đưa vào Combo!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val price = etComboPrice.text.toString().trim().toLongOrNull() ?: 0L
+            if (price <= 0L) {
+                Toast.makeText(requireContext(), "Vui lòng nhập giá bán hợp lệ của Combo!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val totalOriginal = comboAdapter.calculateTotalOriginalPrice()
+            val desc = etComboDescription.text.toString().trim()
+            val finalImageUrl = if (pickedImageBase64.isNotBlank()) {
+                pickedImageBase64
+            } else {
+                selectedItems.firstOrNull { it.dish.imageUrl.isNotBlank() }?.dish?.imageUrl.orEmpty()
+            }
+
+            val comboItemsList = selectedItems.map {
+                com.chuyen_de_2.foodorder.core.data.model.ComboItem(
+                    dishId = it.dish.id,
+                    name = it.dish.name,
+                    quantity = it.quantity,
+                    price = if (it.dish.basePrice > 0) it.dish.basePrice else it.dish.price
+                )
+            }
+
+            val comboDish = Dish(
+                id = "combo_${System.currentTimeMillis()}",
+                storeId = currentStoreId,
+                name = name,
+                description = desc,
+                imageUrl = finalImageUrl,
+                basePrice = price,
+                originalPrice = totalOriginal,
+                isCombo = true,
+                comboItems = comboItemsList,
+                category = "Combo",
+                platformCategory = "Combo",
+                isAvailable = true
+            )
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                try {
+                    firebaseRepository.saveStoreDish(currentStoreId, comboDish)
+                    if (!storeCategories.contains("Combo")) {
+                        firebaseRepository.addStoreCategory(currentStoreId, "Combo")
+                        storeCategories.add("Combo")
+                        setupCategoryFilterChips()
+                    }
+                    dishList.add(comboDish)
+                    updateList()
+                    Toast.makeText(requireContext(), "✓ Đã tạo Combo [$name] thành công!", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Lỗi tạo Combo: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        dialog.show()
     }
 
     override fun onDestroyView() {

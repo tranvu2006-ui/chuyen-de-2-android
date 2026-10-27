@@ -57,7 +57,16 @@ data class Dish(
     val hasOptions: Boolean = false,
 
     @SerializedName("specs")
-    val specs: List<String> = emptyList()
+    val specs: List<String> = emptyList(),
+
+    @SerializedName("isCombo")
+    val isCombo: Boolean = false,
+
+    @SerializedName("originalPrice")
+    val originalPrice: Long = 0L,
+
+    @SerializedName("comboItems")
+    val comboItems: List<ComboItem> = emptyList()
 ) {
     /** Thuộc tính phụ trợ tương thích UI */
     @get:Exclude

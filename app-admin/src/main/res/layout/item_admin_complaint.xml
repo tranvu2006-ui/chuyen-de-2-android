@@ -9,9 +9,9 @@
     android:clickable="true"
     android:focusable="true"
     app:cardBackgroundColor="@color/white"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="1dp"
-    app:rippleColor="#1AEE4D2D"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="2dp"
+    app:rippleColor="@color/primary_light"
     app:strokeColor="@color/border"
     app:strokeWidth="1dp">
 
@@ -21,22 +21,51 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Top Header -->
+        <!-- Top Case Ticket Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tvComplaintId"
+            <FrameLayout
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_circle_icon_red">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_alert_triangle"
+                    app:tint="@color/danger" />
+            </FrameLayout>
+
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
                 android:layout_weight="1"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                tools:text="Khiếu nại #cmp_01" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvComplaintId"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    tools:text="Khiếu nại #cmp_01" />
+
+                <TextView
+                    android:id="@+id/tvComplaintTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    tools:text="Thời gian gửi: 22/10/2026 14:30" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvComplaintStatusBadge"
@@ -46,25 +75,16 @@
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="4dp"
                 android:textColor="@color/brand_orange"
-                android:textSize="11sp"
+                android:textSize="10.5sp"
                 android:textStyle="bold"
                 tools:text="CHỜ XỬ LÝ" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvComplaintTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            tools:text="Thời gian: 22/10/2026 14:30" />
-
-        <!-- Order & Store info -->
+        <!-- Linked Order & Store Pills -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="12dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -73,8 +93,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_badge_blue"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4dp"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold"
@@ -85,28 +105,29 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textColor="@color/brand_orange"
+                android:background="@drawable/bg_badge_purple"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4dp"
+                android:textColor="@color/purple"
                 android:textSize="11sp"
                 android:textStyle="bold"
                 tools:text="Quán: store_01" />
         </LinearLayout>
 
-        <!-- Reason -->
+        <!-- Statement Quote Box -->
         <TextView
             android:id="@+id/tvReason"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:background="@drawable/bg_choice_card_idle"
+            android:background="@drawable/bg_search_bar_modern"
+            android:lineSpacingExtra="2dp"
             android:padding="12dp"
             android:textColor="@color/text_primary"
             android:textSize="13sp"
-            tools:text="Lý do khiếu nại: Món ăn giao thiếu phần canh sườn và bị nguội lạnh, shipper giao trễ 45 phút." />
+            tools:text="Nội dung: Món ăn giao thiếu phần canh sườn và bị nguội lạnh, shipper giao trễ 45 phút." />
 
-        <!-- Penalty info if resolved -->
+        <!-- Tribunal Verdict Box (Visible when Resolved/Rejected) -->
         <LinearLayout
             android:id="@+id/llResolutionResult"
             android:layout_width="match_parent"
@@ -114,7 +135,7 @@
             android:layout_marginTop="10dp"
             android:background="@drawable/bg_card_warning"
             android:orientation="vertical"
-            android:padding="10dp"
+            android:padding="12dp"
             android:visibility="gone"
             tools:visibility="visible">
 
@@ -125,7 +146,7 @@
                 android:textColor="@color/danger"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                tools:text="Mức phạt đã áp dụng: CẢNH CÁO (WARN)" />
+                tools:text="Mức phạt áp dụng: CẢNH CÁO (WARN)" />
 
             <TextView
                 android:id="@+id/tvAdminNote"
@@ -137,17 +158,24 @@
                 tools:text="Ghi chú admin: Nhắc nhở quán chuẩn bị đúng combo." />
         </LinearLayout>
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="10dp"
+            android:background="@color/divider" />
+
+        <!-- Footer CTA -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
             android:gravity="end|center_vertical"
             android:orientation="horizontal">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Chạm để xem &amp; giải quyết"
+                android:text="Thẩm định &amp; Phán quyết hồ sơ"
                 android:textColor="@color/primary"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -155,7 +183,7 @@
             <ImageView
                 android:layout_width="14dp"
                 android:layout_height="14dp"
-                android:layout_marginStart="2dp"
+                android:layout_marginStart="3dp"
                 android:src="@drawable/ic_chevron_right"
                 app:tint="@color/primary" />
         </LinearLayout>

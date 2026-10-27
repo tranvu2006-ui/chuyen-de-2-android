@@ -1,50 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand Colors — Oishi Food Admin Portal -->
-    <color name="primary">#EE4D2D</color>
-    <color name="primary_variant">#D73211</color>
-    <color name="primary_light">#FFF0ED</color>
+    <!-- Primary Brand & Command Accents — Oishi Food Executive Portal -->
+    <color name="primary">#FF4500</color>
+    <color name="primary_variant">#D93800</color>
+    <color name="primary_light">#FFF1EC</color>
     <color name="on_primary">#FFFFFF</color>
     <color name="white">#FFFFFF</color>
 
-    <color name="admin_navy">#0F172A</color>
-    <color name="admin_navy_dark">#090D16</color>
+    <!-- Executive Dark Command Palette -->
+    <color name="admin_navy">#0B1120</color>
+    <color name="admin_navy_dark">#060A12</color>
     <color name="admin_slate">#1E293B</color>
+    <color name="admin_slate_light">#334155</color>
     <color name="admin_card">#FFFFFF</color>
 
-    <color name="secondary">#3B82F6</color>
+    <!-- Secondary Indigo Accent for Admin Tools -->
+    <color name="secondary">#4F46E5</color>
+    <color name="secondary_light">#EEF2FF</color>
     <color name="on_secondary">#FFFFFF</color>
 
     <!-- Backgrounds & Surfaces -->
-    <color name="background">#F8FAFC</color>
+    <color name="background">#F1F5F9</color>
     <color name="surface">#FFFFFF</color>
+    <color name="surface_elevated">#F8FAFC</color>
     <color name="on_background">#0F172A</color>
     <color name="on_surface">#0F172A</color>
 
+    <!-- Typography Hierarchy -->
     <color name="text_primary">#0F172A</color>
-    <color name="text_secondary">#64748B</color>
+    <color name="text_secondary">#475569</color>
     <color name="text_muted">#94A3B8</color>
     <color name="border">#E2E8F0</color>
     <color name="divider">#F1F5F9</color>
 
-    <!-- Status & Semantic Badges -->
-    <color name="brand_green">#10B981</color>
-    <color name="brand_green_bg">#ECFDF5</color>
-    <color name="brand_blue">#3B82F6</color>
-    <color name="brand_blue_bg">#EFF6FF</color>
-    <color name="brand_orange">#F59E0B</color>
-    <color name="brand_orange_bg">#FFFBEB</color>
-    <color name="danger">#EF4444</color>
-    <color name="danger_bg">#FEF2F2</color>
-    <color name="purple">#8B5CF6</color>
-    <color name="purple_bg">#F5F3FF</color>
+    <!-- Semantic Status Tokens -->
+    <color name="brand_green">#059669</color>
+    <color name="brand_green_bg">#D1FAE5</color>
+    <color name="brand_blue">#2563EB</color>
+    <color name="brand_blue_bg">#DBEAFE</color>
+    <color name="brand_orange">#D97706</color>
+    <color name="brand_orange_bg">#FEF3C7</color>
+    <color name="danger">#E11D48</color>
+    <color name="danger_bg">#FFE4E6</color>
+    <color name="purple">#7C3AED</color>
+    <color name="purple_bg">#EDE9FE</color>
 
-    <!-- Status Colors -->
-    <color name="status_pending">#F59E0B</color>
-    <color name="status_ready">#10B981</color>
+    <!-- Order Status Colors -->
+    <color name="status_pending">#D97706</color>
+    <color name="status_ready">#059669</color>
     <color name="status_delivering">#2563EB</color>
-    <color name="status_completed">#10B981</color>
+    <color name="status_completed">#059669</color>
 
-    <color name="error">#EF4444</color>
+    <color name="error">#E11D48</color>
     <color name="on_error">#FFFFFF</color>
 </resources>

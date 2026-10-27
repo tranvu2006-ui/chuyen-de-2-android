@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.core.data.firebase
+package com.chuyen_de_2.foodorder.core.data.firebase
 
 import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
@@ -935,6 +935,164 @@ class FirebaseRepository @Inject constructor(
         database.getReference("stores").child(storeId).child("dishes").child(dishId).removeValue().await()
     }
 
+    // ==================== DANH MỤC RIÊNG CỦA QUÁN (STORE CATEGORIES) ====================
+
+    /** Danh mục mặc định ban đầu nếu quán chưa tự thiết lập */
+    val defaultStoreCategories: List<String> = listOf(
+        "Món chính", "Món ăn kèm", "Canh / Súp", "Đồ uống", "Tráng miệng", "Combo"
+    )
+
+    /** Lấy danh sách danh mục nội bộ của quán theo thời gian thực */
+    fun observeStoreCategories(storeId: String): Flow<List<String>> = callbackFlow {
+        val ref = database.getReference("stores").child(storeId).child("storeCategories")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<String>()
+                for (child in snapshot.children) {
+                    val cat = child.getValue(String::class.java)?.trim().orEmpty()
+                    if (cat.isNotBlank() && !list.contains(cat)) {
+                        list.add(cat)
+                    }
+                }
+                if (list.isEmpty()) {
+                    // Nếu chưa có bảng storeCategories, tự động sinh từ các món ăn đang có của quán
+                    database.getReference("stores").child(storeId).child("dishes").get().addOnSuccessListener { dSnap ->
+                        val fromDishes = mutableListOf<String>()
+                        for (dChild in dSnap.children) {
+                            val c = dChild.child("category").getValue(String::class.java)?.trim().orEmpty()
+                            if (c.isNotBlank() && !fromDishes.contains(c)) {
+                                fromDishes.add(c)
+                            }
+                        }
+                        if (fromDishes.isNotEmpty()) {
+                            trySend(fromDishes)
+                        } else {
+                            trySend(defaultStoreCategories)
+                        }
+                    }.addOnFailureListener {
+                        trySend(defaultStoreCategories)
+                    }
+                } else {
+                    trySend(list)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lưu toàn bộ danh sách danh mục của quán */
+    suspend fun saveStoreCategories(storeId: String, categories: List<String>) {
+        val cleanList = categories.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        database.getReference("stores").child(storeId).child("storeCategories").setValue(cleanList).await()
+    }
+
+    /** Thêm danh mục mới cho quán */
+    suspend fun addStoreCategory(storeId: String, newCategory: String): Result<Unit> {
+        val trimmed = newCategory.trim()
+        if (trimmed.isBlank()) return Result.failure(IllegalArgumentException("Tên danh mục không được để trống"))
+        return try {
+            val ref = database.getReference("stores").child(storeId).child("storeCategories")
+            val snapshot = ref.get().await()
+            val list = mutableListOf<String>()
+            for (child in snapshot.children) {
+                val cat = child.getValue(String::class.java)?.trim().orEmpty()
+                if (cat.isNotBlank()) list.add(cat)
+            }
+            if (list.isEmpty()) {
+                list.addAll(defaultStoreCategories)
+            }
+            if (list.any { it.equals(trimmed, ignoreCase = true) }) {
+                return Result.failure(IllegalStateException("Danh mục '$trimmed' đã tồn tại"))
+            }
+            list.add(trimmed)
+            ref.setValue(list).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Đổi tên danh mục và tự động cập nhật tất cả món ăn thuộc danh mục đó */
+    suspend fun renameStoreCategory(storeId: String, oldName: String, newName: String): Result<Unit> {
+        val oldTrimmed = oldName.trim()
+        val newTrimmed = newName.trim()
+        if (newTrimmed.isBlank()) return Result.failure(IllegalArgumentException("Tên mới không được để trống"))
+        return try {
+            val ref = database.getReference("stores").child(storeId).child("storeCategories")
+            val snapshot = ref.get().await()
+            val list = mutableListOf<String>()
+            for (child in snapshot.children) {
+                val cat = child.getValue(String::class.java)?.trim().orEmpty()
+                if (cat.isNotBlank()) list.add(cat)
+            }
+            if (list.isEmpty()) {
+                list.addAll(defaultStoreCategories)
+            }
+            val index = list.indexOfFirst { it.equals(oldTrimmed, ignoreCase = true) }
+            if (index != -1) {
+                list[index] = newTrimmed
+            } else {
+                list.add(newTrimmed)
+            }
+            ref.setValue(list.distinct()).await()
+
+            // Đồng bộ cập nhật các món ăn đang mang oldName sang newName
+            val dishesRef = database.getReference("stores").child(storeId).child("dishes")
+            val dishesSnap = dishesRef.get().await()
+            val updates = mutableMapOf<String, Any>()
+            for (dishChild in dishesSnap.children) {
+                val currentCat = dishChild.child("category").getValue(String::class.java)?.trim().orEmpty()
+                if (currentCat.equals(oldTrimmed, ignoreCase = true)) {
+                    val dishId = dishChild.key ?: continue
+                    updates["$dishId/category"] = newTrimmed
+                }
+            }
+            if (updates.isNotEmpty()) {
+                dishesRef.updateChildren(updates).await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa danh mục của quán */
+    suspend fun deleteStoreCategory(storeId: String, categoryToDelete: String): Result<Unit> {
+        val trimmed = categoryToDelete.trim()
+        return try {
+            val ref = database.getReference("stores").child(storeId).child("storeCategories")
+            val snapshot = ref.get().await()
+            val list = mutableListOf<String>()
+            for (child in snapshot.children) {
+                val cat = child.getValue(String::class.java)?.trim().orEmpty()
+                if (cat.isNotBlank()) list.add(cat)
+            }
+            if (list.isEmpty()) {
+                list.addAll(defaultStoreCategories)
+            }
+            list.removeAll { it.equals(trimmed, ignoreCase = true) }
+            ref.setValue(list).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Khôi phục danh mục mẫu mặc định cho quán */
+    suspend fun restoreDefaultStoreCategories(storeId: String): Result<Unit> {
+        return try {
+            database.getReference("stores").child(storeId).child("storeCategories").setValue(defaultStoreCategories).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ==================== KHIẾU NẠI (COMPLAINTS) ====================
 
     /** Gửi khiếu nại đơn hàng lên Firebase (Actor 2 -> Actor 1) */
@@ -1422,7 +1580,7 @@ class FirebaseRepository @Inject constructor(
                 for (child in snapshot.children) {
                     val u = child.getValue(com.chuyen_de_2.foodorder.core.data.model.User::class.java)
                     if (u != null) {
-                        val uid = if (u.uid.isBlank()) child.key ?: "" else u.uid
+                        val emailLower = u.email.trim().lowercase(); if (emailLower == "admin@foodorder.com" || emailLower == "admin.long@oishifood.vn") { try { child.ref.removeValue() } catch (_: Exception) {}; continue }; val uid = if (u.uid.isBlank()) child.key ?: "" else u.uid
                         list.add(u.copy(uid = uid))
                     }
                 }

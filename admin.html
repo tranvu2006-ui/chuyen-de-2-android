@@ -3968,11 +3968,11 @@
         fbDb = firebase.database();
 
         try {
-          const cred = await fbAuth.signInWithEmailAndPassword('admin.long@oishifood.vn', 'Admin@123456');
+          const cred = await fbAuth.signInWithEmailAndPassword('admin@gmail.com', '123456');
           if (cred && cred.user) fbAdminUid = cred.user.uid;
         } catch (authErr) {
           try {
-            const created = await fbAuth.createUserWithEmailAndPassword('admin.long@oishifood.vn', 'Admin@123456');
+            const created = await fbAuth.createUserWithEmailAndPassword('admin@gmail.com', '123456');
             if (created && created.user) fbAdminUid = created.user.uid;
           } catch (_) {}
         }
@@ -4105,7 +4105,7 @@
       // 1. From all users in rawFbUsers (excluding Admin account)
       Object.entries(rawFbUsers).forEach(([uid, u]) => {
         if (!u || typeof u !== 'object') return;
-        if (uid === fbAdminUid || u.email === 'admin.long@oishifood.vn') return;
+        if (uid === fbAdminUid || u.email === 'admin@gmail.com') return;
 
         const cNode = rawFbCustomers[uid] || {};
         const dNode = rawFbDrivers[uid] || {};
@@ -4230,7 +4230,7 @@
 
       Object.entries(rawFbUsers).forEach(([uid, u]) => {
         if (!u || typeof u !== 'object' || driverMap[uid]) return;
-        if (uid === fbAdminUid || u.email === 'admin.long@oishifood.vn') return;
+        if (uid === fbAdminUid || u.email === 'admin@gmail.com') return;
         const role = (u.role || '').toUpperCase();
         if (role === 'DRIVER' || role === 'SHIPPER') {
           const isDelivering = liveOrders.some(o => o.shipperId === uid && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));

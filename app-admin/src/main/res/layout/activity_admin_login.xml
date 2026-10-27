@@ -11,15 +11,15 @@
         android:id="@+id/loginRootConstraint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="40dp">
+        android:paddingBottom="44dp">
 
-        <!-- Top Banner Header Background -->
+        <!-- Executive Command Hero Background -->
         <View
             android:id="@+id/viewHeaderBg"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_marginBottom="-40dp"
-            android:background="@color/admin_navy"
+            android:layout_marginBottom="-56dp"
+            android:background="@drawable/bg_header_admin_gradient"
             app:layout_constraintBottom_toBottomOf="@id/tvSubtitle"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -30,64 +30,94 @@
             android:id="@+id/viewLoginStatusBar"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:background="@color/admin_navy"
+            android:background="@android:color/transparent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <ImageView
-            android:id="@+id/ivLogo"
-            android:layout_width="68dp"
-            android:layout_height="68dp"
-            android:layout_marginTop="24dp"
-            android:background="@drawable/bg_choice_card_active"
-            android:backgroundTint="@color/primary"
-            android:padding="14dp"
-            android:src="@drawable/ic_shield_alert"
+        <!-- Security Clearance Pill -->
+        <TextView
+            android:id="@+id/tvClearanceBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/bg_glass_pill"
+            android:letterSpacing="0.08"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="5dp"
+            android:text="🛡️ ROOT COMMAND CENTER • V2.5"
+            android:textColor="@color/white"
+            android:textSize="10.5sp"
+            android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/viewLoginStatusBar"
-            app:tint="@color/white" />
+            app:layout_constraintTop_toBottomOf="@id/viewLoginStatusBar" />
+
+        <!-- Glowing Brand Emblem -->
+        <FrameLayout
+            android:id="@+id/flLogoContainer"
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/bg_glass_pill"
+            android:padding="4dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvClearanceBadge">
+
+            <ImageView
+                android:id="@+id/ivLogo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_choice_card_active"
+                android:backgroundTint="@color/primary"
+                android:padding="15dp"
+                android:src="@drawable/ic_shield_alert"
+                app:tint="@color/white" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/tvAppTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="OISHI FOOD ADMIN"
+            android:layout_marginTop="14dp"
+            android:letterSpacing="0.03"
+            android:text="OISHI FOOD EXECUTIVE"
             android:textColor="@color/white"
-            android:textSize="22sp"
+            android:textSize="23sp"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/ivLogo" />
+            app:layout_constraintTop_toBottomOf="@id/flLogoContainer" />
 
         <TextView
             android:id="@+id/tvSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Cổng Quản Trị Viên &amp; Vận Hành Sàn"
-            android:textColor="@color/text_muted"
-            android:textSize="13sp"
+            android:text="Hệ Thống Điều Hành, Kiểm Duyệt &amp; Quản Trị Toàn Sàn"
+            android:textColor="#CBD5E1"
+            android:textSize="12.5sp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tvAppTitle" />
 
-        <!-- Login Card -->
+        <!-- Floating Security Console Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardLogin"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
+            android:layout_marginStart="18dp"
             android:layout_marginTop="24dp"
-            android:layout_marginEnd="20dp"
+            android:layout_marginEnd="18dp"
             app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="6dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="8dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvSubtitle">
+            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -95,22 +125,48 @@
                 android:orientation="vertical"
                 android:padding="24dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <!-- Card Header Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Đăng Nhập Quản Trị"
-                    android:textColor="@color/text_primary"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:layout_width="4dp"
+                        android:layout_height="22dp"
+                        android:background="@color/primary" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:text="Xác Thực Quản Trị Viên"
+                        android:textColor="@color/text_primary"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_badge_blue"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="3dp"
+                        android:text="RBAC ROLE 1"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="6dp"
                     android:layout_marginBottom="20dp"
-                    android:text="Chỉ dành cho tài khoản Admin được cấp thẩm quyền"
+                    android:text="Đăng nhập bằng tài khoản được cấp quyền tối cao để điều phối cửa hàng, danh mục, đơn hàng và người dùng."
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:textSize="12.5sp" />
 
                 <!-- Email Input -->
                 <com.google.android.material.textfield.TextInputLayout
@@ -119,13 +175,15 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="14dp"
-                    android:hint="Email quản trị viên"
-                    app:boxCornerRadiusBottomEnd="10dp"
-                    app:boxCornerRadiusBottomStart="10dp"
-                    app:boxCornerRadiusTopEnd="10dp"
-                    app:boxCornerRadiusTopStart="10dp"
+                    android:hint="Email định danh Quản trị viên"
+                    app:boxBackgroundColor="@color/surface_elevated"
+                    app:boxCornerRadiusBottomEnd="14dp"
+                    app:boxCornerRadiusBottomStart="14dp"
+                    app:boxCornerRadiusTopEnd="14dp"
+                    app:boxCornerRadiusTopStart="14dp"
                     app:boxStrokeColor="@color/primary"
-                    app:startIconDrawable="@drawable/ic_mail">
+                    app:startIconDrawable="@drawable/ic_mail"
+                    app:startIconTint="@color/text_secondary">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etEmail"
@@ -133,7 +191,7 @@
                         android:layout_height="wrap_content"
                         android:inputType="textEmailAddress"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="14.5sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- Password Input -->
@@ -142,15 +200,17 @@
                     style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:hint="Mật khẩu"
-                    app:boxCornerRadiusBottomEnd="10dp"
-                    app:boxCornerRadiusBottomStart="10dp"
-                    app:boxCornerRadiusTopEnd="10dp"
-                    app:boxCornerRadiusTopStart="10dp"
+                    android:layout_marginBottom="18dp"
+                    android:hint="Mật khẩu bảo mật"
+                    app:boxBackgroundColor="@color/surface_elevated"
+                    app:boxCornerRadiusBottomEnd="14dp"
+                    app:boxCornerRadiusBottomStart="14dp"
+                    app:boxCornerRadiusTopEnd="14dp"
+                    app:boxCornerRadiusTopStart="14dp"
                     app:boxStrokeColor="@color/primary"
                     app:passwordToggleEnabled="true"
-                    app:startIconDrawable="@drawable/ic_lock">
+                    app:startIconDrawable="@drawable/ic_lock"
+                    app:startIconTint="@color/text_secondary">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etPassword"
@@ -158,97 +218,105 @@
                         android:layout_height="wrap_content"
                         android:inputType="textPassword"
                         android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
+                        android:textSize="14.5sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- Quick Admin Preset Chips -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Tài khoản Admin kiểm thử (Chạm để tự điền):"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.chip.ChipGroup
+                <!-- Quick Admin Keycards Box -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginBottom="18dp"
+                    android:background="@drawable/bg_search_bar_modern"
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipAdmin1"
-                        style="@style/Widget.MaterialComponents.Chip.Action"
+                    <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="admin@gmail.com"
-                        android:textColor="@color/admin_navy"
-                        android:textSize="12sp"
-                        app:chipBackgroundColor="@color/brand_blue_bg"
-                        app:chipStrokeColor="@color/brand_blue"
-                        app:chipStrokeWidth="1dp" />
+                        android:text="⚡ THẺ TRUY CẬP NHANH (CHẠM ĐỂ ĐIỀN):"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipAdmin2"
-                        style="@style/Widget.MaterialComponents.Chip.Action"
-                        android:layout_width="wrap_content"
+                    <com.google.android.material.chip.ChipGroup
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="admin@foodorder.com"
-                        android:textColor="@color/admin_navy"
-                        android:textSize="12sp"
-                        app:chipBackgroundColor="@color/brand_green_bg"
-                        app:chipStrokeColor="@color/brand_green"
-                        app:chipStrokeWidth="1dp" />
+                        android:layout_marginTop="6dp"
+                        app:chipSpacingHorizontal="6dp"
+                        app:chipSpacingVertical="2dp">
 
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipAdmin3"
-                        style="@style/Widget.MaterialComponents.Chip.Action"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="admin.long@oishifood.vn"
-                        android:textColor="@color/admin_navy"
-                        android:textSize="12sp"
-                        app:chipBackgroundColor="@color/brand_orange_bg"
-                        app:chipStrokeColor="@color/brand_orange"
-                        app:chipStrokeWidth="1dp" />
-                </com.google.android.material.chip.ChipGroup>
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipAdmin1"
+                            style="@style/Widget.MaterialComponents.Chip.Action"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🔑 admin@gmail.com"
+                            android:textColor="@color/brand_blue"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold"
+                            app:chipBackgroundColor="@color/brand_blue_bg"
+                            app:chipCornerRadius="8dp"
+                            app:chipStrokeColor="@color/brand_blue"
+                            app:chipStrokeWidth="1dp" />
+                    </com.google.android.material.chip.ChipGroup>
+                </LinearLayout>
 
-                <!-- Error Message Text -->
+                <!-- Error Banner -->
                 <TextView
                     android:id="@+id/tvError"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
+                    android:layout_marginBottom="14dp"
+                    android:background="@drawable/bg_badge_red"
+                    android:padding="12dp"
                     android:textColor="@color/danger"
                     android:textSize="13sp"
+                    android:textStyle="bold"
                     android:visibility="gone"
-                    tools:text="Tài khoản không có quyền Admin"
+                    tools:text="⚠️ Tài khoản không có quyền truy cập cổng Admin"
                     tools:visibility="visible" />
 
-                <!-- Login Button -->
+                <!-- Primary Login CTA -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogin"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
+                    android:layout_height="54dp"
                     android:backgroundTint="@color/primary"
-                    android:text="ĐĂNG NHẬP HỆ THỐNG"
+                    android:letterSpacing="0.04"
+                    android:text="KÍCH HOẠT PHIÊN QUẢN TRỊ"
                     android:textColor="@color/white"
                     android:textSize="14sp"
                     android:textStyle="bold"
-                    app:cornerRadius="10dp" />
+                    app:cornerRadius="14dp"
+                    app:elevation="4dp"
+                    app:icon="@drawable/ic_shield_alert"
+                    app:iconGravity="textStart"
+                    app:iconTint="@color/white" />
 
-                <!-- Progress Bar -->
+                <!-- Loading Spinner -->
                 <ProgressBar
                     android:id="@+id/progressBar"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="14dp"
                     android:indeterminateTint="@color/primary"
                     android:visibility="gone" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- Footer Security Note -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="🔒 Kết nối đồng bộ bảo mật qua Firebase Realtime Database"
+            android:textColor="@color/text_muted"
+            android:textSize="11.5sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardLogin" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>

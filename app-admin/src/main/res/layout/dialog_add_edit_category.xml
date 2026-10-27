@@ -131,84 +131,107 @@
         <!-- Custom Icon URL Input (Optional) -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCatIconUrl"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Hoặc dán đường dẫn URL ảnh Icon (https://...)"
-            app:boxStrokeColor="@color/primary">
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etCatIconUrl"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textUri"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
                 android:textSize="13sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Name input -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCatName"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Tên danh mục (ví dụ: Cơm, Bún - Phở, Pizza...)"
-            app:boxStrokeColor="@color/primary">
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etCatName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textCapWords"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Category ID input -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCatId"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Mã định danh ID (ví dụ: cat_com, cat_pho...)"
-            app:boxStrokeColor="@color/primary">
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etCatId"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textNoSuggestions"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
                 android:textSize="13sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Description input -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCatDescription"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Mô tả danh mục (ví dụ: Cơm trưa, cơm tấm...)"
-            app:boxStrokeColor="@color/primary">
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etCatDescription"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textCapSentences"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
                 android:textSize="13.5sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Order input -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCatOrder"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Thứ tự hiển thị (1, 2, 3...)"
-            app:boxStrokeColor="@color/primary">
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etCatOrder"
@@ -216,6 +239,8 @@
                 android:layout_height="wrap_content"
                 android:inputType="number"
                 android:text="1"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 

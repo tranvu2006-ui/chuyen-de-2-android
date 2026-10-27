@@ -75,10 +75,13 @@
 
             <!-- Họ và tên -->
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Họ và tên *">
+                android:hint="Họ và tên *"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUserName"
@@ -86,16 +89,20 @@
                     android:layout_height="wrap_content"
                     android:inputType="textPersonName|textCapWords"
                     android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Email -->
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:hint="Email đăng nhập">
+                android:hint="Email đăng nhập"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUserEmail"
@@ -103,16 +110,20 @@
                     android:layout_height="wrap_content"
                     android:inputType="textEmailAddress"
                     android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Số điện thoại -->
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:hint="Số điện thoại">
+                android:hint="Số điện thoại"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUserPhone"
@@ -120,6 +131,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="phone"
                     android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -128,11 +140,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                app:cardBackgroundColor="@color/surface_elevated"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
                 app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="1.5dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -155,7 +167,7 @@
                         android:orientation="horizontal">
 
                         <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -173,7 +185,7 @@
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
@@ -191,7 +203,7 @@
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
@@ -267,7 +279,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
@@ -298,16 +310,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
-                android:background="@drawable/bg_choice_card_idle"
+                android:background="@drawable/bg_admin_spinner_box"
                 android:paddingHorizontal="12dp" />
 
             <!-- Store ID (dành cho merchant) -->
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:hint="Mã Store liên kết (Dành cho Merchant)">
+                android:hint="Mã Store liên kết (Dành cho Merchant)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUserStoreId"
@@ -315,16 +330,20 @@
                     android:layout_height="wrap_content"
                     android:inputType="text"
                     android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Avatar URL -->
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:hint="URL Ảnh đại diện (Avatar)">
+                android:hint="URL Ảnh đại diện (Avatar)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etUserAvatarUrl"
@@ -332,6 +351,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
                     android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -349,7 +369,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
-                android:background="@drawable/bg_choice_card_idle"
+                android:background="@drawable/bg_admin_spinner_box"
                 android:paddingHorizontal="12dp" />
 
             <!-- Switch IsActive -->

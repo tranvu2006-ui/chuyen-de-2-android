@@ -60,17 +60,22 @@
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilPenaltyReason"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        style="@style/Widget.FoodOrder.Admin.TextInputLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Lý do xử phạt (ghi chú cho Quán)"
-        app:boxStrokeColor="@color/primary">
+        android:textColorHint="@color/text_secondary"
+        app:boxBackgroundColor="@color/white"
+        app:boxStrokeColor="@color/primary"
+        app:hintTextColor="@color/primary">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etPenaltyReason"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:lines="3"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_muted"
             android:textSize="13sp" />
     </com.google.android.material.textfield.TextInputLayout>
 

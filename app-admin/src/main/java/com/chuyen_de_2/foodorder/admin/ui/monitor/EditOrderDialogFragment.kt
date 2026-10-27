@@ -82,7 +82,9 @@ class EditOrderDialogFragment(
             "⚠️ Khách boom hàng (BOOM)",
             "🔴 Đã hủy đơn (CANCELLED)"
         )
-        val statusAdapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, statusLabels)
+        val statusAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, statusLabels).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
         binding.spnOrderStatus.adapter = statusAdapter
 
         val paymentLabels = listOf(
@@ -92,7 +94,9 @@ class EditOrderDialogFragment(
             "🔵 Ví ZaloPay",
             "👛 Ví số Oishi Food"
         )
-        val paymentAdapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, paymentLabels)
+        val paymentAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, paymentLabels).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
         binding.spnPaymentMethod.adapter = paymentAdapter
     }
 

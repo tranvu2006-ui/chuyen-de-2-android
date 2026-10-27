@@ -71,16 +71,20 @@ class EditStoreDialogFragment(
 
         val statusAdapter = ArrayAdapter(
             context,
-            android.R.layout.simple_spinner_dropdown_item,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
             listOf("🟢 Đang Mở Cửa (OPEN)", "⚪ Tạm Nghỉ (CLOSED)", "⛔ Đang Bị Khóa (LOCKED)", "🟡 Chờ Duyệt (PENDING)")
-        )
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
         binding.spnStoreStatus.adapter = statusAdapter
 
         val penaltyAdapter = ArrayAdapter(
             context,
-            android.R.layout.simple_spinner_dropdown_item,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
             listOf("✅ Bình Thường (NONE)", "⚠️ Cảnh Cáo (WARN)", "👁️ Ẩn Khỏi Tìm Kiếm (HIDE)", "🔒 Khóa Quyền Bán (LOCK)")
-        )
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
         binding.spnPenaltyTier.adapter = penaltyAdapter
     }
 

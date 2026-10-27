@@ -70,16 +70,20 @@ class EditUserDialogFragment(
 
         val roleAdapter = ArrayAdapter(
             context,
-            android.R.layout.simple_spinner_dropdown_item,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
             listOf("🛍️ Khách Hàng (CUSTOMER)", "🏪 Chủ Quán (MERCHANT)", "🛵 Tài Xế Giao Hàng (SHIPPER)", "👑 Quản Trị Viên (ADMIN)")
-        )
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
         binding.spnUserRole.adapter = roleAdapter
 
         val statusAdapter = ArrayAdapter(
             context,
-            android.R.layout.simple_spinner_dropdown_item,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
             listOf("🟢 Đang Hoạt Động (ACTIVE)", "⚪ Ngừng Hoạt Động (INACTIVE)", "⚫ Ngoại Tuyến (OFFLINE)")
-        )
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
         binding.spnUserStatus.adapter = statusAdapter
     }
 

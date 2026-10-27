@@ -86,7 +86,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
-                android:background="@drawable/bg_choice_card_idle"
+                android:background="@drawable/bg_admin_spinner_box"
                 android:paddingHorizontal="12dp" />
 
             <!-- Phương thức thanh toán -->
@@ -103,16 +103,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="4dp"
-                android:background="@drawable/bg_choice_card_idle"
+                android:background="@drawable/bg_admin_spinner_box"
                 android:paddingHorizontal="12dp" />
 
             <!-- Địa chỉ giao hàng -->
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:hint="Địa chỉ giao hàng">
+                android:hint="Địa chỉ giao hàng"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etOrderAddress"
@@ -120,16 +123,20 @@
                     android:layout_height="wrap_content"
                     android:inputType="textPostalAddress"
                     android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Ghi chú đơn hàng -->
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:hint="Ghi chú đơn hàng (Note)">
+                android:hint="Ghi chú đơn hàng (Note)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etOrderNote"
@@ -137,6 +144,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="textMultiLine"
                     android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -148,11 +156,14 @@
                 android:orientation="horizontal">
 
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:hint="Phí ship (VNĐ)">
+                    android:hint="Phí ship (VNĐ)"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etShippingFee"
@@ -160,16 +171,20 @@
                         android:layout_height="wrap_content"
                         android:inputType="number"
                         android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="10dp"
                     android:layout_weight="1"
-                    android:hint="Tổng thanh toán (VNĐ)">
+                    android:hint="Tổng thanh toán (VNĐ)"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etTotalPayment"
@@ -177,6 +192,7 @@
                         android:layout_height="wrap_content"
                         android:inputType="number"
                         android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
@@ -197,11 +213,14 @@
                 android:orientation="horizontal">
 
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:hint="Tên Shipper">
+                    android:hint="Tên Shipper"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etShipperName"
@@ -209,16 +228,20 @@
                         android:layout_height="wrap_content"
                         android:inputType="textPersonName|textCapWords"
                         android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="10dp"
                     android:layout_weight="1"
-                    android:hint="SĐT Shipper">
+                    android:hint="SĐT Shipper"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etShipperPhone"
@@ -226,6 +249,7 @@
                         android:layout_height="wrap_content"
                         android:inputType="phone"
                         android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>

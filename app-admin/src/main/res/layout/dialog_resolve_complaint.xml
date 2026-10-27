@@ -158,23 +158,27 @@
         <!-- Admin Note -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilAdminNote"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:hint="3. Kết luận &amp; Ghi chú của Quản trị viên"
-            app:boxBackgroundColor="@color/surface_elevated"
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
             app:boxCornerRadiusBottomEnd="12dp"
             app:boxCornerRadiusBottomStart="12dp"
             app:boxCornerRadiusTopEnd="12dp"
             app:boxCornerRadiusTopStart="12dp"
-            app:boxStrokeColor="@color/primary">
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etAdminNote"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:lines="2"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
                 android:textSize="13.5sp" />
         </com.google.android.material.textfield.TextInputLayout>
 

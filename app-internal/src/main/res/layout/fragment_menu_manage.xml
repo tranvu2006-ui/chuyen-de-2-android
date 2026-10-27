@@ -238,12 +238,12 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- 3. Thanh Thao Tác Thêm Món & Tạo Combo -->
+    <!-- 3. Thanh Tiêu Đề Thực Đơn & Thêm Món -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="14dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="12dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -258,7 +258,7 @@
                 android:layout_height="wrap_content"
                 android:text="Thực Đơn Của Quán"
                 android:textColor="#0F172A"
-                android:textSize="15sp"
+                android:textSize="15.5sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -271,61 +271,19 @@
                 android:textSize="11.5sp" />
         </LinearLayout>
 
-        <!-- Nút Quản Lý Danh Mục Quán -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnManageCategories"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="38dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:paddingHorizontal="9dp"
-            android:text="Danh mục"
-            android:textColor="@color/primary"
-            android:textSize="11.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="10dp"
-            app:icon="@drawable/ic_tag"
-            app:iconSize="14dp"
-            app:iconTint="@color/primary"
-            app:strokeColor="@color/primary"
-            app:strokeWidth="1dp" />
-
-        <!-- Nút Tạo Combo -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCreateCombo"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="38dp"
-            android:layout_marginStart="6dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:paddingHorizontal="9dp"
-            android:text="Tạo Combo"
-            android:textColor="@color/primary"
-            android:textSize="11.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="10dp"
-            app:icon="@drawable/ic_sparkles"
-            app:iconSize="14dp"
-            app:iconTint="@color/primary"
-            app:strokeColor="@color/primary"
-            app:strokeWidth="1dp" />
-
-        <!-- Nút Thêm Món -->
+        <!-- Nút Thêm Món Nổi Bật -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddFood"
             style="@style/Widget.Material3.Button"
             android:layout_width="wrap_content"
             android:layout_height="38dp"
-            android:layout_marginStart="6dp"
             android:backgroundTint="@color/primary"
             android:insetTop="0dp"
             android:insetBottom="0dp"
-            android:paddingHorizontal="11dp"
+            android:paddingHorizontal="14dp"
             android:text="Thêm Món"
             android:textColor="@color/white"
-            android:textSize="11.5sp"
+            android:textSize="12sp"
             android:textStyle="bold"
             app:cornerRadius="10dp"
             app:icon="@drawable/ic_plus"
@@ -333,7 +291,7 @@
             app:iconTint="@color/white" />
     </LinearLayout>
 
-    <!-- Thanh Lọc Theo Danh Mục Của Quán -->
+    <!-- Thanh Công Cụ Phụ & Bộ Lọc Danh Mục Quán -->
     <HorizontalScrollView
         android:id="@+id/scrollCategoryFilters"
         android:layout_width="match_parent"
@@ -343,12 +301,61 @@
         android:paddingHorizontal="14dp"
         android:scrollbars="none">
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/chipGroupStoreCategories"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:singleLine="true"
-            app:singleSelection="true" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Nút Quản Lý Danh Mục Quán -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnManageCategories"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="6dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="10dp"
+                android:text="Danh mục"
+                android:textColor="@color/primary"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                app:cornerRadius="10dp"
+                app:icon="@drawable/ic_tag"
+                app:iconSize="14dp"
+                app:iconTint="@color/primary"
+                app:strokeColor="@color/primary"
+                app:strokeWidth="1dp" />
+
+            <!-- Nút Tạo Combo -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCreateCombo"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="10dp"
+                android:text="Tạo Combo"
+                android:textColor="#475569"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                app:cornerRadius="10dp"
+                app:icon="@drawable/ic_sparkles"
+                app:iconSize="14dp"
+                app:iconTint="#475569"
+                app:strokeColor="#CBD5E1"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupStoreCategories"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:singleLine="true"
+                app:singleSelection="true" />
+        </LinearLayout>
     </HorizontalScrollView>
 
     <!-- 4. Danh Sách Món Ăn RecyclerView -->

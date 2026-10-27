@@ -155,8 +155,8 @@ class MenuManageFragment : Fragment() {
             firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
                 dishList.clear()
                 dishList.addAll(dishes)
-                setupCategoryFilterChips()
                 updateList()
+                setupCategoryFilterChips()
             }
         }
     }
@@ -196,45 +196,39 @@ class MenuManageFragment : Fragment() {
         updateDishCountText()
     }
 
+    private fun createCategoryChip(label: String, isSelected: Boolean, onClick: () -> Unit): Chip {
+        val chip = layoutInflater.inflate(R.layout.item_store_category_chip, binding.chipGroupStoreCategories, false) as Chip
+        chip.text = label
+        chip.isChecked = isSelected
+        chip.setOnClickListener { onClick() }
+        return chip
+    }
+
     /**
      * Tên chức năng: Thiết lập các chip lọc danh mục quán
      */
     private fun setupCategoryFilterChips() {
-        binding.chipGroupStoreCategories.removeAllViews()
+        try {
+            binding.chipGroupStoreCategories.removeAllViews()
 
-        val allChip = Chip(requireContext()).apply {
-            text = "Tất cả (${dishList.size})"
-            isCheckable = true
-            isChecked = (selectedStoreCategory == "ALL")
-            setOnClickListener {
+            val allChip = createCategoryChip("Tất cả (${dishList.size})", selectedStoreCategory == "ALL") {
                 selectedStoreCategory = "ALL"
                 updateList()
             }
-        }
-        binding.chipGroupStoreCategories.addView(allChip)
+            binding.chipGroupStoreCategories.addView(allChip)
 
-        storeCategories.forEach { catName ->
-            val count = dishList.count { it.category.equals(catName, ignoreCase = true) }
-            val chip = Chip(requireContext()).apply {
-                text = if (count > 0) "$catName ($count)" else catName
-                isCheckable = true
-                isChecked = (selectedStoreCategory.equals(catName, ignoreCase = true))
-                setOnClickListener {
+            storeCategories.forEach { catName ->
+                val count = dishList.count { it.category.equals(catName, ignoreCase = true) }
+                val label = if (count > 0) "$catName ($count)" else catName
+                val chip = createCategoryChip(label, selectedStoreCategory.equals(catName, ignoreCase = true)) {
                     selectedStoreCategory = catName
                     updateList()
                 }
+                binding.chipGroupStoreCategories.addView(chip)
             }
-            binding.chipGroupStoreCategories.addView(chip)
+        } catch (e: Exception) {
+            android.util.Log.e("MenuManageFragment", "Error setting up category chips", e)
         }
-
-        val manageChip = Chip(requireContext()).apply {
-            text = "⚙️ Quản lý"
-            isCheckable = false
-            setOnClickListener {
-                showManageCategoriesDialog()
-            }
-        }
-        binding.chipGroupStoreCategories.addView(manageChip)
     }
 
     /**
@@ -290,7 +284,7 @@ class MenuManageFragment : Fragment() {
      * Tên chức năng: Làm mới danh sách hiển thị món ăn có lọc theo danh mục
      */
     private fun updateList() {
-        val filtered = if (selectedStoreCategory == "ALL") {
+        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
             dishList
         } else {
             dishList.filter { it.category.equals(selectedStoreCategory, ignoreCase = true) }
@@ -303,8 +297,8 @@ class MenuManageFragment : Fragment() {
 
     private fun updateDishCountText() {
         val total = dishList.size
-        val filtered = if (selectedStoreCategory == "ALL") total else dishList.count { it.category.equals(selectedStoreCategory, ignoreCase = true) }
-        binding.tvDishTotalCount.text = if (selectedStoreCategory == "ALL") {
+        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) total else dishList.count { it.category.equals(selectedStoreCategory, ignoreCase = true) }
+        binding.tvDishTotalCount.text = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
             "$total món đang mở bán"
         } else {
             "$filtered/$total món • $selectedStoreCategory"

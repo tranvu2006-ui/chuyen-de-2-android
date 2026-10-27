@@ -220,18 +220,19 @@
                     android:id="@+id/cardComboThumb"
                     android:layout_width="56dp"
                     android:layout_height="56dp"
+                    app:cardBackgroundColor="#FFF7ED"
                     app:cardCornerRadius="10dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="#CBD5E1"
+                    app:strokeColor="#FED7AA"
                     app:strokeWidth="1dp">
 
                     <ImageView
                         android:id="@+id/ivComboPreview"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:background="#F1F5F9"
-                        android:scaleType="centerCrop"
-                        app:srcCompat="@drawable/ic_sparkles"
+                        android:padding="12dp"
+                        android:scaleType="fitCenter"
+                        app:srcCompat="@drawable/ic_utensils_crossed"
                         app:tint="@color/primary" />
                 </com.google.android.material.card.MaterialCardView>
 

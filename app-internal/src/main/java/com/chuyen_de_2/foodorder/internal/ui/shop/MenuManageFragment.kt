@@ -910,9 +910,14 @@ class MenuManageFragment : Fragment() {
             if (pickedImageBase64.isBlank()) {
                 val firstWithImg = selected.firstOrNull { it.dish.imageUrl.isNotBlank() }
                 if (firstWithImg != null) {
+                    ivComboPreview.setPadding(0, 0, 0, 0)
+                    ivComboPreview.imageTintList = null
                     loadPreviewImage(ivComboPreview, firstWithImg.dish.imageUrl)
                 } else {
-                    ivComboPreview.setImageResource(R.drawable.ic_sparkles)
+                    val pad = (12 * resources.displayMetrics.density).toInt()
+                    ivComboPreview.setPadding(pad, pad, pad, pad)
+                    ivComboPreview.setImageResource(R.drawable.ic_utensils_crossed)
+                    ivComboPreview.imageTintList = ContextCompat.getColorStateList(requireContext(), R.color.primary)
                 }
             }
         }
@@ -932,6 +937,8 @@ class MenuManageFragment : Fragment() {
         btnPickComboImage.setOnClickListener {
             onImagePickedCallback = { base64 ->
                 pickedImageBase64 = base64
+                ivComboPreview.setPadding(0, 0, 0, 0)
+                ivComboPreview.imageTintList = null
                 loadPreviewImage(ivComboPreview, base64)
             }
             pickImageLauncher.launch("image/*")

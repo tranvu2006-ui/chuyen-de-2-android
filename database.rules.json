@@ -29,21 +29,36 @@
     "users": {
       ".indexOn": [
         "role",
+        "roleId",
         "status",
-        "email"
+        "email",
+        "phone",
+        "storeId",
+        "trustScore"
       ],
       ".read": "auth != null",
       "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'DRIVER' || root.child('users').child(auth.uid).child('role').val() == 'SHIPPER')"
       }
     },
     "customers": {
+      ".indexOn": [
+        "trustScore",
+        "status",
+        "email",
+        "phone"
+      ],
       ".read": "auth != null",
       "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'DRIVER' || root.child('users').child(auth.uid).child('role').val() == 'SHIPPER')"
       }
     },
     "merchants": {
+      ".indexOn": [
+        "storeId",
+        "status",
+        "approvalStatus"
+      ],
       ".read": "auth != null",
       "$userId": {
         ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
@@ -51,7 +66,8 @@
     },
     "bank_accounts": {
       ".indexOn": [
-        "userId"
+        "userId",
+        "storeId"
       ],
       ".read": "auth != null",
       "$bankAccountId": {
@@ -61,7 +77,10 @@
     "drivers": {
       ".indexOn": [
         "dutyStatus",
-        "storeId"
+        "storeId",
+        "email",
+        "phone",
+        "driverCode"
       ],
       ".read": "auth != null",
       "$userId": {
@@ -69,6 +88,15 @@
       }
     },
     "stores": {
+      ".indexOn": [
+        "merchantId",
+        "ownerId",
+        "storeStatus",
+        "status",
+        "category",
+        "isVerified",
+        "penaltyTier"
+      ],
       ".read": true,
       ".write": "auth != null"
     },
@@ -82,9 +110,13 @@
       ".indexOn": [
         "customerId",
         "shipperId",
+        "driverId",
         "shopId",
+        "storeId",
         "status",
-        "timestamp"
+        "orderStatus",
+        "timestamp",
+        "createdAt"
       ],
       ".read": "auth != null",
       "$orderId": {
@@ -102,6 +134,11 @@
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
     },
     "categories": {
+      ".indexOn": [
+        "displayOrder",
+        "isActive",
+        "status"
+      ],
       ".read": true,
       ".write": "auth != null"
     },
@@ -116,8 +153,10 @@
     "dish_reviews": {
       ".indexOn": [
         "dishId",
+        "storeId",
         "orderId",
-        "customerId"
+        "customerId",
+        "createdAt"
       ],
       ".read": true,
       "$reviewId": {
@@ -125,6 +164,13 @@
       }
     },
     "complaints": {
+      ".indexOn": [
+        "customerId",
+        "storeId",
+        "orderId",
+        "status",
+        "createdAt"
+      ],
       ".read": "auth != null",
       "$complaintId": {
         ".write": "auth != null"
@@ -139,7 +185,8 @@
     "trust_score_logs": {
       ".indexOn": [
         "customerId",
-        "orderId"
+        "orderId",
+        "createdAt"
       ],
       ".read": "auth != null",
       "$logId": {

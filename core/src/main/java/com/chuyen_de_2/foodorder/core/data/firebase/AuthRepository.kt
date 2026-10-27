@@ -450,7 +450,16 @@ class AuthRepository @Inject constructor(
             }
 
             try {
-                val storesSnap = database.getReference("stores").get().await()
+                val byMerchant = database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+                val matchedKey = byMerchant.children.firstOrNull()?.key
+                    ?: database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await().children.firstOrNull()?.key
+                if (!matchedKey.isNullOrBlank()) {
+                    database.getReference("users").child(uid).updateChildren(
+                        mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to matchedKey)
+                    ).await()
+                    return User.Role.MERCHANT
+                }
+                val storesSnap = byMerchant
                 for (child in storesSnap.children) {
                     val merchantId = child.child("merchantId").getValue(String::class.java)
                         ?: child.child("ownerId").getValue(String::class.java)
@@ -520,7 +529,8 @@ class AuthRepository @Inject constructor(
             )
 
             if (normalizedRole == User.Role.MERCHANT) {
-                val storeSnap = database.getReference("stores").get().await()
+                val byMerchantSnap = database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+                val storeSnap = if (byMerchantSnap.hasChildren()) byMerchantSnap else database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await()
                 var foundStoreId: String? = null
                 for (child in storeSnap.children) {
                     val mId = child.child("merchantId").getValue(String::class.java)

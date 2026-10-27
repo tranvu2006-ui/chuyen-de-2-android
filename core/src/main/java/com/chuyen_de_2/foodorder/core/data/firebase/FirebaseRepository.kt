@@ -44,7 +44,7 @@ class FirebaseRepository @Inject constructor(
         try {
             // Giữ kết nối socket và cache sync liên tục để tránh độ trễ khi chuyển màn hình
             database.getReference("orders").keepSynced(true)
-            database.getReference("tracking").keepSynced(true)
+            database.getReference("tracking").keepSynced(true); database.getReference("categories").keepSynced(true); database.getReference("stores").keepSynced(true)
         } catch (_: Exception) {}
     }
 
@@ -340,6 +340,9 @@ class FirebaseRepository @Inject constructor(
         val prevStatus = prevOrderSnap?.child("status")?.getValue(String::class.java)?.uppercase().orEmpty()
         val updates = mutableMapOf<String, Any>("status" to status, "orderStatus" to status, "updatedAt" to System.currentTimeMillis())
         if (reason.isNotBlank()) updates["cancelReason"] = reason
+        if (status.uppercase() == Order.Status.COMPLETED || status.uppercase() == Order.Status.BOOM || status.uppercase() == Order.Status.CANCELLED) {
+            try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+        }
         database.getReference("orders").child(orderId).updateChildren(updates).await()
         if (prevStatus == status.uppercase()) return
         try {
@@ -607,7 +610,19 @@ class FirebaseRepository @Inject constructor(
             if (!userStoreId.isNullOrBlank()) {
                 return userStoreId
             }
-            // 2. Kiểm tra stores với ownerId hoặc merchantId == uid
+            // 2. Kiểm tra stores bằng index merchantId / ownerId trước khi fallback
+            val byMerchant = try { database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await() } catch (_: Exception) { null }
+            val matchedMerchantKey = byMerchant?.children?.firstOrNull()?.key
+            if (!matchedMerchantKey.isNullOrBlank()) {
+                try { database.getReference("users").child(uid).child("storeId").setValue(matchedMerchantKey) } catch (_: Exception) {}
+                return matchedMerchantKey
+            }
+            val byOwner = try { database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await() } catch (_: Exception) { null }
+            val matchedOwnerKey = byOwner?.children?.firstOrNull()?.key
+            if (!matchedOwnerKey.isNullOrBlank()) {
+                try { database.getReference("users").child(uid).child("storeId").setValue(matchedOwnerKey) } catch (_: Exception) {}
+                return matchedOwnerKey
+            }
             val storesSnap = database.getReference("stores").get().await()
             for (child in storesSnap.children) {
                 val ownerId = child.child("ownerId").getValue(String::class.java)
@@ -924,7 +939,7 @@ class FirebaseRepository @Inject constructor(
                 "categoryId" to id,
                 "name" to category.categoryName,
                 "categoryName" to category.categoryName,
-                "icon" to category.iconUrl,
+                "icon" to "",
                 "iconUrl" to category.iconUrl,
                 "desc" to finalDesc,
                 "description" to finalDesc,
@@ -935,7 +950,10 @@ class FirebaseRepository @Inject constructor(
             )
             val updates = mapOf<String, Any>(
                 "categories/$id" to map,
-                "menus/categories/$id" to map
+                "categories/$id" to map
+            )
+            try { database.getReference("menus/categories").child(id).removeValue() } catch (_: Exception) {}
+            if (false) mapOf(1 to 1
             )
             database.reference.updateChildren(updates).await()
             Result.success(Unit)
@@ -1251,7 +1269,76 @@ class FirebaseRepository @Inject constructor(
                 }
             } catch (_: Exception) {}
 
-            // 6. Dọn dẹp đánh giá (dish_reviews) và lịch sử điểm uy tín (trust_score_logs) mồ côi
+            // 6. Đồng bộ và chuẩn hóa dữ liệu giữa users <-> customers (trustScore, completedOrders, boomOrders, totalOrders)
+            try {
+                val customersSnap = database.getReference("customers").get().await()
+                val customerMap = customersSnap.children.associateBy { it.key.orEmpty() }
+                for (userChild in usersSnap.children) {
+                    val uid = userChild.key ?: continue
+                    val role = userChild.child("role").getValue(String::class.java).orEmpty().uppercase()
+                    if (role == "CUSTOMER" || role.isBlank()) {
+                        val cSnap = customerMap[uid]
+                        val uScore = userChild.child("trustScore").getValue(Int::class.java)
+                        val cScore = cSnap?.child("trustScore")?.getValue(Int::class.java)
+                        val finalScore = (cScore ?: uScore ?: 100).coerceIn(0, 100)
+                        val finalCompleted = maxOf(
+                            userChild.child("completedOrders").getValue(Int::class.java) ?: 0,
+                            cSnap?.child("completedOrders")?.getValue(Int::class.java) ?: 0
+                        )
+                        val finalBoom = maxOf(
+                            userChild.child("boomOrders").getValue(Int::class.java) ?: 0,
+                            cSnap?.child("boomOrders")?.getValue(Int::class.java) ?: 0
+                        )
+                        val finalTotal = maxOf(
+                            userChild.child("totalOrders").getValue(Int::class.java) ?: 0,
+                            cSnap?.child("totalOrders")?.getValue(Int::class.java) ?: 0,
+                            finalCompleted + finalBoom
+                        )
+                        if (uScore != finalScore || cScore != finalScore || cSnap == null) {
+                            val syncMap = mapOf(
+                                "trustScore" to finalScore,
+                                "completedOrders" to finalCompleted,
+                                "boomOrders" to finalBoom,
+                                "totalOrders" to finalTotal
+                            )
+                            database.getReference("users").child(uid).updateChildren(syncMap).await()
+                            database.getReference("customers").child(uid).updateChildren(
+                                syncMap + mapOf(
+                                    "customerId" to uid,
+                                    "uid" to uid,
+                                    "name" to (userChild.child("name").getValue(String::class.java).orEmpty()),
+                                    "email" to (userChild.child("email").getValue(String::class.java).orEmpty()),
+                                    "phone" to (userChild.child("phone").getValue(String::class.java).orEmpty()),
+                                    "status" to (userChild.child("status").getValue(String::class.java) ?: "ACTIVE")
+                                )
+                            ).await()
+                            cleanedCount++
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 7. Dọn dẹp bản sao dư thừa menus/categories và trường icon trùng lặp trong categories
+            try {
+                val catsSnap = database.getReference("categories").get().await()
+                if (catsSnap.hasChildren()) {
+                    for (catChild in catsSnap.children) {
+                        val iconVal = catChild.child("icon").getValue(String::class.java).orEmpty()
+                        val iconUrlVal = catChild.child("iconUrl").getValue(String::class.java).orEmpty()
+                        if (iconVal.isNotBlank() && iconVal == iconUrlVal) {
+                            catChild.ref.child("icon").setValue("").await()
+                            cleanedCount++
+                        }
+                    }
+                    val legacyMenuCats = database.getReference("menus/categories").get().await()
+                    if (legacyMenuCats.exists()) {
+                        database.getReference("menus/categories").removeValue().await()
+                        cleanedCount++
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 8. Dọn dẹp đánh giá (dish_reviews) và lịch sử điểm uy tín (trust_score_logs) mồ côi
             try {
                 val reviewsSnap = database.getReference("dish_reviews").get().await()
                 for (revChild in reviewsSnap.children) {

@@ -357,9 +357,19 @@
                             android:text="Chuyển khoản ngân hàng (VietQR / Chuyển 24/7)"
                             android:textColor="#1E293B"
                             android:textSize="13.5sp" />
+
+                        <RadioButton
+                            android:id="@+id/rbMomo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:buttonTint="#A50064"
+                            android:text="Ví điện tử MoMo (Quét mã MoMo QR)"
+                            android:textColor="#1E293B"
+                            android:textSize="13.5sp" />
                     </RadioGroup>
 
-                    <!-- Khung thông tin Chuyển khoản ngân hàng chuẩn MB Bank screenshot -->
+                    <!-- Khung thông tin Chuyển khoản ngân hàng / Ví MoMo -->
                     <LinearLayout
                         android:id="@+id/layoutBankingInfo"
                         android:layout_width="match_parent"
@@ -371,6 +381,7 @@
                         android:visibility="visible">
 
                         <TextView
+                            android:id="@+id/tvBankingTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="THÔNG TIN TÀI KHOẢN NGÂN HÀNG"

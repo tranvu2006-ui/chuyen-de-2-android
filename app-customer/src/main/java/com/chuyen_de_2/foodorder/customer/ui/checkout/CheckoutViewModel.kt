@@ -164,6 +164,7 @@ class CheckoutViewModel @Inject constructor(
                         shippingFee = shippingFee,
                         totalPayment = finalPayment,
                         paymentMethod = paymentMethod,
+                        paymentStatus = Order.PaymentStatus.UNPAID,
                         deliveryToken = token,
                         items = cart.items.mapValues { (_, item) ->
                             com.chuyen_de_2.foodorder.core.data.model.OrderItem(

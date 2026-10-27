@@ -210,10 +210,11 @@
                         android:orientation="horizontal">
 
                         <TextView
+                            android:id="@+id/tvBankLabel"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Ngân hàng"
+                            android:text="Ngân hàng / Ví"
                             android:textColor="@color/text_muted"
                             android:textSize="12sp" />
 
@@ -241,10 +242,11 @@
                         android:orientation="horizontal">
 
                         <TextView
+                            android:id="@+id/tvAccountNumLabel"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Số tài khoản"
+                            android:text="Số tài khoản / SĐT Ví"
                             android:textColor="@color/text_muted"
                             android:textSize="12sp" />
 
@@ -378,10 +380,11 @@
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/tvPaymentGuide"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="1. Mở ứng dụng Ngân hàng và chọn chức năng Quét QR.&#10;2. Quét mã QR ở trên hoặc chuyển khoản theo đúng số tài khoản và cú pháp.&#10;3. Bấm xác nhận &quot;Tôi đã chuyển khoản xong&quot; bên dưới để hoàn tất."
+                        android:text="1. Mở ứng dụng Ví MoMo / Ngân hàng và chọn chức năng Quét Mã QR.&#10;2. Quét mã QR ở trên với đúng số tiền và nội dung chuyển khoản.&#10;3. Hệ thống sẽ TỰ ĐỘNG nhận diện giao dịch thành công và chuyển trạng thái đơn hàng sang Cửa hàng ngay lập tức (không cần bấm nút xác nhận)."
                         android:textColor="#475569"
                         android:textSize="11.5sp" />
                 </LinearLayout>
@@ -390,7 +393,7 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Bottom Bar Cố Định chuẩn b8_payment.html -->
+    <!-- Bottom Bar Tự Động Kiểm Tra Giao Dịch (Không dùng nút Tôi đã chuyển khoản) -->
     <LinearLayout
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
@@ -402,17 +405,40 @@
         android:paddingVertical="12dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
+        <LinearLayout
+            android:id="@+id/layoutAutoVerifyBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_blue_info_box"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp">
+
+            <ProgressBar
+                android:id="@+id/pbAutoVerify"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:indeterminate="true" />
+
+            <TextView
+                android:id="@+id/tvAutoVerifyStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:text="🔄 Đang tự động chờ tín hiệu chuyển khoản từ MoMo... (Tự động chuyển trạng thái ngay khi chuyển xong)"
+                android:textColor="#0284C7"
+                android:textSize="12.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnConfirmPaid"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:backgroundTint="#10B981"
-            android:text="Tôi Đã Chuyển Khoản Xong"
-            android:textColor="@color/white"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            android:layout_height="1dp"
+            android:visibility="gone"
+            android:text="Tôi Đã Chuyển Khoản Xong" />
 
         <TextView
             android:id="@+id/btnCancelToHome"

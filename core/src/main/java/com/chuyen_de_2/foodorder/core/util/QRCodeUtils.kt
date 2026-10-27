@@ -153,10 +153,30 @@ object QRCodeUtils {
     }
 
     /**
+     * Tạo chuỗi dữ liệu QR chuyển tiền Ví MoMo chuẩn (2|99|phone|name||0|0|amount|note|transfer_myqr)
+     */
+    fun buildMomoQrPayload(
+        phone: String,
+        receiverName: String,
+        amount: Long,
+        transferSyntax: String
+    ): String {
+        val cleanPhone = phone.replace(" ", "").trim().ifBlank { "0988888888" }
+        val cleanName = receiverName.trim().ifBlank { "OISHI FOOD" }
+        val cleanNote = transferSyntax.trim().ifBlank { "OISHI" }
+        return "2|99|$cleanPhone|$cleanName||0|0|$amount|$cleanNote|transfer_myqr"
+    }
+
+    /**
      * Tạo Bitmap QR Code thực tế theo chuẩn quốc tế ISO/IEC 18004 bằng ZXing QRCodeWriter.
      * Đảm bảo mọi camera điện thoại / máy quét QR đều nhận diện được ngay lập tức.
      */
-    fun generateQRCodeBitmap(text: String, width: Int = 512, height: Int = 512): Bitmap {
+    fun generateQRCodeBitmap(
+        text: String,
+        width: Int = 512,
+        height: Int = 512,
+        darkColorHex: String = "#0F172A"
+    ): Bitmap {
         val content = text.ifBlank { "OISHI_DELIVERY_EMPTY" }
         val safeWidth = width.coerceAtLeast(200)
         val safeHeight = height.coerceAtLeast(200)
@@ -175,7 +195,11 @@ object QRCodeUtils {
                 hints
             )
             val pixels = IntArray(safeWidth * safeHeight)
-            val darkColor = Color.parseColor("#0F172A")
+            val darkColor = try {
+                Color.parseColor(darkColorHex)
+            } catch (_: Exception) {
+                Color.parseColor("#0F172A")
+            }
             for (y in 0 until safeHeight) {
                 val offset = y * safeWidth
                 for (x in 0 until safeWidth) {

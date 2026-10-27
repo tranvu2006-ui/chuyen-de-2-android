@@ -229,7 +229,19 @@ class CheckoutActivity : AppCompatActivity() {
 
         // Chọn phương thức thanh toán
         binding.rgPayment.setOnCheckedChangeListener { _, checkedId ->
-            binding.layoutBankingInfo.visibility = if (checkedId == binding.rbBanking.id) View.VISIBLE else View.GONE
+            when (checkedId) {
+                binding.rbBanking.id -> {
+                    binding.layoutBankingInfo.visibility = View.VISIBLE
+                    updatePaymentPreviewBox(isMomo = false)
+                }
+                binding.rbMomo.id -> {
+                    binding.layoutBankingInfo.visibility = View.VISIBLE
+                    updatePaymentPreviewBox(isMomo = true)
+                }
+                else -> {
+                    binding.layoutBankingInfo.visibility = View.GONE
+                }
+            }
         }
 
         // Đặt hàng
@@ -256,6 +268,7 @@ class CheckoutActivity : AppCompatActivity() {
             val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
 
             val paymentMethod = when {
+                binding.rbMomo.isChecked -> Order.PaymentMethod.MOMO
                 binding.rbBanking.isChecked -> Order.PaymentMethod.BANKING
                 else -> Order.PaymentMethod.COD
             }
@@ -516,8 +529,9 @@ class CheckoutActivity : AppCompatActivity() {
                 val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
                 val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: currentStore?.name ?: supportActionBar?.title?.toString() ?: "Quán Ăn"
 
-                if (binding.rbBanking.isChecked) {
-                    // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng (với thông tin tài khoản của Quán)
+                if (binding.rbBanking.isChecked || binding.rbMomo.isChecked) {
+                    val isMomo = binding.rbMomo.isChecked
+                    // Chuyển sang màn hình Quét Mã QR Ngân Hàng hoặc Ví MoMo
                     val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
                         putExtra(Constants.EXTRA_ORDER_ID, orderId)
                         putExtra(Constants.EXTRA_SHOP_ID, currentTargetShopId)
@@ -527,7 +541,9 @@ class CheckoutActivity : AppCompatActivity() {
                         putExtra("extra_subtotal", currentSubtotal)
                         putExtra("extra_shipping_fee", currentShippingFee)
                         putExtra("extra_discount", currentDiscount)
-                        putExtra("extra_channel", "bank")
+                        putExtra("extra_channel", if (isMomo) "momo" else "bank")
+                        putExtra("extra_shop_phone", currentStore?.momoPhone?.ifBlank { currentStore?.phone }.orEmpty())
+                        putExtra("extra_momo_holder", currentStore?.momoAccountName?.ifBlank { currentStore?.bankAccountName?.ifBlank { currentStore?.ownerName } }.orEmpty())
                         putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
                         putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                         putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
@@ -555,20 +571,34 @@ class CheckoutActivity : AppCompatActivity() {
         }
     }
 
-    /** Lắng nghe thông tin tài khoản ngân hàng của quán để hiển thị cho khách xem trước */
+    /** Lắng nghe thông tin tài khoản ngân hàng / ví MoMo của quán để hiển thị cho khách xem trước */
     private fun observeShopInfo(shopId: String) {
         if (shopId.isBlank()) return
         lifecycleScope.launch {
             firebaseRepository.observeStore(shopId).collectLatest { store ->
                 if (store != null) {
                     currentStore = store
-                    if (store.bankAccountNumber.isNotBlank()) {
-                        val bankDisplay = store.bankName.ifBlank { "MB Bank (Quân Đội)" }
-                        val ownerDisplay = store.bankAccountName.ifBlank { store.name }
-                        binding.tvBankingDetails.text = "• Ngân hàng: $bankDisplay\n• Số tài khoản: ${store.bankAccountNumber}\n• Chủ tài khoản: $ownerDisplay\n• Cú pháp CK: OISHI [Mã đơn hàng]"
-                    }
+                    updatePaymentPreviewBox(isMomo = binding.rbMomo.isChecked)
                 }
             }
+        }
+    }
+
+    private fun updatePaymentPreviewBox(isMomo: Boolean) {
+        val store = currentStore
+        if (isMomo) {
+            binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN VÍ MOMO"
+            binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#A50064"))
+            val momoPhone = store?.momoPhone?.ifBlank { store.phone.ifBlank { store.bankAccountNumber.ifBlank { "0988 888 888" } } } ?: "0988 888 888"
+            val momoOwner = store?.momoAccountName?.ifBlank { store.bankAccountName.ifBlank { store.ownerName.ifBlank { store.name } } } ?: "OISHI FOOD VIETNAM"
+            binding.tvBankingDetails.text = "• Ví điện tử: MoMo (Chuyển tiền 24/7)\n• Số điện thoại Ví: $momoPhone\n• Chủ Ví: $momoOwner\n• Nội dung chuyển: OISHI [Mã đơn hàng]"
+        } else {
+            binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
+            binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#0284C7"))
+            val bankDisplay = store?.bankName?.ifBlank { "MB Bank (Quân Đội)" } ?: "MB Bank (Quân Đội)"
+            val accNum = store?.bankAccountNumber?.ifBlank { "0988 888 888" } ?: "0988 888 888"
+            val ownerDisplay = store?.bankAccountName?.ifBlank { store.name } ?: "OISHI FOOD VIETNAM"
+            binding.tvBankingDetails.text = "• Ngân hàng: $bankDisplay\n• Số tài khoản: $accNum\n• Chủ tài khoản: $ownerDisplay\n• Cú pháp CK: OISHI [Mã đơn hàng]"
         }
     }
 }

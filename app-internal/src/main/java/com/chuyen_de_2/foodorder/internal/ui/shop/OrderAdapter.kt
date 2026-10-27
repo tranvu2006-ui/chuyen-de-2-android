@@ -41,10 +41,49 @@ class OrderAdapter(
             } else {
                 "• 1x Suất ăn đặt trực tiếp"
             }
-            val payText = when (order.paymentMethod) {
-                Order.PaymentMethod.BANKING -> "Đã thanh toán Ngân hàng"
+            val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+            val payText = when (order.paymentMethod.uppercase()) {
+                Order.PaymentMethod.MOMO -> {
+                    if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo"
+                    else "⏳ Chờ khách chuyển khoản Ví MoMo (Chưa chuyển)"
+                }
+                Order.PaymentMethod.BANKING -> {
+                    if (isPaidOnline) "✅ Đã chuyển khoản Ngân hàng"
+                    else "⏳ Chờ khách chuyển khoản Ngân hàng (Chưa chuyển)"
+                }
                 else -> "Thu tiền mặt khi nhận (COD)"
             }
+
+            when (order.paymentMethod.uppercase()) {
+                Order.PaymentMethod.MOMO -> {
+                    if (isPaidOnline) {
+                        binding.tvPaymentStatusBadge.text = "✅ Đã chuyển MoMo"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                    } else {
+                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển MoMo"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
+                    }
+                }
+                Order.PaymentMethod.BANKING -> {
+                    if (isPaidOnline) {
+                        binding.tvPaymentStatusBadge.text = "✅ Đã chuyển Ngân hàng"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                    } else {
+                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển khoản QR"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
+                    }
+                }
+                else -> {
+                    binding.tvPaymentStatusBadge.text = "💵 Thu tiền mặt (COD)"
+                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_blue)
+                    binding.tvPaymentStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                }
+            }
+
             val total = if (order.totalPayment > 0) order.totalPayment else order.total
             binding.tvOrderDishes.text = "$dishesSummary\nTổng bill: ${total.toVndCurrency()} ($payText)"
 

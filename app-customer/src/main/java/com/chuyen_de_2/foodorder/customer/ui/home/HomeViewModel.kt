@@ -47,8 +47,14 @@ class HomeViewModel @Inject constructor(
     private var currentNearbyOnly: Boolean = false
     var currentNearbyMaxDistanceKm: Double = 3.0
         private set
-    private var currentMinPrice: Long? = null
-    private var currentMaxPrice: Long? = null
+    var currentMinPrice: Long? = null
+        private set
+    var currentMaxPrice: Long? = null
+        private set
+    var currentMinRating: Float = 1.0f
+        private set
+    var currentMaxRating: Float = 5.0f
+        private set
     private var currentPriceSort: PriceSort = PriceSort.NONE
     private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
         com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
@@ -167,7 +173,7 @@ class HomeViewModel @Inject constructor(
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
                         emoji = emoji,
-                        rating = dish.ratingAvg,
+                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
                         soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
                         promoBadge = "",
@@ -209,8 +215,10 @@ class HomeViewModel @Inject constructor(
         maxDistanceKm: Double? = null,
         minPrice: Long? = null,
         maxPrice: Long? = null,
+        minRating: Float? = null,
+        maxRating: Float? = null,
         resetPrice: Boolean = false,
-        resetPriceRange: Boolean = false,
+        resetRating: Boolean = false,
         priceSort: PriceSort? = null
     ) {
         if (query != null) currentQuery = query
@@ -222,18 +230,64 @@ class HomeViewModel @Inject constructor(
             currentMaxPrice = null
             currentPriceSort = PriceSort.NONE
         } else {
-            if (resetPriceRange) {
-                currentMinPrice = null
-                currentMaxPrice = null
-            } else if (minPrice != null || maxPrice != null) {
-                currentMinPrice = minPrice
-                currentMaxPrice = maxPrice
+            if (minPrice != null || maxPrice != null) {
+                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
+                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
             }
             if (priceSort != null) {
                 currentPriceSort = priceSort
             }
         }
+        if (resetRating) {
+            currentMinRating = 1.0f
+            currentMaxRating = 5.0f
+        } else {
+            if (minRating != null) currentMinRating = minRating
+            if (maxRating != null) currentMaxRating = maxRating
+        }
         applyFilters()
+    }
+
+    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
+    fun getFilteredDishesCount(
+        minPrice: Long?,
+        maxPrice: Long?,
+        minRating: Float,
+        maxRating: Float
+    ): Int {
+        var list = masterDishList
+
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            list = list.filter { matchesCategory(it, cat) }
+        }
+
+        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
+            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+        }
+
+        val q = currentQuery?.trim()?.lowercase()
+        if (!q.isNullOrBlank()) {
+            list = list.filter { dish ->
+                dish.name.lowercase().contains(q) ||
+                dish.storeName.lowercase().contains(q) ||
+                dish.category.lowercase().contains(q) ||
+                dish.platformCategory.lowercase().contains(q)
+            }
+        }
+
+        if (minPrice != null && minPrice > 0) {
+            list = list.filter { it.price >= minPrice }
+        }
+        if (maxPrice != null && maxPrice > 0) {
+            list = list.filter { it.price <= maxPrice }
+        }
+
+        if (minRating > 1.05f || maxRating < 4.95f) {
+            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
+        }
+
+        return list.size
     }
 
     private fun applyFilters() {
@@ -280,6 +334,15 @@ class HomeViewModel @Inject constructor(
             filtered = filtered.filter { dish ->
                 val p = dish.price
                 (minP == null || p >= minP) && (maxP == null || p <= maxP)
+            }
+        }
+
+        // 5. Lọc theo khoảng sao đánh giá
+        val minR = currentMinRating
+        val maxR = currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            filtered = filtered.filter { dish ->
+                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
             }
         }
 

@@ -255,79 +255,112 @@
                             android:layout_marginBottom="6dp"
                             android:background="#F1F5F9" />
 
-                        <!-- Hàng lọc khoảng giá tiền & sắp xếp giá -->
+                        <!-- Hàng Bộ Lọc (Giá & Sao) và Quick Rating Chips (b1.html: filter-scroll-row) -->
                         <HorizontalScrollView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:scrollbars="none"
                             android:clipToPadding="false"
-                            android:paddingHorizontal="8dp">
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="2dp">
 
-                            <com.google.android.material.chip.ChipGroup
-                                android:id="@+id/chipGroupPrice"
+                            <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                app:singleLine="true"
-                                app:singleSelection="true"
-                                app:selectionRequired="true">
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
 
-                                <com.google.android.material.chip.Chip
-                                    android:id="@+id/chipPriceAll"
-                                    style="@style/Widget.Material3.Chip.Filter"
+                                <!-- Nút Mở Bottom Sheet Bộ Lọc Nâng Cao (b1.html: btn-filter-toggle) -->
+                                <LinearLayout
+                                    android:id="@+id/btnFilterToggle"
                                     android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:checked="true"
-                                    android:text="Tất cả giá"
-                                    android:textSize="11sp" />
+                                    android:layout_height="34dp"
+                                    android:background="@drawable/bg_btn_filter_toggle"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:orientation="horizontal"
+                                    android:paddingHorizontal="12dp">
 
-                                <com.google.android.material.chip.Chip
-                                    android:id="@+id/chipPriceUnder30k"
-                                    style="@style/Widget.Material3.Chip.Filter"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Dưới 30k"
-                                    android:textSize="11sp" />
+                                    <TextView
+                                        android:id="@+id/tvFilterToggleIcon"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="⚙️"
+                                        android:textSize="12sp" />
 
-                                <com.google.android.material.chip.Chip
-                                    android:id="@+id/chipPrice30kTo60k"
-                                    style="@style/Widget.Material3.Chip.Filter"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="30k - 60k"
-                                    android:textSize="11sp" />
+                                    <TextView
+                                        android:id="@+id/tvFilterToggleTitle"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginStart="4dp"
+                                        android:text="Bộ Lọc (Giá &amp; Sao)"
+                                        android:textColor="@color/primary"
+                                        android:textSize="11.5sp"
+                                        android:textStyle="bold" />
 
-                                <com.google.android.material.chip.Chip
-                                    android:id="@+id/chipPrice60kTo100k"
-                                    style="@style/Widget.Material3.Chip.Filter"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="60k - 100k"
-                                    android:textSize="11sp" />
+                                    <TextView
+                                        android:id="@+id/tvFilterBadge"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_marginStart="6dp"
+                                        android:background="@drawable/bg_badge_filter_count"
+                                        android:gravity="center"
+                                        android:text="1"
+                                        android:textColor="@color/white"
+                                        android:textSize="10sp"
+                                        android:textStyle="bold"
+                                        android:visibility="gone" />
+                                </LinearLayout>
 
-                                <com.google.android.material.chip.Chip
-                                    android:id="@+id/chipPriceOver100k"
-                                    style="@style/Widget.Material3.Chip.Filter"
+                                <!-- Quick Chip: ⭐ 5 Sao -->
+                                <TextView
+                                    android:id="@+id/chipRate5"
                                     android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Trên 100k"
-                                    android:textSize="11sp" />
+                                    android:layout_height="34dp"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_quick_chip"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:paddingHorizontal="12dp"
+                                    android:text="⭐ 5 Sao"
+                                    android:textColor="#475569"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
 
-                                <com.google.android.material.chip.Chip
-                                    android:id="@+id/chipPriceAsc"
-                                    style="@style/Widget.Material3.Chip.Filter"
+                                <!-- Quick Chip: ⭐ 4 Sao+ -->
+                                <TextView
+                                    android:id="@+id/chipRate4"
                                     android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Giá tăng dần ⬆"
-                                    android:textSize="11sp" />
+                                    android:layout_height="34dp"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_quick_chip"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:paddingHorizontal="12dp"
+                                    android:text="⭐ 4 Sao+"
+                                    android:textColor="#475569"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
 
-                                <com.google.android.material.chip.Chip
-                                    android:id="@+id/chipPriceDesc"
-                                    style="@style/Widget.Material3.Chip.Filter"
+                                <!-- Quick Chip: ⭐ 3 Sao+ -->
+                                <TextView
+                                    android:id="@+id/chipRate3"
                                     android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Giá giảm dần ⬇"
-                                    android:textSize="11sp" />
-                            </com.google.android.material.chip.ChipGroup>
+                                    android:layout_height="34dp"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_quick_chip"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:paddingHorizontal="12dp"
+                                    android:text="⭐ 3 Sao+"
+                                    android:textColor="#475569"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
                         </HorizontalScrollView>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>

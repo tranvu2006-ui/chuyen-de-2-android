@@ -68,9 +68,7 @@ class MenuManageFragment : Fragment() {
     private val dishList = mutableListOf<Dish>()
     private var isCheckedIn = true
     private var currentStoreId = ""
-    private var storeCategories: MutableList<String> = mutableListOf(
-        "Món chính", "Món ăn kèm", "Canh / Súp", "Đồ uống", "Tráng miệng", "Combo"
-    )
+    private var storeCategories: MutableList<String> = mutableListOf("Món chính")
     private var selectedStoreCategory: String = "ALL"
     private var platformCategories: MutableList<String> = mutableListOf(
         "Cơm", "Bún - Phở", "Trà sữa & Nước", "Gà rán", "Bánh mì", "Pizza", "Cà phê", "Đồ ăn vặt", "Món chay", "Hải sản", "Tráng miệng", "Lẩu / Món Nước", "Món Khác"
@@ -635,7 +633,6 @@ class MenuManageFragment : Fragment() {
         val btnAddCategory = dialog.findViewById<MaterialButton>(R.id.btnAddCategory)
         val rvCategories = dialog.findViewById<RecyclerView>(R.id.rvStoreCategories)
         val layoutEmpty = dialog.findViewById<View>(R.id.layoutEmptyCategories)
-        val btnRestore = dialog.findViewById<TextView>(R.id.btnRestoreDefaultCategories)
         val btnDone = dialog.findViewById<MaterialButton>(R.id.btnDone)
         val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseDialog)
 
@@ -692,27 +689,6 @@ class MenuManageFragment : Fragment() {
                     Toast.makeText(requireContext(), "Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                 }
             }
-        }
-
-        btnRestore.setOnClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Khôi Phục Danh Mục Mẫu")
-                .setMessage("Bạn có chắc muốn đặt lại danh mục quán về mặc định (Món chính, Món ăn kèm, Canh / Súp, Đồ uống, Tráng miệng, Combo)?")
-                .setPositiveButton("Khôi phục") { _, _ ->
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        val res = firebaseRepository.restoreDefaultStoreCategories(currentStoreId)
-                        if (res.isSuccess) {
-                            storeCategories.clear()
-                            storeCategories.addAll(firebaseRepository.defaultStoreCategories)
-                            refreshCategoryList()
-                            setupCategoryFilterChips()
-                            updateList()
-                            Toast.makeText(requireContext(), "✓ Đã khôi phục danh mục mẫu!", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
         }
 
         val dismissAction = View.OnClickListener { dialog.dismiss() }

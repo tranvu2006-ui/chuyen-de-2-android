@@ -47,6 +47,9 @@ class HomeViewModel @Inject constructor(
     private var currentNearbyOnly: Boolean = false
     var currentNearbyMaxDistanceKm: Double = 3.0
         private set
+    private var currentMinPrice: Long? = null
+    private var currentMaxPrice: Long? = null
+    private var currentPriceSort: PriceSort = PriceSort.NONE
     private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
         com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
 
@@ -194,17 +197,42 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    enum class PriceSort {
+        NONE, ASC, DESC
+    }
+
     /** Lọc danh sách món ăn */
     fun filterDishes(
         query: String? = null,
         category: String? = null,
         nearbyOnly: Boolean? = null,
-        maxDistanceKm: Double? = null
+        maxDistanceKm: Double? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        resetPrice: Boolean = false,
+        resetPriceRange: Boolean = false,
+        priceSort: PriceSort? = null
     ) {
         if (query != null) currentQuery = query
         if (category != null) currentCategory = if (category == "ALL") null else category
         if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
         if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
+        if (resetPrice) {
+            currentMinPrice = null
+            currentMaxPrice = null
+            currentPriceSort = PriceSort.NONE
+        } else {
+            if (resetPriceRange) {
+                currentMinPrice = null
+                currentMaxPrice = null
+            } else if (minPrice != null || maxPrice != null) {
+                currentMinPrice = minPrice
+                currentMaxPrice = maxPrice
+            }
+            if (priceSort != null) {
+                currentPriceSort = priceSort
+            }
+        }
         applyFilters()
     }
 
@@ -243,6 +271,23 @@ class HomeViewModel @Inject constructor(
                 dish.category.lowercase().contains(q) ||
                 dish.platformCategory.lowercase().contains(q)
             }
+        }
+
+        // 4. Lọc theo khoảng giá tiền
+        val minP = currentMinPrice
+        val maxP = currentMaxPrice
+        if (minP != null || maxP != null) {
+            filtered = filtered.filter { dish ->
+                val p = dish.price
+                (minP == null || p >= minP) && (maxP == null || p <= maxP)
+            }
+        }
+
+        // 5. Sắp xếp theo giá tiền nếu có
+        when (currentPriceSort) {
+            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
+            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
+            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
         }
 
         _homeDishes.value = filtered

@@ -245,6 +245,90 @@
                             android:paddingHorizontal="8dp"
                             android:nestedScrollingEnabled="false"
                             android:overScrollMode="never" />
+
+                        <!-- Đường phân cách nhẹ giữa danh mục và bộ lọc giá -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginHorizontal="10dp"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="6dp"
+                            android:background="#F1F5F9" />
+
+                        <!-- Hàng lọc khoảng giá tiền & sắp xếp giá -->
+                        <HorizontalScrollView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:scrollbars="none"
+                            android:clipToPadding="false"
+                            android:paddingHorizontal="8dp">
+
+                            <com.google.android.material.chip.ChipGroup
+                                android:id="@+id/chipGroupPrice"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                app:singleLine="true"
+                                app:singleSelection="true"
+                                app:selectionRequired="true">
+
+                                <com.google.android.material.chip.Chip
+                                    android:id="@+id/chipPriceAll"
+                                    style="@style/Widget.Material3.Chip.Filter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:checked="true"
+                                    android:text="Tất cả giá"
+                                    android:textSize="11sp" />
+
+                                <com.google.android.material.chip.Chip
+                                    android:id="@+id/chipPriceUnder30k"
+                                    style="@style/Widget.Material3.Chip.Filter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Dưới 30k"
+                                    android:textSize="11sp" />
+
+                                <com.google.android.material.chip.Chip
+                                    android:id="@+id/chipPrice30kTo60k"
+                                    style="@style/Widget.Material3.Chip.Filter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="30k - 60k"
+                                    android:textSize="11sp" />
+
+                                <com.google.android.material.chip.Chip
+                                    android:id="@+id/chipPrice60kTo100k"
+                                    style="@style/Widget.Material3.Chip.Filter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="60k - 100k"
+                                    android:textSize="11sp" />
+
+                                <com.google.android.material.chip.Chip
+                                    android:id="@+id/chipPriceOver100k"
+                                    style="@style/Widget.Material3.Chip.Filter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Trên 100k"
+                                    android:textSize="11sp" />
+
+                                <com.google.android.material.chip.Chip
+                                    android:id="@+id/chipPriceAsc"
+                                    style="@style/Widget.Material3.Chip.Filter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Giá tăng dần ⬆"
+                                    android:textSize="11sp" />
+
+                                <com.google.android.material.chip.Chip
+                                    android:id="@+id/chipPriceDesc"
+                                    style="@style/Widget.Material3.Chip.Filter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Giá giảm dần ⬇"
+                                    android:textSize="11sp" />
+                            </com.google.android.material.chip.ChipGroup>
+                        </HorizontalScrollView>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

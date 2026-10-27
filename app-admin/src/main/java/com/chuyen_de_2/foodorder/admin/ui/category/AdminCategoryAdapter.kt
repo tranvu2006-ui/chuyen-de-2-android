@@ -8,9 +8,11 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.chuyen_de_2.foodorder.admin.R
 import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminCategoryBinding
 import com.chuyen_de_2.foodorder.core.data.model.Category
+import com.chuyen_de_2.foodorder.core.util.CategoryIconCache
 
 class AdminCategoryAdapter(
     private val onEdit: (Category) -> Unit,
@@ -35,14 +37,18 @@ class AdminCategoryAdapter(
         fun bind(category: Category) {
             val icon = category.iconUrl.trim()
             if (category.isImageUrl) {
-                if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
+                val cachedBmp = CategoryIconCache.getOrDecode(icon)
+                if (cachedBmp != null) {
+                    Glide.with(itemView.context).clear(binding.ivCategoryIcon)
+                    binding.ivCategoryIcon.setImageBitmap(cachedBmp)
+                } else if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
                     try {
                         val clean = if (icon.contains(",")) icon.substringAfter(",") else icon
                         val decoded = Base64.decode(clean, Base64.DEFAULT)
                         Glide.with(itemView.context)
                             .asBitmap()
                             .load(decoded)
-                            .placeholder(R.drawable.ic_image)
+                            .dontAnimate()
                             .error(R.drawable.ic_image)
                             .into(binding.ivCategoryIcon)
                     } catch (_: Exception) {
@@ -51,7 +57,8 @@ class AdminCategoryAdapter(
                 } else {
                     Glide.with(itemView.context)
                         .load(icon)
-                        .placeholder(R.drawable.ic_image)
+                        .dontAnimate()
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
                         .error(R.drawable.ic_image)
                         .into(binding.ivCategoryIcon)
                 }

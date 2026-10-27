@@ -130,6 +130,13 @@ class AddEditCategoryDialogFragment(
         }
 
         binding.ivSelectedIcon.setPadding(12, 12, 12, 12)
+        val cachedBmp = com.chuyen_de_2.foodorder.core.util.CategoryIconCache.getOrDecode(trimmed)
+        if (cachedBmp != null) {
+            Glide.with(this).clear(binding.ivSelectedIcon)
+            binding.ivSelectedIcon.setImageBitmap(cachedBmp)
+            return
+        }
+
         if (trimmed.startsWith("data:image", ignoreCase = true) || trimmed.length > 100) {
             try {
                 val clean = if (trimmed.contains(",")) trimmed.substringAfter(",") else trimmed
@@ -137,7 +144,7 @@ class AddEditCategoryDialogFragment(
                 Glide.with(this)
                     .asBitmap()
                     .load(decoded)
-                    .placeholder(R.drawable.ic_image)
+                    .dontAnimate()
                     .error(R.drawable.ic_image)
                     .into(binding.ivSelectedIcon)
                 return
@@ -147,7 +154,7 @@ class AddEditCategoryDialogFragment(
         if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
             Glide.with(this)
                 .load(trimmed)
-                .placeholder(R.drawable.ic_image)
+                .dontAnimate()
                 .error(R.drawable.ic_image)
                 .into(binding.ivSelectedIcon)
         } else {

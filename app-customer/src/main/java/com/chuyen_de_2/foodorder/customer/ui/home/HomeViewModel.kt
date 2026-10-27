@@ -266,14 +266,9 @@ class HomeViewModel @Inject constructor(
             list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
         }
 
-        val q = currentQuery?.trim()?.lowercase()
+        val q = currentQuery?.trim()
         if (!q.isNullOrBlank()) {
-            list = list.filter { dish ->
-                dish.name.lowercase().contains(q) ||
-                dish.storeName.lowercase().contains(q) ||
-                dish.category.lowercase().contains(q) ||
-                dish.platformCategory.lowercase().contains(q)
-            }
+            list = list.filter { matchesSearch(it, q) }
         }
 
         if (minPrice != null && minPrice > 0) {
@@ -288,6 +283,37 @@ class HomeViewModel @Inject constructor(
         }
 
         return list.size
+    }
+
+    /**
+     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     */
+    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
+        val qClean = query.trim().lowercase()
+        if (qClean.isBlank()) return true
+
+        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
+
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val cat = dish.category.lowercase()
+        val platCat = dish.platformCategory.lowercase()
+
+        val fullWithAccent = "$name $store $cat $platCat"
+        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
+
+        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
+        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
+            return true
+        }
+
+        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
+        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
+        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
+            return true
+        }
+
+        return false
     }
 
     private fun applyFilters() {
@@ -316,14 +342,11 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-        // 3. Lọc theo từ khóa tìm kiếm
-        val q = currentQuery?.trim()?.lowercase()
+        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
+        val q = currentQuery?.trim()
         if (!q.isNullOrBlank()) {
             filtered = filtered.filter { dish ->
-                dish.name.lowercase().contains(q) ||
-                dish.storeName.lowercase().contains(q) ||
-                dish.category.lowercase().contains(q) ||
-                dish.platformCategory.lowercase().contains(q)
+                matchesSearch(dish, q)
             }
         }
 

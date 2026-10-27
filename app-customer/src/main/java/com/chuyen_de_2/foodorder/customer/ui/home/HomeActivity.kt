@@ -20,6 +20,8 @@ import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
 import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
 import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
 import android.widget.TextView
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
@@ -473,6 +475,9 @@ class HomeActivity : AppCompatActivity() {
                 Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
             } else {
                 selectedCategory = category.name
+                if (binding.etSearch.text.isNotBlank()) {
+                    binding.etSearch.setText("")
+                }
                 viewModel.filterDishes(category = category.name)
                 binding.tvSectionTitle.text = "Món ngon: ${category.name}"
                 updateFilterIndicator()
@@ -766,10 +771,38 @@ class HomeActivity : AppCompatActivity() {
         binding.etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                viewModel.filterDishes(query = s?.toString() ?: "")
+                val q = s?.toString()?.trim() ?: ""
+                binding.btnClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
+
+                // Nếu người dùng gõ tìm kiếm, hủy lọc danh mục để tìm kiếm toàn diện trên mọi quán và món
+                if (q.isNotEmpty() && selectedCategory != null) {
+                    selectedCategory = null
+                    clearCategoryHighlight()
+                }
+
+                viewModel.filterDishes(query = q)
+
+                if (q.isNotEmpty()) {
+                    binding.tvSectionTitle.text = "Kết quả tìm kiếm cho \"$q\""
+                } else {
+                    binding.tvSectionTitle.text = if (selectedCategory != null) "Món ngon: $selectedCategory" else "Món ngon đề xuất cho bạn"
+                }
+                updateFilterIndicator()
             }
             override fun afterTextChanged(s: Editable?) {}
         })
+
+        binding.btnClearSearch.setOnClickListener {
+            binding.etSearch.setText("")
+        }
+
+        binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
+                true
+            } else false
+        }
     }
 
     private fun setupSwipeRefresh() {

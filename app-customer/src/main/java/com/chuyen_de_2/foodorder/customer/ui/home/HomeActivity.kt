@@ -66,6 +66,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var categoryAdapter: HomeCategoryAdapter
 
     private var selectedCategory: String? = null
+    private var selectedPriceLabel: String? = null
     private var isNearbyFiltered: Boolean = false
     private var selectedNearbyDistanceKm: Double = 3.0
     private var selectedNearbyDistanceLabel: String = "< 3 km"
@@ -100,6 +101,7 @@ class HomeActivity : AppCompatActivity() {
 
         setupHeader()
         setupCategories()
+        setupPriceFilter()
         setupHotDishes()
         setupSearch()
         setupDishRecyclerView()
@@ -159,26 +161,30 @@ class HomeActivity : AppCompatActivity() {
 
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
+            selectedPriceLabel = null
             isNearbyFiltered = false
             selectedNearbyDistanceKm = 3.0
             selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
-            binding.layoutActiveFilterIndicator.visibility = View.GONE
+            binding.chipPriceAll.isChecked = true
+            updateFilterIndicator()
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true)
             binding.etSearch.setText("")
             Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         }
 
         binding.btnClearFilter.setOnClickListener {
             selectedCategory = null
+            selectedPriceLabel = null
             isNearbyFiltered = false
             selectedNearbyDistanceKm = 3.0
             selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
-            binding.layoutActiveFilterIndicator.visibility = View.GONE
+            binding.chipPriceAll.isChecked = true
+            updateFilterIndicator()
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true)
         }
 
         binding.layoutActiveFilterIndicator.setOnClickListener {
@@ -395,8 +401,7 @@ class HomeActivity : AppCompatActivity() {
             selectedNearbyDistanceKm = currentRadius
             selectedNearbyDistanceLabel = currentRadiusLabel
             isNearbyFiltered = true
-            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-            binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Món từ các quán trong bán kính $selectedNearbyDistanceLabel"
+            updateFilterIndicator()
             viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
         }
 
@@ -466,23 +471,13 @@ class HomeActivity : AppCompatActivity() {
                 selectedCategory = null
                 viewModel.filterDishes(category = "ALL")
                 binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-                if (!isNearbyFiltered) {
-                    binding.layoutActiveFilterIndicator.visibility = View.GONE
-                } else {
-                    binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Các quán gần nhất (< 1.5 km)"
-                }
+                updateFilterIndicator()
                 Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
             } else {
                 selectedCategory = category.name
                 viewModel.filterDishes(category = category.name)
                 binding.tvSectionTitle.text = "Món ngon: ${category.name}"
-                binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-                val filterText = if (isNearbyFiltered) {
-                    "Đang lọc: ${category.name} & 📍 Quán gần (< 1.5 km)"
-                } else {
-                    "Đang lọc danh mục: ${category.name}"
-                }
-                binding.tvFilterIndicatorSummary.text = filterText
+                updateFilterIndicator()
                 Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
             }
         }
@@ -495,6 +490,67 @@ class HomeActivity : AppCompatActivity() {
     private fun clearCategoryHighlight() {
         if (::categoryAdapter.isInitialized) {
             categoryAdapter.setSelected(null)
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập thanh lọc theo khoảng giá tiền & sắp xếp giá
+     * Cách hoạt động: Lắng nghe sự kiện chọn Chip lọc giá, áp dụng lọc lên ViewModel và cập nhật banner trạng thái.
+     */
+    private fun setupPriceFilter() {
+        binding.chipGroupPrice.setOnCheckedStateChangeListener { _, checkedIds ->
+            val checkedId = checkedIds.firstOrNull() ?: R.id.chipPriceAll
+            when (checkedId) {
+                R.id.chipPriceUnder30k -> {
+                    selectedPriceLabel = "< 30k"
+                    viewModel.filterDishes(minPrice = 0L, maxPrice = 30000L, priceSort = HomeViewModel.PriceSort.NONE)
+                }
+                R.id.chipPrice30kTo60k -> {
+                    selectedPriceLabel = "30k - 60k"
+                    viewModel.filterDishes(minPrice = 30000L, maxPrice = 60000L, priceSort = HomeViewModel.PriceSort.NONE)
+                }
+                R.id.chipPrice60kTo100k -> {
+                    selectedPriceLabel = "60k - 100k"
+                    viewModel.filterDishes(minPrice = 60000L, maxPrice = 100000L, priceSort = HomeViewModel.PriceSort.NONE)
+                }
+                R.id.chipPriceOver100k -> {
+                    selectedPriceLabel = "> 100k"
+                    viewModel.filterDishes(minPrice = 100000L, maxPrice = Long.MAX_VALUE, priceSort = HomeViewModel.PriceSort.NONE)
+                }
+                R.id.chipPriceAsc -> {
+                    selectedPriceLabel = "Giá tăng dần ⬆"
+                    viewModel.filterDishes(resetPriceRange = true, priceSort = HomeViewModel.PriceSort.ASC)
+                }
+                R.id.chipPriceDesc -> {
+                    selectedPriceLabel = "Giá giảm dần ⬇"
+                    viewModel.filterDishes(resetPriceRange = true, priceSort = HomeViewModel.PriceSort.DESC)
+                }
+                else -> {
+                    selectedPriceLabel = null
+                    viewModel.filterDishes(resetPrice = true)
+                }
+            }
+            updateFilterIndicator()
+        }
+    }
+
+    private fun updateFilterIndicator() {
+        val activeFilters = mutableListOf<String>()
+        if (!selectedCategory.isNullOrBlank()) {
+            activeFilters.add(selectedCategory!!)
+        }
+        if (!selectedPriceLabel.isNullOrBlank()) {
+            activeFilters.add("Giá: $selectedPriceLabel")
+        }
+        if (isNearbyFiltered) {
+            activeFilters.add("📍 $selectedNearbyDistanceLabel")
+        }
+
+        if (activeFilters.isNotEmpty()) {
+            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
+            binding.tvFilterIndicatorSummary.text = "Đang lọc: ${activeFilters.joinToString(" • ")}"
+        } else {
+            binding.layoutActiveFilterIndicator.visibility = View.GONE
         }
     }
 

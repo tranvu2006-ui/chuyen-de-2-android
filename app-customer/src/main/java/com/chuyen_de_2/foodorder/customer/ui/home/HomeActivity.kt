@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AccountLockWatcher
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
@@ -126,19 +127,7 @@ class HomeActivity : AppCompatActivity() {
             val statusCheck = authRepository.checkAccountActiveStatus()
             if (statusCheck.isFailure) {
                 val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                androidx.appcompat.app.AlertDialog.Builder(this@HomeActivity)
-                    .setTitle("🔒 Tài khoản bị khóa")
-                    .setMessage(reason)
-                    .setPositiveButton("Đóng") { _, _ ->
-                        val intent = Intent(this@HomeActivity, LoginActivity::class.java).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            putExtra("LOGOUT", true)
-                        }
-                        startActivity(intent)
-                        finish()
-                    }
-                    .setCancelable(false)
-                    .show()
+                AccountLockWatcher.notifyLockedManually(this@HomeActivity, reason)
             }
         }
     }

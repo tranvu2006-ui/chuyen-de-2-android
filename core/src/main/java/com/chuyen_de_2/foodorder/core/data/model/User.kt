@@ -1,6 +1,7 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
 import com.google.firebase.database.IgnoreExtraProperties
+import com.google.firebase.database.PropertyName
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -34,6 +35,7 @@ data class User(
     @SerializedName("status")
     val status: String = Status.ACTIVE,
 
+    @get:PropertyName("isActive")
     @SerializedName("isActive")
     val isActive: Boolean = true,
 
@@ -59,6 +61,7 @@ data class User(
     /** Trạng thái tài khoản */
     object Status {
         const val ACTIVE = "ACTIVE"
+        const val LOCKED = "LOCKED"
         const val INACTIVE = "INACTIVE"
         const val OFFLINE = "OFFLINE"
     }

@@ -57,17 +57,24 @@ object AccountLockWatcher {
             }
 
             override fun onActivityPaused(activity: Activity) {
-                if (currentActivityRef?.get() == activity) {
-                    currentActivityRef = null
-                }
+                // Giữ lại currentActivityRef khi pause (chia đôi màn hình, chuyển ứng dụng phụ, popup)
+                // để khi Admin nhấn khóa, dialog có thể hiển thị ngay lập tức trên Activity đang hiện hữu.
             }
 
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+                currentActivityRef = WeakReference(activity)
+            }
+
             override fun onActivityStarted(activity: Activity) {
                 currentActivityRef = WeakReference(activity)
             }
-            override fun onActivityStopped(activity: Activity) {}
+
+            override fun onActivityStopped(activity: Activity) {
+                // Không xóa ngay, giữ tham chiếu phòng trường hợp activity vẫn hiển thị dạng nổi/split
+            }
+
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+
             override fun onActivityDestroyed(activity: Activity) {
                 if (currentActivityRef?.get() == activity) {
                     currentActivityRef = null
@@ -103,6 +110,9 @@ object AccountLockWatcher {
         }
 
         val ref = db.getReference("users").child(uid)
+        try {
+            ref.keepSynced(true)
+        } catch (_: Exception) {}
         activeUserRef = ref
 
         val listener = object : ValueEventListener {
@@ -114,7 +124,7 @@ object AccountLockWatcher {
                     ?: snapshot.child("active").getValue(Boolean::class.java)
                     ?: true
 
-                val locked = status == "LOCKED" || status == "SUSPENDED" || !isActive
+                val locked = status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive
                 val reason = snapshot.child("lockReason").getValue(String::class.java)
                     ?: snapshot.child("suspendedReason").getValue(String::class.java)
                     ?: "Vi phạm quy định hoặc chính sách hoạt động của hệ thống."
@@ -146,7 +156,18 @@ object AccountLockWatcher {
         observedUid = null
     }
 
+    fun notifyLockedManually(activity: Activity, reason: String) {
+        isAccountLocked = true
+        lockReason = reason
+        mainHandler.post {
+            showLockDialog(activity, reason)
+        }
+    }
+
+    fun isLocked(): Boolean = isAccountLocked
+
     private fun handleAccountStatusChange(locked: Boolean, reason: String) {
+        val wasLocked = isAccountLocked
         isAccountLocked = locked
         lockReason = reason
 
@@ -159,6 +180,13 @@ object AccountLockWatcher {
             }
         } else {
             dismissLockDialog()
+            if (wasLocked) {
+                currentActivityRef?.get()?.let { act ->
+                    if (!act.isFinishing && !act.isDestroyed) {
+                        Toast.makeText(act, "Tài khoản của bạn đã được Quản trị viên mở khóa!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         }
     }
 

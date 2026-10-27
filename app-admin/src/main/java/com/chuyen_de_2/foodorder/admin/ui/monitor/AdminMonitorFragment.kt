@@ -57,7 +57,11 @@ class AdminMonitorFragment : Fragment() {
 
         userAdapter = AdminUserAdapter(
             onToggleLock = { user ->
-                val actionText = if (user.isActive) "khóa" else "mở khóa"
+                val isLocked = !user.isActive ||
+                    user.status.equals("LOCKED", ignoreCase = true) ||
+                    user.status.equals("SUSPENDED", ignoreCase = true) ||
+                    user.status.equals("INACTIVE", ignoreCase = true)
+                val actionText = if (isLocked) "mở khóa" else "khóa"
                 AlertDialog.Builder(requireContext())
                     .setTitle("Xác nhận thay đổi tài khoản")
                     .setMessage("Bạn có chắc chắn muốn $actionText tài khoản '${user.name.ifBlank { user.email }}'?")

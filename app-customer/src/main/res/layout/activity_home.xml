@@ -118,9 +118,10 @@
 
             <EditText
                 android:id="@+id/etSearch"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"
+                android:layout_weight="1"
                 android:background="@null"
                 android:hint="@string/search_hint"
                 android:imeOptions="actionSearch"
@@ -128,6 +129,17 @@
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_muted"
                 android:textSize="13sp" />
+
+            <ImageView
+                android:id="@+id/btnClearSearch"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:padding="3dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone"
+                app:srcCompat="@drawable/ic_close"
+                app:tint="@color/text_muted" />
         </LinearLayout>
     </LinearLayout>
 

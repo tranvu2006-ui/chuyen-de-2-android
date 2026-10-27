@@ -28,15 +28,15 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="3dp"
             android:layout_marginBottom="14dp"
-            android:text="Tùy chỉnh toàn bộ thuộc tính của danh mục món trên sàn"
+            android:text="Tải ảnh Icon danh mục từ thiết bị và tùy chỉnh thuộc tính hiển thị"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 
-        <!-- Biểu tượng (Preview + Chọn palette) -->
+        <!-- Ảnh Icon Danh Mục (Preview + Nút tải lên từ máy) -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Biểu tượng danh mục (Emoji hoặc URL ảnh):"
+            android:text="Ảnh Icon Danh Mục:"
             android:textColor="@color/text_secondary"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -45,65 +45,105 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
+            android:layout_marginBottom="10dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <FrameLayout
-                android:layout_width="54dp"
-                android:layout_height="54dp"
-                android:background="@drawable/bg_choice_card_active">
-
-                <TextView
-                    android:id="@+id/tvSelectedEmoji"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:gravity="center"
-                    android:text="🍚"
-                    android:textSize="26sp" />
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardIconPreview"
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                app:cardBackgroundColor="@color/surface_elevated"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1.5dp">
 
                 <ImageView
                     android:id="@+id/ivSelectedIcon"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:contentDescription="Icon ảnh"
-                    android:padding="8dp"
+                    android:contentDescription="Icon ảnh danh mục"
+                    android:padding="10dp"
                     android:scaleType="fitCenter"
-                    android:visibility="gone" />
-            </FrameLayout>
+                    android:src="@drawable/ic_image" />
+            </com.google.android.material.card.MaterialCardView>
 
-            <HorizontalScrollView
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:scrollbars="none">
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnUploadIcon"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:backgroundTint="@color/brand_blue_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="Tải ảnh Icon từ máy"
+                    android:textAllCaps="false"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="10dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_upload"
+                    app:iconGravity="textStart"
+                    app:iconSize="16dp"
+                    app:iconTint="@color/brand_blue"
+                    app:strokeColor="@color/brand_blue"
+                    app:strokeWidth="1dp" />
 
                 <LinearLayout
-                    android:id="@+id/llEmojiPalette"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
-                    <!-- Emojis dynamically populated -->
+
+                    <TextView
+                        android:id="@+id/tvUploadStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Chưa có ảnh (Nhấn để chọn PNG/JPG)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/btnClearIcon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="2dp"
+                        android:text="Xóa ảnh"
+                        android:textColor="@color/danger"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
                 </LinearLayout>
-            </HorizontalScrollView>
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Custom Icon URL / Emoji Input -->
+        <!-- Custom Icon URL Input (Optional) -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCatIconUrl"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            android:hint="Nhập emoji hoặc dán URL ảnh (https://...)"
+            android:hint="Hoặc dán đường dẫn URL ảnh Icon (https://...)"
             app:boxStrokeColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etCatIconUrl"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="🍚"
-                android:textSize="13.5sp" />
+                android:inputType="textUri"
+                android:textSize="13sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Name input -->

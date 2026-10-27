@@ -16,14 +16,6 @@
         android:layout_height="50dp"
         android:background="@drawable/bg_cat_orange">
 
-        <TextView
-            android:id="@+id/tvCategoryEmoji"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:textSize="21sp"
-            tools:text="🍚" />
-
         <ImageView
             android:id="@+id/ivCategoryIcon"
             android:layout_width="match_parent"
@@ -31,7 +23,7 @@
             android:contentDescription="Icon danh mục"
             android:padding="9dp"
             android:scaleType="fitCenter"
-            android:visibility="gone" />
+            android:src="@drawable/ic_utensils_crossed" />
     </FrameLayout>
 
     <TextView

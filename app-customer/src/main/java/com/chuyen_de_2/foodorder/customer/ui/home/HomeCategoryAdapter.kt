@@ -1,7 +1,7 @@
 package com.chuyen_de_2.foodorder.customer.ui.home
 
+import android.util.Base64
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
@@ -35,7 +35,7 @@ class HomeCategoryAdapter(
             Category(
                 categoryId = "ALL",
                 categoryName = "Tất cả",
-                iconUrl = "✨",
+                iconUrl = "",
                 displayOrder = 0,
                 isActive = true
             )
@@ -81,20 +81,35 @@ class HomeCategoryAdapter(
             val bgRes = bgDrawables[position % bgDrawables.size]
             binding.layoutIconCircle.setBackgroundResource(bgRes)
 
-            // Hiển thị Icon (URL ảnh hoặc Emoji)
-            val icon = category.icon.ifBlank { "🍽️" }
+            // Hiển thị ảnh Icon tải lên từ Admin (Base64 hoặc URL)
+            val icon = category.iconUrl.trim()
             if (category.isImageUrl) {
-                binding.tvCategoryEmoji.visibility = View.GONE
-                binding.ivCategoryIcon.visibility = View.VISIBLE
-                Glide.with(context)
-                    .load(icon)
-                    .placeholder(R.drawable.ic_image)
-                    .error(R.drawable.ic_image)
-                    .into(binding.ivCategoryIcon)
+                binding.ivCategoryIcon.imageTintList = null
+                if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
+                    try {
+                        val clean = if (icon.contains(",")) icon.substringAfter(",") else icon
+                        val decoded = Base64.decode(clean, Base64.DEFAULT)
+                        Glide.with(context)
+                            .asBitmap()
+                            .load(decoded)
+                            .placeholder(R.drawable.ic_utensils_crossed)
+                            .error(R.drawable.ic_utensils_crossed)
+                            .into(binding.ivCategoryIcon)
+                    } catch (_: Exception) {
+                        binding.ivCategoryIcon.setImageResource(R.drawable.ic_utensils_crossed)
+                    }
+                } else {
+                    Glide.with(context)
+                        .load(icon)
+                        .placeholder(R.drawable.ic_utensils_crossed)
+                        .error(R.drawable.ic_utensils_crossed)
+                        .into(binding.ivCategoryIcon)
+                }
             } else {
-                binding.ivCategoryIcon.visibility = View.GONE
-                binding.tvCategoryEmoji.visibility = View.VISIBLE
-                binding.tvCategoryEmoji.text = icon
+                Glide.with(context).clear(binding.ivCategoryIcon)
+                val fallbackRes = if (isAll) R.drawable.ic_sparkles else R.drawable.ic_utensils_crossed
+                binding.ivCategoryIcon.setImageResource(fallbackRes)
+                binding.ivCategoryIcon.imageTintList = ContextCompat.getColorStateList(context, R.color.primary)
             }
 
             binding.tvCategoryName.text = category.name

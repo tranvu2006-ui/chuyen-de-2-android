@@ -772,9 +772,9 @@ class FirebaseRepository @Inject constructor(
                     val catId = child.key ?: ""
                     val catName = child.child("categoryName").getValue(String::class.java)
                         ?: child.child("name").getValue(String::class.java) ?: ""
-                    val iconUrl = child.child("iconUrl").getValue(String::class.java)
-                        ?: child.child("icon").getValue(String::class.java) ?: "🍽️"
-                    val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                    val iconUrl = (child.child("iconUrl").getValue(String::class.java)
+                        ?: child.child("icon").getValue(String::class.java) ?: "").let { if (it.startsWith("http", true) || it.startsWith("data:image", true) || it.length > 100) it else "" }
+                    val desc = child.child("description").getValue(String::class.java) ?: child.child("desc").getValue(String::class.java) ?: ""; val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
                     val isActive = child.child("isActive").getValue(Boolean::class.java)
                         ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
 
@@ -784,7 +784,7 @@ class FirebaseRepository @Inject constructor(
                             categoryName = catName,
                             iconUrl = iconUrl,
                             displayOrder = displayOrder,
-                            isActive = isActive
+                            isActive = isActive, description = desc
                         ))
                     }
                 }
@@ -796,9 +796,9 @@ class FirebaseRepository @Inject constructor(
                             val catId = child.key ?: ""
                             val catName = child.child("categoryName").getValue(String::class.java)
                                 ?: child.child("name").getValue(String::class.java) ?: ""
-                            val iconUrl = child.child("iconUrl").getValue(String::class.java)
-                                ?: child.child("icon").getValue(String::class.java) ?: "🍽️"
-                            val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                            val iconUrl = (child.child("iconUrl").getValue(String::class.java)
+                                ?: child.child("icon").getValue(String::class.java) ?: "").let { if (it.startsWith("http", true) || it.startsWith("data:image", true) || it.length > 100) it else "" }
+                            val desc = child.child("description").getValue(String::class.java) ?: child.child("desc").getValue(String::class.java) ?: ""; val displayOrder = child.child("displayOrder").getValue(Int::class.java) ?: 99
                             val isActive = child.child("isActive").getValue(Boolean::class.java)
                                 ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
 
@@ -808,7 +808,7 @@ class FirebaseRepository @Inject constructor(
                                     categoryName = catName,
                                     iconUrl = iconUrl,
                                     displayOrder = displayOrder,
-                                    isActive = isActive
+                                    isActive = isActive, description = desc
                                 ))
                             }
                         }

@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.admin.ui.category
 
+import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -32,19 +33,31 @@ class AdminCategoryAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(category: Category) {
-            val icon = category.icon.ifBlank { "🍽️" }
+            val icon = category.iconUrl.trim()
             if (category.isImageUrl) {
-                binding.tvCategoryIcon.visibility = View.GONE
-                binding.ivCategoryIcon.visibility = View.VISIBLE
-                Glide.with(itemView.context)
-                    .load(icon)
-                    .placeholder(R.drawable.ic_image)
-                    .error(R.drawable.ic_image)
-                    .into(binding.ivCategoryIcon)
+                if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
+                    try {
+                        val clean = if (icon.contains(",")) icon.substringAfter(",") else icon
+                        val decoded = Base64.decode(clean, Base64.DEFAULT)
+                        Glide.with(itemView.context)
+                            .asBitmap()
+                            .load(decoded)
+                            .placeholder(R.drawable.ic_image)
+                            .error(R.drawable.ic_image)
+                            .into(binding.ivCategoryIcon)
+                    } catch (_: Exception) {
+                        binding.ivCategoryIcon.setImageResource(R.drawable.ic_image)
+                    }
+                } else {
+                    Glide.with(itemView.context)
+                        .load(icon)
+                        .placeholder(R.drawable.ic_image)
+                        .error(R.drawable.ic_image)
+                        .into(binding.ivCategoryIcon)
+                }
             } else {
-                binding.ivCategoryIcon.visibility = View.GONE
-                binding.tvCategoryIcon.visibility = View.VISIBLE
-                binding.tvCategoryIcon.text = icon
+                Glide.with(itemView.context).clear(binding.ivCategoryIcon)
+                binding.ivCategoryIcon.setImageResource(R.drawable.ic_image)
             }
 
             binding.tvCategoryName.text = category.name

@@ -107,6 +107,9 @@ data class Store(
     @SerializedName("bankBin")
     val bankBin: String = "970422",
 
+    @SerializedName("storeCategories")
+    val storeCategories: List<String> = emptyList(),
+
     @SerializedName("dishes")
     val dishes: Map<String, Dish> = emptyMap()
 ) {

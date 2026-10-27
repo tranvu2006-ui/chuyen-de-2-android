@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -7,6 +8,7 @@ import com.google.gson.annotations.SerializedName
  * Giao diện: Quán/3.html — Tạo gói Combo món ăn
  * Mapping: Bảng 8 - combos (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class Combo(
     @SerializedName("comboId")
     val comboId: String = "",
@@ -40,6 +42,7 @@ data class Combo(
  * Chi tiết món trong Combo (Bảng trung gian N-N)
  * Mapping: Bảng 9 - combo_items (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class ComboItem(
     @SerializedName("comboItemId")
     val comboItemId: String = "",
@@ -50,6 +53,12 @@ data class ComboItem(
     @SerializedName("dishId")
     val dishId: String = "",
 
+    @SerializedName("name")
+    val name: String = "",
+
     @SerializedName("quantity")
-    val quantity: Int = 1
+    val quantity: Int = 1,
+
+    @SerializedName("price")
+    val price: Long = 0L
 )

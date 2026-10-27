@@ -59,7 +59,7 @@ class AuthRepository @Inject constructor(
                     dbRole.isNotBlank() -> dbRole.uppercase()
                     actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                     actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                    actualEmail.contains("admin", ignoreCase = true) -> User.Role.ADMIN
+                    actualEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
                     else -> User.Role.CUSTOMER
                 }
                 val resolvedRoleId = when (resolvedRole) {
@@ -286,7 +286,7 @@ class AuthRepository @Inject constructor(
             val fallbackRole = when {
                 currentEmail.contains("manager", ignoreCase = true) || currentEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 currentEmail.contains("shipper", ignoreCase = true) || currentEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                currentEmail.contains("admin", ignoreCase = true) -> User.Role.ADMIN
+                currentEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
             val fallbackRoleId = when (fallbackRole) {
@@ -481,7 +481,7 @@ class AuthRepository @Inject constructor(
                 when {
                     email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> return User.Role.MERCHANT
                     email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> return User.Role.DRIVER
-                    email.contains("admin", ignoreCase = true) -> return User.Role.ADMIN
+                    email.equals("admin@gmail.com", ignoreCase = true) -> return User.Role.ADMIN
                 }
             }
 
@@ -491,7 +491,7 @@ class AuthRepository @Inject constructor(
             when {
                 email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                email.contains("admin", ignoreCase = true) -> User.Role.ADMIN
+                email.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
         }

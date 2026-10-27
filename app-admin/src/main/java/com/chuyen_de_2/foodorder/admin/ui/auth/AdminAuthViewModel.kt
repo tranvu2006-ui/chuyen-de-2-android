@@ -31,16 +31,18 @@ class AdminAuthViewModel @Inject constructor(
             _authState.value = AdminAuthState.Idle
             return
         }
+
         viewModelScope.launch {
             _authState.value = AdminAuthState.Loading
+            val currentEmail = authRepository.currentUser?.email.orEmpty().trim()
             val role = authRepository.getUserRole()
-            if (role == User.Role.ADMIN) {
+            if (role == User.Role.ADMIN && currentEmail.equals("admin@gmail.com", ignoreCase = true)) {
                 val userResult = authRepository.getCurrentUserData()
                 val user = userResult.getOrNull() ?: User(
                     uid = authRepository.currentUser?.uid.orEmpty(),
                     role = User.Role.ADMIN,
                     name = "Quản trị viên",
-                    email = authRepository.currentUser?.email.orEmpty()
+                    email = currentEmail
                 )
                 _authState.value = AdminAuthState.Success(user)
             } else {
@@ -56,6 +58,11 @@ class AdminAuthViewModel @Inject constructor(
 
         if (trimmedEmail.isBlank() || trimmedPass.isBlank()) {
             _authState.value = AdminAuthState.Error("Vui lòng nhập đầy đủ Email và Mật khẩu.")
+            return
+        }
+
+        if (!trimmedEmail.equals("admin@gmail.com", ignoreCase = true)) {
+            _authState.value = AdminAuthState.Error("Hệ thống chỉ chấp nhận tài khoản quản trị duy nhất: admin@gmail.com")
             return
         }
 

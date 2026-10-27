@@ -67,18 +67,6 @@ class AdminLoginActivity : AppCompatActivity() {
             binding.etPassword.setText("123456")
             binding.tvError.visibility = View.GONE
         }
-
-        binding.chipAdmin2.setOnClickListener {
-            binding.etEmail.setText("admin@foodorder.com")
-            binding.etPassword.setText("Admin@123456")
-            binding.tvError.visibility = View.GONE
-        }
-
-        binding.chipAdmin3.setOnClickListener {
-            binding.etEmail.setText("admin.long@oishifood.vn")
-            binding.etPassword.setText("Admin@123456")
-            binding.tvError.visibility = View.GONE
-        }
     }
 
     private fun observeViewModel() {

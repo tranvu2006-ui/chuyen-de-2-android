@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.core.data.firebase
+package com.chuyen_de_2.foodorder.core.data.firebase
 
 import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
@@ -1422,7 +1422,7 @@ class FirebaseRepository @Inject constructor(
                 for (child in snapshot.children) {
                     val u = child.getValue(com.chuyen_de_2.foodorder.core.data.model.User::class.java)
                     if (u != null) {
-                        val uid = if (u.uid.isBlank()) child.key ?: "" else u.uid
+                        val emailLower = u.email.trim().lowercase(); if (emailLower == "admin@foodorder.com" || emailLower == "admin.long@oishifood.vn") { try { child.ref.removeValue() } catch (_: Exception) {}; continue }; val uid = if (u.uid.isBlank()) child.key ?: "" else u.uid
                         list.add(u.copy(uid = uid))
                     }
                 }

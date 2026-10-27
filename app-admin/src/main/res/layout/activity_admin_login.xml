@@ -258,34 +258,6 @@
                             app:chipCornerRadius="8dp"
                             app:chipStrokeColor="@color/brand_blue"
                             app:chipStrokeWidth="1dp" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipAdmin2"
-                            style="@style/Widget.MaterialComponents.Chip.Action"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🔑 admin@foodorder.com"
-                            android:textColor="@color/brand_green"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold"
-                            app:chipBackgroundColor="@color/brand_green_bg"
-                            app:chipCornerRadius="8dp"
-                            app:chipStrokeColor="@color/brand_green"
-                            app:chipStrokeWidth="1dp" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipAdmin3"
-                            style="@style/Widget.MaterialComponents.Chip.Action"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🔑 admin.long@oishifood.vn"
-                            android:textColor="@color/purple"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold"
-                            app:chipBackgroundColor="@color/purple_bg"
-                            app:chipCornerRadius="8dp"
-                            app:chipStrokeColor="@color/purple"
-                            app:chipStrokeWidth="1dp" />
                     </com.google.android.material.chip.ChipGroup>
                 </LinearLayout>
 

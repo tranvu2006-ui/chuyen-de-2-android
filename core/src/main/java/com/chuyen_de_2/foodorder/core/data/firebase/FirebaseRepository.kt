@@ -938,9 +938,7 @@ class FirebaseRepository @Inject constructor(
     // ==================== DANH MỤC RIÊNG CỦA QUÁN (STORE CATEGORIES) ====================
 
     /** Danh mục mặc định ban đầu nếu quán chưa tự thiết lập */
-    val defaultStoreCategories: List<String> = listOf(
-        "Món chính", "Món ăn kèm", "Canh / Súp", "Đồ uống", "Tráng miệng", "Combo"
-    )
+    val defaultStoreCategories: List<String> = listOf("Món chính")
 
     /** Lấy danh sách danh mục nội bộ của quán theo thời gian thực */
     fun observeStoreCategories(storeId: String): Flow<List<String>> = callbackFlow {

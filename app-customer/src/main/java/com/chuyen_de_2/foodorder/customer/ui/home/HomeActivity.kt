@@ -580,7 +580,7 @@ class HomeActivity : AppCompatActivity() {
                 draftMinRating,
                 draftMaxRating
             )
-            sheetBinding.btnSheetApply.text = "Áp dụng ($count món phù hợp)"
+            sheetBinding.btnSheetApply.text = "Áp dụng ($count món)"
         }
 
         sheetBinding.etMinPrice.addTextChangedListener(object : TextWatcher {

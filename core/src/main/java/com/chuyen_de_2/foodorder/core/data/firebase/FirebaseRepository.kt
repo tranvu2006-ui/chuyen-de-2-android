@@ -1603,14 +1603,81 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Khóa / Mở khóa tài khoản người dùng */
-    suspend fun updateUserStatus(uid: String, status: String, isActive: Boolean): Result<Unit> {
+    /** Khóa / Mở khóa tài khoản người dùng và đồng bộ toàn diện giữa users, customers và drivers */
+    suspend fun updateUserStatus(
+        uid: String,
+        status: String,
+        isActive: Boolean,
+        lockReason: String = ""
+    ): Result<Unit> {
         return try {
-            val updates = mapOf<String, Any>(
-                "status" to status,
-                "isActive" to isActive
+            val isUnlocked = isActive && (status.equals(User.Status.ACTIVE, ignoreCase = true) || status.equals(User.Status.OFFLINE, ignoreCase = true))
+
+            val userUpdates = mutableMapOf<String, Any?>(
+                "status" to if (isUnlocked) User.Status.ACTIVE else "LOCKED",
+                "isActive" to isUnlocked,
+                "active" to isUnlocked
             )
-            database.getReference("users").child(uid).updateChildren(updates).await()
+
+            val custUpdates = mutableMapOf<String, Any?>(
+                "status" to if (isUnlocked) User.Status.ACTIVE else "LOCKED",
+                "isActive" to isUnlocked,
+                "active" to isUnlocked
+            )
+
+            if (isUnlocked) {
+                userUpdates["lockReason"] = null
+                userUpdates["suspendedReason"] = null
+                custUpdates["lockReason"] = null
+                custUpdates["suspendedReason"] = null
+
+                // Kiểm tra điểm uy tín hiện tại: Nếu đang dưới 50, tự động khôi phục lên 60 để không bị re-lock
+                val custSnap = database.getReference("customers").child(uid).get().await()
+                val currentScore = custSnap.child("trustScore").getValue(Int::class.java)
+                    ?: custSnap.child("trustScore").getValue(Long::class.java)?.toInt()
+                    ?: 100
+                if (currentScore < 50) {
+                    userUpdates["trustScore"] = 60
+                    custUpdates["trustScore"] = 60
+
+                    val logRef = database.getReference("trust_score_logs").push()
+                    val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
+                    val logEntry = TrustScoreLog(
+                        logId = logId,
+                        customerId = uid,
+                        orderId = null,
+                        changeAmount = 60 - currentScore,
+                        oldScore = currentScore,
+                        newScore = 60,
+                        reason = "Quản trị viên mở khóa tài khoản và khôi phục điểm uy tín",
+                        createdAt = System.currentTimeMillis()
+                    )
+                    logRef.setValue(logEntry).await()
+                }
+            } else {
+                val reason = if (lockReason.isNotBlank()) lockReason else "Tài khoản của bạn đã bị Quản trị viên tạm khóa. Vui lòng liên hệ Admin qua email admin@gmail.com để được giải quyết."
+                userUpdates["lockReason"] = reason
+                custUpdates["lockReason"] = reason
+            }
+
+            // Cập nhật users/{uid}
+            database.getReference("users").child(uid).updateChildren(userUpdates).await()
+
+            // Cập nhật customers/{uid}
+            database.getReference("customers").child(uid).updateChildren(custUpdates).await()
+
+            // Đồng bộ nếu là driver
+            try {
+                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                if (driverSnap.exists()) {
+                    val driverUpdates = mapOf<String, Any?>(
+                        "isActive" to isUnlocked,
+                        "dutyStatus" to if (isUnlocked) "OFFLINE" else "LOCKED"
+                    )
+                    database.getReference("drivers").child(uid).updateChildren(driverUpdates).await()
+                }
+            } catch (_: Exception) {}
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -1815,7 +1882,12 @@ class FirebaseRepository @Inject constructor(
             val totalOrders = maxOf(0, completedOrders + boomOrders)
 
             val custSnap = database.getReference("customers").child(uid).get().await()
-            val oldScore = custSnap.child("trustScore").getValue(Int::class.java) ?: 100
+            val oldScore = custSnap.child("trustScore").getValue(Int::class.java)
+                ?: custSnap.child("trustScore").getValue(Long::class.java)?.toInt()
+                ?: 100
+
+            val isUnlocked = user.isActive && (user.status.equals(User.Status.ACTIVE, ignoreCase = true) || user.status.equals(User.Status.OFFLINE, ignoreCase = true))
+            val finalStatus = if (isUnlocked) user.status else "LOCKED"
 
             val userUpdates = mutableMapOf<String, Any?>(
                 "uid" to uid,
@@ -1824,8 +1896,9 @@ class FirebaseRepository @Inject constructor(
                 "phone" to user.phone,
                 "role" to user.role,
                 "roleId" to user.roleId,
-                "isActive" to user.isActive,
-                "status" to user.status,
+                "isActive" to isUnlocked,
+                "active" to isUnlocked,
+                "status" to finalStatus,
                 "avatarUrl" to user.avatarUrl,
                 "storeId" to user.storeId,
                 "trustScore" to clampedScore,
@@ -1833,6 +1906,12 @@ class FirebaseRepository @Inject constructor(
                 "boomOrders" to boomOrders,
                 "totalOrders" to totalOrders
             )
+            if (isUnlocked) {
+                userUpdates["lockReason"] = null
+                userUpdates["suspendedReason"] = null
+            } else {
+                userUpdates["lockReason"] = if (adjustReason.isNotBlank()) adjustReason else "Tài khoản của bạn đã bị Quản trị viên khóa do vi phạm chính sách hoạt động."
+            }
             database.getReference("users").child(uid).updateChildren(userUpdates).await()
 
             val custUpdates = mutableMapOf<String, Any?>(
@@ -1841,13 +1920,32 @@ class FirebaseRepository @Inject constructor(
                 "name" to user.name,
                 "email" to user.email,
                 "phone" to user.phone,
-                "status" to user.status,
+                "status" to finalStatus,
+                "isActive" to isUnlocked,
+                "active" to isUnlocked,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
                 "boomOrders" to boomOrders,
                 "totalOrders" to totalOrders
             )
+            if (isUnlocked) {
+                custUpdates["lockReason"] = null
+                custUpdates["suspendedReason"] = null
+            } else {
+                custUpdates["lockReason"] = if (adjustReason.isNotBlank()) adjustReason else "Tài khoản của bạn đã bị Quản trị viên khóa do vi phạm chính sách hoạt động."
+            }
             database.getReference("customers").child(uid).updateChildren(custUpdates).await()
+
+            try {
+                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                if (driverSnap.exists()) {
+                    val driverUpdates = mapOf<String, Any?>(
+                        "isActive" to isUnlocked,
+                        "dutyStatus" to if (isUnlocked) "OFFLINE" else "LOCKED"
+                    )
+                    database.getReference("drivers").child(uid).updateChildren(driverUpdates).await()
+                }
+            } catch (_: Exception) {}
 
             if (oldScore != clampedScore || adjustReason.isNotBlank()) {
                 val diff = clampedScore - oldScore

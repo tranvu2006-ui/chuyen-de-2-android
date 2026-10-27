@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import com.chuyen_de_2.foodorder.admin.databinding.DialogEditUserBinding
 import com.chuyen_de_2.foodorder.core.data.model.Customer
@@ -31,6 +32,7 @@ class EditUserDialogFragment(
 
     private val statusOptions = listOf(
         User.Status.ACTIVE,
+        "LOCKED",
         User.Status.INACTIVE,
         User.Status.OFFLINE
     )
@@ -71,7 +73,12 @@ class EditUserDialogFragment(
         val roleAdapter = ArrayAdapter(
             context,
             com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf("🛍️ Khách Hàng (CUSTOMER)", "🏪 Chủ Quán (MERCHANT)", "🛵 Tài Xế Giao Hàng (SHIPPER)", "👑 Quản Trị Viên (ADMIN)")
+            listOf(
+                "🛍️ Khách Hàng (CUSTOMER)",
+                "🏪 Chủ Quán (MERCHANT)",
+                "🛵 Tài Xế Giao Hàng (SHIPPER)",
+                "👑 Quản Trị Viên (ADMIN)"
+            )
         ).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
         }
@@ -80,7 +87,12 @@ class EditUserDialogFragment(
         val statusAdapter = ArrayAdapter(
             context,
             com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf("🟢 Đang Hoạt Động (ACTIVE)", "⚪ Ngừng Hoạt Động (INACTIVE)", "⚫ Ngoại Tuyến (OFFLINE)")
+            listOf(
+                "🟢 Đang Hoạt Động (ACTIVE)",
+                "🚫 Đã Bị Khóa (LOCKED)",
+                "⚪ Tạm Ngừng (INACTIVE)",
+                "⚫ Ngoại Tuyến (OFFLINE)"
+            )
         ).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
         }
@@ -112,20 +124,53 @@ class EditUserDialogFragment(
         }
         binding.spnUserRole.setSelection(roleIndex)
 
-        val statusIndex = when (user.status.uppercase()) {
-            User.Status.ACTIVE -> 0
-            User.Status.INACTIVE -> 1
-            User.Status.OFFLINE -> 2
-            else -> if (user.isActive) 0 else 1
+        val isLocked = !user.isActive ||
+            user.status.equals("LOCKED", ignoreCase = true) ||
+            user.status.equals("SUSPENDED", ignoreCase = true) ||
+            user.status.equals(User.Status.INACTIVE, ignoreCase = true)
+
+        val statusIndex = when {
+            user.status.equals("LOCKED", ignoreCase = true) || user.status.equals("SUSPENDED", ignoreCase = true) -> 1
+            user.status.equals(User.Status.INACTIVE, ignoreCase = true) -> 2
+            user.status.equals(User.Status.OFFLINE, ignoreCase = true) -> 3
+            !user.isActive -> 1
+            else -> 0
         }
         binding.spnUserStatus.setSelection(statusIndex)
-
-        binding.switchUserActive.isChecked = user.isActive
+        binding.switchUserActive.isChecked = !isLocked
     }
 
     private fun setupListeners() {
         binding.btnCloseUserDialog.setOnClickListener { dismiss() }
         binding.btnCancelEditUser.setOnClickListener { dismiss() }
+
+        // Đồng bộ giữa Switch Kích hoạt và Spinner Trạng thái
+        binding.switchUserActive.setOnCheckedChangeListener { _, isChecked ->
+            if (!isChecked) {
+                if (binding.spnUserStatus.selectedItemPosition == 0) {
+                    binding.spnUserStatus.setSelection(1) // LOCKED
+                }
+            } else {
+                if (binding.spnUserStatus.selectedItemPosition == 1 || binding.spnUserStatus.selectedItemPosition == 2) {
+                    binding.spnUserStatus.setSelection(0) // ACTIVE
+                }
+            }
+        }
+
+        binding.spnUserStatus.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position == 1 || position == 2) {
+                    if (binding.switchUserActive.isChecked) {
+                        binding.switchUserActive.isChecked = false
+                    }
+                } else if (position == 0) {
+                    if (!binding.switchUserActive.isChecked) {
+                        binding.switchUserActive.isChecked = true
+                    }
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
 
         binding.btnQuickPlus10.setOnClickListener {
             val cur = binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100
@@ -165,8 +210,10 @@ class EditUserDialogFragment(
             val adjustReason = binding.etTrustAdjustReason.text?.toString().orEmpty().trim()
 
             val selectedRole = roleOptions.getOrElse(binding.spnUserRole.selectedItemPosition) { User.Role.CUSTOMER }
-            val selectedStatus = statusOptions.getOrElse(binding.spnUserStatus.selectedItemPosition) { User.Status.ACTIVE }
-            val isActive = binding.switchUserActive.isChecked
+            val rawStatus = statusOptions.getOrElse(binding.spnUserStatus.selectedItemPosition) { User.Status.ACTIVE }
+            val isCheckedActive = binding.switchUserActive.isChecked
+            val isUnlocked = isCheckedActive && rawStatus != "LOCKED" && rawStatus != User.Status.INACTIVE
+            val finalStatus = if (isUnlocked) rawStatus else "LOCKED"
 
             val roleId = when (selectedRole) {
                 User.Role.ADMIN -> 1
@@ -184,8 +231,8 @@ class EditUserDialogFragment(
                 roleId = roleId,
                 storeId = storeId,
                 avatarUrl = avatarUrl,
-                status = selectedStatus,
-                isActive = isActive
+                status = finalStatus,
+                isActive = isUnlocked
             )
 
             onSave(updatedUser, trustScore, completedOrders, boomOrders, adjustReason)

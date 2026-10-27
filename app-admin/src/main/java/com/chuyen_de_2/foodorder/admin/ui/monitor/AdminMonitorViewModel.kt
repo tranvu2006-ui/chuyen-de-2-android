@@ -1,4 +1,4 @@
-package com.chuyen_de_2.foodorder.admin.ui.monitor
+﻿package com.chuyen_de_2.foodorder.admin.ui.monitor
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -107,11 +107,19 @@ class AdminMonitorViewModel @Inject constructor(
 
     fun toggleUserLock(user: User) {
         viewModelScope.launch {
-            val newIsActive = !user.isActive
-            val newStatus = if (newIsActive) User.Status.ACTIVE else User.Status.INACTIVE
-            val result = firebaseRepo.updateUserStatus(user.uid, newStatus, newIsActive)
+            val isCurrentlyLocked = !user.isActive ||
+                user.status.equals("LOCKED", ignoreCase = true) ||
+                user.status.equals("SUSPENDED", ignoreCase = true) ||
+                user.status.equals(User.Status.INACTIVE, ignoreCase = true)
+
+            val newIsActive = isCurrentlyLocked
+            val newStatus = if (newIsActive) User.Status.ACTIVE else "LOCKED"
+            val lockReason = if (!newIsActive) "Tài khoản của bạn đã bị Quản trị viên tạm khóa. Vui lòng liên hệ Admin qua email admin@gmail.com để được giải quyết." else ""
+
+            val result = firebaseRepo.updateUserStatus(user.uid, newStatus, newIsActive, lockReason)
+            val displayName = user.email.ifBlank { user.name.ifBlank { user.uid } }
             if (result.isSuccess) {
-                _message.value = if (newIsActive) "Đã mở khóa tài khoản ${user.email}" else "Đã khóa tài khoản ${user.email}"
+                _message.value = if (newIsActive) "Đã mở khóa tài khoản $displayName" else "Đã khóa tài khoản $displayName"
             } else {
                 _message.value = "Cập nhật tài khoản thất bại: ${result.exceptionOrNull()?.localizedMessage}"
             }

@@ -70,12 +70,21 @@ class AdminUserAdapter(
                 binding.tvCustomerTrust.text = "💎 Hạng Kim Cương (100/100) • Nhận: 0 • Bom: 0"
             }
 
-            // Lock / Unlock button
-            if (user.isActive && !user.status.equals(User.Status.INACTIVE, ignoreCase = true)) {
+            // Lock / Unlock button & indicator
+            val isLocked = !user.isActive ||
+                user.status.equals("LOCKED", ignoreCase = true) ||
+                user.status.equals("SUSPENDED", ignoreCase = true) ||
+                user.status.equals(User.Status.INACTIVE, ignoreCase = true)
+
+            if (!isLocked) {
                 binding.btnToggleLock.text = "Khóa"
                 binding.btnToggleLock.setTextColor(ContextCompat.getColor(context, R.color.danger))
                 binding.btnToggleLock.strokeColor = ContextCompat.getColorStateList(context, R.color.danger)
             } else {
+                binding.tvUserRoleBadge.text = "$roleUpper • ĐÃ KHÓA"
+                binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+
                 binding.btnToggleLock.text = "Mở khóa"
                 binding.btnToggleLock.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
                 binding.btnToggleLock.strokeColor = ContextCompat.getColorStateList(context, R.color.brand_green)

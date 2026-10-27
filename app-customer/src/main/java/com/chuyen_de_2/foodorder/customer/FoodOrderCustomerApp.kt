@@ -3,7 +3,9 @@ package com.chuyen_de_2.foodorder.customer
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.chuyen_de_2.foodorder.core.util.AccountLockWatcher
 import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
 import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.HiltAndroidApp
 
@@ -25,6 +27,9 @@ class FoodOrderCustomerApp : Application() {
 
         // Tạo Notification Channels (Android 8.0+)
         createNotificationChannels()
+
+        // Giám sát trạng thái khóa tài khoản thời gian thực qua WebSocket Firebase
+        AccountLockWatcher.init(this, LoginActivity::class.java)
     }
 
     private fun createNotificationChannels() {

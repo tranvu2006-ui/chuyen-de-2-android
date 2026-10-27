@@ -67,9 +67,12 @@ class AdminMonitorFragment : Fragment() {
                     }
                     .show()
             },
-            onUserClick = { user ->
-                val dialog = EditUserDialogFragment(user) { updatedUser ->
-                    viewModel.saveUserFull(updatedUser)
+            onUserClick = { item ->
+                val dialog = EditUserDialogFragment(
+                    user = item.user,
+                    customer = item.customer
+                ) { updatedUser, trustScore, completedOrders, boomOrders, reason ->
+                    viewModel.saveUserWithTrustScore(updatedUser, trustScore, completedOrders, boomOrders, reason)
                 }
                 dialog.show(childFragmentManager, EditUserDialogFragment.TAG)
             }

@@ -103,7 +103,19 @@ class CheckoutViewModel @Inject constructor(
                         return@launch
                     }
 
-                    val trustScore = userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
+                    val custSnap = try { database.getReference("customers").child(userId).get().await() } catch (_: Exception) { null }
+                    val trustScore = custSnap?.child("trustScore")?.getValue(Long::class.java) ?: userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
+                    val orderTotalPreview = cartList.sumOf { it.totalAmount } + shippingFee - discount
+                    if (paymentMethod == Order.PaymentMethod.COD && trustScore < 80L && orderTotalPreview > 150_000L) {
+                        _orderResult.value = Result.failure(Exception("Điểm uy tín Hạng Bạc ($trustScore/100) chỉ hỗ trợ thanh toán COD cho đơn tối đa 150.000đ. Vui lòng chọn Chuyển khoản VietQR!"))
+                        _isLoading.value = false
+                        return@launch
+                    }
+                    if (paymentMethod == Order.PaymentMethod.COD && trustScore < 95L && orderTotalPreview > 500_000L) {
+                        _orderResult.value = Result.failure(Exception("Điểm uy tín Hạng Vàng ($trustScore/100) hỗ trợ thanh toán COD tối đa 500.000đ/đơn. Vui lòng chọn Chuyển khoản VietQR!"))
+                        _isLoading.value = false
+                        return@launch
+                    }
                     if (paymentMethod == Order.PaymentMethod.COD && trustScore < 50L) {
                         _orderResult.value = Result.failure(
                             Exception("Điểm uy tín của bạn hiện đang dưới 50 điểm ($trustScore/100). Hình thức COD bị khóa, vui lòng chọn Chuyển khoản ngân hàng (BANKING)!")

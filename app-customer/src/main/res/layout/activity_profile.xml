@@ -132,7 +132,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- TrustScore Card (Chuẩn b11.html & b8.html) -->
+            <!-- TrustScore Card (Hệ thống Điểm Uy Tín Đa Tầng) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardTrustScore"
                 android:layout_width="match_parent"
@@ -159,7 +159,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="ĐIỂM UY TÍN (TRUSTSCORE)"
+                            android:text="🛡️ HỆ THỐNG ĐIỂM UY TÍN (TRUSTSCORE)"
                             android:textColor="#334155"
                             android:textSize="11sp"
                             android:textStyle="bold" />
@@ -171,14 +171,14 @@
                             android:background="@drawable/bg_badge_orange"
                             android:paddingHorizontal="10dp"
                             android:paddingVertical="3dp"
-                            android:text="Hạng Vàng "
+                            android:text="💎 Hạng Kim Cương"
                             android:textColor="@color/primary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
                     <LinearLayout
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:gravity="bottom"
@@ -188,29 +188,102 @@
                             android:id="@+id/tvTrustScoreNumber"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="98"
+                            android:text="100"
                             android:textColor="#D97706"
                             android:textSize="36sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="4dp"
-                            android:text="/ 100"
+                            android:layout_weight="1"
+                            android:text="/ 100 điểm tín nhiệm"
                             android:textColor="#475569"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <ProgressBar
+                        android:id="@+id/progressTrustScore"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="8dp"
+                        android:max="100"
+                        android:progress="100"
+                        android:progressTint="#D97706" />
+
+                    <!-- 3-Column Order Statistics -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_rounded_input_border"
+                        android:orientation="horizontal"
+                        android:paddingVertical="8dp"
+                        android:paddingHorizontal="10dp">
+
+                        <TextView
+                            android:id="@+id/tvTrustTotalOrders"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:text="Tổng đơn: 0"
+                            android:textColor="#334155"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvTrustCompletedOrders"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:text="✓ Nhận: 0 (+2đ)"
+                            android:textColor="#059669"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvTrustBoomOrders"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:text="⚠️ Bom: 0 (-30đ)"
+                            android:textColor="#DC2626"
+                            android:textSize="11.5sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
                     <TextView
+                        android:id="@+id/tvTrustRuleDesc"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:text="Tài khoản có tỷ lệ nhận hàng thành công 99%. Đạt điều kiện thanh toán COD tiền mặt không giới hạn giá trị."
+                        android:layout_marginTop="8dp"
+                        android:text="Đặc quyền Hạng Kim Cương: Thanh toán tiền mặt COD không giới hạn &amp; tự động giảm 5.000đ phí giao hàng mọi đơn!"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp"
                         android:lineSpacingExtra="2dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnViewTrustHistory"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:layout_marginTop="10dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:text="📜 Xem Lịch Sử Biến Động &amp; Quyền Lợi Hạng Uy Tín"
+                        android:textAllCaps="false"
+                        android:textColor="#B45309"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:strokeColor="#F59E0B"
+                        app:strokeWidth="1dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

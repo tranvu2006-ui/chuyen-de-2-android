@@ -335,7 +335,86 @@ class FirebaseRepository @Inject constructor(
     }
 
     /** Cập nhật trạng thái đơn hàng và đồng bộ hai chiều status/orderStatus */
-    suspend fun updateOrderStatus(orderId: String, status: String) {
+    suspend fun updateOrderStatus(orderId: String, status: String, reason: String = "") {
+        val prevOrderSnap = try { database.getReference("orders").child(orderId).get().await() } catch (_: Exception) { null }
+        val prevStatus = prevOrderSnap?.child("status")?.getValue(String::class.java)?.uppercase().orEmpty()
+        val updates = mutableMapOf<String, Any>("status" to status, "orderStatus" to status, "updatedAt" to System.currentTimeMillis())
+        if (reason.isNotBlank()) updates["cancelReason"] = reason
+        database.getReference("orders").child(orderId).updateChildren(updates).await()
+        if (prevStatus == status.uppercase()) return
+        try {
+            val customerId = prevOrderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
+            if (customerId.isNotBlank()) {
+                val userRef = database.getReference("users").child(customerId)
+                val custNodeRef = database.getReference("customers").child(customerId)
+                val userSnap = userRef.get().await()
+                val custNodeSnap = custNodeRef.get().await()
+                val currentCompleted = maxOf(userSnap.child("completedOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("completedOrders").getValue(Long::class.java) ?: 0L)
+                val currentTotal = maxOf(userSnap.child("totalOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("totalOrders").getValue(Long::class.java) ?: 0L)
+                val currentBoom = maxOf(userSnap.child("boomOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("boomOrders").getValue(Long::class.java) ?: 0L)
+                val currentScore = custNodeSnap.child("trustScore").getValue(Long::class.java) ?: userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
+                val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
+                val statsUpdates = mutableMapOf<String, Any>()
+                var scoreChange = 0
+                var logReason = ""
+                var newScore = currentScore
+                when (status.uppercase()) {
+                    Order.Status.COMPLETED -> {
+                        newScore = minOf(100L, currentScore + 2L)
+                        scoreChange = (newScore - currentScore).toInt()
+                        logReason = "Hoàn thành nhận hàng & thanh toán đơn #ORD-$shortCode (+2 điểm)"
+                        statsUpdates["completedOrders"] = currentCompleted + 1
+                        statsUpdates["totalOrders"] = currentTotal + 1
+                        statsUpdates["trustScore"] = newScore
+                    }
+                    Order.Status.BOOM -> {
+                        newScore = maxOf(0L, currentScore - 30L)
+                        scoreChange = (newScore - currentScore).toInt()
+                        logReason = if (reason.isNotBlank()) "Bom hàng đơn #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
+                        statsUpdates["boomOrders"] = currentBoom + 1
+                        statsUpdates["totalOrders"] = currentTotal + 1
+                        statsUpdates["trustScore"] = newScore
+                        if (newScore < 20L) {
+                            statsUpdates["status"] = "LOCKED"
+                            statsUpdates["isActive"] = false
+                            statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                        }
+                    }
+                    Order.Status.CANCELLED -> {
+                        if (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING) {
+                            newScore = maxOf(0L, currentScore - 10L)
+                            scoreChange = (newScore - currentScore).toInt()
+                            logReason = if (reason.isNotBlank()) "Hủy đơn muộn #ORD-$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #ORD-$shortCode sau khi quán đã chế biến (-10 điểm)"
+                            statsUpdates["boomOrders"] = currentBoom + 1
+                            statsUpdates["totalOrders"] = currentTotal + 1
+                            statsUpdates["trustScore"] = newScore
+                        }
+                    }
+                }
+                if (statsUpdates.isNotEmpty()) {
+                    userRef.updateChildren(statsUpdates)
+                    custNodeRef.updateChildren(statsUpdates)
+                    if (logReason.isNotBlank()) {
+                        val logRef = database.getReference("trust_score_logs").push()
+                        val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
+                        val logEntry = TrustScoreLog(
+                            logId = logId,
+                            customerId = customerId,
+                            orderId = orderId,
+                            changeAmount = if (scoreChange != 0) scoreChange else if (status.uppercase() == Order.Status.COMPLETED) 2 else -10,
+                            oldScore = currentScore.toInt(),
+                            newScore = newScore.toInt(),
+                            reason = logReason,
+                            createdAt = System.currentTimeMillis()
+                        )
+                        logRef.setValue(logEntry)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return
+    }
+    private suspend fun legacyUpdateOrderStatusUnused(orderId: String, status: String) {
         val updates = mutableMapOf<String, Any>(
             "status" to status,
             "orderStatus" to status,
@@ -1571,6 +1650,146 @@ class FirebaseRepository @Inject constructor(
         com.chuyen_de_2.foodorder.core.data.model.Category.getDefaultCategories()
 
     /** Khôi phục 12 danh mục chuẩn hệ thống Oishi Food */
+    /** Lắng nghe hồ sơ Customer & Điểm uy tín theo thời gian thực cho 1 khách hàng */
+    fun observeCustomerProfile(customerId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Customer> = callbackFlow {
+        if (customerId.isBlank()) {
+            trySend(com.chuyen_de_2.foodorder.core.data.model.Customer())
+            close()
+            return@callbackFlow
+        }
+        val custRef = database.getReference("customers").child(customerId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val score = snapshot.child("trustScore").getValue(Int::class.java) ?: 100
+                val total = snapshot.child("totalOrders").getValue(Int::class.java) ?: 0
+                val completed = snapshot.child("completedOrders").getValue(Int::class.java) ?: 0
+                val boom = snapshot.child("boomOrders").getValue(Int::class.java) ?: 0
+                val avatar = snapshot.child("avatarUrl").getValue(String::class.java).orEmpty()
+                trySend(
+                    com.chuyen_de_2.foodorder.core.data.model.Customer(
+                        customerId = customerId,
+                        avatarUrl = avatar,
+                        trustScore = score.coerceIn(0, 100),
+                        totalOrders = maxOf(total, completed + boom),
+                        completedOrders = completed,
+                        boomOrders = boom
+                    )
+                )
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        custRef.addValueEventListener(listener)
+        awaitClose { custRef.removeEventListener(listener) }
+    }
+
+    /** Lắng nghe lịch sử biến động Điểm Uy Tín (trust_score_logs) của khách hàng */
+    fun observeTrustScoreLogs(customerId: String): Flow<List<TrustScoreLog>> = callbackFlow {
+        if (customerId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val ref = database.getReference("trust_score_logs")
+            .orderByChild("customerId")
+            .equalTo(customerId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val logs = snapshot.children.mapNotNull { child ->
+                    val log = child.getValue(TrustScoreLog::class.java)
+                    if (log != null) {
+                        log.copy(logId = if (log.logId.isBlank()) child.key.orEmpty() else log.logId)
+                    } else null
+                }.sortedByDescending { it.createdAt }
+                trySend(logs)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                trySend(emptyList())
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Quản trị viên cập nhật hồ sơ User kèm Điểm Uy Tín & Thống kê đơn hàng */
+    suspend fun saveUserWithTrustScore(
+        user: com.chuyen_de_2.foodorder.core.data.model.User,
+        trustScore: Int,
+        completedOrders: Int,
+        boomOrders: Int,
+        adjustReason: String = ""
+    ): Result<Unit> {
+        return try {
+            val uid = user.uid.ifBlank { return Result.failure(IllegalArgumentException("User UID cannot be empty")) }
+            val clampedScore = trustScore.coerceIn(0, 100)
+            val totalOrders = maxOf(0, completedOrders + boomOrders)
+
+            val custSnap = database.getReference("customers").child(uid).get().await()
+            val oldScore = custSnap.child("trustScore").getValue(Int::class.java) ?: 100
+
+            val userUpdates = mutableMapOf<String, Any?>(
+                "uid" to uid,
+                "name" to user.name,
+                "email" to user.email,
+                "phone" to user.phone,
+                "role" to user.role,
+                "roleId" to user.roleId,
+                "isActive" to user.isActive,
+                "status" to user.status,
+                "avatarUrl" to user.avatarUrl,
+                "storeId" to user.storeId,
+                "trustScore" to clampedScore,
+                "completedOrders" to completedOrders,
+                "boomOrders" to boomOrders,
+                "totalOrders" to totalOrders
+            )
+            database.getReference("users").child(uid).updateChildren(userUpdates).await()
+
+            val custUpdates = mutableMapOf<String, Any?>(
+                "customerId" to uid,
+                "uid" to uid,
+                "name" to user.name,
+                "email" to user.email,
+                "phone" to user.phone,
+                "status" to user.status,
+                "trustScore" to clampedScore,
+                "completedOrders" to completedOrders,
+                "boomOrders" to boomOrders,
+                "totalOrders" to totalOrders
+            )
+            database.getReference("customers").child(uid).updateChildren(custUpdates).await()
+
+            if (oldScore != clampedScore || adjustReason.isNotBlank()) {
+                val diff = clampedScore - oldScore
+                val logRef = database.getReference("trust_score_logs").push()
+                val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
+                val reasonText = if (adjustReason.isNotBlank()) {
+                    "Quản trị viên điều chỉnh: $adjustReason"
+                } else {
+                    "Quản trị viên cập nhật điểm uy tín ($oldScore -> $clampedScore)"
+                }
+                val logEntry = TrustScoreLog(
+                    logId = logId,
+                    customerId = uid,
+                    orderId = null,
+                    changeAmount = diff,
+                    oldScore = oldScore,
+                    newScore = clampedScore,
+                    reason = reasonText,
+                    createdAt = System.currentTimeMillis()
+                )
+                logRef.setValue(logEntry).await()
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun restoreDefaultCategories(): Result<Unit> {
         return try {
             val defaults = getDefaultCategories()

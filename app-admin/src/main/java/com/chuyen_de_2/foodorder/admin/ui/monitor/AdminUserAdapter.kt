@@ -14,7 +14,7 @@ import java.util.Locale
 
 class AdminUserAdapter(
     private val onToggleLock: (User) -> Unit,
-    private val onUserClick: ((User) -> Unit)? = null
+    private val onUserClick: ((UserWithCustomerInfo) -> Unit)? = null
 ) : ListAdapter<UserWithCustomerInfo, AdminUserAdapter.UserViewHolder>(UserDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
@@ -60,12 +60,14 @@ class AdminUserAdapter(
                 }
             }
 
-            // Customer Trust Score
+            // Customer Trust Score & Tier Badge
             if (item.customer != null) {
+                val c = item.customer
                 binding.tvCustomerTrust.visibility = View.VISIBLE
-                binding.tvCustomerTrust.text = "Điểm uy tín: ${item.customer.trustScore} • Đơn boom: ${item.customer.boomOrders} • Hoàn thành: ${item.customer.completedOrders}"
+                binding.tvCustomerTrust.text = "${c.tierBadge} (${c.trustScore}/100) • Nhận: ${c.completedOrders} • Bom: ${c.boomOrders}"
             } else {
-                binding.tvCustomerTrust.visibility = View.GONE
+                binding.tvCustomerTrust.visibility = View.VISIBLE
+                binding.tvCustomerTrust.text = "💎 Hạng Kim Cương (100/100) • Nhận: 0 • Bom: 0"
             }
 
             // Lock / Unlock button
@@ -84,7 +86,7 @@ class AdminUserAdapter(
             }
 
             itemView.setOnClickListener {
-                onUserClick?.invoke(user)
+                onUserClick?.invoke(item)
             }
         }
     }

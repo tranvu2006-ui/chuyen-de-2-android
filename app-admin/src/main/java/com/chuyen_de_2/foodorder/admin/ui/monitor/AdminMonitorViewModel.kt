@@ -118,13 +118,25 @@ class AdminMonitorViewModel @Inject constructor(
         }
     }
 
-    fun saveUserFull(user: User) {
+    fun saveUserWithTrustScore(
+        user: User,
+        trustScore: Int,
+        completedOrders: Int,
+        boomOrders: Int,
+        adjustReason: String
+    ) {
         viewModelScope.launch {
-            val result = firebaseRepo.saveUserFull(user)
+            val result = firebaseRepo.saveUserWithTrustScore(
+                user = user,
+                trustScore = trustScore,
+                completedOrders = completedOrders,
+                boomOrders = boomOrders,
+                adjustReason = adjustReason
+            )
             if (result.isSuccess) {
-                _message.value = "Đã lưu toàn bộ thông tin người dùng '${user.name.ifBlank { user.email }}'!"
+                _message.value = "Đã lưu hồ sơ & Điểm uy tín ($trustScore/100) cho '${user.name.ifBlank { user.email }}'!"
             } else {
-                _message.value = "Cập nhật người dùng thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+                _message.value = "Cập nhật thất bại: ${result.exceptionOrNull()?.localizedMessage}"
             }
         }
     }

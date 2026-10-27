@@ -1493,7 +1493,9 @@ class DeliveryTripActivity : AppCompatActivity() {
         repBinding.btnConfirmIncidentCancel.setOnClickListener {
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
             lifecycleScope.launch {
-                firebaseRepository.updateOrderStatus(order.orderId, Order.Status.CANCELLED)
+                val isCustomerFault = !reason.contains("giao thông", ignoreCase = true)
+                val finalIncidentStatus = if (isCustomerFault) Order.Status.BOOM else Order.Status.CANCELLED
+                firebaseRepository.updateOrderStatus(order.orderId, finalIncidentStatus, reason)
                 completedBundleOrderIds.add(order.orderId)
                 dialog.dismiss()
 

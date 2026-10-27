@@ -43,7 +43,7 @@
                         android:id="@+id/tvUserDialogTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Chỉnh Sửa Hồ Sơ Tài Khoản"
+                        android:text="Chỉnh Sửa Hồ Sơ &amp; Điểm Uy Tín"
                         android:textColor="@color/text_primary"
                         android:textSize="17sp"
                         android:textStyle="bold" />
@@ -122,6 +122,167 @@
                     android:textColor="@color/text_primary"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- KHỐI QUẢN TRỊ ĐIỂM UY TÍN & THỐNG KÊ ĐƠN HÀNG -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/surface_elevated"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🛡️ ĐIỂM UY TÍN &amp; KIỂM SOÁT BOM HÀNG"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="Điểm uy tín (0-100)">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etUserTrustScore"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="100"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:hint="Đơn hoàn thành">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etUserCompletedOrders"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="0"
+                                android:textColor="@color/brand_green"
+                                android:textSize="14sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:hint="Đơn bom">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etUserBoomOrders"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="0"
+                                android:textColor="@color/danger"
+                                android:textSize="14sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                    <!-- Quick Preset Buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQuickPlus10"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:padding="0dp"
+                            android:text="+10 Điểm"
+                            android:textAllCaps="false"
+                            android:textColor="@color/brand_green"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/brand_green" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQuickMinus20"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:padding="0dp"
+                            android:text="-20 Phạt"
+                            android:textAllCaps="false"
+                            android:textColor="@color/danger"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/danger" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQuickReset100"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:padding="0dp"
+                            android:text="Khôi phục 100đ"
+                            android:textAllCaps="false"
+                            android:textColor="@color/brand_blue"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/brand_blue" />
+                    </LinearLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Lý do điều chỉnh điểm uy tín (Lưu vào nhật ký)">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etTrustAdjustReason"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapSentences"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- Vai trò người dùng -->
             <TextView

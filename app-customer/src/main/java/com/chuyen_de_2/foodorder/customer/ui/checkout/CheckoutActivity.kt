@@ -275,7 +275,35 @@ class CheckoutActivity : AppCompatActivity() {
     private fun setupSavedAddresses() {
         val uid = firebaseAuth.currentUser?.uid ?: return
 
-        // 1. Tự động điền SĐT nếu tài khoản đã có
+        // 1. Tự động điền SĐT & kiểm tra Điểm Uy Tín (TrustScore) theo thời gian thực
+        lifecycleScope.launch {
+            firebaseRepository.observeCustomerProfile(uid).collectLatest { cust ->
+                if (cust.trustScore >= 95 && currentDiscount < 5000L) {
+                    currentDiscount = 5000L
+                    recalculateTotal()
+                }
+                when {
+                    cust.trustScore < 50 -> {
+                        binding.rbCod.isEnabled = false
+                        binding.rbCod.text = "🚫 Tiền mặt (COD) — Đã khóa do Điểm uy tín thấp (${cust.trustScore}/100)"
+                        binding.rbBanking.isChecked = true
+                        binding.layoutBankingInfo.visibility = View.VISIBLE
+                    }
+                    cust.trustScore < 80 -> {
+                        binding.rbCod.isEnabled = true
+                        binding.rbCod.text = "Tiền mặt khi nhận hàng (COD - Tối đa 150.000đ | Uy tín: ${cust.trustScore}đ)"
+                    }
+                    cust.trustScore < 95 -> {
+                        binding.rbCod.isEnabled = true
+                        binding.rbCod.text = "Tiền mặt khi nhận hàng (COD - Tối đa 500.000đ | Uy tín: ${cust.trustScore}đ)"
+                    }
+                    else -> {
+                        binding.rbCod.isEnabled = true
+                        binding.rbCod.text = "Tiền mặt khi nhận hàng (COD - Không giới hạn | 💎 Uy tín ${cust.trustScore}đ - Giảm 5k ship)"
+                    }
+                }
+            }
+        }
         lifecycleScope.launch {
             val userResult = authRepository.getCurrentUserData()
             userResult.onSuccess { user ->

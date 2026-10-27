@@ -6,8 +6,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
-import android.widget.Toast
 import com.chuyen_de_2.foodorder.admin.databinding.DialogEditUserBinding
+import com.chuyen_de_2.foodorder.core.data.model.Customer
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -15,7 +15,8 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 class EditUserDialogFragment(
     private val user: User,
-    private val onSave: (User) -> Unit
+    private val customer: Customer? = null,
+    private val onSave: (User, Int, Int, Int, String) -> Unit
 ) : BottomSheetDialogFragment() {
 
     private var _binding: DialogEditUserBinding? = null
@@ -90,10 +91,18 @@ class EditUserDialogFragment(
         binding.etUserStoreId.setText(user.storeId)
         binding.etUserAvatarUrl.setText(user.avatarUrl)
 
+        val currentScore = customer?.trustScore ?: 100
+        val currentCompleted = customer?.completedOrders ?: 0
+        val currentBoom = customer?.boomOrders ?: 0
+
+        binding.etUserTrustScore.setText(currentScore.toString())
+        binding.etUserCompletedOrders.setText(currentCompleted.toString())
+        binding.etUserBoomOrders.setText(currentBoom.toString())
+
         val roleIndex = when (user.role.uppercase()) {
             User.Role.CUSTOMER -> 0
             User.Role.MERCHANT -> 1
-            User.Role.SHIPPER -> 2
+            User.Role.SHIPPER, User.Role.DRIVER -> 2
             User.Role.ADMIN -> 3
             else -> 0
         }
@@ -114,12 +123,42 @@ class EditUserDialogFragment(
         binding.btnCloseUserDialog.setOnClickListener { dismiss() }
         binding.btnCancelEditUser.setOnClickListener { dismiss() }
 
+        binding.btnQuickPlus10.setOnClickListener {
+            val cur = binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100
+            binding.etUserTrustScore.setText((cur + 10).coerceAtMost(100).toString())
+            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
+                binding.etTrustAdjustReason.setText("Cộng thưởng điểm tín nhiệm tích cực")
+            }
+        }
+
+        binding.btnQuickMinus20.setOnClickListener {
+            val cur = binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100
+            binding.etUserTrustScore.setText((cur - 20).coerceAtLeast(0).toString())
+            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
+                binding.etTrustAdjustReason.setText("Trừ điểm do vi phạm quy định đặt hàng / bom đơn")
+            }
+        }
+
+        binding.btnQuickReset100.setOnClickListener {
+            binding.etUserTrustScore.setText("100")
+            binding.switchUserActive.isChecked = true
+            binding.spnUserStatus.setSelection(0)
+            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
+                binding.etTrustAdjustReason.setText("Khôi phục 100 điểm uy tín & mở khóa tài khoản")
+            }
+        }
+
         binding.btnSaveEditUser.setOnClickListener {
             val name = binding.etUserName.text?.toString().orEmpty().trim()
             val email = binding.etUserEmail.text?.toString().orEmpty().trim()
             val phone = binding.etUserPhone.text?.toString().orEmpty().trim()
             val storeId = binding.etUserStoreId.text?.toString().orEmpty().trim()
             val avatarUrl = binding.etUserAvatarUrl.text?.toString().orEmpty().trim()
+
+            val trustScore = (binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100).coerceIn(0, 100)
+            val completedOrders = (binding.etUserCompletedOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)
+            val boomOrders = (binding.etUserBoomOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)
+            val adjustReason = binding.etTrustAdjustReason.text?.toString().orEmpty().trim()
 
             val selectedRole = roleOptions.getOrElse(binding.spnUserRole.selectedItemPosition) { User.Role.CUSTOMER }
             val selectedStatus = statusOptions.getOrElse(binding.spnUserStatus.selectedItemPosition) { User.Status.ACTIVE }
@@ -145,7 +184,7 @@ class EditUserDialogFragment(
                 isActive = isActive
             )
 
-            onSave(updatedUser)
+            onSave(updatedUser, trustScore, completedOrders, boomOrders, adjustReason)
             dismiss()
         }
     }

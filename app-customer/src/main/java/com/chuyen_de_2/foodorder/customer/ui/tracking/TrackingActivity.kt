@@ -663,7 +663,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
         val payMethodStr = when (order.paymentMethod.uppercase()) {
             Order.PaymentMethod.MOMO -> if (isPaid) "Ví điện tử MoMo (Đã chuyển khoản)" else "Ví điện tử MoMo (Chờ chuyển khoản)"
-            Order.PaymentMethod.BANKING -> if (isPaid) "Chuyển khoản Ngân hàng (Đã chuyển khoản)" else "Chuyển khoản Ngân hàng (Chờ chuyển khoản)"
+            Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
             else -> "Tiền mặt khi nhận món (COD)"
         }
         binding.txtB9PayMode.text = "💳 Hình thức: $payMethodStr"

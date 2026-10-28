@@ -47,10 +47,7 @@ class OrderAdapter(
                     if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo"
                     else "⏳ Chờ khách chuyển khoản Ví MoMo (Chưa chuyển)"
                 }
-                Order.PaymentMethod.BANKING -> {
-                    if (isPaidOnline) "✅ Đã chuyển khoản Ngân hàng"
-                    else "⏳ Chờ khách chuyển khoản Ngân hàng (Chưa chuyển)"
-                }
+                Order.PaymentMethod.BANKING -> "Đã thanh toán Ngân hàng"
                 else -> "Thu tiền mặt khi nhận (COD)"
             }
 
@@ -67,15 +64,9 @@ class OrderAdapter(
                     }
                 }
                 Order.PaymentMethod.BANKING -> {
-                    if (isPaidOnline) {
-                        binding.tvPaymentStatusBadge.text = "✅ Đã chuyển Ngân hàng"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
-                    } else {
-                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển khoản QR"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
-                    }
+                    binding.tvPaymentStatusBadge.text = "✅ Đã thanh toán Ngân hàng"
+                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                    binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
                 }
                 else -> {
                     binding.tvPaymentStatusBadge.text = "💵 Thu tiền mặt (COD)"

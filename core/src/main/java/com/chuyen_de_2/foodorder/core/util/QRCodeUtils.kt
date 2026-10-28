@@ -153,7 +153,8 @@ object QRCodeUtils {
     }
 
     /**
-     * Tạo chuỗi dữ liệu QR chuyển tiền Ví MoMo chuẩn (2|99|phone|name||0|0|amount|note|transfer_myqr)
+     * Tạo chuỗi dữ liệu QR chuyển tiền nội bộ Ví MoMo chuẩn (2|99|phone|name||0|0|amount|note|transfer_myqr).
+     * Khi quét bằng App MoMo thật sẽ mở đúng màn hình "Chuyển tiền đến Ví MoMo" (không bị nhảy sang "Đến ngân hàng" báo lỗi tài khoản không hợp lệ).
      */
     fun buildMomoQrPayload(
         phone: String,
@@ -161,10 +162,19 @@ object QRCodeUtils {
         amount: Long,
         transferSyntax: String
     ): String {
-        val cleanPhone = phone.replace(" ", "").trim().ifBlank { "0988888888" }
-        val cleanName = receiverName.trim().ifBlank { "OISHI FOOD" }
-        val cleanNote = transferSyntax.trim().ifBlank { "OISHI" }
-        return "2|99|$cleanPhone|$cleanName||0|0|$amount|$cleanNote|transfer_myqr"
+        val cleanPhone = phone.replace(Regex("[^0-9]"), "").ifBlank { "0988888888" }
+        val cleanName = removeAccents(receiverName).replace(Regex("[^A-Za-z0-9 ]"), " ").trim().uppercase().ifBlank { "OISHI FOOD" }
+        val cleanNote = removeAccents(transferSyntax).replace(Regex("[^A-Za-z0-9 ]"), " ").trim().uppercase().ifBlank { "OISHI" }
+        val safeAmount = amount.coerceAtLeast(0L)
+        return "2|99|$cleanPhone|$cleanName||0|0|$safeAmount|$cleanNote|transfer_myqr"
+    }
+
+    private fun removeAccents(input: String): String {
+        val normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+        return normalized
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .replace('đ', 'd')
+            .replace('Đ', 'D')
     }
 
     /**

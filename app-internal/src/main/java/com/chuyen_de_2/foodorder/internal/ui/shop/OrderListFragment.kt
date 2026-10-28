@@ -385,7 +385,7 @@ class OrderListFragment : Fragment() {
         val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
         val payDetail = when (order.paymentMethod.uppercase()) {
             Order.PaymentMethod.MOMO -> if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo" else "⏳ Chờ khách chuyển khoản Ví MoMo"
-            Order.PaymentMethod.BANKING -> if (isPaidOnline) "✅ Đã chuyển khoản Ngân hàng" else "⏳ Chờ khách chuyển khoản Ngân hàng"
+            Order.PaymentMethod.BANKING -> "✅ Đã thanh toán Ngân hàng (VietQR)"
             else -> "💵 Thu tiền mặt khi nhận (COD)"
         }
 

@@ -31,7 +31,10 @@ class MomoPaymentNotificationListenerService : NotificationListenerService() {
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
         val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
-        val fullContent = "$title $text $bigText".uppercase()
+        val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty()
+        val ticker = notification.tickerText?.toString().orEmpty()
+        val fullContent = "$title $text $bigText $subText $ticker".uppercase()
+        val numericContent = fullContent.replace(".", "").replace(",", "").replace(" ", "")
 
         // Chỉ xử lý khi thông báo đến từ MoMo / Ngân hàng hoặc có từ khóa biến động giao dịch tiền thật
         val isFromPaymentApp = pkg.contains("momo") ||
@@ -39,22 +42,37 @@ class MomoPaymentNotificationListenerService : NotificationListenerService() {
             pkg.contains("vcb") ||
             pkg.contains("mbmobile") ||
             pkg.contains("tcb") ||
+            pkg.contains("techcombank") ||
             pkg.contains("acb") ||
             pkg.contains("bidv") ||
             pkg.contains("icb") ||
+            pkg.contains("vietin") ||
             pkg.contains("vpbank") ||
             pkg.contains("tpb") ||
+            pkg.contains("lio") ||
+            pkg.contains("timo") ||
+            pkg.contains("cake") ||
+            pkg.contains("sacom") ||
+            pkg.contains("agribank") ||
+            pkg.contains("zalopay") ||
+            pkg.contains("vnpay") ||
             pkg.contains("messaging") ||
             pkg.contains("mms")
 
         val hasTransactionKeywords = fullContent.contains("NHẬN ĐƯỢC") ||
             fullContent.contains("NHẬN TIỀN") ||
-            fullContent.contains("CHUYỂN TIỀN THÀNH CÔNG") ||
-            fullContent.contains("GIAO DỊCH THÀNH CÔNG") ||
-            fullContent.contains("THANH TOÁN THÀNH CÔNG") ||
-            fullContent.contains("BIẾN ĐỘNG SỐ DƯ") ||
+            fullContent.contains("CHUYỂN TIỀN") ||
+            fullContent.contains("CHUYEN TIEN") ||
+            fullContent.contains("GIAO DỊCH") ||
+            fullContent.contains("GIAO DICH") ||
+            fullContent.contains("THANH TOÁN") ||
+            fullContent.contains("THÀNH CÔNG") ||
+            fullContent.contains("BIẾN ĐỘNG") ||
             fullContent.contains("SỐ DƯ") ||
-            fullContent.contains("+")
+            fullContent.contains("VND") ||
+            fullContent.contains("VNĐ") ||
+            fullContent.contains("+") ||
+            fullContent.contains("-")
 
         if (!isFromPaymentApp && !hasTransactionKeywords) {
             return
@@ -81,16 +99,14 @@ class MomoPaymentNotificationListenerService : NotificationListenerService() {
                 if (paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) continue
                 if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true)) continue
 
-                val shortCode = orderId.takeLast(6).uppercase()
+                val shortCode = orderId.takeLast(6).uppercase().replace(Regex("[^A-Z0-9]"), "")
                 val totalPayment = child.child("totalPayment").getValue(Long::class.java)
                     ?: child.child("total").getValue(Long::class.java) ?: 0L
 
-                val isCodeMatch = matchedShortCode.isNotBlank() && shortCode == matchedShortCode
-                val isAmountMatch = totalPayment > 0L && hasTransactionKeywords && (
-                    fullContent.contains(totalPayment.toString()) ||
-                        fullContent.contains(String.format("%,d", totalPayment).replace(",", ".")) ||
-                        fullContent.contains(String.format("%,d", totalPayment))
-                    )
+                val isCodeMatch = (matchedShortCode.isNotBlank() && shortCode == matchedShortCode) ||
+                    (shortCode.isNotBlank() && fullContent.contains(shortCode))
+                val isAmountMatch = totalPayment > 0L && hasTransactionKeywords &&
+                    numericContent.contains(totalPayment.toString())
 
                 if (isCodeMatch || isAmountMatch) {
                     ordersRef.child(orderId).updateChildren(

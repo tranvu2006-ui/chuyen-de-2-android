@@ -734,6 +734,8 @@ class FirebaseRepository @Inject constructor(
         bankAccountNumber: String = "",
         bankAccountName: String = "",
         bankBin: String = "",
+        momoPhone: String = "",
+        momoAccountName: String = "",
         imageUrl: String = "",
         latitude: Double = 0.0,
         longitude: Double = 0.0
@@ -751,6 +753,9 @@ class FirebaseRepository @Inject constructor(
             if (bankName.isNotBlank()) updates["bankName"] = bankName
             if (bankAccountNumber.isNotBlank()) updates["bankAccountNumber"] = bankAccountNumber
             if (bankAccountName.isNotBlank()) updates["bankAccountName"] = bankAccountName
+            if (bankBin.isNotBlank()) updates["bankBin"] = bankBin
+            if (momoPhone.isNotBlank()) updates["momoPhone"] = momoPhone
+            if (momoAccountName.isNotBlank()) updates["momoAccountName"] = momoAccountName
             if (imageUrl.isNotBlank()) {
                 updates["imageUrl"] = imageUrl
                 updates["avatarUrl"] = imageUrl

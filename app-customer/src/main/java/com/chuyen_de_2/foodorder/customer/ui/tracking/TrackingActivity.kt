@@ -660,7 +660,9 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.txtB9Total.text = totalAmount.toVndCurrency()
 
         // Hình thức thanh toán
-        val payMethodStr = when (order.paymentMethod) {
+        val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val payMethodStr = when (order.paymentMethod.uppercase()) {
+            Order.PaymentMethod.MOMO -> if (isPaid) "Ví điện tử MoMo (Đã chuyển khoản)" else "Ví điện tử MoMo (Chờ chuyển khoản)"
             Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
             else -> "Tiền mặt khi nhận món (COD)"
         }

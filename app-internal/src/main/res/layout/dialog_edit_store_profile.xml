@@ -383,6 +383,67 @@
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- Section: Tài khoản Ví điện tử MoMo nhận tiền -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="14dp"
+            android:background="#E2E8F0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tài Khoản Ví Điện Tử MoMo Nhận Tiền"
+            android:textColor="#A50064"
+            android:textSize="13.5sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Số điện thoại Ví MoMo có thể thay đổi linh hoạt để sinh mã QR MoMo cho khách quét"
+            android:textColor="#64748B"
+            android:textSize="11.5sp" />
+
+        <!-- Số điện thoại Ví MoMo -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Số điện thoại Ví MoMo nhận tiền *"
+            app:boxStrokeColor="#A50064"
+            app:hintTextColor="#A50064">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etMomoPhone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:textColor="#1E293B"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Tên chủ Ví MoMo -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Tên chủ Ví MoMo (Viết hoa không dấu) *"
+            app:boxStrokeColor="#A50064"
+            app:hintTextColor="#A50064">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etMomoAccountName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapCharacters"
+                android:textColor="#1E293B"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- Dialog Buttons -->
         <LinearLayout
             android:layout_width="match_parent"

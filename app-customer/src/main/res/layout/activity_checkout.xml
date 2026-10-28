@@ -584,14 +584,27 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:background="@drawable/bg_payment_card_selected"
+                            android:clickable="true"
+                            android:focusable="true"
                             android:gravity="center_vertical"
                             android:orientation="horizontal"
                             android:paddingHorizontal="14dp"
                             android:paddingVertical="10dp">
 
+                            <RadioButton
+                                android:id="@+id/rbBanking"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:buttonTint="@color/primary"
+                                android:checked="true"
+                                android:clickable="false"
+                                android:minWidth="0dp"
+                                android:minHeight="0dp" />
+
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
                                 android:text="🏦"
                                 android:textSize="20sp" />
 
@@ -621,14 +634,80 @@
                             </LinearLayout>
 
                             <ImageView
+                                android:id="@+id/ivCheckBank"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
                                 android:src="@drawable/ic_check_circle_green"
                                 app:tint="@color/primary" />
                         </LinearLayout>
+                        <!-- Kênh 2: Ví Điện Tử MoMo -->
+                        <LinearLayout
+                            android:id="@+id/cardChannelMomo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_payment_card_normal"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="14dp"
+                            android:paddingVertical="10dp">
+
+                            <RadioButton
+                                android:id="@+id/rbMomo"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:buttonTint="#A50064"
+                                android:checked="false"
+                                android:clickable="false"
+                                android:minWidth="0dp"
+                                android:minHeight="0dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:text="📱"
+                                android:textSize="20sp" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="10dp"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:id="@+id/tvChannelMomoName"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Ví Điện Tử MoMo (Quét Mã MoMo QR)"
+                                    android:textColor="#0F172A"
+                                    android:textSize="13.5sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/tvChannelMomoSub"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Tự động kiểm tra giao dịch chuyển khoản 24/7"
+                                    android:textColor="#64748B"
+                                    android:textSize="11.5sp" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:id="@+id/ivCheckMomo"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_check_circle_green"
+                                android:visibility="gone"
+                                app:tint="#A50064" />
+                        </LinearLayout>
+
                     </LinearLayout>
 
-                    <!-- Khung thông tin Chuyển khoản ngân hàng chuẩn MB Bank screenshot -->
+                    <!-- Khung thông tin Chuyển khoản ngân hàng / Ví MoMo -->
                     <LinearLayout
                         android:id="@+id/layoutBankingInfo"
                         android:layout_width="match_parent"
@@ -640,6 +719,7 @@
                         android:visibility="visible">
 
                         <TextView
+                            android:id="@+id/tvBankingTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="THÔNG TIN TÀI KHOẢN NGÂN HÀNG CỦA QUÁN"

@@ -384,10 +384,16 @@ class OrderListFragment : Fragment() {
         } else {
             "• 1x Suất ăn tiêu chuẩn"
         }
+        val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val payDetail = when (order.paymentMethod.uppercase()) {
+            Order.PaymentMethod.MOMO -> if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo" else "⏳ Chờ khách chuyển khoản Ví MoMo"
+            Order.PaymentMethod.BANKING -> "✅ Đã thanh toán Ngân hàng (VietQR)"
+            else -> "💵 Thu tiền mặt khi nhận (COD)"
+        }
 
         AlertDialog.Builder(requireContext())
             .setTitle("📋 Đơn Hàng #${order.orderId.takeLast(6).uppercase()}")
-            .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\nTổng thanh toán: ${total.toVndCurrency()}\nTrạng thái: ${order.status}")
+            .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\nTổng thanh toán: ${total.toVndCurrency()}\nThanh toán: $payDetail\nTrạng thái: ${order.status}")
             .setPositiveButton("Đóng", null)
             .show()
     }

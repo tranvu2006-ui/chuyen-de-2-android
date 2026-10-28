@@ -110,6 +110,12 @@ data class Store(
     @SerializedName("storeCategories")
     val storeCategories: List<String> = emptyList(),
 
+    @SerializedName("momoPhone")
+    val momoPhone: String = "",
+
+    @SerializedName("momoAccountName")
+    val momoAccountName: String = "",
+
     @SerializedName("dishes")
     val dishes: Map<String, Dish> = emptyMap()
 ) {

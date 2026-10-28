@@ -1343,6 +1343,84 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Lắng nghe thông tin tài xế theo thời gian thực */
+    fun observeDriver(driverId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Driver?> = callbackFlow {
+        if (driverId.isBlank()) {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
+        val ref = database.getReference("drivers").child(driverId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.exists()) {
+                    val driver = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Driver::class.java)?.copy(driverId = driverId)
+                    trySend(driver)
+                } else {
+                    database.getReference("users").child(driverId).get().addOnSuccessListener { uSnap ->
+                        if (uSnap.exists()) {
+                            val name = uSnap.child("name").getValue(String::class.java).orEmpty()
+                            val phone = uSnap.child("phone").getValue(String::class.java).orEmpty()
+                            val storeId = uSnap.child("storeId").getValue(String::class.java).orEmpty()
+                            trySend(com.chuyen_de_2.foodorder.core.data.model.Driver(
+                                driverId = driverId,
+                                name = name,
+                                phone = phone,
+                                storeId = storeId
+                            ))
+                        } else {
+                            trySend(null)
+                        }
+                    }.addOnFailureListener {
+                        trySend(null)
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Cập nhật hồ sơ thông tin tài xế */
+    suspend fun updateDriverProfile(
+        driverId: String,
+        name: String,
+        phone: String,
+        vehicleModel: String,
+        vehiclePlate: String,
+        cccdNumber: String = "",
+        licenseNumber: String = ""
+    ): Result<Unit> {
+        return try {
+            val driverUpdates = mutableMapOf<String, Any>(
+                "driverId" to driverId,
+                "name" to name.trim(),
+                "phone" to phone.trim(),
+                "vehicleModel" to vehicleModel.trim(),
+                "vehiclePlate" to vehiclePlate.trim().uppercase()
+            )
+            if (cccdNumber.isNotBlank()) driverUpdates["cccdNumber"] = cccdNumber.trim()
+            if (licenseNumber.isNotBlank()) driverUpdates["licenseNumber"] = licenseNumber.trim()
+
+            database.getReference("drivers").child(driverId).updateChildren(driverUpdates).await()
+
+            // Đồng bộ sang users/{driverId}
+            val userUpdates = mapOf<String, Any>(
+                "name" to name.trim(),
+                "phone" to phone.trim()
+            )
+            database.getReference("users").child(driverId).updateChildren(userUpdates).await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /**
      * Dọn dẹp toàn bộ dữ liệu của các tài khoản đã bị xóa:
      * 1. Xóa giỏ hàng mồ côi (carts)

@@ -12,12 +12,25 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.view.Window
+import android.widget.EditText
+import android.widget.ImageView
+import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperProfileBinding
 import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
 import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -42,6 +55,11 @@ class ShipperProfileFragment : Fragment() {
 
     @Inject
     lateinit var auth: FirebaseAuth
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    private var currentDriver: Driver? = null
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -81,10 +99,57 @@ class ShipperProfileFragment : Fragment() {
      */
     private fun setupUI() {
         val user = auth.currentUser
-        val name = user?.displayName?.ifBlank { user.email?.substringBefore("@") ?: "Tài xế" } ?: "Tài xế"
+        val uid = user?.uid.orEmpty()
+        val defaultName = user?.displayName?.ifBlank { user.email?.substringBefore("@") ?: "Tài xế" } ?: "Tài xế"
         val email = user?.email ?: ""
+        val phone = user?.phoneNumber.orEmpty()
+
+        binding.tvProfileName.text = defaultName
+        binding.tvProfileSub.text = if (phone.isNotBlank()) "$phone • Sirius 59-T1 882.91" else email
+
+        // Lắng nghe dữ liệu hồ sơ Driver thời gian thực
+        if (uid.isNotBlank()) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                firebaseRepository.observeDriver(uid).collectLatest { driver ->
+                    if (driver != null) {
+                        currentDriver = driver
+                        bindDriverData(driver)
+                    }
+                }
+            }
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val storeInfo = firebaseRepository.resolveStoreForDriver(uid)
+                if (storeInfo.first.isNotBlank()) {
+                    binding.tvAffiliationStoreName.text = storeInfo.second.ifBlank { "Quán ăn trực thuộc" }
+                    val store = firebaseRepository.getStoreOnce(storeInfo.first)
+                    if (store != null && store.address.isNotBlank()) {
+                        binding.tvAffiliationStoreAddress.text = store.address
+                    }
+                }
+            }
+        }
+    }
+
+    private fun bindDriverData(driver: Driver) {
+        val name = driver.name.ifBlank { auth.currentUser?.displayName ?: "Tài xế" }
+        val phone = driver.phone.ifBlank { auth.currentUser?.phoneNumber ?: "Chưa cập nhật" }
+        val model = driver.vehicleModel.ifBlank { "Sirius FI" }
+        val plate = driver.vehiclePlate.ifBlank { "59-T1 882.91" }
+        val cccd = driver.cccdNumber.ifBlank { "Chưa cập nhật" }
+        val license = driver.licenseNumber.ifBlank { "Chưa cập nhật" }
+
         binding.tvProfileName.text = name
-        binding.tvProfileSub.text = email
+        binding.tvProfileSub.text = "$phone • $model $plate"
+        if (driver.driverCode.isNotBlank()) {
+            binding.tvDriverBadgeId.text = "MÃ TX: ${driver.driverCode}"
+        }
+
+        binding.tvDetailDriverPhone.text = phone
+        binding.tvDetailVehicleModel.text = model
+        binding.tvDetailVehiclePlate.text = plate
+        binding.tvDetailCccd.text = cccd
+        binding.tvDetailLicense.text = license
     }
 
     /**
@@ -99,6 +164,14 @@ class ShipperProfileFragment : Fragment() {
             } else {
                 stopLocationService()
             }
+        }
+
+        binding.btnEditDriverProfile.setOnClickListener {
+            showEditDriverDialog()
+        }
+
+        binding.btnEditDriverDetails.setOnClickListener {
+            showEditDriverDialog()
         }
 
         binding.layoutCallManager.setOnClickListener {
@@ -124,6 +197,107 @@ class ShipperProfileFragment : Fragment() {
                 .setNegativeButton("Hủy", null)
                 .show()
         }
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại chỉnh sửa thông tin hồ sơ tài xế
+     * Cách hoạt động: Cho phép tài xế chỉnh sửa họ tên, SĐT, dòng xe, biển kiểm soát, CCCD, GPLX và lưu lên Firebase.
+     * Luồng hướng tới: Cập nhật node drivers/{uid} và users/{uid} đồng bộ ngay lập tức.
+     */
+    private fun showEditDriverDialog() {
+        val user = auth.currentUser ?: return
+        val uid = user.uid
+
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_edit_driver_profile)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etName = dialog.findViewById<EditText>(R.id.etEditDriverName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etEditDriverPhone)
+        val etVehicleModel = dialog.findViewById<EditText>(R.id.etEditVehicleModel)
+        val etVehiclePlate = dialog.findViewById<EditText>(R.id.etEditVehiclePlate)
+        val etCccd = dialog.findViewById<EditText>(R.id.etEditDriverCccd)
+        val etLicense = dialog.findViewById<EditText>(R.id.etEditDriverLicense)
+
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseEditDriverDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelEditDriver)
+        val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveEditDriver)
+
+        // Đổ dữ liệu hiện tại vào dialog
+        val driver = currentDriver
+        val currentName = driver?.name?.ifBlank { user.displayName.orEmpty() } ?: user.displayName.orEmpty()
+        val currentPhone = driver?.phone?.ifBlank { user.phoneNumber.orEmpty() } ?: user.phoneNumber.orEmpty()
+        val currentModel = driver?.vehicleModel?.ifBlank { "Sirius" } ?: "Sirius"
+        val currentPlate = driver?.vehiclePlate?.ifBlank { "59-T1 882.91" } ?: "59-T1 882.91"
+
+        etName.setText(currentName)
+        etPhone.setText(currentPhone)
+        etVehicleModel.setText(currentModel)
+        etVehiclePlate.setText(currentPlate)
+        etCccd.setText(driver?.cccdNumber.orEmpty())
+        etLicense.setText(driver?.licenseNumber.orEmpty())
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSave.setOnClickListener {
+            val newName = etName.text.toString().trim()
+            val newPhone = etPhone.text.toString().trim()
+            val newModel = etVehicleModel.text.toString().trim()
+            val newPlate = etVehiclePlate.text.toString().trim().uppercase()
+            val newCccd = etCccd.text.toString().trim()
+            val newLicense = etLicense.text.toString().trim()
+
+            if (newName.isBlank()) {
+                etName.error = "Vui lòng nhập họ và tên tài xế"
+                etName.requestFocus()
+                return@setOnClickListener
+            }
+            if (newPhone.isBlank()) {
+                etPhone.error = "Vui lòng nhập số điện thoại"
+                etPhone.requestFocus()
+                return@setOnClickListener
+            }
+            if (newModel.isBlank()) {
+                etVehicleModel.error = "Vui lòng nhập dòng xe máy"
+                etVehicleModel.requestFocus()
+                return@setOnClickListener
+            }
+            if (newPlate.isBlank()) {
+                etVehiclePlate.error = "Vui lòng nhập biển số xe"
+                etVehiclePlate.requestFocus()
+                return@setOnClickListener
+            }
+
+            btnSave.isEnabled = false
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.updateDriverProfile(
+                    driverId = uid,
+                    name = newName,
+                    phone = newPhone,
+                    vehicleModel = newModel,
+                    vehiclePlate = newPlate,
+                    cccdNumber = newCccd,
+                    licenseNumber = newLicense
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(requireContext(), "✅ Cập nhật hồ sơ tài xế thành công!", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    btnSave.isEnabled = true
+                }
+            }
+        }
+
+        dialog.show()
     }
 
     /**

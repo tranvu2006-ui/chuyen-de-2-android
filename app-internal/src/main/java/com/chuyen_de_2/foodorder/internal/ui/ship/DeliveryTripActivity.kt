@@ -225,7 +225,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                                 v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 lifecycleScope.launch {
                                     if (isBundleMode && bundleOrders.isNotEmpty()) {
-                                        bundleOrders.forEach { o ->
+                                        bundleOrders.toList().forEach { o ->
                                             firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
                                         }
                                         Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy đủ tất cả ${bundleOrders.size} đơn gộp! Bắt đầu giao chặng 1", Toast.LENGTH_SHORT).show()
@@ -438,7 +438,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                                 updateStepUI(2)
                                 lifecycleScope.launch {
                                     if (isBundleMode && bundleOrders.isNotEmpty()) {
-                                        bundleOrders.forEach { o ->
+                                        bundleOrders.toList().forEach { o ->
                                             firebaseRepository.updateOrderStatus(o.orderId, Order.Status.ARRIVED_AT_SHOP)
                                         }
                                     } else {
@@ -1179,7 +1179,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                 if (v is CheckBox) v.isChecked = true
             }
             binding.cbSealPackage.isChecked = true
-            bundleOrders.forEach { checkedBundleOrderIds.add(it.orderId) }
+            bundleOrders.toList().forEach { checkedBundleOrderIds.add(it.orderId) }
             for (i in 0 until binding.layoutBundleCardsContainer.childCount) {
                 val child = binding.layoutBundleCardsContainer.getChildAt(i)
                 val cb = child.findViewById<CheckBox>(R.id.cbOrderReady)
@@ -1193,7 +1193,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.btnConfirmPickDishes.setOnClickListener {
             lifecycleScope.launch {
                 if (isBundleMode && bundleOrders.isNotEmpty()) {
-                    bundleOrders.forEach { o ->
+                    bundleOrders.toList().forEach { o ->
                         firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
                     }
                     Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy đủ tất cả ${bundleOrders.size} đơn gộp! Bắt đầu giao chặng 1", Toast.LENGTH_SHORT).show()
@@ -1679,7 +1679,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.brand_green))
             flowBinding.btnConfirmBomAction.setOnClickListener {
                 lifecycleScope.launch {
-                    bomReturnOrders.forEach { bo ->
+                    bomReturnOrders.toList().forEach { bo ->
                         firebaseRepository.updateOrderStatus(bo.orderId, Order.Status.RETURNED_TO_STORE, "Shipper đã trả món về quán & nhận hoàn tiền")
                     }
                     flowBinding.tvBomStatusIcon.text = "✓"

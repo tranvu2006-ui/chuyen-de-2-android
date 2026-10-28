@@ -110,16 +110,17 @@ class OrderListFragment : Fragment() {
      * Luồng hướng tới: Hiển thị đúng trạng thái mở cửa của quán trên màn hình khách hàng.
      */
     private fun observeStoreProfile() {
+        val b = _binding ?: return
         val openProfile = {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragmentContainer, StoreProfileFragment())
                 .addToBackStack(null)
                 .commit()
         }
-        binding.btnEditStoreProfile.setOnClickListener { openProfile() }
-        binding.layoutShopInfo.setOnClickListener { openProfile() }
+        b.btnEditStoreProfile.setOnClickListener { openProfile() }
+        b.layoutShopInfo.setOnClickListener { openProfile() }
 
-        binding.btnLogoutChannel.setOnClickListener {
+        b.btnLogoutChannel.setOnClickListener {
             androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle("🚪 Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
@@ -137,36 +138,37 @@ class OrderListFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
+                val currentB = _binding ?: return@collectLatest
                 if (store != null) {
-                    binding.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
-                    binding.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
+                    currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
+                    currentB.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
 
                     val st = store.storeStatus.uppercase()
-                    binding.switchShopStatus.setOnCheckedChangeListener(null)
+                    currentB.switchShopStatus.setOnCheckedChangeListener(null)
                     when (st) {
                         com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
-                            binding.switchShopStatus.isChecked = false
-                            binding.switchShopStatus.isEnabled = false
-                            binding.tvShopStatusTxt.text = "Bị Khóa 🔴"
-                            binding.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
+                            currentB.switchShopStatus.isChecked = false
+                            currentB.switchShopStatus.isEnabled = false
+                            currentB.tvShopStatusTxt.text = "Bị Khóa 🔴"
+                            currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
                         }
                         com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING -> {
-                            binding.switchShopStatus.isChecked = false
-                            binding.switchShopStatus.isEnabled = false
-                            binding.tvShopStatusTxt.text = "Chờ Duyệt ⏳"
-                            binding.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
+                            currentB.switchShopStatus.isChecked = false
+                            currentB.switchShopStatus.isEnabled = false
+                            currentB.tvShopStatusTxt.text = "Chờ Duyệt ⏳"
+                            currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
                         }
                         com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
-                            binding.switchShopStatus.isEnabled = true
-                            binding.switchShopStatus.isChecked = false
-                            binding.tvShopStatusTxt.text = "Tạm Đóng"
-                            binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+                            currentB.switchShopStatus.isEnabled = true
+                            currentB.switchShopStatus.isChecked = false
+                            currentB.tvShopStatusTxt.text = "Tạm Đóng"
+                            currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
                         }
                         else -> {
-                            binding.switchShopStatus.isEnabled = true
-                            binding.switchShopStatus.isChecked = true
-                            binding.tvShopStatusTxt.text = "Đang Bán"
-                            binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+                            currentB.switchShopStatus.isEnabled = true
+                            currentB.switchShopStatus.isChecked = true
+                            currentB.tvShopStatusTxt.text = "Đang Bán"
+                            currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
                         }
                     }
                     bindShopStatusSwitchListener()

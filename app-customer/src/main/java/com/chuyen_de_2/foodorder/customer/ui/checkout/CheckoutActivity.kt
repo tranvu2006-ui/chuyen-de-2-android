@@ -806,19 +806,6 @@ class CheckoutActivity : AppCompatActivity() {
         updatePaymentPreviewBox(isMomo)
     }
 
-    private fun updatePaymentPreviewBox(isMomo: Boolean) {
-        if (isMomo) {
-            binding.tvBankingTitle.text = "THÔNG TIN VÍ ĐIỆN TỬ MOMO CỦA QUÁN"
-            val phone = currentStore?.momoPhone?.ifBlank { currentStore?.phone } ?: "0798351169"
-            val name = currentStore?.momoAccountName?.ifBlank { currentStore?.ownerName } ?: "OISHI FOOD VIETNAM"
-            binding.tvBankingDetails.text = "• Kênh: Ví điện tử MoMo\n• Số điện thoại: $phone\n• Chủ tài khoản: $name\n• Cú pháp CK: OISHI [Mã đơn hàng]"
-        } else {
-            binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN NGÂN HÀNG CỦA QUÁN"
-            val bankName = currentStore?.bankName?.ifBlank { "MB Bank (TMCP Quân Đội)" } ?: "MB Bank"
-            val accNum = currentStore?.bankAccountNumber?.ifBlank { "0988 888 888" } ?: "0988 888 888"
-            val holder = currentStore?.bankAccountName?.ifBlank { currentStore?.name } ?: "OISHI FOOD VIETNAM"
-            binding.tvBankingDetails.text = "• Ngân hàng: $bankName\n• Số tài khoản: $accNum\n• Chủ tài khoản: $holder\n• Cú pháp CK: OISHI [Mã đơn hàng]"
-        }
-    }
+
 
 }

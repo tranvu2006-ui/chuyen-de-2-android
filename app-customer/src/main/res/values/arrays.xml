@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <array name="initial_rating_range">
+        <item>1.0</item>
+        <item>5.0</item>
+    </array>
+</resources>

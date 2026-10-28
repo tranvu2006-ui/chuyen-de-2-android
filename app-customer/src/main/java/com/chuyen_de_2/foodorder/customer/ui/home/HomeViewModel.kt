@@ -47,6 +47,15 @@ class HomeViewModel @Inject constructor(
     private var currentNearbyOnly: Boolean = false
     var currentNearbyMaxDistanceKm: Double = 3.0
         private set
+    var currentMinPrice: Long? = null
+        private set
+    var currentMaxPrice: Long? = null
+        private set
+    var currentMinRating: Float = 1.0f
+        private set
+    var currentMaxRating: Float = 5.0f
+        private set
+    private var currentPriceSort: PriceSort = PriceSort.NONE
     private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
         com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
 
@@ -164,7 +173,7 @@ class HomeViewModel @Inject constructor(
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
                         emoji = emoji,
-                        rating = dish.ratingAvg,
+                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
                         soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
                         promoBadge = "",
@@ -194,18 +203,117 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    enum class PriceSort {
+        NONE, ASC, DESC
+    }
+
     /** Lọc danh sách món ăn */
     fun filterDishes(
         query: String? = null,
         category: String? = null,
         nearbyOnly: Boolean? = null,
-        maxDistanceKm: Double? = null
+        maxDistanceKm: Double? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        minRating: Float? = null,
+        maxRating: Float? = null,
+        resetPrice: Boolean = false,
+        resetRating: Boolean = false,
+        priceSort: PriceSort? = null
     ) {
         if (query != null) currentQuery = query
         if (category != null) currentCategory = if (category == "ALL") null else category
         if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
         if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
+        if (resetPrice) {
+            currentMinPrice = null
+            currentMaxPrice = null
+            currentPriceSort = PriceSort.NONE
+        } else {
+            if (minPrice != null || maxPrice != null) {
+                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
+                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
+            }
+            if (priceSort != null) {
+                currentPriceSort = priceSort
+            }
+        }
+        if (resetRating) {
+            currentMinRating = 1.0f
+            currentMaxRating = 5.0f
+        } else {
+            if (minRating != null) currentMinRating = minRating
+            if (maxRating != null) currentMaxRating = maxRating
+        }
         applyFilters()
+    }
+
+    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
+    fun getFilteredDishesCount(
+        minPrice: Long?,
+        maxPrice: Long?,
+        minRating: Float,
+        maxRating: Float
+    ): Int {
+        var list = masterDishList
+
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            list = list.filter { matchesCategory(it, cat) }
+        }
+
+        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
+            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+        }
+
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            list = list.filter { matchesSearch(it, q) }
+        }
+
+        if (minPrice != null && minPrice > 0) {
+            list = list.filter { it.price >= minPrice }
+        }
+        if (maxPrice != null && maxPrice > 0) {
+            list = list.filter { it.price <= maxPrice }
+        }
+
+        if (minRating > 1.05f || maxRating < 4.95f) {
+            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
+        }
+
+        return list.size
+    }
+
+    /**
+     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     */
+    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
+        val qClean = query.trim().lowercase()
+        if (qClean.isBlank()) return true
+
+        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
+
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val cat = dish.category.lowercase()
+        val platCat = dish.platformCategory.lowercase()
+
+        val fullWithAccent = "$name $store $cat $platCat"
+        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
+
+        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
+        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
+            return true
+        }
+
+        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
+        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
+        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
+            return true
+        }
+
+        return false
     }
 
     private fun applyFilters() {
@@ -234,15 +342,38 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-        // 3. Lọc theo từ khóa tìm kiếm
-        val q = currentQuery?.trim()?.lowercase()
+        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
+        val q = currentQuery?.trim()
         if (!q.isNullOrBlank()) {
             filtered = filtered.filter { dish ->
-                dish.name.lowercase().contains(q) ||
-                dish.storeName.lowercase().contains(q) ||
-                dish.category.lowercase().contains(q) ||
-                dish.platformCategory.lowercase().contains(q)
+                matchesSearch(dish, q)
             }
+        }
+
+        // 4. Lọc theo khoảng giá tiền
+        val minP = currentMinPrice
+        val maxP = currentMaxPrice
+        if (minP != null || maxP != null) {
+            filtered = filtered.filter { dish ->
+                val p = dish.price
+                (minP == null || p >= minP) && (maxP == null || p <= maxP)
+            }
+        }
+
+        // 5. Lọc theo khoảng sao đánh giá
+        val minR = currentMinRating
+        val maxR = currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            filtered = filtered.filter { dish ->
+                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
+            }
+        }
+
+        // 5. Sắp xếp theo giá tiền nếu có
+        when (currentPriceSort) {
+            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
+            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
+            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
         }
 
         _homeDishes.value = filtered

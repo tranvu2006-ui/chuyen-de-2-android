@@ -147,14 +147,33 @@
             android:textSize="13sp" />
 
         <!-- 1. Danh Mục Của Quán -->
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="1. Danh mục của quán (Phân loại menu):"
-            android:textColor="@color/text_secondary"
-            android:textSize="11.5sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="1. Danh mục của quán (Phân loại menu):"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvQuickManageCategories"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:padding="2dp"
+                android:text="+ Quản lý danh mục"
+                android:textColor="@color/primary"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <Spinner
             android:id="@+id/spinnerDishCategory"

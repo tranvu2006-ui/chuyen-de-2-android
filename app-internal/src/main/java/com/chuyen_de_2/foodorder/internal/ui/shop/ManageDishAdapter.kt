@@ -33,16 +33,38 @@ class ManageDishAdapter(
                 }
             }
             binding.tvDishCategory.text = catDisplay
+            binding.tvComboBadge.visibility = if (dish.isCombo) View.VISIBLE else View.GONE
 
-            if (dish.description.isNotBlank()) {
+            val displayDesc = buildString {
+                if (dish.isCombo && dish.comboItems.isNotEmpty()) {
+                    append("🍱 Gồm: ")
+                    append(dish.comboItems.joinToString(", ") { "${it.quantity}x ${it.name}" })
+                    if (dish.description.isNotBlank()) {
+                        append(" • ")
+                    }
+                }
+                if (dish.description.isNotBlank()) {
+                    append(dish.description)
+                }
+            }
+
+            if (displayDesc.isNotBlank()) {
                 binding.tvDishDescription.visibility = View.VISIBLE
-                binding.tvDishDescription.text = "📝 ${dish.description}"
+                binding.tvDishDescription.text = displayDesc
             } else {
                 binding.tvDishDescription.visibility = View.GONE
             }
 
             val price = if (dish.basePrice > 0) dish.basePrice else dish.price
             binding.tvDishPrice.text = price.toVndCurrency()
+
+            if (dish.originalPrice > price) {
+                binding.tvOriginalPrice.visibility = View.VISIBLE
+                binding.tvOriginalPrice.text = dish.originalPrice.toVndCurrency()
+                binding.tvOriginalPrice.paintFlags = binding.tvOriginalPrice.paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
+            } else {
+                binding.tvOriginalPrice.visibility = View.GONE
+            }
 
             if (dish.imageUrl.isNotBlank()) {
                 if (dish.imageUrl.startsWith("data:image") || dish.imageUrl.length > 500) {

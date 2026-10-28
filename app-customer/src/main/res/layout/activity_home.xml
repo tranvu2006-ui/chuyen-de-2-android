@@ -118,9 +118,10 @@
 
             <EditText
                 android:id="@+id/etSearch"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_marginStart="8dp"
+                android:layout_weight="1"
                 android:background="@null"
                 android:hint="@string/search_hint"
                 android:imeOptions="actionSearch"
@@ -128,6 +129,17 @@
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_muted"
                 android:textSize="13sp" />
+
+            <ImageView
+                android:id="@+id/btnClearSearch"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:padding="3dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone"
+                app:srcCompat="@drawable/ic_close"
+                app:tint="@color/text_muted" />
         </LinearLayout>
     </LinearLayout>
 
@@ -245,6 +257,123 @@
                             android:paddingHorizontal="8dp"
                             android:nestedScrollingEnabled="false"
                             android:overScrollMode="never" />
+
+                        <!-- Đường phân cách nhẹ giữa danh mục và bộ lọc giá -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginHorizontal="10dp"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="6dp"
+                            android:background="#F1F5F9" />
+
+                        <!-- Hàng Bộ Lọc (Giá & Sao) và Quick Rating Chips (b1.html: filter-scroll-row) -->
+                        <HorizontalScrollView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:scrollbars="none"
+                            android:clipToPadding="false"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="2dp">
+
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <!-- Nút Mở Bottom Sheet Bộ Lọc Nâng Cao (b1.html: btn-filter-toggle) -->
+                                <LinearLayout
+                                    android:id="@+id/btnFilterToggle"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="34dp"
+                                    android:background="@drawable/bg_btn_filter_toggle"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:orientation="horizontal"
+                                    android:paddingHorizontal="12dp">
+
+                                    <TextView
+                                        android:id="@+id/tvFilterToggleIcon"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="⚙️"
+                                        android:textSize="12sp" />
+
+                                    <TextView
+                                        android:id="@+id/tvFilterToggleTitle"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginStart="4dp"
+                                        android:text="Bộ Lọc (Giá &amp; Sao)"
+                                        android:textColor="@color/primary"
+                                        android:textSize="11.5sp"
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:id="@+id/tvFilterBadge"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_marginStart="6dp"
+                                        android:background="@drawable/bg_badge_filter_count"
+                                        android:gravity="center"
+                                        android:text="1"
+                                        android:textColor="@color/white"
+                                        android:textSize="10sp"
+                                        android:textStyle="bold"
+                                        android:visibility="gone" />
+                                </LinearLayout>
+
+                                <!-- Quick Chip: ⭐ 5 Sao -->
+                                <TextView
+                                    android:id="@+id/chipRate5"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="34dp"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_quick_chip"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:paddingHorizontal="12dp"
+                                    android:text="⭐ 5 Sao"
+                                    android:textColor="#475569"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+
+                                <!-- Quick Chip: ⭐ 4 Sao+ -->
+                                <TextView
+                                    android:id="@+id/chipRate4"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="34dp"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_quick_chip"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:paddingHorizontal="12dp"
+                                    android:text="⭐ 4 Sao+"
+                                    android:textColor="#475569"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+
+                                <!-- Quick Chip: ⭐ 3 Sao+ -->
+                                <TextView
+                                    android:id="@+id/chipRate3"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="34dp"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_quick_chip"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:paddingHorizontal="12dp"
+                                    android:text="⭐ 3 Sao+"
+                                    android:textColor="#475569"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+                        </HorizontalScrollView>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

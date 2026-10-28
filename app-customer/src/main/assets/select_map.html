@@ -8,6 +8,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #F1F5F9; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     #mapView { width: 100%; height: 100%; }
+    .leaflet-tile { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
 
     /* Ghim cố định ở tâm bản đồ */
     .center-pin-wrapper {
@@ -112,14 +113,18 @@
       attributionControl: false
     }).setView([defaultLat, defaultLng], 16);
 
-    // Google Maps Roadmap Tiles sắc nét, tiếng Việt, load cực nhanh không cần API Key
-    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+    // Google Maps Roadmap Tiles sắc nét chuẩn Retina HD 2x, tiếng Việt, không bị mờ vỡ hạt
+    L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&scale=2&hl=vi', {
       maxZoom: 20,
-      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+      subdomains: ['0', '1', '2', '3'],
+      tileSize: 256,
+      zoomOffset: 0
     }).addTo(map);
 
     // Bổ sung nút zoom góc phải trên
     L.control.zoom({ position: 'topright' }).addTo(map);
+
+    let isProgrammaticMove = false;
 
     map.on('movestart', function() {
       document.body.classList.add('is-moving');
@@ -127,6 +132,9 @@
 
     map.on('moveend', function() {
       document.body.classList.remove('is-moving');
+      if (isProgrammaticMove) {
+        return;
+      }
       const center = map.getCenter();
       if (window.AndroidBridge && window.AndroidBridge.onLocationMoved) {
         window.AndroidBridge.onLocationMoved(center.lat, center.lng);
@@ -135,7 +143,11 @@
 
     // Hàm gọi từ Android để di chuyển bản đồ đến toạ độ
     function setMapCenter(lat, lng, zoomLevel) {
-      map.setView([lat, lng], zoomLevel || 17, { animate: true });
+      isProgrammaticMove = true;
+      map.setView([lat, lng], zoomLevel || 17, { animate: false });
+      setTimeout(() => {
+        isProgrammaticMove = false;
+      }, 350);
     }
 
     // Hàm người dùng bấm nút GPS

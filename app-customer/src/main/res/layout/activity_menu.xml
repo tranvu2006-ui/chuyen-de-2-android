@@ -248,67 +248,7 @@
                         android:textColor="#475569"
                         android:textSize="11.5sp" />
 
-                    <!-- Hàng chip đặc tính/quy cách món ăn (b5.html: detail-specs-row) -->
-                    <HorizontalScrollView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:scrollbars="none">
 
-                        <LinearLayout
-                            android:id="@+id/layoutDetailSpecs"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:background="@drawable/bg_spec_pill"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:text="Size L"
-                                android:textColor="@color/primary"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:background="@drawable/bg_spec_pill"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:text="50% Đường"
-                                android:textColor="@color/primary"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:background="@drawable/bg_spec_pill"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:text="70% Đá"
-                                android:textColor="@color/primary"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:background="@drawable/bg_spec_pill"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:text="Trân Châu Hoàng Kim"
-                                android:textColor="@color/primary"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </HorizontalScrollView>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

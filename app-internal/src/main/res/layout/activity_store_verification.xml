@@ -187,25 +187,47 @@
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Địa chỉ cụ thể -->
+                    <!-- Địa chỉ cụ thể (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS) -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilStoreAddress"
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:hint="Địa chỉ cụ thể (Số nhà, tên đường, phường/xã) *"
+                        android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
                         app:boxStrokeColor="#EE4D2D"
+                        app:endIconDrawable="@drawable/ic_map_pin"
+                        app:endIconMode="custom"
+                        app:endIconTint="#EE4D2D"
                         app:hintTextColor="#EE4D2D">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etStoreAddress"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textPostalAddress"
+                            android:clickable="true"
+                            android:cursorVisible="false"
+                            android:focusable="false"
+                            android:inputType="none"
                             android:textColor="#0F172A"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Nút chọn / ghim vị trí quán trên bản đồ (Place Autocomplete & GPS) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnPickLocationMap"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:text="📍 Chọn / Ghim vị trí quán trên bản đồ"
+                        android:textAllCaps="false"
+                        android:textColor="@color/primary"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:strokeColor="@color/primary"
+                        app:strokeWidth="1.2dp" />
 
                     <!-- Quận / Huyện TP.HCM -->
                     <TextView
@@ -213,7 +235,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:layout_marginBottom="4dp"
-                        android:text="Quận / Huyện (TP. Hồ Chí Minh) *:"
+                        android:text="Quận / Huyện (Tự động nhận diện từ bản đồ) *:"
                         android:textColor="#64748B"
                         android:textSize="12sp"
                         android:textStyle="bold" />
@@ -223,6 +245,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:background="@drawable/bg_rounded_spinner_border"
+                        android:enabled="false"
                         android:paddingHorizontal="12dp" />
 
                     <!-- Giờ mở cửa & Thời gian làm món -->

@@ -27,18 +27,23 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import java.util.Locale
 
 class SelectLocationActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySelectLocationBinding
     private var geocodeJob: Job? = null
+    private var searchJob: Job? = null
+    private lateinit var suggestionAdapter: AddressSuggestionAdapter
 
     private var currentLat = 10.7769
     private var currentLng = 106.7009
     private var currentFullAddress = ""
     private var currentStreetAddress = ""
     private var currentDistrict = "Quận 1"
+    private var lastGeocodedLat: Double = 0.0
+    private var lastGeocodedLng: Double = 0.0
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -71,6 +76,7 @@ class SelectLocationActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         binding.webViewMap.apply {
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = true
@@ -94,6 +100,71 @@ class SelectLocationActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
+        suggestionAdapter = AddressSuggestionAdapter { suggestion ->
+            binding.rvAddressSuggestions.visibility = View.GONE
+            binding.dividerSearch.visibility = View.GONE
+            binding.etSearchLocation.setText(suggestion.title)
+            binding.etSearchLocation.clearFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+            imm?.hideSoftInputFromWindow(binding.etSearchLocation.windowToken, 0)
+
+            moveMapTo(suggestion.latitude, suggestion.longitude)
+        }
+
+        binding.rvAddressSuggestions.apply {
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@SelectLocationActivity)
+            adapter = suggestionAdapter
+        }
+
+        binding.btnClearSearch.setOnClickListener {
+            binding.etSearchLocation.setText("")
+            binding.rvAddressSuggestions.visibility = View.GONE
+            binding.dividerSearch.visibility = View.GONE
+            binding.btnClearSearch.visibility = View.GONE
+        }
+
+        binding.etSearchLocation.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus && binding.etSearchLocation.text.isNullOrBlank()) {
+                suggestionAdapter.submitList(GoogleMapUtils.POPULAR_LOCATIONS.take(6))
+                binding.rvAddressSuggestions.visibility = View.VISIBLE
+                binding.dividerSearch.visibility = View.VISIBLE
+            }
+        }
+
+        binding.etSearchLocation.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s?.toString()?.trim().orEmpty()
+                binding.btnClearSearch.visibility = if (query.isNotBlank()) View.VISIBLE else View.GONE
+
+                searchJob?.cancel()
+                if (query.isEmpty()) {
+                    suggestionAdapter.submitList(GoogleMapUtils.POPULAR_LOCATIONS.take(6))
+                    binding.rvAddressSuggestions.visibility = View.VISIBLE
+                    binding.dividerSearch.visibility = View.VISIBLE
+                    binding.pbSearchLoading.visibility = View.GONE
+                    return
+                }
+
+                searchJob = lifecycleScope.launch {
+                    delay(150)
+                    binding.pbSearchLoading.visibility = View.VISIBLE
+                    val suggestions = GoogleMapUtils.searchAddressSuggestions(this@SelectLocationActivity, query)
+                    binding.pbSearchLoading.visibility = View.GONE
+
+                    if (suggestions.isNotEmpty()) {
+                        suggestionAdapter.submitList(suggestions)
+                        binding.rvAddressSuggestions.visibility = View.VISIBLE
+                        binding.dividerSearch.visibility = View.VISIBLE
+                    } else {
+                        binding.rvAddressSuggestions.visibility = View.GONE
+                        binding.dividerSearch.visibility = View.GONE
+                    }
+                }
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+
         binding.btnConfirmLocation.setOnClickListener {
             if (currentFullAddress.isBlank()) {
                 Toast.makeText(this, "Vui lòng đợi định vị địa chỉ...", Toast.LENGTH_SHORT).show()
@@ -168,32 +239,44 @@ class SelectLocationActivity : AppCompatActivity() {
         currentLat = lat
         currentLng = lng
 
+        // Chống nháy: Nếu khoảng cách di chuyển quá nhỏ (< 15 mét) so với lần tra cứu gần nhất thì không gọi lại
+        if (lastGeocodedLat != 0.0 && lastGeocodedLng != 0.0) {
+            val distResults = FloatArray(1)
+            android.location.Location.distanceBetween(lastGeocodedLat, lastGeocodedLng, lat, lng, distResults)
+            if (distResults[0] < 15f && currentFullAddress.isNotBlank()) {
+                return
+            }
+        }
+
         geocodeJob?.cancel()
         geocodeJob = lifecycleScope.launch {
             binding.pbLoadingAddress.visibility = View.VISIBLE
-            binding.tvSelectedAddress.text = "Đang tra cứu địa chỉ..."
-            delay(250)
+            // Chỉ hiển thị "Đang tra cứu..." nếu hiện tại chưa có địa chỉ, tránh nhấp nháy chữ
+            if (binding.tvSelectedAddress.text.isNullOrBlank()) {
+                binding.tvSelectedAddress.text = "Đang tra cứu địa chỉ..."
+            }
+            delay(400)
+
+            lastGeocodedLat = lat
+            lastGeocodedLng = lng
 
             // 1. Thuật toán không gian: Tìm Quận gần nhất theo khoảng cách GPS (chính xác 100%)
             val nearestDistrictKey = GoogleMapUtils.findNearestDistrict(lat, lng)
 
-            // 2. Tra cứu chi tiết qua Android Geocoder
+            // 2. Tra cứu chi tiết qua Android Geocoder với suspendCoroutine chuẩn cho API 33+
             val rawAddress = withContext(Dispatchers.IO) {
                 try {
                     val geocoder = Geocoder(this@SelectLocationActivity, Locale("vi", "VN"))
-                    val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        var result: String? = null
-                        geocoder.getFromLocation(lat, lng, 1) { list ->
-                            if (list.isNotEmpty()) {
-                                result = list[0].getAddressLine(0)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        kotlin.coroutines.suspendCoroutine<String?> { cont ->
+                            geocoder.getFromLocation(lat, lng, 1) { list ->
+                                cont.resume(list.firstOrNull()?.getAddressLine(0))
                             }
                         }
-                        result
                     } else {
                         @Suppress("DEPRECATION")
                         geocoder.getFromLocation(lat, lng, 1)?.firstOrNull()?.getAddressLine(0)
                     }
-                    addresses
                 } catch (_: Exception) {
                     null
                 }
@@ -217,14 +300,20 @@ class SelectLocationActivity : AppCompatActivity() {
                 rawAddress?.contains("Quận 5", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 5", true) -> "Quận 5"
                 rawAddress?.contains("Quận 4", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 4", true) -> "Quận 4"
                 rawAddress?.contains("Quận 3", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 3", true) -> "Quận 3"
+                rawAddress?.contains("Quận 1", ignoreCase = true) == true || nearestDistrictKey.contains("Quận 1", true) -> "Quận 1"
                 else -> nearestDistrictKey
             }
 
             currentDistrict = finalDistrict
 
-            // Định dạng chuỗi địa chỉ đầy đủ
-            val displayAddress = if (!rawAddress.isNullOrBlank()) {
-                rawAddress.replace(", Việt Nam", "").trim()
+            // Lọc bỏ Plus Code (ví dụ "RJVF+MPG, ") và "Việt Nam" để địa chỉ sạch đẹp
+            val cleanedAddress = rawAddress
+                ?.replace(Regex("^[A-Z0-9]{4,8}\\+[A-Z0-9]{2,4}\\s*,\\s*"), "")
+                ?.replace(", Việt Nam", "")
+                ?.trim()
+
+            val displayAddress = if (!cleanedAddress.isNullOrBlank()) {
+                cleanedAddress
             } else {
                 "Toạ độ: ${String.format(Locale.US, "%.5f, %.5f", lat, lng)}, $finalDistrict, TP.HCM"
             }

@@ -19,6 +19,10 @@ import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
 import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
+import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
+import android.widget.TextView
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
@@ -67,6 +71,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var categoryAdapter: HomeCategoryAdapter
 
     private var selectedCategory: String? = null
+    private var selectedPriceLabel: String? = null
     private var isNearbyFiltered: Boolean = false
     private var selectedNearbyDistanceKm: Double = 3.0
     private var selectedNearbyDistanceLabel: String = "< 3 km"
@@ -101,6 +106,7 @@ class HomeActivity : AppCompatActivity() {
 
         setupHeader()
         setupCategories()
+        setupAdvancedFilterBar()
         setupHotDishes()
         setupSearch()
         setupDishRecyclerView()
@@ -152,10 +158,10 @@ class HomeActivity : AppCompatActivity() {
             selectedNearbyDistanceKm = 3.0
             selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
-            binding.layoutActiveFilterIndicator.visibility = View.GONE
-            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
             binding.etSearch.setText("")
+            syncFilterUI()
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
             Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
         }
 
@@ -165,9 +171,9 @@ class HomeActivity : AppCompatActivity() {
             selectedNearbyDistanceKm = 3.0
             selectedNearbyDistanceLabel = "< 3 km"
             clearCategoryHighlight()
-            binding.layoutActiveFilterIndicator.visibility = View.GONE
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
+            syncFilterUI()
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0)
         }
 
         binding.layoutActiveFilterIndicator.setOnClickListener {
@@ -384,8 +390,7 @@ class HomeActivity : AppCompatActivity() {
             selectedNearbyDistanceKm = currentRadius
             selectedNearbyDistanceLabel = currentRadiusLabel
             isNearbyFiltered = true
-            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-            binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Món từ các quán trong bán kính $selectedNearbyDistanceLabel"
+            updateFilterIndicator()
             viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
         }
 
@@ -455,23 +460,16 @@ class HomeActivity : AppCompatActivity() {
                 selectedCategory = null
                 viewModel.filterDishes(category = "ALL")
                 binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-                if (!isNearbyFiltered) {
-                    binding.layoutActiveFilterIndicator.visibility = View.GONE
-                } else {
-                    binding.tvFilterIndicatorSummary.text = "Đang lọc: 📍 Các quán gần nhất (< 1.5 km)"
-                }
+                updateFilterIndicator()
                 Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
             } else {
                 selectedCategory = category.name
+                if (binding.etSearch.text.isNotBlank()) {
+                    binding.etSearch.setText("")
+                }
                 viewModel.filterDishes(category = category.name)
                 binding.tvSectionTitle.text = "Món ngon: ${category.name}"
-                binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-                val filterText = if (isNearbyFiltered) {
-                    "Đang lọc: ${category.name} & 📍 Quán gần (< 1.5 km)"
-                } else {
-                    "Đang lọc danh mục: ${category.name}"
-                }
-                binding.tvFilterIndicatorSummary.text = filterText
+                updateFilterIndicator()
                 Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
             }
         }
@@ -487,6 +485,270 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập thanh Bộ Lọc (Giá & Sao) và các Chip sao nhanh
+     */
+    private fun setupAdvancedFilterBar() {
+        binding.btnFilterToggle.setOnClickListener {
+            showAdvancedFilterBottomSheet()
+        }
+
+        binding.chipRate5.setOnClickListener { toggleQuickRating(5) }
+        binding.chipRate4.setOnClickListener { toggleQuickRating(4) }
+        binding.chipRate3.setOnClickListener { toggleQuickRating(3) }
+
+        syncFilterUI()
+    }
+
+    private fun toggleQuickRating(starNum: Int) {
+        val targetMin = when (starNum) {
+            5 -> 4.8f
+            4 -> 4.0f
+            3 -> 3.0f
+            else -> 1.0f
+        }
+        val targetMax = 5.0f
+
+        val isCurrentlySelected = Math.abs(viewModel.currentMinRating - targetMin) < 0.05f &&
+                Math.abs(viewModel.currentMaxRating - targetMax) < 0.05f
+
+        if (isCurrentlySelected) {
+            viewModel.filterDishes(minRating = 1.0f, maxRating = 5.0f)
+        } else {
+            viewModel.filterDishes(minRating = targetMin, maxRating = targetMax)
+        }
+        syncFilterUI()
+    }
+
+    private fun showAdvancedFilterBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = BottomSheetAdvancedFilterBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
+
+        var draftMinPrice: Long? = viewModel.currentMinPrice
+        var draftMaxPrice: Long? = viewModel.currentMaxPrice
+        var draftMinRating: Float = viewModel.currentMinRating
+        var draftMaxRating: Float = viewModel.currentMaxRating
+
+        if (draftMinPrice != null && draftMinPrice!! > 0L) {
+            sheetBinding.etMinPrice.setText(draftMinPrice.toString())
+        }
+        if (draftMaxPrice != null && draftMaxPrice!! > 0L) {
+            sheetBinding.etMaxPrice.setText(draftMaxPrice.toString())
+        }
+
+        sheetBinding.rangeSliderRating.values = listOf(
+            draftMinRating.coerceIn(1.0f, 5.0f),
+            draftMaxRating.coerceIn(1.0f, 5.0f)
+        )
+
+        fun updateRatingUI() {
+            sheetBinding.tvDispRatingMin.text = String.format(java.util.Locale.US, "%.1f", draftMinRating)
+            sheetBinding.tvDispRatingMax.text = String.format(java.util.Locale.US, "%.1f", draftMaxRating)
+
+            if (draftMinRating <= 1.05f && draftMaxRating >= 4.95f) {
+                sheetBinding.tvValRatingText.text = "1.0★ - 5.0★ (Tất cả)"
+            } else if (Math.abs(draftMinRating - draftMaxRating) < 0.05f) {
+                sheetBinding.tvValRatingText.text = "Đúng ${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★"
+            } else {
+                sheetBinding.tvValRatingText.text = "${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★ - ${String.format(java.util.Locale.US, "%.1f", draftMaxRating)}★"
+            }
+        }
+
+        fun updatePriceSummaryUI() {
+            if (draftMinPrice != null && draftMaxPrice != null) {
+                sheetBinding.tvValPriceText.text = "${draftMinPrice!!.toVndCurrency()} - ${draftMaxPrice!!.toVndCurrency()}"
+            } else if (draftMinPrice != null) {
+                sheetBinding.tvValPriceText.text = "Từ ${draftMinPrice!!.toVndCurrency()}"
+            } else if (draftMaxPrice != null) {
+                sheetBinding.tvValPriceText.text = "Đến ${draftMaxPrice!!.toVndCurrency()}"
+            } else {
+                sheetBinding.tvValPriceText.text = "Tất cả giá"
+            }
+        }
+
+        fun updatePreviewMatchCount() {
+            val count = viewModel.getFilteredDishesCount(
+                draftMinPrice,
+                draftMaxPrice,
+                draftMinRating,
+                draftMaxRating
+            )
+            sheetBinding.btnSheetApply.text = "Áp dụng ($count món)"
+        }
+
+        sheetBinding.etMinPrice.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                draftMinPrice = s?.toString()?.trim()?.toLongOrNull()
+                updatePriceSummaryUI()
+                updatePreviewMatchCount()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        sheetBinding.etMaxPrice.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                draftMaxPrice = s?.toString()?.trim()?.toLongOrNull()
+                updatePriceSummaryUI()
+                updatePreviewMatchCount()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        sheetBinding.rangeSliderRating.addOnChangeListener { slider, _, _ ->
+            val vals = slider.values
+            if (vals.size >= 2) {
+                draftMinRating = (Math.round(vals[0] * 10f) / 10f)
+                draftMaxRating = (Math.round(vals[1] * 10f) / 10f)
+                updateRatingUI()
+                updatePreviewMatchCount()
+            }
+        }
+
+        fun setSliderRating(minR: Float?, maxR: Float?) {
+            var newMin = minR ?: draftMinRating
+            var newMax = maxR ?: draftMaxRating
+            if (newMin > newMax) {
+                if (minR != null) newMax = newMin else newMin = newMax
+            }
+            draftMinRating = newMin
+            draftMaxRating = newMax
+            sheetBinding.rangeSliderRating.values = listOf(newMin, newMax)
+            updateRatingUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.tvTick1.setOnClickListener { setSliderRating(1.0f, null) }
+        sheetBinding.tvTick2.setOnClickListener { setSliderRating(2.0f, null) }
+        sheetBinding.tvTick3.setOnClickListener { setSliderRating(3.0f, null) }
+        sheetBinding.tvTick4.setOnClickListener { setSliderRating(4.0f, null) }
+        sheetBinding.tvTick5.setOnClickListener { setSliderRating(null, 5.0f) }
+
+        sheetBinding.tvValPriceText.setOnClickListener {
+            sheetBinding.etMinPrice.setText("")
+            sheetBinding.etMaxPrice.setText("")
+            draftMinPrice = null
+            draftMaxPrice = null
+            updatePriceSummaryUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.btnCloseSheet.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        sheetBinding.btnSheetReset.setOnClickListener {
+            sheetBinding.etMinPrice.setText("")
+            sheetBinding.etMaxPrice.setText("")
+            draftMinPrice = null
+            draftMaxPrice = null
+            draftMinRating = 1.0f
+            draftMaxRating = 5.0f
+            sheetBinding.rangeSliderRating.values = listOf(1.0f, 5.0f)
+            updateRatingUI()
+            updatePriceSummaryUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.btnSheetApply.setOnClickListener {
+            dialog.dismiss()
+            viewModel.filterDishes(
+                minPrice = draftMinPrice,
+                maxPrice = draftMaxPrice,
+                minRating = draftMinRating,
+                maxRating = draftMaxRating
+            )
+            syncFilterUI()
+        }
+
+        updateRatingUI()
+        updatePriceSummaryUI()
+        updatePreviewMatchCount()
+
+        dialog.show()
+    }
+
+    private fun syncFilterUI() {
+        var activeCount = 0
+        if (viewModel.currentMinPrice != null || viewModel.currentMaxPrice != null) activeCount++
+        if (viewModel.currentMinRating > 1.05f || viewModel.currentMaxRating < 4.95f) activeCount++
+
+        if (activeCount > 0) {
+            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle_active)
+            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.white))
+            binding.tvFilterBadge.visibility = View.VISIBLE
+            binding.tvFilterBadge.text = activeCount.toString()
+        } else {
+            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle)
+            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
+            binding.tvFilterBadge.visibility = View.GONE
+        }
+
+        val is5Active = Math.abs(viewModel.currentMinRating - 4.8f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
+        val is4Active = Math.abs(viewModel.currentMinRating - 4.0f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
+        val is3Active = Math.abs(viewModel.currentMinRating - 3.0f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
+
+        fun updateQuickChipStyle(tv: TextView, isActive: Boolean) {
+            if (isActive) {
+                tv.setBackgroundResource(R.drawable.bg_quick_chip_active)
+                tv.setTextColor(ContextCompat.getColor(this, R.color.primary))
+            } else {
+                tv.setBackgroundResource(R.drawable.bg_quick_chip)
+                tv.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+            }
+        }
+
+        updateQuickChipStyle(binding.chipRate5, is5Active)
+        updateQuickChipStyle(binding.chipRate4, is4Active)
+        updateQuickChipStyle(binding.chipRate3, is3Active)
+
+        updateFilterIndicator()
+    }
+
+    private fun updateFilterIndicator() {
+        val activeFilters = mutableListOf<String>()
+        if (!selectedCategory.isNullOrBlank()) {
+            activeFilters.add(selectedCategory!!)
+        }
+
+        val minP = viewModel.currentMinPrice
+        val maxP = viewModel.currentMaxPrice
+        if (minP != null && maxP != null) {
+            activeFilters.add("Giá: ${minP.toVndCurrency()} - ${maxP.toVndCurrency()}")
+        } else if (minP != null) {
+            activeFilters.add("Giá: từ ${minP.toVndCurrency()}")
+        } else if (maxP != null) {
+            activeFilters.add("Giá: đến ${maxP.toVndCurrency()}")
+        }
+
+        val minR = viewModel.currentMinRating
+        val maxR = viewModel.currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            if (minR >= 4.75f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 5 Sao")
+            } else if (minR >= 3.95f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 4 Sao+")
+            } else if (minR >= 2.95f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 3 Sao+")
+            } else {
+                activeFilters.add("⭐ ${String.format(java.util.Locale.US, "%.1f", minR)} - ${String.format(java.util.Locale.US, "%.1f", maxR)}★")
+            }
+        }
+
+        if (isNearbyFiltered) {
+            activeFilters.add("📍 $selectedNearbyDistanceLabel")
+        }
+
+        if (activeFilters.isNotEmpty()) {
+            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
+            binding.tvFilterIndicatorSummary.text = "Đang lọc: ${activeFilters.joinToString(" • ")}"
+        } else {
+            binding.layoutActiveFilterIndicator.visibility = View.GONE
+        }
+    }
+
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     /**
@@ -498,10 +760,38 @@ class HomeActivity : AppCompatActivity() {
         binding.etSearch.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                viewModel.filterDishes(query = s?.toString() ?: "")
+                val q = s?.toString()?.trim() ?: ""
+                binding.btnClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
+
+                // Nếu người dùng gõ tìm kiếm, hủy lọc danh mục để tìm kiếm toàn diện trên mọi quán và món
+                if (q.isNotEmpty() && selectedCategory != null) {
+                    selectedCategory = null
+                    clearCategoryHighlight()
+                }
+
+                viewModel.filterDishes(query = q)
+
+                if (q.isNotEmpty()) {
+                    binding.tvSectionTitle.text = "Kết quả tìm kiếm cho \"$q\""
+                } else {
+                    binding.tvSectionTitle.text = if (selectedCategory != null) "Món ngon: $selectedCategory" else "Món ngon đề xuất cho bạn"
+                }
+                updateFilterIndicator()
             }
             override fun afterTextChanged(s: Editable?) {}
         })
+
+        binding.btnClearSearch.setOnClickListener {
+            binding.etSearch.setText("")
+        }
+
+        binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
+                true
+            } else false
+        }
     }
 
     private fun setupSwipeRefresh() {

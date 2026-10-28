@@ -164,6 +164,8 @@ data class Order(
         const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
         const val COMPLETED = "COMPLETED"
         const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
         const val CANCELLED = "CANCELLED"
     }
 
@@ -178,6 +180,8 @@ data class Order(
         const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
         const val COMPLETED = "COMPLETED"
         const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
         const val CANCELLED = "CANCELLED"
     }
 

@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -91,6 +92,7 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var activeBundleIndex = 0 // 0: Khách 1, 1: Khách 2, 2: Khách 3
     private val completedBundleOrderIds = mutableSetOf<String>()
     private val checkedBundleOrderIds = mutableSetOf<String>()
+    private val bomReturnOrders = mutableListOf<Order>()
 
     // Tọa độ GPS thực tế của Shipper và Điểm đến
     private var driverLat: Double = 0.0
@@ -1536,25 +1538,20 @@ class DeliveryTripActivity : AppCompatActivity() {
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
             lifecycleScope.launch {
                 val isCustomerFault = !reason.contains("giao thông", ignoreCase = true)
-                val finalIncidentStatus = if (isCustomerFault) Order.Status.BOOM else Order.Status.CANCELLED
+                val finalIncidentStatus = if (isCustomerFault) Order.Status.RETURNING_TO_STORE else Order.Status.CANCELLED
                 firebaseRepository.updateOrderStatus(order.orderId, finalIncidentStatus, reason)
                 completedBundleOrderIds.add(order.orderId)
+                if (isCustomerFault) {
+                    bomReturnOrders.add(order)
+                }
                 dialog.dismiss()
 
-                // Nếu là đơn gộp và còn đơn chưa giao -> Hiện modal điều hướng theo 6.html (bomReturnFlowModal)
+                // Nếu là đơn gộp và còn đơn chưa giao -> Hiện modal điều hướng theo 8.html & 6.html (bomReturnFlowModal)
                 val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) }
                 if (isBundleMode && remainingOrders.isNotEmpty()) {
-                    val nextOrder = remainingOrders.first()
-                    val nextIdx = bundleOrders.indexOf(nextOrder)
-                    AlertDialog.Builder(this@DeliveryTripActivity)
-                        .setTitle("🚨 ĐÃ BÁO CÁO SỰ CỐ • TIẾP TỤC ĐƠN GHÉP")
-                        .setMessage("Đơn #ORD-$shortCode đã được hủy thành công.\n\n⚠️ Quy trình đơn ghép: Giữ nguyên niêm phong món ăn trong thùng xe. Vui lòng tiếp tục đi giao đơn ghép kế tiếp (#ORD-${nextOrder.orderId.takeLast(6).uppercase()}).\n\nSau khi hoàn thành xong chuyến đi, hệ thống sẽ điều hướng bạn quay về Quán để trả lại món và nhận tiền hoàn phí!")
-                        .setPositiveButton("🛵 TIẾP TỤC GIAO ĐƠN TIẾP THEO ➔") { _, _ ->
-                            switchActiveBundleCustomer(nextIdx)
-                            updateStepUI(3)
-                        }
-                        .setCancelable(false)
-                        .show()
+                    showBomReturnFlowDialog(order, isReturningToStore = false, nextOrder = remainingOrders.first())
+                } else if (isCustomerFault) {
+                    showBomReturnFlowDialog(order, isReturningToStore = true, nextOrder = null)
                 } else {
                     Toast.makeText(this@DeliveryTripActivity, "Đã báo cáo sự cố & hủy đơn: $reason", Toast.LENGTH_LONG).show()
                     finish()
@@ -1564,6 +1561,140 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         dialog.show()
+    }
+
+    /**
+     * Luồng Trả Món Về Quán Vì Bị Bom Hàng (Theo chuẩn demo ship/8.html modal F & ship/6.html)
+     */
+    private fun showBomReturnFlowDialog(
+        bomOrder: Order,
+        isReturningToStore: Boolean,
+        nextOrder: Order?
+    ) {
+        val flowBinding = com.chuyen_de_2.foodorder.internal.databinding.DialogBomReturnFlowBinding.inflate(layoutInflater)
+        val shortCode = QRCodeUtils.getShortOrderCode(bomOrder.orderId)
+        val foodAmount = if (bomOrder.subtotalAmount > 0) {
+            bomOrder.subtotalAmount
+        } else {
+            (bomOrder.effectiveTotal - bomOrder.shippingFee).coerceAtLeast(0)
+        }
+        val returnFee = 25000L
+        val totalRefund = foodAmount + returnFee
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(flowBinding.root)
+            .setCancelable(false)
+            .create()
+
+        if (!isReturningToStore && nextOrder != null) {
+            // Nhánh 1: Còn đơn ghép cần giao (Demo ship/8.html)
+            flowBinding.tvBomFlowIcon.text = "🚨"
+            flowBinding.tvBomFlowTitle.text = "ĐÃ HỦY ĐƠN BOM • TIẾP TỤC ĐƠN GHÉP"
+            flowBinding.tvBomFlowTitle.setTextColor(ContextCompat.getColor(this, R.color.danger))
+            flowBinding.tvBomOrderSub.text = "Đơn #ORD-$shortCode • Bị khách bom hàng"
+            flowBinding.tvBomFlowTag.text = "Giữ Món Trên Xe"
+            flowBinding.tvBomFlowTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EFF6FF"))
+            flowBinding.tvBomFlowTag.setTextColor(Color.parseColor("#1D4ED8"))
+
+            val nextSc = QRCodeUtils.getShortOrderCode(nextOrder.orderId)
+            flowBinding.tvBomPolicyNote.text = "⚠️ Quy trình đơn ghép: Món ăn được lưu giữ nguyên niêm phong trong thùng xe. Quý tài xế vui lòng tiếp tục đi giao đơn ghép kế tiếp (#ORD-$nextSc) trước. Sau khi hoàn tất, hệ thống sẽ điều hướng bạn quay về Quán để trả lại món và nhận tiền hoàn!"
+
+            flowBinding.layoutBomStoreAddress.visibility = View.GONE
+            flowBinding.layoutBomNextOrderInfo.visibility = View.VISIBLE
+
+            val nextIdx = bundleOrders.indexOf(nextOrder)
+            val nextCh = if (nextIdx >= 0) nextIdx + 1 else 1
+            flowBinding.tvBomNextTitle.text = "🛵 ĐƠN GHÉP KẾ TIẾP CẦN GIAO NGAY (CHẶNG $nextCh/${bundleOrders.size}):"
+            flowBinding.tvBomNextCustName.text = "#ORD-$nextSc • ${nextOrder.customerName}"
+            flowBinding.tvBomNextAddr.text = nextOrder.effectiveAddress
+            flowBinding.tvBomNextCod.text = if (nextOrder.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true)) {
+                "${nextOrder.effectiveTotal.toVndCurrency()} (Tiền mặt)"
+            } else {
+                "0 đ (Đã thanh toán Online)"
+            }
+
+            flowBinding.tvBomRefundTitle.text = "💰 QUYỀN LỢI ĐƯỢC BẢO LƯU:"
+            flowBinding.tvBomFoodRefund.text = foodAmount.toVndCurrency()
+            flowBinding.tvBomReturnFee.text = "+${returnFee.toVndCurrency()}"
+            flowBinding.tvBomRefundTotalLabel.text = "QUÁN SẼ TRẢ KHI HOÀN TẤT CHUYẾN:"
+            flowBinding.tvBomTotalRefund.text = totalRefund.toVndCurrency()
+
+            flowBinding.tvBomStatusIcon.text = "🛵"
+            flowBinding.tvBomStoreStatus.text = "Đơn ghép kế tiếp đang chờ: #ORD-$nextSc (${nextOrder.customerName})"
+
+            flowBinding.btnConfirmBomAction.text = "🛵 TIẾP TỤC GIAO ĐƠN TIẾP THEO (#ORD-$nextSc) ➔"
+            flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
+            flowBinding.btnConfirmBomAction.setOnClickListener {
+                dialog.dismiss()
+                switchActiveBundleCustomer(nextIdx)
+                updateStepUI(3)
+            }
+        } else {
+            // Nhánh 2: Đã xong hết các đơn ghép hoặc đơn đơn lẻ -> Về Quán trả món
+            flowBinding.tvBomFlowIcon.text = "🏪"
+            flowBinding.tvBomFlowTitle.text = "LUỒNG TRẢ MÓN VỀ QUÁN"
+            flowBinding.tvBomFlowTitle.setTextColor(ContextCompat.getColor(this, R.color.danger))
+            flowBinding.tvBomOrderSub.text = "Đơn #ORD-$shortCode • Bị khách bom hàng"
+            flowBinding.tvBomFlowTag.text = "Quay Về Quán"
+            flowBinding.tvBomFlowTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
+            flowBinding.tvBomFlowTag.setTextColor(Color.parseColor("#DC2626"))
+
+            val sName = binding.tvStep1StoreName.text.toString().ifBlank { "Quán Oishi Food" }
+            flowBinding.tvBomPolicyNote.text = "⚠️ Toàn bộ đơn ghép đã hoàn tất! Quý tài xế vui lòng di chuyển về lại $sName để bàn giao lại món ăn. Quán có trách nhiệm hoàn trả tiền món + thanh toán cước hoàn hàng (${totalRefund.toVndCurrency()}) cho bạn."
+
+            flowBinding.layoutBomStoreAddress.visibility = View.VISIBLE
+            flowBinding.layoutBomNextOrderInfo.visibility = View.GONE
+
+            flowBinding.tvBomStoreName.text = sName
+            val displayStoreAddress = storeAddress.ifBlank { "Địa chỉ Quán" }
+            flowBinding.tvBomStoreAddress.text = displayStoreAddress
+            val dishesSummary = if (bomOrder.items.isNotEmpty()) {
+                bomOrder.items.values.joinToString(", ") { "${it.quantity}x ${it.name.ifBlank { it.dishName }}" }
+            } else {
+                "Món ăn theo đơn #ORD-$shortCode"
+            }
+            flowBinding.tvBomDishes.text = "Món cần trả: $dishesSummary"
+
+            flowBinding.btnBomNavigateStore.setOnClickListener {
+                GoogleMapUtils.openGoogleMapsNavigation(
+                    context = this,
+                    destLat = storeLat,
+                    destLng = storeLng,
+                    destinationName = sName,
+                    address = displayStoreAddress,
+                    mode = "l"
+                )
+            }
+
+            flowBinding.tvBomRefundTitle.text = "💰 QUÁN PHẢI HOÀN TIỀN CHO SHIPPER:"
+            flowBinding.tvBomFoodRefund.text = foodAmount.toVndCurrency()
+            flowBinding.tvBomReturnFee.text = "+${returnFee.toVndCurrency()}"
+            flowBinding.tvBomRefundTotalLabel.text = "TỔNG TIỀN QUÁN PHẢI TRẢ LẠI:"
+            flowBinding.tvBomTotalRefund.text = totalRefund.toVndCurrency()
+
+            flowBinding.tvBomStatusIcon.text = "⏳"
+            flowBinding.tvBomStoreStatus.text = "Tài xế đang quay lại quán. Vui lòng bàn giao món và nhận tiền hoàn từ Quán."
+
+            flowBinding.btnConfirmBomAction.text = "🏪 ĐÃ TỚI QUÁN • TRẢ MÓN & NHẬN ${totalRefund.toVndCurrency()} TỪ QUÁN"
+            flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.brand_green))
+            flowBinding.btnConfirmBomAction.setOnClickListener {
+                lifecycleScope.launch {
+                    bomReturnOrders.forEach { bo ->
+                        firebaseRepository.updateOrderStatus(bo.orderId, Order.Status.RETURNED_TO_STORE, "Shipper đã trả món về quán & nhận hoàn tiền")
+                    }
+                    flowBinding.tvBomStatusIcon.text = "✓"
+                    flowBinding.tvBomStoreStatus.text = "✓ ĐÃ TRẢ MÓN & NHẬN ĐỦ ${totalRefund.toVndCurrency()} TỪ $sName!"
+                    flowBinding.btnConfirmBomAction.text = "🏠 HOÀN TẤT CHUYẾN • VỀ DANH SÁCH ĐƠN ➔"
+                    flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this@DeliveryTripActivity, R.color.primary))
+                    flowBinding.btnConfirmBomAction.setOnClickListener {
+                        dialog.dismiss()
+                        finish()
+                    }
+                }
+            }
+        }
+
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
     }
 
     private fun launchCameraQrScanner() {
@@ -1719,6 +1850,8 @@ class DeliveryTripActivity : AppCompatActivity() {
                         }
                         .setCancelable(false)
                         .show()
+                } else if (bomReturnOrders.isNotEmpty()) {
+                    showBomReturnFlowDialog(bomReturnOrders.first(), isReturningToStore = true, nextOrder = null)
                 } else {
                     val totalFee = if (isBundleMode) {
                         bundleOrders.sumOf { if (it.shippingFee > 0) it.shippingFee else 15000L }

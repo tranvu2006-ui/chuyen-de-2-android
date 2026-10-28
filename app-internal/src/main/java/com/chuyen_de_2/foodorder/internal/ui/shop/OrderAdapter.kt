@@ -241,6 +241,35 @@ class OrderAdapter(
                     }
                 }
 
+                Order.Status.RETURNING_TO_STORE -> {
+                    binding.tvOrderBadge.text = "🚨 ĐANG TRẢ MÓN VỀ QUÁN"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.VISIBLE
+                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
+                    binding.btnMainAction.apply {
+                        isEnabled = false
+                        text = "⚠️ SHIPPER ĐANG ĐEM MÓN VỀ TRẢ"
+                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_orange_bg)
+                        setTextColor(Color.parseColor("#B45309"))
+                    }
+                }
+
+                Order.Status.RETURNED_TO_STORE -> {
+                    binding.tvOrderBadge.text = "🏪 ĐÃ TRẢ MÓN VỀ QUÁN"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_completed)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.GONE
+                    binding.btnMainAction.apply {
+                        isEnabled = false
+                        text = "✓ QUÁN ĐÃ NHẬN LẠI MÓN"
+                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.border)
+                        setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                    }
+                }
+
                 Order.Status.CANCELLED, Order.Status.BOOM -> {
                     binding.tvOrderBadge.text = "🚫 ĐÃ HỦY ĐƠN"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)

@@ -106,13 +106,16 @@ class ShopViewModel @Inject constructor(
                     it.status == Order.Status.ARRIVED_AT_SHOP ||
                     it.status == Order.Status.DELIVERING ||
                     it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.RETURNING_TO_STORE ||
                     it.status == "WARNING"
         }
 
-        // Kiểm tra xem có đơn nào đang bị cảnh báo không
+        // Kiểm tra xem có đơn nào đang bị cảnh báo hoặc shipper đang trả hàng về quán không
         _hasDeliveringWarning.value = orders.any {
-            (it.status == Order.Status.DELIVERING || it.status == Order.Status.READY || it.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
-                    (it.note.contains("cảnh báo", ignoreCase = true) || it.status == "WARNING")
+            it.status == Order.Status.RETURNING_TO_STORE ||
+                    it.status == Order.Status.BOOM ||
+                    ((it.status == Order.Status.DELIVERING || it.status == Order.Status.READY || it.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
+                    (it.note.contains("cảnh báo", ignoreCase = true) || it.status == "WARNING"))
         }
 
         // Tính doanh thu và đơn hoàn tất hôm nay
@@ -143,12 +146,14 @@ class ShopViewModel @Inject constructor(
                         it.status == Order.Status.ARRIVED_AT_SHOP ||
                         it.status == Order.Status.DELIVERING ||
                         it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        it.status == Order.Status.RETURNING_TO_STORE ||
                         it.status == "WARNING"
             }
             TabType.HISTORY -> orders.filter {
                 it.status == Order.Status.COMPLETED ||
                         it.status == Order.Status.CANCELLED ||
-                        it.status == Order.Status.BOOM
+                        it.status == Order.Status.BOOM ||
+                        it.status == Order.Status.RETURNED_TO_STORE
             }
         }
     }

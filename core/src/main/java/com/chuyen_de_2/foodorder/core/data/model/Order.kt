@@ -231,12 +231,19 @@ data class OrderItem(
     @SerializedName("selectedOptions")
     val selectedOptions: Map<String, Any>? = null,
 
-    @SerializedName("imageUrl")
+    @SerializedName("imageUrl", alternate = ["image", "photoUrl", "dishImage"])
     val imageUrl: String = "",
+
+    @SerializedName("image")
+    val image: String = "",
 
     @SerializedName("itemSubtotal")
     val itemSubtotal: Long = 0
 ) {
+    @get:Exclude
+    val effectiveImageUrl: String
+        get() = imageUrl.ifBlank { image }
+
     @get:Exclude
     val dishName: String get() = name
 }

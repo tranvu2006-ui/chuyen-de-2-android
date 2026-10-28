@@ -9,6 +9,9 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
@@ -68,6 +71,55 @@ class OrderHistoryAdapter(
                 "• 1x Suất ăn tiêu chuẩn"
             }
             binding.tvDishesSummary.text = summaryText
+
+            // Hiển thị ảnh đại diện món ăn
+            val firstItemWithImage = order.items.values.firstOrNull { it.effectiveImageUrl.isNotBlank() }
+            val mainImageUrl = firstItemWithImage?.effectiveImageUrl ?: order.items.values.firstOrNull()?.effectiveImageUrl.orEmpty()
+
+            if (mainImageUrl.isNotBlank()) {
+                binding.ivDishThumb.visibility = View.VISIBLE
+                binding.tvDishEmoji.visibility = View.GONE
+                if (mainImageUrl.startsWith("data:image") || mainImageUrl.length > 500) {
+                    try {
+                        val clean = if (mainImageUrl.contains(",")) mainImageUrl.substringAfter(",") else mainImageUrl
+                        val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
+                        Glide.with(context)
+                            .asBitmap()
+                            .load(decoded)
+                            .transform(CenterCrop(), RoundedCorners(14))
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    } catch (_: Exception) {
+                        Glide.with(context)
+                            .load(mainImageUrl)
+                            .transform(CenterCrop(), RoundedCorners(14))
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    }
+                } else {
+                    Glide.with(context)
+                        .load(mainImageUrl)
+                        .transform(CenterCrop(), RoundedCorners(14))
+                        .placeholder(R.drawable.placeholder_food)
+                        .error(R.drawable.placeholder_food)
+                        .into(binding.ivDishThumb)
+                }
+            } else {
+                binding.ivDishThumb.visibility = View.VISIBLE
+                binding.ivDishThumb.setImageResource(R.drawable.placeholder_food)
+                binding.tvDishEmoji.visibility = View.GONE
+            }
+
+            // Badge hiển thị số lượng món phụ nếu đơn > 1 món (+2)
+            val extraItems = order.items.size - 1
+            if (extraItems > 0) {
+                binding.tvExtraItemsCount.visibility = View.VISIBLE
+                binding.tvExtraItemsCount.text = "+$extraItems"
+            } else {
+                binding.tvExtraItemsCount.visibility = View.GONE
+            }
 
             // Tổng tiền
             val total = if (order.totalPayment > 0) order.totalPayment else order.total

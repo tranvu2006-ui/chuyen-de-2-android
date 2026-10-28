@@ -7,8 +7,8 @@
     android:layout_height="wrap_content"
     android:layout_marginBottom="12dp"
     app:cardBackgroundColor="#FFFFFF"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="3dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
     app:strokeColor="#BFDBFE"
     app:strokeWidth="1.5dp">
 
@@ -18,6 +18,7 @@
         android:orientation="vertical"
         android:padding="14dp">
 
+        <!-- Dòng 1: Mã đơn + Badge Chặng/Đơn ghép (trái) & Trạng thái (phải) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -26,56 +27,139 @@
 
             <TextView
                 android:id="@+id/tvActiveOrderCode"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                tools:text="#ORD_OISHI_88291"
-                android:textColor="@color/text_primary"
-                android:textSize="13.5sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvActiveOrderFee"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                tools:text="(+25.000 đ)"
-                android:textColor="@color/brand_green"
-                android:textSize="12sp"
-                android:textStyle="bold" />
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                tools:text="#ORD_OISHI_24P92U" />
+
+            <TextView
+                android:id="@+id/tvActiveOrderBatchBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_shop_tag"
+                android:backgroundTint="#EFF6FF"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:text="Đơn 1/3"
+                android:textColor="#2563EB"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:visibility="visible" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/tvActiveOrderStatusTag"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#DBEAFE"
+                android:background="@drawable/bg_badge_shop_tag"
+                android:backgroundTint="#EFF6FF"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                tools:text="Đang lấy món"
                 android:textColor="#1D4ED8"
                 android:textSize="10.5sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                tools:text="Đang giao khách" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvActiveOrderRoute"
+        <!-- Dòng 2: Tiền công ship + Badge thanh toán COD / Đã trả trước -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:lineSpacingExtra="2dp"
-            android:text=""
-            android:textColor="#334155"
-            android:textSize="12sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/tvActiveOrderDishes"
+            <TextView
+                android:id="@+id/tvActiveOrderFee"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_shop_tag"
+                android:backgroundTint="#ECFDF5"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:textColor="#059669"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                tools:text="💰 Tiền ship: +15.000 đ" />
+
+            <TextView
+                android:id="@+id/tvActivePaymentBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_shop_tag"
+                android:backgroundTint="#F0FDF4"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:textColor="#15803D"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="✓ Đã thanh toán trước" />
+        </LinearLayout>
+
+        <!-- Dòng 3: Điểm giao (Khách & Địa chỉ) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="top"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📍"
+                android:textSize="12.5sp" />
+
+            <TextView
+                android:id="@+id/tvActiveOrderRoute"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:lineSpacingExtra="2dp"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="#334155"
+                android:textSize="12sp"
+                tools:text="Trần Vũ - Chương Dương, Quận 1, TP.HCM" />
+        </LinearLayout>
+
+        <!-- Dòng 4: Món ăn -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text=""
-            android:textColor="@color/text_secondary"
-            android:textSize="11.5sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📦"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvActiveOrderDishes"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                tools:text="Món: 1x Thư Thơm Ngon" />
+        </LinearLayout>
+
+        <!-- Dòng 5: Các nút hành động -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -87,23 +171,36 @@
                 android:id="@+id/btnCancelOrder"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
+                android:layout_height="wrap_content"
+                android:minHeight="40dp"
                 android:layout_marginEnd="8dp"
-                android:paddingHorizontal="12dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
                 android:text="Hủy đơn"
                 android:textColor="@color/danger"
                 android:textSize="12sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp"
                 app:strokeColor="#FECDD3" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnContinueTrip"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
+                android:layout_height="wrap_content"
+                android:minHeight="40dp"
                 android:layout_weight="1"
                 android:backgroundTint="@color/primary"
-                android:text="Tiếp Tục Lộ Trình "
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="🛵 Tiếp Tục Lộ Trình ➔"
                 android:textColor="#FFFFFF"
-                android:textSize="12.5sp"
+                android:textSize="12sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp" />
         </LinearLayout>

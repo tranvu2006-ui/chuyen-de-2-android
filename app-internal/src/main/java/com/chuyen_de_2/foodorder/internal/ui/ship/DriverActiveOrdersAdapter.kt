@@ -1,6 +1,9 @@
 package com.chuyen_de_2.foodorder.internal.ui.ship
 
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.chuyen_de_2.foodorder.core.data.model.Order
@@ -39,38 +42,54 @@ class DriverActiveOrdersAdapter(
 
         fun bind(order: Order) {
             val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
-            val batchSuffix = if (orders.size > 1) " (Đơn ${bindingAdapterPosition + 1}/${orders.size})" else ""
-            binding.tvActiveOrderCode.text = "#ORD_OISHI_$shortCode$batchSuffix"
+            binding.tvActiveOrderCode.text = "#ORD_OISHI_$shortCode"
 
-            val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
-            binding.tvActiveOrderFee.text = "(+${fee.toVndCurrency()})"
+            val ch = bindingAdapterPosition + 1
+            if (orders.size > 1) {
+                binding.tvActiveOrderBatchBadge.visibility = View.VISIBLE
+                binding.tvActiveOrderBatchBadge.text = "Đơn $ch/${orders.size}"
+            } else {
+                binding.tvActiveOrderBatchBadge.visibility = View.GONE
+            }
+
+            val fee = if (order.shippingFee > 0) order.shippingFee else 15000L
+            binding.tvActiveOrderFee.text = "💰 Tiền ship: +${fee.toVndCurrency()}"
 
             val isCod = order.paymentMethod.equals("COD", ignoreCase = true)
             val totalPayment = if (order.totalPayment > 0) order.totalPayment else (order.total + fee)
-            val paymentText = if (isCod) "💵 Thu COD: ${totalPayment.toVndCurrency()}" else "✓ Đã thanh toán trước"
+            if (isCod) {
+                binding.tvActivePaymentBadge.text = "💵 Thu COD: ${totalPayment.toVndCurrency()}"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#D97706"))
+            } else {
+                binding.tvActivePaymentBadge.text = "✓ Đã thanh toán online"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#F0FDF4"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#15803D"))
+            }
 
             binding.tvActiveOrderStatusTag.text = when (order.status) {
                 Order.Status.ARRIVED_AT_SHOP -> "Đã đến quán"
                 Order.Status.DELIVERING -> "Đang giao khách"
                 Order.Status.ARRIVED_AT_CUSTOMER -> "Đã đến nhà khách"
+                Order.Status.RETURNING_TO_STORE -> "Đang trả quán"
                 else -> "Đang lấy món"
             }
 
             val cusName = order.customerName.ifBlank { "Khách hàng" }
             val address = order.address.ifBlank { "Quận 1, TP.HCM" }
-            binding.tvActiveOrderRoute.text = "📍 $cusName - $address\n$paymentText"
+            binding.tvActiveOrderRoute.text = "$cusName - $address"
 
             val dishSummary = if (order.items.isNotEmpty()) {
-                order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName}" }
+                order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName.ifBlank { it.name }}" }
             } else {
                 "Món ăn theo đơn"
             }
-            binding.tvActiveOrderDishes.text = "📦 Món: $dishSummary"
+            binding.tvActiveOrderDishes.text = "Món: $dishSummary"
 
             if (orders.size > 1) {
-                binding.btnContinueTrip.text = "🛵 TIẾP TỤC GIAO (${orders.size} ĐƠN GHÉP)"
+                binding.btnContinueTrip.text = "🛵 TIẾP TỤC CHẶNG $ch/${orders.size} ➔"
             } else {
-                binding.btnContinueTrip.text = "🛵 TIẾP TỤC GIAO"
+                binding.btnContinueTrip.text = "🛵 TIẾP TỤC LỘ TRÌNH ➔"
             }
 
             binding.btnContinueTrip.setOnClickListener {

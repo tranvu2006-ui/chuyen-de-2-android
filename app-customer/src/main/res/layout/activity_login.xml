@@ -13,24 +13,26 @@
         android:padding="24dp">
 
         <!-- Logo Container -->
-        <FrameLayout
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/logoContainer"
-            android:layout_width="88dp"
-            android:layout_height="88dp"
-            android:layout_marginTop="60dp"
-            android:background="@drawable/bg_floating_cart"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_marginTop="50dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="6dp"
+            app:strokeWidth="0dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
-                android:id="@+id/tvAppTitle"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_gravity="center"
-                app:srcCompat="@drawable/ic_soup"
-                app:tint="@color/white" />
-        </FrameLayout>
+                android:id="@+id/ivLogo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_app_logo"
+                android:contentDescription="Oishi Food Logo" />
+        </com.google.android.material.card.MaterialCardView>
 
         <TextView
             android:id="@+id/tvWelcome"

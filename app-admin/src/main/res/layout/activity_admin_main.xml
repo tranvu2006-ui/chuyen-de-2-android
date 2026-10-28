@@ -41,26 +41,20 @@
         app:layout_constraintTop_toBottomOf="@id/viewStatusBar">
 
         <!-- Brand Squircle Emblem -->
-        <FrameLayout
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="@drawable/bg_glass_pill"
-            android:padding="3dp">
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="0dp">
 
-            <FrameLayout
+            <ImageView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@drawable/bg_choice_card_active"
-                android:backgroundTint="@color/primary">
-
-                <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_shield_alert"
-                    app:tint="@color/white" />
-            </FrameLayout>
-        </FrameLayout>
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_app_logo"
+                android:contentDescription="Oishi Admin Logo" />
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- Command Center Identity -->
         <LinearLayout

@@ -56,8 +56,8 @@
         <!-- Glowing Brand Emblem -->
         <FrameLayout
             android:id="@+id/flLogoContainer"
-            android:layout_width="76dp"
-            android:layout_height="76dp"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
             android:layout_marginTop="18dp"
             android:background="@drawable/bg_glass_pill"
             android:padding="4dp"
@@ -65,15 +65,21 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tvClearanceBadge">
 
-            <ImageView
-                android:id="@+id/ivLogo"
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@drawable/bg_choice_card_active"
-                android:backgroundTint="@color/primary"
-                android:padding="15dp"
-                android:src="@drawable/ic_shield_alert"
-                app:tint="@color/white" />
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <ImageView
+                    android:id="@+id/ivLogo"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_app_logo"
+                    android:contentDescription="Oishi Admin Logo" />
+            </com.google.android.material.card.MaterialCardView>
         </FrameLayout>
 
         <TextView

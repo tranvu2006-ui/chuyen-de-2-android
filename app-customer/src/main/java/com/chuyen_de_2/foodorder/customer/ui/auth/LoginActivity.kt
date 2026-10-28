@@ -124,20 +124,9 @@ class LoginActivity : AppCompatActivity() {
                 return@launch
             }
 
-            val role = viewModel.getUserRole()?.trim()?.uppercase()
             binding.progressBar.visibility = View.GONE
-
-            when (role) {
-                User.Role.MERCHANT, User.Role.MANAGER, "SHOP", "STORE" -> {
-                    showInternalRoleDialog("Cửa Hàng (Quán Ăn)", isShop = true)
-                }
-                User.Role.DRIVER, User.Role.SHIPPER -> {
-                    showInternalRoleDialog("Tài Xế (Shipper)", isShop = false)
-                }
-                else -> {
-                    navigateToHome()
-                }
-            }
+            // Vào thẳng Trang chủ Khách hàng, không chặn popup đối với tài khoản Cửa hàng / Tài xế
+            navigateToHome()
         }
     }
 

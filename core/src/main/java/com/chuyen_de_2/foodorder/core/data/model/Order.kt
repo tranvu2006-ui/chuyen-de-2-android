@@ -70,6 +70,21 @@ data class Order(
     @SerializedName("paymentMethod")
     val paymentMethod: String = PaymentMethod.COD,
 
+    @SerializedName("paymentMode")
+    val paymentMode: String = PaymentMode.FULL,
+
+    @SerializedName("depositAmount")
+    val depositAmount: Long = 0,
+
+    @SerializedName("remainAmount")
+    val remainAmount: Long = 0,
+
+    @SerializedName("isDepositPaid")
+    val isDepositPaid: Boolean = false,
+
+    @SerializedName("isPaid")
+    val isPaid: Boolean = false,
+
     @SerializedName("status")
     var status: String = Status.PENDING,
 
@@ -133,8 +148,13 @@ data class Order(
     val effectiveTimestamp: Long
         get() = if (createdAt > 0) createdAt else timestamp
 
+    @get:Exclude
+    val orderCode: String
+        get() = if (orderId.isNotBlank()) "#ORD_OISHI_${orderId.takeLast(6).uppercase()}" else ""
+
     /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
     object Status {
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PENDING = "PENDING"
         const val PREPARING = "PREPARING"
         const val READY = "READY"
@@ -148,6 +168,7 @@ data class Order(
     }
 
     object OrderStatus {
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PENDING = "PENDING"
         const val PREPARING = "PREPARING"
         const val READY = "READY"
@@ -160,10 +181,18 @@ data class Order(
         const val CANCELLED = "CANCELLED"
     }
 
+    /** Chế độ thanh toán: Trả thẳng 100%, Cọc 20%, hoặc COD (chuẩn b8.html) */
+    object PaymentMode {
+        const val FULL = "FULL"
+        const val DEPOSIT = "DEPOSIT"
+        const val COD = "COD"
+    }
+
     /** Phương thức thanh toán */
     object PaymentMethod {
         const val COD = "COD"
         const val BANKING = "BANKING"
+        const val DEPOSIT = "DEPOSIT"
     }
 }
 

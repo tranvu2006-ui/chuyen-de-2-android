@@ -68,6 +68,9 @@ class CheckoutViewModel @Inject constructor(
         shippingFee: Long = 15000L,
         discount: Long = 0L,
         paymentMethod: String = Order.PaymentMethod.COD,
+        paymentMode: String = Order.PaymentMode.FULL,
+        depositAmount: Long = 0L,
+        remainAmount: Long = 0L,
         customerPhone: String = "",
         customerName: String = ""
     ) {
@@ -161,6 +164,12 @@ class CheckoutViewModel @Inject constructor(
                     val resolvedShopPhone = targetStore?.phone.orEmpty().trim()
                     val resolvedShopName = targetStore?.name?.ifBlank { cart.shopName } ?: cart.shopName
 
+                    val initialStatus = if (paymentMode == Order.PaymentMode.COD) {
+                        Order.Status.PENDING
+                    } else {
+                        Order.Status.AWAITING_PAYMENT
+                    }
+
                     val order = Order(
                         customerId = userId,
                         customerName = resolvedCustomerName.ifBlank { firebaseUser.displayName?.ifBlank { "Khách hàng" } ?: "Khách hàng" },
@@ -169,13 +178,16 @@ class CheckoutViewModel @Inject constructor(
                         shopId = cart.shopId,
                         shopName = resolvedShopName,
                         shopPhone = resolvedShopPhone,
-                        status = Order.Status.PENDING,
-                        orderStatus = Order.Status.PENDING,
+                        status = initialStatus,
+                        orderStatus = initialStatus,
                         total = finalPayment,
                         subtotalAmount = cart.totalAmount,
                         shippingFee = shippingFee,
                         totalPayment = finalPayment,
                         paymentMethod = paymentMethod,
+                        paymentMode = paymentMode,
+                        depositAmount = depositAmount,
+                        remainAmount = remainAmount,
                         deliveryToken = token,
                         items = cart.items.mapValues { (_, item) ->
                             com.chuyen_de_2.foodorder.core.data.model.OrderItem(

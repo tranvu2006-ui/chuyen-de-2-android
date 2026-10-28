@@ -160,6 +160,12 @@ class StoreProfileFragment : Fragment() {
      */
     private fun observeStoreProfile() {
         viewLifecycleOwner.lifecycleScope.launch {
+            if (currentStoreId.isBlank()) {
+                val activeStore = getDefaultStore()
+                currentStore = activeStore
+                bindStoreData(activeStore)
+                return@launch
+            }
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
                 val activeStore = store ?: getDefaultStore()
                 currentStore = activeStore

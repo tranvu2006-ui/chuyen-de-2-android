@@ -183,7 +183,7 @@ class ShipperFragment : Fragment() {
             binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
 
             viewModel.storePendingOrders.value?.let { pendingOrders ->
-                pendingAdapter.submitList(pendingOrders, hasActive)
+                pendingAdapter.submitList(pendingOrders, activeOrders.size)
             }
 
             val calendar = java.util.Calendar.getInstance().apply {
@@ -218,7 +218,7 @@ class ShipperFragment : Fragment() {
 
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
             val hasActive = activeAdapter.itemCount > 0
-            pendingAdapter.submitList(pendingOrders, hasActive)
+            pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)
             binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
             binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
 

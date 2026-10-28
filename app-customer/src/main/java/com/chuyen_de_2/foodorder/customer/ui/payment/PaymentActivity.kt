@@ -56,6 +56,12 @@ class PaymentActivity : AppCompatActivity() {
         val subtotal = intent.getLongExtra("extra_subtotal", 0L)
         val shippingFee = intent.getLongExtra("extra_shipping_fee", 0L)
         val discount = intent.getLongExtra("extra_discount", 0L)
+        val paymentMode = intent.getStringExtra("extra_payment_mode") ?: com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL
+        val depositAmount = intent.getLongExtra("extra_deposit", 0L)
+        val remainAmount = intent.getLongExtra("extra_remain", 0L)
+        val totalOrder = intent.getLongExtra("extra_total", amount)
+
+        val createdAt = intent.getLongExtra("extra_created_at", System.currentTimeMillis())
 
         // 1. Nhận thông tin ngân hàng truyền qua Intent (nếu có)
         val passedBankName = intent.getStringExtra("extra_bank_name")
@@ -70,9 +76,9 @@ class PaymentActivity : AppCompatActivity() {
             currentBankBin = if (!passedBankBin.isNullOrBlank()) passedBankBin else "970422"
         }
 
-        setupToolbar()
-        renderPaymentUI(orderId, amount)
-        startCountdownTimer()
+        setupToolbar(paymentMode)
+        renderPaymentUI(orderId, amount, paymentMode, remainAmount)
+        startCountdownTimer(orderId, createdAt)
 
         // 2. Tra cứu trực tiếp từ node stores/{shopId} trên Firebase để đảm bảo luôn lấy STK mới nhất của Quán
         if (shopId.isNotBlank()) {
@@ -84,22 +90,45 @@ class PaymentActivity : AppCompatActivity() {
                         currentBankName = store.bankName.ifBlank { "MB Bank" }
                         currentAccountHolder = store.bankAccountName.ifBlank { store.name }
                         currentBankBin = store.bankBin.ifBlank { "970422" }
-                        renderPaymentUI(orderId, amount)
+                        renderPaymentUI(orderId, amount, paymentMode, remainAmount)
                     }
                 }
         }
 
-        // Nút xác nhận thanh toán xong -> chuyển màn hình OrderSuccessActivity
+        // Nút xác nhận thanh toán xong -> Cập nhật trạng thái đơn sang PENDING cho quán nhận & chuyển màn hình OrderSuccessActivity
         binding.btnConfirmPaid.setOnClickListener {
+            if (orderId.isNotBlank()) {
+                val updates = mutableMapOf<String, Any>(
+                    "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.PENDING,
+                    "orderStatus" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.PENDING,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+                if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+                    updates["isDepositPaid"] = true
+                } else {
+                    updates["isPaid"] = true
+                }
+                FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
+            }
+
+            val methodLabel = if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+                "Đặt cọc 20% (VietQR $currentBankName)"
+            } else {
+                "Chuyển khoản VietQR 100% ($currentBankName)"
+            }
             val intent = Intent(this, OrderSuccessActivity::class.java).apply {
                 putExtra(Constants.EXTRA_ORDER_ID, orderId)
                 putExtra(Constants.EXTRA_SHOP_NAME, shopName)
                 putExtra("extra_address", address)
-                putExtra("extra_amount", amount)
+                putExtra("extra_amount", if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) depositAmount else totalOrder)
+                putExtra("extra_deposit", depositAmount)
+                putExtra("extra_remain", remainAmount)
+                putExtra("extra_total", totalOrder)
                 putExtra("extra_subtotal", subtotal)
                 putExtra("extra_shipping_fee", shippingFee)
                 putExtra("extra_discount", discount)
-                putExtra("extra_payment_method", "Chuyển khoản VietQR ($currentBankName)")
+                putExtra("extra_payment_method", methodLabel)
+                putExtra("extra_payment_mode", paymentMode)
             }
             startActivity(intent)
             finish()
@@ -109,19 +138,36 @@ class PaymentActivity : AppCompatActivity() {
         binding.btnHomeNav.setOnClickListener { navigateHome() }
     }
 
-    private fun setupToolbar() {
+    private fun setupToolbar(paymentMode: String) {
+        if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+            binding.toolbar.title = "Quét Mã Đặt Cọc 20%"
+        } else {
+            binding.toolbar.title = "Quét Mã Thanh Toán 100%"
+        }
         binding.toolbar.setNavigationOnClickListener {
             onBackPressedDispatcher.onBackPressed()
         }
     }
 
     /** Hiển thị thông tin ngân hàng & Tạo ảnh mã VietQR chuẩn của Quán */
-    private fun renderPaymentUI(orderId: String, amount: Long) {
+    private fun renderPaymentUI(orderId: String, amount: Long, paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL, remainAmount: Long = 0L) {
         binding.tvAmountValue.text = amount.toVndCurrency()
 
-        val transferSyntax = "OISHI ${if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else ""}".trim()
+        val prefix = if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) "COC" else "OISHI"
+        val code = if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else ""
+        val transferSyntax = "$prefix $code".trim()
 
-        binding.tvPayTypeBadge.text = if (currentBankName.isNotBlank()) "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (${currentBankName.uppercase()})" else "🏦 VIETQR LIÊN NGÂN HÀNG 24/7"
+        if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+            binding.tvPayTypeBadge.text = "⚡ THANH TOÁN TIỀN CỌC GIỮ ĐƠN (20%)"
+            binding.tvAmountLabel.text = "Số tiền cọc cần quét ngay (20%):"
+            binding.tvPaymentSubNotice.text = "Đã cọc 20% giữ đơn. Số tiền còn lại ${remainAmount.toVndCurrency()} bạn thanh toán cho shipper khi nhận hàng."
+            binding.btnConfirmPaid.text = "Tôi Đã Chuyển Tiền Cọc Xong"
+        } else {
+            binding.tvPayTypeBadge.text = if (currentBankName.isNotBlank()) "🏦 VIETQR LIÊN NGÂN HÀNG 24/7 (${currentBankName.uppercase()})" else "🏦 VIETQR LIÊN NGÂN HÀNG 24/7"
+            binding.tvAmountLabel.text = "Số tiền cần thanh toán ngay (100%):"
+            binding.tvPaymentSubNotice.text = "Đã thanh toán 100%, khi nhận hàng bạn không cần chuẩn bị tiền mặt."
+            binding.btnConfirmPaid.text = "Tôi Đã Chuyển Khoản Xong"
+        }
         binding.tvBankName.text = currentBankName.ifBlank { "Chưa cập nhật" }
         binding.tvAccountNum.text = currentAccountNum.ifBlank { "Chưa cập nhật" }
         binding.tvAccountHolder.text = currentAccountHolder.ifBlank { "Chưa cập nhật" }
@@ -175,8 +221,19 @@ class PaymentActivity : AppCompatActivity() {
             .into(binding.ivQrCode)
     }
 
-    private fun startCountdownTimer() {
-        countDownTimer = object : CountDownTimer(1800000L, 1000L) {
+    private fun startCountdownTimer(orderId: String, createdAt: Long) {
+        val now = System.currentTimeMillis()
+        val orderCreated = if (createdAt > 0L) createdAt else now
+        val elapsed = now - orderCreated
+        val totalAllowedMs = 30 * 60 * 1000L // 30 phút
+        val remainingMs = maxOf(0L, totalAllowedMs - elapsed)
+
+        if (remainingMs <= 0L) {
+            handleExpiredOrder(orderId)
+            return
+        }
+
+        countDownTimer = object : CountDownTimer(remainingMs, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
                 val minutes = (millisUntilFinished / 1000) / 60
                 val seconds = (millisUntilFinished / 1000) % 60
@@ -185,8 +242,23 @@ class PaymentActivity : AppCompatActivity() {
 
             override fun onFinish() {
                 binding.tvCountdownTimer.text = "00:00"
+                handleExpiredOrder(orderId)
             }
         }.start()
+    }
+
+    private fun handleExpiredOrder(orderId: String) {
+        if (orderId.isNotBlank()) {
+            val cancelUpdates = mapOf<String, Any>(
+                "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED,
+                "orderStatus" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED,
+                "note" to "Đã tự động hủy do quá hạn thanh toán 30 phút",
+                "updatedAt" to System.currentTimeMillis()
+            )
+            FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(cancelUpdates)
+        }
+        Toast.makeText(this@PaymentActivity, "Đơn hàng đã quá hạn thanh toán 30 phút và tự động bị hủy.", Toast.LENGTH_LONG).show()
+        navigateHome()
     }
 
     private fun copyToClipboard(label: String, text: String) {

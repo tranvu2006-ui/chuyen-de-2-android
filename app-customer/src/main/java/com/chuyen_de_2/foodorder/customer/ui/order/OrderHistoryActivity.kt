@@ -77,10 +77,29 @@ class OrderHistoryActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         adapter = OrderHistoryAdapter(
             onTrackClick = { order ->
-                val intent = Intent(this, TrackingActivity::class.java).apply {
-                    putExtra(Constants.EXTRA_ORDER_ID, order.orderId)
+                if (order.status == Order.Status.AWAITING_PAYMENT) {
+                    val finalTotal = if (order.totalPayment > 0) order.totalPayment else order.total
+                    val depositAmt = if (order.paymentMode == Order.PaymentMode.DEPOSIT) order.depositAmount else 0L
+                    val remainAmt = if (order.paymentMode == Order.PaymentMode.DEPOSIT) order.remainAmount else 0L
+                    val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
+                        putExtra(Constants.EXTRA_ORDER_ID, order.orderId)
+                        putExtra(Constants.EXTRA_SHOP_ID, order.storeId.ifBlank { order.shopId })
+                        putExtra(Constants.EXTRA_SHOP_NAME, order.shopName)
+                        putExtra("extra_address", order.deliveryAddress.ifBlank { order.address })
+                        putExtra("extra_amount", if (order.paymentMode == Order.PaymentMode.DEPOSIT) depositAmt else finalTotal)
+                        putExtra("extra_deposit", depositAmt)
+                        putExtra("extra_remain", remainAmt)
+                        putExtra("extra_total", finalTotal)
+                        putExtra("extra_payment_mode", order.paymentMode)
+                        putExtra("extra_created_at", order.createdAt)
+                    }
+                    startActivity(intent)
+                } else {
+                    val intent = Intent(this, TrackingActivity::class.java).apply {
+                        putExtra(Constants.EXTRA_ORDER_ID, order.orderId)
+                    }
+                    startActivity(intent)
                 }
-                startActivity(intent)
             },
             onComplaintClick = { order ->
                 val intent = Intent(this, ComplaintActivity::class.java).apply {
@@ -175,6 +194,7 @@ class OrderHistoryActivity : AppCompatActivity() {
      * Cập nhật số đếm badge trên các tab và kiểm tra banner khẩn cấp
      */
     private fun updateTabBadgeCounts(orders: List<Order>) {
+        val now = System.currentTimeMillis()
         val countWarning = orders.count { it.note.contains("cảnh báo", ignoreCase = true) || it.note.contains("gọi", ignoreCase = true) }
         val countActive = orders.count {
             it.status == Order.Status.DELIVERING ||
@@ -183,8 +203,27 @@ class OrderHistoryActivity : AppCompatActivity() {
             it.status == Order.Status.ASSIGNED
         }
         val countCancelled = orders.count { it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM }
-        val countUnpaid = orders.count { it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L }
+        val countUnpaid = orders.count {
+            val isAwaiting = it.status == Order.Status.AWAITING_PAYMENT ||
+                    (it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
+            val isNotExpired = (now - it.createdAt) <= 30 * 60 * 1000L
+            isAwaiting && isNotExpired
+        }
         val countConfirming = orders.count { (it.status == Order.Status.PENDING || it.status == Order.Status.PREPARING || it.status == Order.Status.READY) && !it.note.contains("cảnh báo", ignoreCase = true) }
+
+        // Tự động hủy trên database các đơn chờ thanh toán đã quá 30 phút
+        orders.forEach { o ->
+            if (o.status == Order.Status.AWAITING_PAYMENT && (now - o.createdAt) > 30 * 60 * 1000L) {
+                com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(o.orderId).updateChildren(
+                    mapOf(
+                        "status" to Order.Status.CANCELLED,
+                        "orderStatus" to Order.Status.CANCELLED,
+                        "note" to "Đã tự động hủy do quá hạn thanh toán 30 phút",
+                        "updatedAt" to now
+                    )
+                )
+            }
+        }
 
         binding.tabWarning.text = "🚨 Bị cảnh báo ($countWarning)"
         binding.tabActive.text = "Đang đến ($countActive)"
@@ -204,6 +243,7 @@ class OrderHistoryActivity : AppCompatActivity() {
     }
 
     private fun applyFilter() {
+        val now = System.currentTimeMillis()
         val filtered = when (currentFilterTab) {
             "WARNING" -> allOrders.filter { it.note.contains("cảnh báo", ignoreCase = true) || it.note.contains("gọi", ignoreCase = true) }
             "ACTIVE" -> allOrders.filter {
@@ -213,7 +253,12 @@ class OrderHistoryActivity : AppCompatActivity() {
                 it.status == Order.Status.ASSIGNED
             }
             "CANCELLED" -> allOrders.filter { it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM }
-            "UNPAID" -> allOrders.filter { it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L }
+            "UNPAID" -> allOrders.filter {
+                val isAwaiting = it.status == Order.Status.AWAITING_PAYMENT ||
+                        (it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
+                val isNotExpired = (now - it.createdAt) <= 30 * 60 * 1000L
+                isAwaiting && isNotExpired
+            }
             "CONFIRMING" -> allOrders.filter { it.status == Order.Status.PENDING || it.status == Order.Status.PREPARING || it.status == Order.Status.READY }
             "COMPLETED" -> allOrders.filter { it.status == Order.Status.COMPLETED }
             else -> allOrders

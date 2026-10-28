@@ -115,9 +115,10 @@ class OrderHistoryAdapter(
                 binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
 
             } else when (order.status) {
-                Order.Status.PENDING -> {
+                Order.Status.AWAITING_PAYMENT, Order.Status.PENDING -> {
                     // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
-                    val isUnpaid = (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L)
+                    val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||
+                            (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L)
                     if (isUnpaid) {
                         binding.cardOrder.strokeColor = Color.parseColor("#FDBA74")
                         binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFCF9"))
@@ -128,12 +129,22 @@ class OrderHistoryAdapter(
 
                         binding.tvShipperInfo.visibility = View.GONE
 
+                        val now = System.currentTimeMillis()
+                        val elapsed = now - order.createdAt
+                        val remainingMs = maxOf(0L, 30 * 60 * 1000L - elapsed)
+                        val minutes = (remainingMs / 1000) / 60
+                        val seconds = (remainingMs / 1000) % 60
+
                         binding.layoutAlertBox.visibility = View.VISIBLE
                         binding.tvAlertIcon.text = "💡"
                         binding.tvAlertTitle.text = "Chưa hoàn tất thanh toán"
                         binding.tvAlertCountdown.visibility = View.VISIBLE
-                        binding.tvAlertCountdown.text = "28:40"
-                        binding.tvAlertMessage.text = "Vui lòng thanh toán để quán nhận đơn và chế biến."
+                        binding.tvAlertCountdown.text = String.format("%02d:%02d", minutes, seconds)
+                        binding.tvAlertMessage.text = if (order.paymentMode == Order.PaymentMode.DEPOSIT) {
+                            "Vui lòng quét mã cọc 20% để quán nhận đơn và chế biến."
+                        } else {
+                            "Vui lòng chuyển khoản để quán nhận đơn và chế biến."
+                        }
 
                         binding.btnActionSecondary.visibility = View.VISIBLE
                         binding.btnActionSecondary.text = "✕ Hủy đơn"

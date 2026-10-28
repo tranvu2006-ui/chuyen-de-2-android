@@ -88,8 +88,9 @@ class DeliveryTripActivity : AppCompatActivity() {
     // Quản lý Đơn Gộp (5.html & 6.html)
     private var isBundleMode = false
     private val bundleOrders = mutableListOf<Order>()
-    private var activeBundleIndex = 0 // 0: Khách 1, 1: Khách 2
+    private var activeBundleIndex = 0 // 0: Khách 1, 1: Khách 2, 2: Khách 3
     private val completedBundleOrderIds = mutableSetOf<String>()
+    private val checkedBundleOrderIds = mutableSetOf<String>()
 
     // Tọa độ GPS thực tế của Shipper và Điểm đến
     private var driverLat: Double = 0.0
@@ -99,6 +100,7 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var customerLat: Double = 0.0
     private var customerLng: Double = 0.0
     private var storePhone: String = ""
+    private var storeAddress: String = ""
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -262,12 +264,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun isStep2AllChecked(): Boolean {
         if (isBundleMode && bundleOrders.isNotEmpty()) {
-            for (i in 0 until binding.layoutBundleCardsContainer.childCount) {
-                val card = binding.layoutBundleCardsContainer.getChildAt(i)
-                val cb = card.findViewById<CheckBox>(R.id.cbOrderReady)
-                if (cb != null && !cb.isChecked) return false
-            }
-            return true
+            return bundleOrders.all { checkedBundleOrderIds.contains(it.orderId) }
         } else {
             for (i in 0 until binding.layoutSingleDishesContainer.childCount) {
                 val view = binding.layoutSingleDishesContainer.getChildAt(i)
@@ -438,7 +435,13 @@ class DeliveryTripActivity : AppCompatActivity() {
                                 Toast.makeText(this, "✓ ĐÃ ĐẾN QUÁN ĂN!", Toast.LENGTH_SHORT).show()
                                 updateStepUI(2)
                                 lifecycleScope.launch {
-                                    firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.ARRIVED_AT_SHOP)
+                                    if (isBundleMode && bundleOrders.isNotEmpty()) {
+                                        bundleOrders.forEach { o ->
+                                            firebaseRepository.updateOrderStatus(o.orderId, Order.Status.ARRIVED_AT_SHOP)
+                                        }
+                                    } else {
+                                        firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.ARRIVED_AT_SHOP)
+                                    }
                                 }
                                 thumb.translationX = 0f
                                 label.alpha = 1f
@@ -524,20 +527,28 @@ class DeliveryTripActivity : AppCompatActivity() {
 
                 if (active.size >= 2 || hasUnfinishedBundle) {
                     isBundleMode = true
+                    var needsRebindStep2 = false
                     if (bundleOrders.isEmpty()) {
                         val currentFirst = active.sortedByDescending { it.orderId == currentOrderId }
                         bundleOrders.clear()
                         bundleOrders.addAll(currentFirst)
+                        needsRebindStep2 = true
                     } else {
                         // Cập nhật lại thông tin mới nhất của các đơn trong bundle
                         val existingIds = bundleOrders.map { it.orderId }.toSet()
                         val newActive = active.filter { !existingIds.contains(it.orderId) }
+                        val activeIds = active.map { it.orderId }.toSet()
+                        val hasOrderListChanged = newActive.isNotEmpty() || bundleOrders.any { !activeIds.contains(it.orderId) }
+
                         val updated = bundleOrders.map { old ->
                             active.find { it.orderId == old.orderId } ?: old
                         }.toMutableList()
                         updated.addAll(newActive)
                         bundleOrders.clear()
                         bundleOrders.addAll(updated)
+                        if (hasOrderListChanged) {
+                            needsRebindStep2 = true
+                        }
                     }
 
                     // Đồng bộ các đơn đã hoàn tất
@@ -550,7 +561,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                     binding.tvTripBundleBadge.visibility = View.VISIBLE
                     binding.tvTripBundleBadge.text = "Ghép ${bundleOrders.size} đơn"
 
-                    bindBundleOrdersStep2()
+                    if (needsRebindStep2 || binding.layoutBundleCardsContainer.childCount == 0) {
+                        bindBundleOrdersStep2()
+                    }
                     val currentTarget = bundleOrders.getOrNull(activeBundleIndex)
                     val activeOrder = if (currentTarget != null && !completedBundleOrderIds.contains(currentTarget.orderId)) {
                         currentTarget
@@ -647,6 +660,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                     if (store != null) {
                         if (store.phone.isNotBlank()) {
                             storePhone = store.phone.trim()
+                        }
+                        if (store.address.isNotBlank()) {
+                            storeAddress = store.address.trim()
                         }
                         if (store.latitude != 0.0 && store.longitude != 0.0) {
                             storeLat = store.latitude
@@ -811,10 +827,13 @@ class DeliveryTripActivity : AppCompatActivity() {
                 cardBinding.tvBundleCustomerNote.visibility = View.GONE
             }
 
-            cardBinding.cbOrderReady.isChecked = false
+            cardBinding.cbOrderReady.isChecked = checkedBundleOrderIds.contains(order.orderId)
             cardBinding.cbOrderReady.setOnCheckedChangeListener { _, isChecked ->
                 if (isChecked) {
+                    checkedBundleOrderIds.add(order.orderId)
                     Toast.makeText(this, "✓ Đã kiểm đủ món đơn #ORD-$shortCode", Toast.LENGTH_SHORT).show()
+                } else {
+                    checkedBundleOrderIds.remove(order.orderId)
                 }
                 updateStep2ReadinessUI()
             }
@@ -1043,6 +1062,11 @@ class DeliveryTripActivity : AppCompatActivity() {
         bindCustomerQuickSwitchStep3()
         bindOrderData(targetOrder)
 
+        if (currentStep >= 3) {
+            val targetStep = if (targetOrder.status == Order.Status.ARRIVED_AT_CUSTOMER) 4 else 3
+            updateStepUI(targetStep)
+        }
+
         val shortCode = QRCodeUtils.getShortOrderCode(targetOrder.orderId)
         // Toast nổi thông báo đổi tuyến theo 6.html
         binding.tvRouteToastText.text = "🛵 Đang giao đơn #ORD-$shortCode (${targetOrder.customerName})!"
@@ -1111,10 +1135,19 @@ class DeliveryTripActivity : AppCompatActivity() {
             showCancelOrderDialog()
         }
 
-        // Bước 1: Nút "Đến quán" trên hộp Google Navigation (Mở Google Maps Turn-by-Turn thật)
+        // Bước 1: Nút "Đến quán" trên hộp Google Navigation (Mở Google Maps chỉ đường Xe Máy)
         binding.btnOpenNavStep1.setOnClickListener {
             binding.webViewMapStep1.evaluateJavascript("focusShop();", null)
-            GoogleMapUtils.openGoogleMapsNavigation(this, storeLat, storeLng, binding.tvStep1StoreName.text.toString())
+            val storeName = binding.tvStep1StoreName.text.toString()
+            val storeAddr = storeAddress.ifBlank { storeName }
+            GoogleMapUtils.openGoogleMapsNavigation(
+                context = this,
+                destLat = storeLat,
+                destLng = storeLng,
+                destinationName = storeName,
+                address = storeAddr,
+                mode = "l" // Xe máy
+            )
         }
 
         // Bước 1: Gọi điện cho quán
@@ -1144,6 +1177,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                 if (v is CheckBox) v.isChecked = true
             }
             binding.cbSealPackage.isChecked = true
+            bundleOrders.forEach { checkedBundleOrderIds.add(it.orderId) }
             for (i in 0 until binding.layoutBundleCardsContainer.childCount) {
                 val child = binding.layoutBundleCardsContainer.getChildAt(i)
                 val cb = child.findViewById<CheckBox>(R.id.cbOrderReady)
@@ -1170,12 +1204,20 @@ class DeliveryTripActivity : AppCompatActivity() {
             }
         }
 
-        // Bước 3: Dẫn đường đến khách (Mở Google Maps Turn-by-Turn thật)
+        // Bước 3: Dẫn đường đến khách (Mở Google Maps chỉ đường Xe Máy)
         binding.btnOpenNavStep3.setOnClickListener {
             val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
             val cusName = targetOrder?.customerName ?: "Khách hàng"
+            val cusAddr = targetOrder?.address.orEmpty()
             binding.webViewMapStep3.evaluateJavascript("focusCustomer();", null)
-            GoogleMapUtils.openGoogleMapsNavigation(this, customerLat, customerLng, cusName)
+            GoogleMapUtils.openGoogleMapsNavigation(
+                context = this,
+                destLat = customerLat,
+                destLng = customerLng,
+                destinationName = cusName,
+                address = cusAddr,
+                mode = "l" // Xe máy
+            )
         }
 
         // Bước 3: Gọi khách

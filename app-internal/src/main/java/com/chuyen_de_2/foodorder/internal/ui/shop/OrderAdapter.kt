@@ -41,9 +41,10 @@ class OrderAdapter(
             } else {
                 "• 1x Suất ăn đặt trực tiếp"
             }
-            val payText = when (order.paymentMethod) {
-                Order.PaymentMethod.BANKING -> "Đã thanh toán Ngân hàng"
-                else -> "Thu tiền mặt khi nhận (COD)"
+            val payText = when {
+                order.paymentMode == Order.PaymentMode.DEPOSIT -> "⚡ Đã cọc 20%: ${order.depositAmount.toVndCurrency()} (Còn thu: ${order.remainAmount.toVndCurrency()})"
+                order.paymentMethod == Order.PaymentMethod.BANKING -> "💰 Đã thanh toán 100% Ngân hàng"
+                else -> "💵 Thu tiền mặt khi nhận (COD)"
             }
             val total = if (order.totalPayment > 0) order.totalPayment else order.total
             binding.tvOrderDishes.text = "$dishesSummary\nTổng bill: ${total.toVndCurrency()} ($payText)"

@@ -16,7 +16,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import android.view.LayoutInflater
+import android.graphics.Color
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.CustomerAddress
@@ -77,6 +79,8 @@ class CheckoutActivity : AppCompatActivity() {
     private var currentDiscount = 0L
     private var selectedCustomerLat = 0.0
     private var selectedCustomerLng = 0.0
+    private var selectedPaymentMode: String = Order.PaymentMode.FULL
+    private var currentCustomerTrustScore: Int = 100
 
     private val districts = arrayOf(
         "Quận 1 (Nội thành)",
@@ -223,14 +227,22 @@ class CheckoutActivity : AppCompatActivity() {
             GoogleMapUtils.openGoogleMapsSearch(this, fullAddress)
         }
 
-        // Mặc định chọn Chuyển khoản ngân hàng (VietQR) theo screenshot
-        binding.rbBanking.isChecked = true
-        binding.layoutBankingInfo.visibility = View.VISIBLE
-
-        // Chọn phương thức thanh toán
-        binding.rgPayment.setOnCheckedChangeListener { _, checkedId ->
-            binding.layoutBankingInfo.visibility = if (checkedId == binding.rbBanking.id) View.VISIBLE else View.GONE
+        // Khởi tạo các phương thức thanh toán chuẩn b8.html
+        binding.layoutPayFull.setOnClickListener { selectPaymentMode(Order.PaymentMode.FULL) }
+        binding.layoutPayDeposit.setOnClickListener { selectPaymentMode(Order.PaymentMode.DEPOSIT) }
+        binding.layoutPayCod.setOnClickListener {
+            if (currentCustomerTrustScore < 100) {
+                Toast.makeText(
+                    this,
+                    "Chỉ khách hàng đạt 100 điểm uy tín mới được đặt đơn COD (Điểm hiện tại: $currentCustomerTrustScore/100). Vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+            selectPaymentMode(Order.PaymentMode.COD)
         }
+
+        selectPaymentMode(Order.PaymentMode.FULL)
 
         // Đặt hàng
         binding.btnPlaceOrder.setOnClickListener {
@@ -255,9 +267,24 @@ class CheckoutActivity : AppCompatActivity() {
             val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
             val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
 
-            val paymentMethod = when {
-                binding.rbBanking.isChecked -> Order.PaymentMethod.BANKING
-                else -> Order.PaymentMethod.COD
+            if (selectedPaymentMode == Order.PaymentMode.COD && currentCustomerTrustScore < 100) {
+                Toast.makeText(
+                    this,
+                    "Bạn cần đạt 100 điểm uy tín để đặt đơn COD. Vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!",
+                    Toast.LENGTH_LONG
+                ).show()
+                selectPaymentMode(Order.PaymentMode.DEPOSIT)
+                return@setOnClickListener
+            }
+
+            val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
+            val depositAmount = ((finalTotal * 0.2) / 1000).toLong() * 1000
+            val remainAmount = finalTotal - depositAmount
+
+            val paymentMethod = if (selectedPaymentMode == Order.PaymentMode.COD) {
+                Order.PaymentMethod.COD
+            } else {
+                Order.PaymentMethod.BANKING
             }
 
             viewModel.placeOrder(
@@ -266,9 +293,44 @@ class CheckoutActivity : AppCompatActivity() {
                 shippingFee = currentShippingFee,
                 discount = currentDiscount,
                 paymentMethod = paymentMethod,
+                paymentMode = selectedPaymentMode,
+                depositAmount = if (selectedPaymentMode == Order.PaymentMode.DEPOSIT) depositAmount else 0L,
+                remainAmount = if (selectedPaymentMode == Order.PaymentMode.DEPOSIT) remainAmount else if (selectedPaymentMode == Order.PaymentMode.COD) finalTotal else 0L,
                 customerPhone = phone
             )
         }
+    }
+
+    private fun selectPaymentMode(mode: String) {
+        selectedPaymentMode = mode
+        binding.rbPayFull.isChecked = (mode == Order.PaymentMode.FULL)
+        binding.rbPayDeposit.isChecked = (mode == Order.PaymentMode.DEPOSIT)
+        binding.rbPayCod.isChecked = (mode == Order.PaymentMode.COD)
+
+        binding.layoutPayFull.setBackgroundResource(
+            if (mode == Order.PaymentMode.FULL) R.drawable.bg_payment_card_selected else R.drawable.bg_payment_card_normal
+        )
+        binding.layoutPayDeposit.setBackgroundResource(
+            if (mode == Order.PaymentMode.DEPOSIT) R.drawable.bg_payment_card_selected else R.drawable.bg_payment_card_normal
+        )
+        binding.layoutPayCod.setBackgroundResource(
+            if (mode == Order.PaymentMode.COD) R.drawable.bg_payment_card_selected else R.drawable.bg_payment_card_normal
+        )
+
+        if (mode == Order.PaymentMode.COD) {
+            binding.layoutChannelWrap.visibility = View.GONE
+            binding.layoutBankingInfo.visibility = View.GONE
+        } else {
+            binding.layoutChannelWrap.visibility = View.VISIBLE
+            binding.layoutBankingInfo.visibility = View.VISIBLE
+            binding.tvChannelTitle.text = if (mode == Order.PaymentMode.FULL) {
+                "Kênh quét mã thanh toán 100%:"
+            } else {
+                "Kênh quét mã thanh toán cọc 20%:"
+            }
+        }
+
+        recalculateTotal()
     }
 
     /** Nạp danh sách địa chỉ lưu sẵn & thông tin liên hệ của khách hàng */
@@ -278,28 +340,41 @@ class CheckoutActivity : AppCompatActivity() {
         // 1. Tự động điền SĐT & kiểm tra Điểm Uy Tín (TrustScore) theo thời gian thực
         lifecycleScope.launch {
             firebaseRepository.observeCustomerProfile(uid).collectLatest { cust ->
+                currentCustomerTrustScore = cust.trustScore
                 if (cust.trustScore >= 95 && currentDiscount < 5000L) {
                     currentDiscount = 5000L
                     recalculateTotal()
                 }
-                when {
-                    cust.trustScore < 50 -> {
-                        binding.rbCod.isEnabled = false
-                        binding.rbCod.text = "🚫 Tiền mặt (COD) — Đã khóa do Điểm uy tín thấp (${cust.trustScore}/100)"
-                        binding.rbBanking.isChecked = true
-                        binding.layoutBankingInfo.visibility = View.VISIBLE
+
+                if (cust.trustScore >= 100) {
+                    // Đạt 100 điểm uy tín:
+                    // 1. Mới cho đặt đơn COD
+                    binding.layoutPayCod.isEnabled = true
+                    binding.layoutPayCod.alpha = 1.0f
+                    binding.tvCodTrustPill.text = "⭐ Điểm uy tín: ${cust.trustScore}/100 (💎 Đạt 100 điểm: Đủ điều kiện thanh toán COD)"
+                    binding.tvCodTrustPill.setTextColor(Color.parseColor("#059669"))
+
+                    // 2. Ẩn phần đặt cọc
+                    binding.layoutPayDeposit.visibility = View.GONE
+
+                    // Nếu trước đó đang chọn Cọc thì chuyển sang COD
+                    if (selectedPaymentMode == Order.PaymentMode.DEPOSIT) {
+                        selectPaymentMode(Order.PaymentMode.COD)
                     }
-                    cust.trustScore < 80 -> {
-                        binding.rbCod.isEnabled = true
-                        binding.rbCod.text = "Tiền mặt khi nhận hàng (COD - Tối đa 150.000đ | Uy tín: ${cust.trustScore}đ)"
-                    }
-                    cust.trustScore < 95 -> {
-                        binding.rbCod.isEnabled = true
-                        binding.rbCod.text = "Tiền mặt khi nhận hàng (COD - Tối đa 500.000đ | Uy tín: ${cust.trustScore}đ)"
-                    }
-                    else -> {
-                        binding.rbCod.isEnabled = true
-                        binding.rbCod.text = "Tiền mặt khi nhận hàng (COD - Không giới hạn | 💎 Uy tín ${cust.trustScore}đ - Giảm 5k ship)"
+                } else {
+                    // Dưới 100 điểm uy tín:
+                    // 1. Mới có phần đặt cọc 20%
+                    binding.layoutPayDeposit.visibility = View.VISIBLE
+
+                    // 2. Khóa hình thức COD (chỉ khách hàng đạt 100 điểm mới được đặt COD)
+                    binding.layoutPayCod.isEnabled = false
+                    binding.layoutPayCod.alpha = 0.55f
+                    binding.tvCodTrustPill.text = "🔒 Cần đạt 100 điểm uy tín để mở khóa COD (Điểm hiện tại: ${cust.trustScore}/100)"
+                    binding.tvCodTrustPill.setTextColor(Color.parseColor("#DC2626"))
+
+                    // Nếu đang chọn COD thì chuyển sang Đặt Cọc 20%
+                    if (selectedPaymentMode == Order.PaymentMode.COD) {
+                        selectPaymentMode(Order.PaymentMode.DEPOSIT)
                     }
                 }
             }
@@ -498,8 +573,67 @@ class CheckoutActivity : AppCompatActivity() {
     private fun recalculateTotal() {
         binding.tvShippingFee.text = currentShippingFee.toVndCurrency()
         val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
+        val depositAmount = ((finalTotal * 0.2) / 1000).toLong() * 1000
+        val remainAmount = finalTotal - depositAmount
+
         binding.tvTotal.text = finalTotal.toVndCurrency()
-        binding.tvBottomTotal.text = finalTotal.toVndCurrency()
+
+        // Cập nhật nhãn số tiền trên 3 Option Cards (chuẩn b8.html)
+        binding.tvPayFullAmt.text = "Thanh toán ngay: ${finalTotal.toVndCurrency()}"
+        binding.tvDepositNow.text = "Cọc ngay (20%): ${depositAmount.toVndCurrency()}"
+        binding.tvDepositRemain.text = "Thu khi nhận: ${remainAmount.toVndCurrency()}"
+        binding.tvPayCodAmt.text = "Thanh toán khi nhận: ${finalTotal.toVndCurrency()} (Trả trước: 0 đ)"
+
+        when (selectedPaymentMode) {
+            Order.PaymentMode.FULL -> {
+                binding.txtSelectedMode.text = "Trả thẳng 100% (VietQR Ngân Hàng)"
+                binding.txtSelectedMode.setTextColor(ContextCompat.getColor(this, R.color.primary))
+                binding.lblPayNowTitle.text = "👉 Cần thanh toán ngay (100%):"
+                binding.lblPayNowTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
+                binding.txtPayNowAmount.text = finalTotal.toVndCurrency()
+                binding.txtPayNowAmount.setTextColor(ContextCompat.getColor(this, R.color.primary))
+                binding.rowRemainNotice.visibility = View.GONE
+
+                binding.lblBottomTitle.text = "Thanh toán ngay (100%):"
+                binding.tvBottomTotal.text = finalTotal.toVndCurrency()
+                binding.lblBottomSubNotice.visibility = View.GONE
+                binding.btnPlaceOrder.text = "Thanh Toán Đủ (Quét Mã QR) ➔"
+            }
+            Order.PaymentMode.DEPOSIT -> {
+                binding.txtSelectedMode.text = "Đặt cọc 20% (VietQR Ngân Hàng)"
+                binding.txtSelectedMode.setTextColor(Color.parseColor("#D97706"))
+                binding.lblPayNowTitle.text = "👉 Cần thanh toán cọc ngay (20%):"
+                binding.lblPayNowTitle.setTextColor(Color.parseColor("#D97706"))
+                binding.txtPayNowAmount.text = depositAmount.toVndCurrency()
+                binding.txtPayNowAmount.setTextColor(Color.parseColor("#D97706"))
+                binding.rowRemainNotice.visibility = View.VISIBLE
+                binding.lblPayRemainTitle.text = "Thu khi nhận món:"
+                binding.txtPayRemainAmount.text = "${remainAmount.toVndCurrency()} (Thu tiền mặt)"
+
+                binding.lblBottomTitle.text = "Thanh toán cọc (20%):"
+                binding.tvBottomTotal.text = depositAmount.toVndCurrency()
+                binding.lblBottomSubNotice.visibility = View.VISIBLE
+                binding.lblBottomSubNotice.text = "Còn lại ${remainAmount.toVndCurrency()} thu khi nhận"
+                binding.btnPlaceOrder.text = "Thanh Toán Cọc (Quét Mã QR) ➔"
+            }
+            Order.PaymentMode.COD -> {
+                binding.txtSelectedMode.text = "Thanh toán khi nhận hàng (COD - Uy tín cao)"
+                binding.txtSelectedMode.setTextColor(Color.parseColor("#059669"))
+                binding.lblPayNowTitle.text = "👉 Cần thanh toán ngay:"
+                binding.lblPayNowTitle.setTextColor(Color.parseColor("#059669"))
+                binding.txtPayNowAmount.text = "0 đ"
+                binding.txtPayNowAmount.setTextColor(Color.parseColor("#059669"))
+                binding.rowRemainNotice.visibility = View.VISIBLE
+                binding.lblPayRemainTitle.text = "Thu khi nhận món:"
+                binding.txtPayRemainAmount.text = "${finalTotal.toVndCurrency()} (Shipper thu khi giao món)"
+
+                binding.lblBottomTitle.text = "Cần thanh toán ngay:"
+                binding.tvBottomTotal.text = "0 đ"
+                binding.lblBottomSubNotice.visibility = View.VISIBLE
+                binding.lblBottomSubNotice.text = "Thu ${finalTotal.toVndCurrency()} khi nhận món"
+                binding.btnPlaceOrder.text = "Đặt Đơn COD (0đ Trả Trước) ➔"
+            }
+        }
     }
 
     private fun observeViewModel() {
@@ -542,39 +676,76 @@ class CheckoutActivity : AppCompatActivity() {
                 val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
                 val fullAddress = "$streetAddress, $selectedDistrict, TP.HCM"
                 val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
+                val depositAmount = ((finalTotal * 0.2) / 1000).toLong() * 1000
+                val remainAmount = finalTotal - depositAmount
                 val targetShopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: currentStore?.name ?: supportActionBar?.title?.toString() ?: "Quán Ăn"
 
-                if (binding.rbBanking.isChecked) {
-                    // Chuyển sang màn hình Quét Mã VietQR Ngân Hàng (với thông tin tài khoản của Quán)
-                    val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
-                        putExtra(Constants.EXTRA_ORDER_ID, orderId)
-                        putExtra(Constants.EXTRA_SHOP_ID, currentTargetShopId)
-                        putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
-                        putExtra("extra_address", fullAddress)
-                        putExtra("extra_amount", finalTotal)
-                        putExtra("extra_subtotal", currentSubtotal)
-                        putExtra("extra_shipping_fee", currentShippingFee)
-                        putExtra("extra_discount", currentDiscount)
-                        putExtra("extra_channel", "bank")
-                        putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
-                        putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
-                        putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
-                        putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
+                when (selectedPaymentMode) {
+                    Order.PaymentMode.COD -> {
+                        // COD: Chuyển sang màn hình Đặt Đơn Thành Công chuẩn b8_success.html
+                        val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.order.OrderSuccessActivity::class.java).apply {
+                            putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                            putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
+                            putExtra("extra_address", fullAddress)
+                            putExtra("extra_amount", finalTotal)
+                            putExtra("extra_subtotal", currentSubtotal)
+                            putExtra("extra_shipping_fee", currentShippingFee)
+                            putExtra("extra_discount", currentDiscount)
+                            putExtra("extra_payment_method", "Tiền mặt khi nhận hàng (COD)")
+                            putExtra("extra_payment_mode", Order.PaymentMode.COD)
+                            putExtra("extra_deposit", 0L)
+                            putExtra("extra_remain", finalTotal)
+                        }
+                        startActivity(intent)
                     }
-                    startActivity(intent)
-                } else {
-                    // COD: Chuyển sang màn hình Đặt Đơn Thành Công chuẩn b8_success.html
-                    val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.order.OrderSuccessActivity::class.java).apply {
-                        putExtra(Constants.EXTRA_ORDER_ID, orderId)
-                        putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
-                        putExtra("extra_address", fullAddress)
-                        putExtra("extra_amount", finalTotal)
-                        putExtra("extra_subtotal", currentSubtotal)
-                        putExtra("extra_shipping_fee", currentShippingFee)
-                        putExtra("extra_discount", currentDiscount)
-                        putExtra("extra_payment_method", "Tiền mặt khi nhận hàng (COD)")
+                    Order.PaymentMode.DEPOSIT -> {
+                        // Cọc 20%: Chuyển sang PaymentActivity quét mã QR với số tiền cọc 20%
+                        val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
+                            putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                            putExtra(Constants.EXTRA_SHOP_ID, currentTargetShopId)
+                            putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
+                            putExtra("extra_address", fullAddress)
+                            putExtra("extra_amount", depositAmount) // Quét QR đúng số tiền cọc
+                            putExtra("extra_deposit", depositAmount)
+                            putExtra("extra_remain", remainAmount)
+                            putExtra("extra_total", finalTotal)
+                            putExtra("extra_subtotal", currentSubtotal)
+                            putExtra("extra_shipping_fee", currentShippingFee)
+                            putExtra("extra_discount", currentDiscount)
+                            putExtra("extra_payment_mode", Order.PaymentMode.DEPOSIT)
+                            putExtra("extra_channel", "bank")
+                            putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
+                            putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
+                            putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
+                            putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
+                            putExtra("extra_created_at", System.currentTimeMillis())
+                        }
+                        startActivity(intent)
                     }
-                    startActivity(intent)
+                    Order.PaymentMode.FULL -> {
+                        // Trả thẳng 100%: Quét QR toàn bộ số tiền
+                        val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
+                            putExtra(Constants.EXTRA_ORDER_ID, orderId)
+                            putExtra(Constants.EXTRA_SHOP_ID, currentTargetShopId)
+                            putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
+                            putExtra("extra_address", fullAddress)
+                            putExtra("extra_amount", finalTotal)
+                            putExtra("extra_deposit", 0L)
+                            putExtra("extra_remain", 0L)
+                            putExtra("extra_total", finalTotal)
+                            putExtra("extra_subtotal", currentSubtotal)
+                            putExtra("extra_shipping_fee", currentShippingFee)
+                            putExtra("extra_discount", currentDiscount)
+                            putExtra("extra_payment_mode", Order.PaymentMode.FULL)
+                            putExtra("extra_channel", "bank")
+                            putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
+                            putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
+                            putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
+                            putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
+                            putExtra("extra_created_at", System.currentTimeMillis())
+                        }
+                        startActivity(intent)
+                    }
                 }
                 finish()
             }.onFailure { error ->

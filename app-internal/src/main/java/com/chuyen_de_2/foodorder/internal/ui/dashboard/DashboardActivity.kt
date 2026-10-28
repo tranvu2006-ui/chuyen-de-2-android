@@ -144,6 +144,36 @@ class DashboardActivity : AppCompatActivity() {
                 User.Role.SHIPPER, User.Role.DRIVER -> {
                     setupShipperNavigation()
                 }
+                User.Role.CUSTOMER -> {
+                    // Tài khoản là Khách hàng đăng nhập vào app Quán / Shipper
+                    androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                        .setTitle("⚠️ Tài khoản Khách Hàng")
+                        .setMessage("Tài khoản (${authRepository.currentUser?.email}) là tài khoản Khách hàng (Oishi Customer).\n\nỨng dụng Oishi Internal chỉ dành riêng cho Cửa Hàng (Quán Ăn) và Tài Xế.\n\nBạn có muốn chuyển sang ứng dụng Khách hàng hoặc Đăng xuất?")
+                        .setPositiveButton("Mở App Khách Hàng") { _, _ ->
+                            val launchIntent = packageManager.getLaunchIntentForPackage("com.chuyen_de_2.foodorder.customer")
+                            if (launchIntent != null) {
+                                startActivity(launchIntent)
+                                finish()
+                            } else {
+                                Toast.makeText(this@DashboardActivity, "Vui lòng mở ứng dụng Oishi Customer trên thiết bị!", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        .setNegativeButton("Đăng ký làm Quán Ăn") { _, _ ->
+                            lifecycleScope.launch {
+                                authRepository.setUserRole(User.Role.MERCHANT)
+                                checkMerchantVerificationAndProceed()
+                            }
+                        }
+                        .setNeutralButton("Đăng xuất") { _, _ ->
+                            authRepository.logout()
+                            startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                putExtra("LOGOUT", true)
+                            })
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
                 else -> {
                     // Nếu tài khoản chưa có vai trò đối tác, cho phép người dùng chọn Quán ăn hoặc Tài xế để kích hoạt ngay
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
@@ -204,6 +234,21 @@ class DashboardActivity : AppCompatActivity() {
                         finish()
                         return@launch
                     }
+                } else {
+                    // Chưa có quán nào -> Tạo ID quán mới cho tài khoản này và chuyển sang màn hình thiết lập thông tin quán
+                    val newStoreId = "store_${uid}"
+                    Toast.makeText(
+                        this@DashboardActivity,
+                        "🏪 Chào mừng bạn! Vui lòng thiết lập thông tin quán ăn mới của bạn.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                        putExtra("STORE_ID", newStoreId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                    return@launch
                 }
             }
             setupMerchantNavigation()

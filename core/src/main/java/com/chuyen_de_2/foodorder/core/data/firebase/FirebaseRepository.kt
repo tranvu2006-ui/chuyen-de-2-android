@@ -604,13 +604,20 @@ class FirebaseRepository @Inject constructor(
     suspend fun resolveStoreIdForUser(uid: String): String {
         if (uid.isBlank()) return ""
         return try {
-            // 1. Kiểm tra users/{uid}/storeId
+            // 1. Kiểm tra users/{uid}/storeId và xác thực store đó có thực sự thuộc về uid này không
             val userSnap = database.getReference("users").child(uid).get().await()
             val userStoreId = userSnap.child("storeId").getValue(String::class.java)
             if (!userStoreId.isNullOrBlank()) {
-                return userStoreId
+                val sSnap = database.getReference("stores").child(userStoreId).get().await()
+                if (sSnap.exists()) {
+                    val mId = sSnap.child("merchantId").getValue(String::class.java)
+                        ?: sSnap.child("ownerId").getValue(String::class.java)
+                    if (mId == uid) {
+                        return userStoreId
+                    }
+                }
             }
-            // 2. Kiểm tra stores bằng index merchantId / ownerId trước khi fallback
+            // 2. Kiểm tra stores bằng index merchantId / ownerId
             val byMerchant = try { database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await() } catch (_: Exception) { null }
             val matchedMerchantKey = byMerchant?.children?.firstOrNull()?.key
             if (!matchedMerchantKey.isNullOrBlank()) {
@@ -628,11 +635,15 @@ class FirebaseRepository @Inject constructor(
                 val ownerId = child.child("ownerId").getValue(String::class.java)
                     ?: child.child("merchantId").getValue(String::class.java)
                 if (ownerId == uid) {
-                    return child.key ?: ""
+                    val foundKey = child.key ?: ""
+                    if (foundKey.isNotBlank()) {
+                        try { database.getReference("users").child(uid).child("storeId").setValue(foundKey) } catch (_: Exception) {}
+                    }
+                    return foundKey
                 }
             }
-            // 3. Fallback lấy quán đầu tiên có trong database nếu có
-            storesSnap.children.firstOrNull()?.key ?: ""
+            // Không tìm thấy quán thuộc quyền sở hữu của user này (không fallback sang quán người khác)
+            ""
         } catch (_: Exception) {
             ""
         }

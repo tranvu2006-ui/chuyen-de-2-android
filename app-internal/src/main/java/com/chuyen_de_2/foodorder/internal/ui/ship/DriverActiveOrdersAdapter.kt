@@ -39,10 +39,15 @@ class DriverActiveOrdersAdapter(
 
         fun bind(order: Order) {
             val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
-            binding.tvActiveOrderCode.text = "#ORD_OISHI_$shortCode"
+            val batchSuffix = if (orders.size > 1) " (Đơn ${bindingAdapterPosition + 1}/${orders.size})" else ""
+            binding.tvActiveOrderCode.text = "#ORD_OISHI_$shortCode$batchSuffix"
 
             val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
             binding.tvActiveOrderFee.text = "(+${fee.toVndCurrency()})"
+
+            val isCod = order.paymentMethod.equals("COD", ignoreCase = true)
+            val totalPayment = if (order.totalPayment > 0) order.totalPayment else (order.total + fee)
+            val paymentText = if (isCod) "💵 Thu COD: ${totalPayment.toVndCurrency()}" else "✓ Đã thanh toán trước"
 
             binding.tvActiveOrderStatusTag.text = when (order.status) {
                 Order.Status.ARRIVED_AT_SHOP -> "Đã đến quán"
@@ -53,7 +58,7 @@ class DriverActiveOrdersAdapter(
 
             val cusName = order.customerName.ifBlank { "Khách hàng" }
             val address = order.address.ifBlank { "Quận 1, TP.HCM" }
-            binding.tvActiveOrderRoute.text = "📍 Giao đến: $cusName - $address"
+            binding.tvActiveOrderRoute.text = "📍 $cusName - $address\n$paymentText"
 
             val dishSummary = if (order.items.isNotEmpty()) {
                 order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName}" }
@@ -61,6 +66,12 @@ class DriverActiveOrdersAdapter(
                 "Món ăn theo đơn"
             }
             binding.tvActiveOrderDishes.text = "📦 Món: $dishSummary"
+
+            if (orders.size > 1) {
+                binding.btnContinueTrip.text = "🛵 TIẾP TỤC GIAO (${orders.size} ĐƠN GHÉP)"
+            } else {
+                binding.btnContinueTrip.text = "🛵 TIẾP TỤC GIAO"
+            }
 
             binding.btnContinueTrip.setOnClickListener {
                 onContinueTrip(order)

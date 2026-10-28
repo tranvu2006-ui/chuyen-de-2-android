@@ -166,23 +166,44 @@ object GoogleMapUtils {
 
     /**
      * Mở ứng dụng Google Maps điều hướng dẫn đường
+     * Mặc định chế độ xe máy: mode=l (Two-wheeler / Motorcycle) theo quy định app tài xế
      */
-    fun openGoogleMapsNavigation(context: Context, destLat: Double, destLng: Double, destinationName: String = "Điểm giao") {
+    fun openGoogleMapsNavigation(
+        context: Context,
+        destLat: Double,
+        destLng: Double,
+        destinationName: String = "Điểm giao",
+        address: String = "",
+        mode: String = "l"
+    ) {
         try {
-            // Intent điều hướng Google Maps trực tiếp
-            val gmmIntentUri = Uri.parse("google.navigation:q=$destLat,$destLng&mode=d")
+            val hasValidCoords = (destLat != 0.0 && destLng != 0.0 && !destLat.isNaN() && !destLng.isNaN())
+            val target = if (hasValidCoords) {
+                "$destLat,$destLng"
+            } else if (address.isNotBlank()) {
+                Uri.encode(address)
+            } else {
+                Uri.encode(destinationName)
+            }
+
+            // Intent điều hướng Google Maps trực tiếp bằng xe máy (mode=l)
+            val gmmIntentUri = Uri.parse("google.navigation:q=$target&mode=$mode")
             val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
                 setPackage("com.google.android.apps.maps")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             if (mapIntent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(mapIntent)
             } else {
-                // Fallback mở web browser Google Maps Directions
-                val webUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$destLat,$destLng")
-                context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
+                // Fallback mở web browser Google Maps Directions chế độ xe máy (travelmode=two-wheeler)
+                val webUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$target&travelmode=two-wheeler")
+                val browserIntent = Intent(Intent.ACTION_VIEW, webUri).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(browserIntent)
             }
         } catch (e: Exception) {
-            Toast.makeText(context, "Không thể mở Google Maps: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Không thể mở Google Maps xe máy: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

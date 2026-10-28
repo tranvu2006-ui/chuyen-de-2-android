@@ -245,7 +245,6 @@ class CheckoutActivity : AppCompatActivity() {
 
         binding.cardChannelBank.setOnClickListener { selectOnlineChannel("bank") }
         binding.cardChannelMomo.setOnClickListener { selectOnlineChannel("momo") }
-        }
 
         selectPaymentMode(Order.PaymentMode.FULL)
 
@@ -289,7 +288,6 @@ class CheckoutActivity : AppCompatActivity() {
             val paymentMethod = when (selectedPaymentMode) {
                 Order.PaymentMode.COD -> Order.PaymentMethod.COD
                 else -> if (selectedChannel == "momo") Order.PaymentMethod.MOMO else Order.PaymentMethod.BANKING
-            }
             }
 
             viewModel.placeOrder(
@@ -726,6 +724,7 @@ class CheckoutActivity : AppCompatActivity() {
                             putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                             putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
                             putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
+                            putExtra("extra_created_at", System.currentTimeMillis())
                         }
                         startActivity(intent)
                     }
@@ -748,55 +747,6 @@ class CheckoutActivity : AppCompatActivity() {
                             putExtra("extra_channel", if (isMomo) "momo" else "bank")
                             putExtra("extra_shop_phone", currentStore?.momoPhone?.ifBlank { currentStore?.phone }.orEmpty())
                             putExtra("extra_momo_holder", currentStore?.momoAccountName?.ifBlank { currentStore?.bankAccountName?.ifBlank { currentStore?.ownerName } }.orEmpty())
-                            putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
-                            putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
-                            putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
-                            putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
-                        }
-                        startActivity(intent)
-                    }
-                }
-                    }
-                    Order.PaymentMode.DEPOSIT -> {
-                        // Cọc 20%: Chuyển sang PaymentActivity quét mã QR với số tiền cọc 20%
-                        val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
-                            putExtra(Constants.EXTRA_ORDER_ID, orderId)
-                            putExtra(Constants.EXTRA_SHOP_ID, currentTargetShopId)
-                            putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
-                            putExtra("extra_address", fullAddress)
-                            putExtra("extra_amount", depositAmount) // Quét QR đúng số tiền cọc
-                            putExtra("extra_deposit", depositAmount)
-                            putExtra("extra_remain", remainAmount)
-                            putExtra("extra_total", finalTotal)
-                            putExtra("extra_subtotal", currentSubtotal)
-                            putExtra("extra_shipping_fee", currentShippingFee)
-                            putExtra("extra_discount", currentDiscount)
-                            putExtra("extra_payment_mode", Order.PaymentMode.DEPOSIT)
-                            putExtra("extra_channel", "bank")
-                            putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
-                            putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
-                            putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
-                            putExtra("extra_bank_bin", currentStore?.bankBin.orEmpty())
-                            putExtra("extra_created_at", System.currentTimeMillis())
-                        }
-                        startActivity(intent)
-                    }
-                    Order.PaymentMode.FULL -> {
-                        // Trả thẳng 100%: Quét QR toàn bộ số tiền
-                        val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.payment.PaymentActivity::class.java).apply {
-                            putExtra(Constants.EXTRA_ORDER_ID, orderId)
-                            putExtra(Constants.EXTRA_SHOP_ID, currentTargetShopId)
-                            putExtra(Constants.EXTRA_SHOP_NAME, targetShopName)
-                            putExtra("extra_address", fullAddress)
-                            putExtra("extra_amount", finalTotal)
-                            putExtra("extra_deposit", 0L)
-                            putExtra("extra_remain", 0L)
-                            putExtra("extra_total", finalTotal)
-                            putExtra("extra_subtotal", currentSubtotal)
-                            putExtra("extra_shipping_fee", currentShippingFee)
-                            putExtra("extra_discount", currentDiscount)
-                            putExtra("extra_payment_mode", Order.PaymentMode.FULL)
-                            putExtra("extra_channel", "bank")
                             putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
                             putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                             putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())

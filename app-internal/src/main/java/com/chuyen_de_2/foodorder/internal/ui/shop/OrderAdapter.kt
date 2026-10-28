@@ -51,7 +51,6 @@ class OrderAdapter(
                 order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> "💰 Đã thanh toán Ngân hàng"
                 else -> "💵 Thu tiền mặt khi nhận (COD)"
             }
-            }
 
             when (order.paymentMethod.uppercase()) {
                 Order.PaymentMethod.MOMO -> {

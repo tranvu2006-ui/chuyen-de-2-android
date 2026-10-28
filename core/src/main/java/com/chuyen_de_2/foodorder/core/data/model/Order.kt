@@ -217,7 +217,6 @@ data class Order(
         const val UNPAID = "UNPAID"
         const val PAID = "PAID"
     }
-    }
 }
 
 /**

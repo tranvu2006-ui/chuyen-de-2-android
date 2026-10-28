@@ -143,7 +143,6 @@ class PaymentActivity : AppCompatActivity() {
                             renderPaymentUI(orderId, amount, paymentMode, remainAmount)
                         }
                     }
-                    }
                 }
         }
 

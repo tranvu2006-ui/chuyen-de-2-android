@@ -751,8 +751,10 @@ class FirebaseRepository @Inject constructor(
             if (bankName.isNotBlank()) updates["bankName"] = bankName
             if (bankAccountNumber.isNotBlank()) updates["bankAccountNumber"] = bankAccountNumber
             if (bankAccountName.isNotBlank()) updates["bankAccountName"] = bankAccountName
-            if (bankBin.isNotBlank()) updates["bankBin"] = bankBin
-            if (imageUrl.isNotBlank()) updates["imageUrl"] = imageUrl
+            if (imageUrl.isNotBlank()) {
+                updates["imageUrl"] = imageUrl
+                updates["avatarUrl"] = imageUrl
+            }
             if (latitude != 0.0) updates["latitude"] = latitude
             if (longitude != 0.0) updates["longitude"] = longitude
 

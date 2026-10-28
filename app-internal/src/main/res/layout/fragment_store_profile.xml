@@ -87,14 +87,36 @@
                     android:orientation="horizontal"
                     android:padding="16dp">
 
-                    <ImageView
-                        android:layout_width="54dp"
-                        android:layout_height="54dp"
-                        android:background="@drawable/bg_badge_orange"
-                        android:gravity="center"
-                       
-                        app:srcCompat="@drawable/ic_store"
-                        app:tint="#EE4D2D" />
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardStoreAvatar"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="#FFDDD4"
+                        app:strokeWidth="1dp">
+
+                        <FrameLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/bg_badge_orange">
+
+                            <ImageView
+                                android:id="@+id/ivProfileStoreAvatar"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="centerCrop"
+                                android:visibility="gone" />
+
+                            <TextView
+                                android:id="@+id/tvProfileStoreEmoji"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:text="🏪"
+                                android:textSize="26sp" />
+                        </FrameLayout>
+                    </com.google.android.material.card.MaterialCardView>
 
                     <LinearLayout
                         android:layout_width="0dp"

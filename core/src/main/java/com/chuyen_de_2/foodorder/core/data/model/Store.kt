@@ -36,7 +36,7 @@ data class Store(
     @SerializedName("longitude")
     val longitude: Double = 0.0,
 
-    @SerializedName("imageUrl")
+    @SerializedName("imageUrl", alternate = ["avatarUrl", "logoUrl", "avatar", "image"])
     val imageUrl: String = "",
 
     @SerializedName("storeStatus")

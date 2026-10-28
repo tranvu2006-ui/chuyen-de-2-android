@@ -1393,7 +1393,8 @@ class FirebaseRepository @Inject constructor(
         vehicleModel: String,
         vehiclePlate: String,
         cccdNumber: String = "",
-        licenseNumber: String = ""
+        licenseNumber: String = "",
+        avatarUrl: String = ""
     ): Result<Unit> {
         return try {
             val driverUpdates = mutableMapOf<String, Any>(
@@ -1405,14 +1406,16 @@ class FirebaseRepository @Inject constructor(
             )
             if (cccdNumber.isNotBlank()) driverUpdates["cccdNumber"] = cccdNumber.trim()
             if (licenseNumber.isNotBlank()) driverUpdates["licenseNumber"] = licenseNumber.trim()
+            if (avatarUrl.isNotBlank()) driverUpdates["avatarUrl"] = avatarUrl.trim()
 
             database.getReference("drivers").child(driverId).updateChildren(driverUpdates).await()
 
             // Đồng bộ sang users/{driverId}
-            val userUpdates = mapOf<String, Any>(
+            val userUpdates = mutableMapOf<String, Any>(
                 "name" to name.trim(),
                 "phone" to phone.trim()
             )
+            if (avatarUrl.isNotBlank()) userUpdates["avatarUrl"] = avatarUrl.trim()
             database.getReference("users").child(driverId).updateChildren(userUpdates).await()
 
             Result.success(Unit)

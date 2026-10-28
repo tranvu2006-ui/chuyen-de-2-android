@@ -26,6 +26,11 @@ import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperProfileBinding
 import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
 import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import com.bumptech.glide.Glide
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
@@ -60,6 +65,17 @@ class ShipperProfileFragment : Fragment() {
     lateinit var firebaseRepository: FirebaseRepository
 
     private var currentDriver: Driver? = null
+    private var pendingAvatarBase64: String? = null
+    private var currentDialogAvatarPreview: ImageView? = null
+    private var currentDialogAvatarPlaceholder: View? = null
+
+    private val pickAvatarLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processAndPreviewAvatar(uri)
+        }
+    }
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -145,11 +161,64 @@ class ShipperProfileFragment : Fragment() {
             binding.tvDriverBadgeId.text = "MÃ TX: ${driver.driverCode}"
         }
 
+        val avatarUrl = driver.avatarUrl.ifBlank { auth.currentUser?.photoUrl?.toString().orEmpty() }
+        displayAvatar(avatarUrl)
+
         binding.tvDetailDriverPhone.text = phone
         binding.tvDetailVehicleModel.text = model
         binding.tvDetailVehiclePlate.text = plate
         binding.tvDetailCccd.text = cccd
         binding.tvDetailLicense.text = license
+    }
+
+    private fun displayAvatar(avatarUrl: String) {
+        if (avatarUrl.startsWith("data:image") || avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) {
+            binding.ivDriverAvatar.visibility = View.VISIBLE
+            binding.tvDriverAvatarEmoji.visibility = View.GONE
+            Glide.with(this)
+                .load(avatarUrl)
+                .circleCrop()
+                .placeholder(R.drawable.bg_badge_orange)
+                .error(R.drawable.bg_badge_orange)
+                .into(binding.ivDriverAvatar)
+        } else {
+            binding.ivDriverAvatar.visibility = View.GONE
+            binding.tvDriverAvatarEmoji.visibility = View.VISIBLE
+        }
+    }
+
+    private fun processAndPreviewAvatar(uri: Uri) {
+        try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap != null) {
+                val maxDim = 200
+                val width = originalBitmap.width
+                val height = originalBitmap.height
+                val ratio = width.toFloat() / height.toFloat()
+                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
+                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
+
+                val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, maxOf(1, targetWidth), maxOf(1, targetHeight), true)
+                val outputStream = ByteArrayOutputStream()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                val byteArray = outputStream.toByteArray()
+
+                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                pendingAvatarBase64 = base64String
+
+                currentDialogAvatarPreview?.let { iv ->
+                    iv.visibility = View.VISIBLE
+                    currentDialogAvatarPlaceholder?.visibility = View.GONE
+                    Glide.with(this).load(scaledBitmap).circleCrop().into(iv)
+                }
+                Toast.makeText(requireContext(), "📷 Đã chọn ảnh đại diện!", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
@@ -217,6 +286,15 @@ class ShipperProfileFragment : Fragment() {
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
 
+        pendingAvatarBase64 = null
+        val ivAvatarPreview = dialog.findViewById<ImageView>(R.id.ivEditDriverAvatarPreview)
+        val tvAvatarPlaceholder = dialog.findViewById<View>(R.id.tvEditDriverAvatarPlaceholder)
+        val flAvatar = dialog.findViewById<View>(R.id.flEditDriverAvatar)
+        val btnPickAvatar = dialog.findViewById<View>(R.id.btnPickDriverAvatar)
+
+        currentDialogAvatarPreview = ivAvatarPreview
+        currentDialogAvatarPlaceholder = tvAvatarPlaceholder
+
         val etName = dialog.findViewById<EditText>(R.id.etEditDriverName)
         val etPhone = dialog.findViewById<EditText>(R.id.etEditDriverPhone)
         val etVehicleModel = dialog.findViewById<EditText>(R.id.etEditVehicleModel)
@@ -234,6 +312,23 @@ class ShipperProfileFragment : Fragment() {
         val currentPhone = driver?.phone?.ifBlank { user.phoneNumber.orEmpty() } ?: user.phoneNumber.orEmpty()
         val currentModel = driver?.vehicleModel?.ifBlank { "Sirius" } ?: "Sirius"
         val currentPlate = driver?.vehiclePlate?.ifBlank { "59-T1 882.91" } ?: "59-T1 882.91"
+        val currentAvatar = driver?.avatarUrl.orEmpty().ifBlank { user.photoUrl?.toString().orEmpty() }
+
+        if (currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http")) {
+            ivAvatarPreview?.visibility = View.VISIBLE
+            tvAvatarPlaceholder?.visibility = View.GONE
+            ivAvatarPreview?.let { Glide.with(this).load(currentAvatar).circleCrop().into(it) }
+        } else {
+            ivAvatarPreview?.visibility = View.GONE
+            tvAvatarPlaceholder?.visibility = View.VISIBLE
+        }
+
+        btnPickAvatar?.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        flAvatar?.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
 
         etName.setText(currentName)
         etPhone.setText(currentPhone)
@@ -276,6 +371,8 @@ class ShipperProfileFragment : Fragment() {
 
             btnSave.isEnabled = false
 
+            val finalAvatar = pendingAvatarBase64 ?: currentAvatar
+
             viewLifecycleOwner.lifecycleScope.launch {
                 val result = firebaseRepository.updateDriverProfile(
                     driverId = uid,
@@ -284,17 +381,23 @@ class ShipperProfileFragment : Fragment() {
                     vehicleModel = newModel,
                     vehiclePlate = newPlate,
                     cccdNumber = newCccd,
-                    licenseNumber = newLicense
+                    licenseNumber = newLicense,
+                    avatarUrl = finalAvatar
                 )
 
                 if (result.isSuccess) {
-                    Toast.makeText(requireContext(), "✅ Cập nhật hồ sơ tài xế thành công!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "✅ Cập nhật hồ sơ & ảnh đại diện tài xế thành công!", Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 } else {
                     Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                     btnSave.isEnabled = true
                 }
             }
+        }
+
+        dialog.setOnDismissListener {
+            currentDialogAvatarPreview = null
+            currentDialogAvatarPlaceholder = null
         }
 
         dialog.show()

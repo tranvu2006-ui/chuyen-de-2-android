@@ -63,11 +63,12 @@
         android:orientation="horizontal"
         android:padding="10dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ℹ️"
-            android:textSize="14sp" />
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginTop="2dp"
+            android:src="@drawable/ic_info"
+            app:tint="#92400E" />
 
         <TextView
             android:layout_width="match_parent"
@@ -119,12 +120,12 @@
         android:clickable="true"
         android:focusable="true">
 
-        <TextView
-            android:id="@+id/tvProofIcon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📸"
-            android:textSize="26sp" />
+        <ImageView
+            android:id="@+id/ivProofIcon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_camera"
+            app:tint="@color/text_secondary" />
 
         <TextView
             android:id="@+id/tvProofText"
@@ -166,7 +167,10 @@
         android:layout_height="48dp"
         android:layout_marginTop="16dp"
         android:backgroundTint="@color/danger"
-        android:text="⏱️ BẮT ĐẦU ĐẾM NGƯỢC 15P CẢNH BÁO MẤT ĐƠN"
+        android:text="BẮT ĐẦU ĐẾM NGƯỢC 15P CẢNH BÁO MẤT ĐƠN"
+        app:icon="@drawable/ic_clock"
+        app:iconSize="16dp"
+        app:iconTint="#FFFFFF"
         android:textColor="#FFFFFF"
         android:textSize="12sp"
         android:textStyle="bold"

@@ -86,19 +86,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Ô nhập URL ảnh tùy chọn -->
-        <EditText
-            android:id="@+id/etDishImageUrl"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_card_rounded"
-            android:hint="Hoặc dán liên kết URL ảnh (https://...)"
-            android:inputType="textUri"
-            android:paddingHorizontal="12dp"
-            android:textColor="@color/text_primary"
-            android:textColorHint="@color/text_secondary"
-            android:textSize="12sp" />
+
 
         <!-- Tên Món -->
         <TextView

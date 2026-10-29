@@ -1754,11 +1754,11 @@
                     android:padding="10dp"
                     android:visibility="gone">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📦"
-                        android:textSize="14sp" />
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_package"
+                        app:tint="#C2410C" />
 
                     <TextView
                         android:id="@+id/tvBomOnBikeReminderText"
@@ -1794,11 +1794,11 @@
                         android:paddingVertical="9dp"
                         android:paddingHorizontal="4dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="📞"
-                            android:textSize="18sp" />
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_phone"
+                            app:tint="#047857" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -1834,11 +1834,11 @@
                         android:paddingVertical="9dp"
                         android:paddingHorizontal="4dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="💬"
-                            android:textSize="18sp" />
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_message_circle"
+                            app:tint="#1D4ED8" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -1873,11 +1873,11 @@
                         android:paddingVertical="9dp"
                         android:paddingHorizontal="4dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="⚠️"
-                            android:textSize="18sp" />
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_alert_triangle"
+                            app:tint="#DC2626" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -1924,11 +1924,11 @@
                             android:gravity="center_vertical"
                             android:orientation="horizontal">
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="🔴"
-                                android:textSize="10sp" />
+                            <ImageView
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:src="@drawable/ic_clock"
+                                app:tint="#EF4444" />
 
                             <TextView
                                 android:layout_width="0dp"
@@ -1986,18 +1986,35 @@
                         </LinearLayout>
 
                         <!-- Lời nhắc -->
-                        <TextView
-                            android:id="@+id/tvCountdownStatusMsg"
+                        <LinearLayout
+                            android:id="@+id/layoutCountdownNotice"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:background="@drawable/bg_warning_inline"
                             android:backgroundTint="#FEF3C7"
-                            android:lineSpacingExtra="2dp"
-                            android:padding="8dp"
-                            android:text="📢 Đã gửi cảnh báo mất đơn đến khách hàng: Nếu sau 15 phút không nhận món, đơn sẽ có thể bị hủy do bom hàng và bạn được quyền hoàn trả món về Quán!"
-                            android:textColor="#78350F"
-                            android:textSize="11sp" />
+                            android:orientation="horizontal"
+                            android:padding="8dp">
+
+                            <ImageView
+                                android:id="@+id/ivCountdownNoticeIcon"
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:layout_marginTop="2dp"
+                                android:src="@drawable/ic_info"
+                                app:tint="#B45309" />
+
+                            <TextView
+                                android:id="@+id/tvCountdownStatusMsg"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:lineSpacingExtra="2dp"
+                                android:text="Đã gửi cảnh báo mất đơn đến khách hàng: Nếu sau 15 phút không nhận món, đơn sẽ bị hủy do bom hàng và bạn được quyền hoàn trả món về Quán!"
+                                android:textColor="#78350F"
+                                android:textSize="11sp" />
+                        </LinearLayout>
 
                         <!-- Nút tua nhanh & hủy đếm ngược -->
                         <LinearLayout
@@ -2015,7 +2032,10 @@
                                 android:layout_marginEnd="4dp"
                                 android:layout_weight="1"
                                 android:backgroundTint="#EFF6FF"
-                                android:text="⏩ Tua Hết 15P (Demo)"
+                                android:text="Tua Hết 15P (Demo)"
+                                app:icon="@drawable/ic_zap"
+                                app:iconSize="14dp"
+                                app:iconTint="#1D4ED8"
                                 android:textColor="#1D4ED8"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
@@ -2029,7 +2049,10 @@
                                 android:layout_marginStart="4dp"
                                 android:layout_weight="1"
                                 android:backgroundTint="#F0FDF4"
-                                android:text="✓ Khách đã ra nhận"
+                                android:text="Khách đã ra nhận"
+                                app:icon="@drawable/ic_check"
+                                app:iconSize="14dp"
+                                app:iconTint="#15803D"
                                 android:textColor="#15803D"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
@@ -2044,7 +2067,10 @@
                             android:layout_height="46dp"
                             android:layout_marginTop="10dp"
                             android:backgroundTint="#DC2626"
-                            android:text="🚫 HẾT 15P • HỦY ĐƠN BOM &amp; TIẾP TỤC ĐƠN GHÉP ➔"
+                            android:text="HẾT 15P • HỦY ĐƠN BOM &amp; TIẾP TỤC ĐƠN GHÉP"
+                            app:icon="@drawable/ic_alert_triangle"
+                            app:iconSize="16dp"
+                            app:iconTint="#FFFFFF"
                             android:textColor="#FFFFFF"
                             android:textSize="11.5sp"
                             android:textStyle="bold"

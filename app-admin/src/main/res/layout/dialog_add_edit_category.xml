@@ -128,28 +128,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Custom Icon URL Input (Optional) -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilCatIconUrl"
-            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:hint="Hoặc dán đường dẫn URL ảnh Icon (https://...)"
-            android:textColorHint="@color/text_secondary"
-            app:boxBackgroundColor="@color/white"
-            app:boxStrokeColor="@color/primary"
-            app:hintTextColor="@color/primary">
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etCatIconUrl"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textUri"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_muted"
-                android:textSize="13sp" />
-        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Name input -->
         <com.google.android.material.textfield.TextInputLayout

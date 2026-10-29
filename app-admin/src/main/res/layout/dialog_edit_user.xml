@@ -439,31 +439,28 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnPickAvatarFromGallery"
+                        style="@style/Widget.Material3.Button.TonalButton"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="42dp"
                         android:layout_marginTop="10dp"
-                        android:hint="Thay đổi URL Ảnh đại diện mới (Tùy chọn)"
-                        android:textColorHint="@color/text_secondary"
-                        app:boxBackgroundColor="@color/white"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etUserAvatarUrl"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textUri"
-                            android:textColor="@color/text_primary"
-                            android:textColorHint="@color/text_muted"
-                            android:textSize="13sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                        android:backgroundTint="#EFF6FF"
+                        android:text="Chọn ảnh từ thư viện điện thoại"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:icon="@drawable/ic_image"
+                        app:iconGravity="textStart"
+                        app:iconSize="16dp"
+                        app:iconTint="@color/brand_blue" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="* Giữ nguyên nếu để trống (không bị mất ảnh khi sửa thông tin)"
+                        android:layout_marginTop="6dp"
+                        android:text="* Chỉ chọn ảnh trực tiếp từ thư viện máy (ảnh luôn được giữ nguyên nếu không chọn mới)"
                         android:textColor="@color/brand_green"
                         android:textSize="11sp" />
                 </LinearLayout>

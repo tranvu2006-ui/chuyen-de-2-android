@@ -405,7 +405,6 @@ class MenuManageFragment : Fragment() {
         val ivPreview = dialog.findViewById<ImageView>(R.id.ivDishPreview)
         val btnPickImage = dialog.findViewById<MaterialButton>(R.id.btnPickDishImage)
         val btnClearImage = dialog.findViewById<TextView>(R.id.btnClearDishImage)
-        val etImageUrl = dialog.findViewById<EditText>(R.id.etDishImageUrl)
         val etName = dialog.findViewById<EditText>(R.id.etDishName)
         val etPrice = dialog.findViewById<EditText>(R.id.etDishPrice)
         val spinnerCategory = dialog.findViewById<Spinner>(R.id.spinnerDishCategory)
@@ -469,9 +468,7 @@ class MenuManageFragment : Fragment() {
             val currentPrice = if (editingDish.basePrice > 0) editingDish.basePrice else editingDish.price
             etPrice.setText(currentPrice.toString())
             etDescription.setText(editingDish.description)
-            if (editingDish.imageUrl.isNotBlank() && !editingDish.imageUrl.startsWith("data:image")) {
-                etImageUrl.setText(editingDish.imageUrl)
-            }
+
             loadPreviewImage(ivPreview, editingDish.imageUrl)
             val catIndex = storeCategories.indexOfFirst { it.equals(editingDish.category, ignoreCase = true) }
             if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
@@ -497,7 +494,6 @@ class MenuManageFragment : Fragment() {
         btnPickImage.setOnClickListener {
             onImagePickedCallback = { base64Data ->
                 currentImageUrl = base64Data
-                etImageUrl.setText("")
                 loadPreviewImage(ivPreview, base64Data)
                 Toast.makeText(requireContext(), "📷 Đã chọn ảnh món ăn thành công!", Toast.LENGTH_SHORT).show()
             }
@@ -507,20 +503,10 @@ class MenuManageFragment : Fragment() {
         // Đặt lại ảnh mặc định
         btnClearImage.setOnClickListener {
             currentImageUrl = ""
-            etImageUrl.setText("")
             ivPreview.setImageResource(R.drawable.bg_badge_orange)
         }
 
-        // Preview ảnh khi dán link URL
-        etImageUrl.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                val inputUrl = etImageUrl.text.toString().trim()
-                if (inputUrl.isNotBlank()) {
-                    currentImageUrl = inputUrl
-                    loadPreviewImage(ivPreview, inputUrl)
-                }
-            }
-        }
+
 
         btnCancel.setOnClickListener { dialog.dismiss() }
 
@@ -530,13 +516,7 @@ class MenuManageFragment : Fragment() {
             val category = spinnerCategory.selectedItem?.toString().orEmpty().ifBlank { "Món chính" }
             val platformCategory = spinnerPlatformCategory.selectedItem?.toString().orEmpty().ifBlank { "Món Khác" }
             val description = etDescription.text.toString().trim()
-            val typedUrl = etImageUrl.text.toString().trim()
-
-            val finalImageUrl = when {
-                typedUrl.isNotBlank() -> typedUrl
-                currentImageUrl.isNotBlank() -> currentImageUrl
-                else -> "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=60"
-            }
+            val finalImageUrl = currentImageUrl.ifBlank { "" }
 
             if (name.isBlank() || priceStr.isBlank()) {
                 Toast.makeText(requireContext(), "Vui lòng nhập đầy đủ tên và giá món!", Toast.LENGTH_SHORT).show()

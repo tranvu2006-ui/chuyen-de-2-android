@@ -2,6 +2,12 @@ package com.chuyen_de_2.foodorder.admin.ui.monitor
 
 import android.app.Dialog
 import android.os.Bundle
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import java.io.ByteArrayOutputStream
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,6 +35,38 @@ class EditUserDialogFragment(
 
     private var currentAvatar: String = ""
     private var isAvatarResetToDefault = false
+
+    private val pickAvatarLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri ?: return@registerForActivityResult
+        val base64 = uriToBase64(uri)
+        if (!base64.isNullOrBlank()) {
+            currentAvatar = base64
+            isAvatarResetToDefault = false
+            updateAvatarPreview(currentAvatar)
+            binding.tvAvatarStatusHint.text = "✓ Đã chọn ảnh mới từ thư viện"
+        }
+    }
+
+    private fun uriToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri) ?: return null
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            val scaledBitmap = Bitmap.createScaledBitmap(
+                originalBitmap,
+                300,
+                (300 * (originalBitmap.height.toFloat() / originalBitmap.width)).toInt(),
+                true
+            )
+            val outputStream = ByteArrayOutputStream()
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+            val byteArray = outputStream.toByteArray()
+            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     private val roleOptions = listOf(
         User.Role.CUSTOMER,
@@ -153,12 +191,7 @@ class EditUserDialogFragment(
         binding.etUserPhone.setText(user.phone)
         binding.etUserStoreId.setText(user.storeId)
 
-        // Nếu là URL trực tuyến thông thường thì hiển thị trong ô nhập liệu
-        if (currentAvatar.startsWith("http://") || currentAvatar.startsWith("https://")) {
-            binding.etUserAvatarUrl.setText(currentAvatar)
-        } else if (currentAvatar.startsWith("data:image")) {
-            binding.etUserAvatarUrl.hint = "[Đang sử dụng ảnh tải lên từ thiết bị]"
-        }
+
 
         updateAvatarPreview(currentAvatar)
 
@@ -199,22 +232,14 @@ class EditUserDialogFragment(
         binding.btnCloseUserDialog.setOnClickListener { dismiss() }
         binding.btnCancelEditUser.setOnClickListener { dismiss() }
 
+        binding.btnPickAvatarFromGallery.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+
         binding.btnResetAvatarDefault.setOnClickListener {
             isAvatarResetToDefault = true
             currentAvatar = ""
-            binding.etUserAvatarUrl.setText("")
-            binding.etUserAvatarUrl.hint = "URL Ảnh đại diện mới (Tùy chọn)"
             updateAvatarPreview("")
-        }
-
-        binding.etUserAvatarUrl.addTextChangedListener { text ->
-            val url = text?.toString().orEmpty().trim()
-            if (url.isNotBlank()) {
-                isAvatarResetToDefault = false
-                updateAvatarPreview(url)
-            } else if (!isAvatarResetToDefault && currentAvatar.isNotBlank()) {
-                updateAvatarPreview(currentAvatar)
-            }
         }
 
         // Đồng bộ giữa Switch Kích hoạt và Spinner Trạng thái
@@ -276,13 +301,7 @@ class EditUserDialogFragment(
             val phone = binding.etUserPhone.text?.toString().orEmpty().trim()
             val storeId = binding.etUserStoreId.text?.toString().orEmpty().trim()
 
-            // Bảo toàn avatar: nếu ô nhập URL trống và chưa bấm xóa thì giữ nguyên ảnh hiện tại
-            val inputAvatarUrl = binding.etUserAvatarUrl.text?.toString().orEmpty().trim()
-            val finalAvatar = when {
-                inputAvatarUrl.isNotBlank() -> inputAvatarUrl
-                isAvatarResetToDefault -> ""
-                else -> currentAvatar
-            }
+            val finalAvatar = if (isAvatarResetToDefault) "" else currentAvatar
 
             val trustScore = (binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100).coerceIn(0, 100)
             val completedOrders = (binding.etUserCompletedOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)

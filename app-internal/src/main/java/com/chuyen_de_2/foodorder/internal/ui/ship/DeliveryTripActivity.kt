@@ -1369,8 +1369,9 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
         binding.btnCountdownExpiredAction.visibility = View.GONE
 
-        binding.tvCountdownStatusMsg.text = "📢 Đã gửi cảnh báo mất đơn đến khách hàng (${order.customerName}): Nếu sau 15 phút không nhận món, đơn sẽ có thể bị hủy do bom hàng và bạn được quyền hoàn trả món về Quán!"
-        binding.tvCountdownStatusMsg.setBackgroundColor(Color.parseColor("#FEF3C7"))
+        binding.tvCountdownStatusMsg.text = "Đã gửi cảnh báo mất đơn đến khách hàng (${order.customerName}): Nếu sau 15 phút không nhận món, đơn sẽ có thể bị hủy do bom hàng và bạn được quyền hoàn trả món về Quán!"
+        binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
+        binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
         binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#78350F"))
 
         Toast.makeText(this, "📢 Đã gửi cảnh báo mất đơn tới ${order.customerName}! Bắt đầu đếm ngược 15 phút.", Toast.LENGTH_LONG).show()
@@ -1428,8 +1429,9 @@ class DeliveryTripActivity : AppCompatActivity() {
     private fun onCountdownExpired() {
         binding.tvCountdownDigits.text = "00:00"
         binding.tvCountdownSubtext.text = "HẾT GIỜ"
-        binding.tvCountdownStatusMsg.text = "🚫 ĐÃ HẾT 15 PHÚT CHỜ ĐỢI! Khách hàng không nhận món. Quý tài xế bấm nút bên dưới để xác nhận hủy đơn do bom hàng và tiếp tục hành trình."
-        binding.tvCountdownStatusMsg.setBackgroundColor(Color.parseColor("#FEF2F2"))
+        binding.tvCountdownStatusMsg.text = "ĐÃ HẾT 15 PHÚT CHỜ ĐỢI! Khách hàng không nhận món. Quý tài xế bấm nút bên dưới để xác nhận hủy đơn do bom hàng và tiếp tục hành trình."
+        binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
+        binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
         binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
 
         binding.layoutCountdownActiveButtons.visibility = View.GONE
@@ -1679,7 +1681,8 @@ class DeliveryTripActivity : AppCompatActivity() {
         var hasProof = false
         repBinding.btnAttachProof.setOnClickListener {
             hasProof = true
-            repBinding.tvProofIcon.text = "✓"
+            repBinding.ivProofIcon.setImageResource(R.drawable.ic_check_circle)
+            repBinding.ivProofIcon.setColorFilter(ContextCompat.getColor(this, R.color.brand_green))
             repBinding.tvProofText.text = "✓ Đã đính kèm ảnh bằng chứng hiện trường"
             repBinding.tvProofText.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
             Toast.makeText(this, "Đã chụp và đính kèm bằng chứng sự cố thành công!", Toast.LENGTH_SHORT).show()

@@ -2,6 +2,14 @@ package com.chuyen_de_2.foodorder.admin.ui.store
 
 import android.app.Dialog
 import android.os.Bundle
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
+import java.io.ByteArrayOutputStream
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -35,6 +43,56 @@ class EditStoreDialogFragment(
         Store.PenaltyTier.HIDE,
         Store.PenaltyTier.LOCK
     )
+
+    private var currentStoreImageUrl: String = ""
+
+    private val pickStoreImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri ?: return@registerForActivityResult
+        val base64 = uriToBase64(uri)
+        if (!base64.isNullOrBlank()) {
+            currentStoreImageUrl = base64
+            updateStoreImagePreview(currentStoreImageUrl)
+            binding.tvStoreImageStatus.text = "✓ Đã chọn ảnh mới từ thư viện"
+            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+        }
+    }
+
+    private fun uriToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri) ?: return null
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            val scaledBitmap = Bitmap.createScaledBitmap(
+                originalBitmap,
+                500,
+                (500 * (originalBitmap.height.toFloat() / originalBitmap.width)).toInt(),
+                true
+            )
+            val outputStream = ByteArrayOutputStream()
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+            val byteArray = outputStream.toByteArray()
+            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun updateStoreImagePreview(imageSource: String) {
+        val trimmed = imageSource.trim()
+        if (trimmed.isNotBlank()) {
+            binding.ivStoreImagePreview.clearColorFilter()
+            Glide.with(this)
+                .load(trimmed)
+                .placeholder(R.drawable.ic_store)
+                .error(R.drawable.ic_store)
+                .into(binding.ivStoreImagePreview)
+        } else {
+            Glide.with(this).clear(binding.ivStoreImagePreview)
+            binding.ivStoreImagePreview.setImageResource(R.drawable.ic_store)
+            binding.ivStoreImagePreview.setColorFilter(ContextCompat.getColor(requireContext(), R.color.text_muted))
+        }
+    }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
@@ -95,7 +153,8 @@ class EditStoreDialogFragment(
         binding.etStorePhone.setText(store.phone)
         binding.etStoreAddress.setText(store.address)
         binding.etStoreDistrict.setText(store.district)
-        binding.etStoreImageUrl.setText(store.imageUrl)
+        currentStoreImageUrl = store.imageUrl
+        updateStoreImagePreview(currentStoreImageUrl)
         binding.etStoreOpenHours.setText(store.openHours)
         binding.etStorePrepTime.setText(store.prepTime)
         binding.etStoreDeliveryTime.setText(store.deliveryTime)
@@ -133,6 +192,13 @@ class EditStoreDialogFragment(
 
     private fun setupListeners() {
         binding.btnCloseDialog.setOnClickListener { dismiss() }
+        binding.btnPickStoreImage.setOnClickListener { pickStoreImageLauncher.launch("image/*") }
+        binding.btnClearStoreImage.setOnClickListener {
+            currentStoreImageUrl = ""
+            updateStoreImagePreview("")
+            binding.tvStoreImageStatus.text = "Chưa có ảnh"
+            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        }
         binding.btnCancelEditStore.setOnClickListener { dismiss() }
 
         binding.btnSaveEditStore.setOnClickListener {
@@ -146,7 +212,7 @@ class EditStoreDialogFragment(
             val phone = binding.etStorePhone.text?.toString().orEmpty().trim()
             val address = binding.etStoreAddress.text?.toString().orEmpty().trim()
             val district = binding.etStoreDistrict.text?.toString().orEmpty().trim()
-            val imageUrl = binding.etStoreImageUrl.text?.toString().orEmpty().trim()
+            val imageUrl = currentStoreImageUrl
             val openHours = binding.etStoreOpenHours.text?.toString().orEmpty().trim().ifBlank { "08:00 - 22:00" }
             val prepTime = binding.etStorePrepTime.text?.toString().orEmpty().trim().ifBlank { "15-20 phút" }
             val deliveryTime = binding.etStoreDeliveryTime.text?.toString().orEmpty().trim()

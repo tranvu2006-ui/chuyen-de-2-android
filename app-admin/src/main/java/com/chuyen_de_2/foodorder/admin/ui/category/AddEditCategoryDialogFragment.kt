@@ -33,8 +33,7 @@ class AddEditCategoryDialogFragment(
             val base64 = convertUriToBase64Icon(uri)
             if (base64 != null) {
                 uploadedBase64Icon = base64
-                binding.etCatIconUrl.setText("")
-                updateIconPreview(base64)
+                                updateIconPreview(base64)
                 binding.tvUploadStatus.text = "✓ Đã tải ảnh Icon từ thiết bị"
                 binding.btnClearIcon.visibility = View.VISIBLE
             } else {
@@ -94,21 +93,13 @@ class AddEditCategoryDialogFragment(
             binding.cbIsActive.isChecked = categoryToEdit.isActive
 
             val existingIcon = categoryToEdit.iconUrl.trim()
-            if (existingIcon.startsWith("data:image", ignoreCase = true) || existingIcon.length > 100) {
+            if (existingIcon.isNotBlank()) {
                 uploadedBase64Icon = existingIcon
-                binding.etCatIconUrl.setText("")
-                binding.tvUploadStatus.text = "✓ Đang dùng ảnh tải lên"
-                binding.btnClearIcon.visibility = View.VISIBLE
-                updateIconPreview(existingIcon)
-            } else if (existingIcon.startsWith("http://", ignoreCase = true) || existingIcon.startsWith("https://", ignoreCase = true)) {
-                uploadedBase64Icon = ""
-                binding.etCatIconUrl.setText(existingIcon)
-                binding.tvUploadStatus.text = "✓ Đang dùng URL ảnh"
+                binding.tvUploadStatus.text = "✓ Đang dùng ảnh hiện tại"
                 binding.btnClearIcon.visibility = View.VISIBLE
                 updateIconPreview(existingIcon)
             } else {
                 uploadedBase64Icon = ""
-                binding.etCatIconUrl.setText("")
                 binding.tvUploadStatus.text = "Chưa có ảnh (Nhấn để chọn PNG/JPG)"
                 binding.btnClearIcon.visibility = View.GONE
                 updateIconPreview("")
@@ -116,7 +107,6 @@ class AddEditCategoryDialogFragment(
         } else {
             binding.tvDialogTitle.text = "Thêm Danh Mục Mới"
             uploadedBase64Icon = ""
-            binding.etCatIconUrl.setText("")
             updateIconPreview("")
         }
     }
@@ -173,25 +163,12 @@ class AddEditCategoryDialogFragment(
 
         binding.btnClearIcon.setOnClickListener {
             uploadedBase64Icon = ""
-            binding.etCatIconUrl.setText("")
             binding.tvUploadStatus.text = "Đã xóa ảnh Icon"
             binding.btnClearIcon.visibility = View.GONE
             updateIconPreview("")
         }
 
-        binding.etCatIconUrl.doAfterTextChanged { s ->
-            val urlText = s?.toString().orEmpty().trim()
-            if (urlText.isNotBlank()) {
-                uploadedBase64Icon = ""
-                binding.tvUploadStatus.text = "✓ Đang dùng URL ảnh"
-                binding.btnClearIcon.visibility = View.VISIBLE
-                updateIconPreview(urlText)
-            } else if (uploadedBase64Icon.isBlank()) {
-                binding.tvUploadStatus.text = "Chưa có ảnh (Nhấn để chọn PNG/JPG)"
-                binding.btnClearIcon.visibility = View.GONE
-                updateIconPreview("")
-            }
-        }
+
 
         binding.btnCancelCat.setOnClickListener {
             dismiss()
@@ -206,8 +183,7 @@ class AddEditCategoryDialogFragment(
 
             val order = binding.etCatOrder.text?.toString()?.toIntOrNull() ?: 1
             val isActive = binding.cbIsActive.isChecked
-            val typedUrl = binding.etCatIconUrl.text?.toString().orEmpty().trim()
-            val finalIconUrl = if (typedUrl.isNotBlank()) typedUrl else uploadedBase64Icon
+            val finalIconUrl = uploadedBase64Icon
             val desc = binding.etCatDescription.text?.toString().orEmpty().trim()
             val customId = binding.etCatId.text?.toString().orEmpty().trim()
 

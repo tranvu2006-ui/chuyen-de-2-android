@@ -94,9 +94,11 @@ class DeliveryTripActivity : AppCompatActivity() {
     private val checkedBundleOrderIds = mutableSetOf<String>()
     private val bomReturnOrders = mutableListOf<Order>()
 
-    // Quản lý đếm ngược 15 phút cảnh báo mất đơn (8.html)
+    // Quản lý đếm ngược cảnh báo mất đơn (Cấu hình bởi Admin: mặc định 15p đầu và 15p sau)
     private var countdownTimer: android.os.CountDownTimer? = null
-    private var countdownSecondsRemaining = 15 * 60 // 15 phút = 900s
+    private var round1Minutes: Int = 15
+    private var round2Minutes: Int = 15
+    private var countdownSecondsRemaining = 15 * 60
     private var isCountdownActive = false
     private var pendingIncidentReason = "Khách không nghe máy (Đã gọi 3 cuộc không liên lạc được)"
     private var countdownRound = 1
@@ -505,7 +507,16 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
     }
 
+    private var hasShownReturningDialog = false
+
     private fun observeOrderDetails() {
+        lifecycleScope.launch {
+            firebaseRepository.observeCountdownConfig().collectLatest { cfg ->
+                round1Minutes = cfg.round1Minutes
+                round2Minutes = cfg.round2Minutes
+            }
+        }
+
         lifecycleScope.launch {
             firebaseRepository.observeOrder(currentOrderId).collectLatest { order ->
                 if (order != null) {
@@ -514,7 +525,17 @@ class DeliveryTripActivity : AppCompatActivity() {
                     if (!isBundleMode) {
                         bindOrderData(order)
                     }
-                    syncStepFromOrderStatus(order.status)
+                    if (order.status == Order.Status.RETURNING_TO_STORE) {
+                        if (!hasShownReturningDialog) {
+                            hasShownReturningDialog = true
+                            if (!bomReturnOrders.any { it.orderId == order.orderId }) {
+                                bomReturnOrders.add(order)
+                            }
+                            switchToReturningToStoreScreen(order)
+                        }
+                    } else {
+                        syncStepFromOrderStatus(order.status)
+                    }
                 }
             }
         }
@@ -528,7 +549,8 @@ class DeliveryTripActivity : AppCompatActivity() {
                     (o.status == Order.Status.ASSIGNED ||
                      o.status == Order.Status.ARRIVED_AT_SHOP ||
                      o.status == Order.Status.DELIVERING ||
-                     o.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
+                     o.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                     o.status == Order.Status.RETURNING_TO_STORE) &&
                      o.shipperId == uid
                 }
 
@@ -1182,6 +1204,37 @@ class DeliveryTripActivity : AppCompatActivity() {
             }
         }
 
+        // Bước 1 (Chế độ Trả Món Bị Bom): Xác nhận đã về tới quán & trả món xong
+        binding.btnConfirmReturnFinished.setOnClickListener {
+            val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+            AlertDialog.Builder(this)
+                .setTitle("🏪 Xác nhận trả món cho Quán?")
+                .setMessage("Bạn đã đến quán, bàn giao lại toàn bộ món ăn và nhận đầy đủ tiền hoàn trả từ Quán?")
+                .setPositiveButton("Đã hoàn tất") { _, _ ->
+                    lifecycleScope.launch {
+                        targetOrder?.let { o ->
+                            firebaseRepository.updateOrderStatus(o.orderId, Order.Status.RETURNED_TO_STORE, "Shipper đã bàn giao món về quán và nhận hoàn tiền")
+                        }
+                        bomReturnOrders.toList().forEach { bo ->
+                            firebaseRepository.updateOrderStatus(bo.orderId, Order.Status.RETURNED_TO_STORE, "Shipper đã bàn giao món về quán và nhận hoàn tiền")
+                        }
+                        Toast.makeText(this@DeliveryTripActivity, "✓ Đã hoàn tất trả món về Quán & nhận tiền hoàn!", Toast.LENGTH_LONG).show()
+
+                        val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) && it.orderId != targetOrder?.orderId }
+                        if (isBundleMode && remainingOrders.isNotEmpty()) {
+                            val nextRemaining = remainingOrders.first()
+                            val nextIdx = bundleOrders.indexOf(nextRemaining)
+                            switchActiveBundleCustomer(nextIdx)
+                            updateStepUI(3)
+                        } else {
+                            finish()
+                        }
+                    }
+                }
+                .setNegativeButton("Chưa", null)
+                .show()
+        }
+
         // Bước 2: Gọi quán
         binding.btnCallStoreStep2.setOnClickListener {
             val phone = bundleOrders.firstOrNull()?.shopPhone?.ifBlank { storePhone } ?: currentOrder?.shopPhone?.ifBlank { storePhone } ?: storePhone
@@ -1326,11 +1379,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             targetOrder?.let { showIncidentReportDialog(it) }
         }
 
-        // Bước 4 (8.html): CÁC NÚT ĐIỀU KHIỂN ĐẾM NGƯỢC 15 PHÚT
-        binding.btnFastForwardCountdown.setOnClickListener {
-            fastForwardCountdown()
-        }
-
+        // Bước 4: CÁC NÚT ĐIỀU KHIỂN ĐẾM NGƯỢC
         binding.btnCancelCountdown.setOnClickListener {
             cancelCountdown()
         }
@@ -1345,7 +1394,8 @@ class DeliveryTripActivity : AppCompatActivity() {
         pendingIncidentReason = reason
         isCountdownActive = true
         isRiskReported = (round >= 2)
-        countdownSecondsRemaining = 15 * 60
+        val targetMinutes = if (round == 1) round1Minutes else round2Minutes
+        countdownSecondsRemaining = targetMinutes * 60
 
         // Lưu trạng thái cảnh báo vào Firebase/SharedPreferences
         getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
@@ -1360,9 +1410,9 @@ class DeliveryTripActivity : AppCompatActivity() {
             try {
                 val sc = QRCodeUtils.getShortOrderCode(order.orderId)
                 val warningText = if (round == 1) {
-                    "⚠️ CẢNH BÁO MẤT ĐƠN #ORD-$sc (LẦN 1): Tài xế đang đợi tại điểm giao. Bạn có 15 phút để ra nhận món. Quá thời gian này đơn sẽ chuyển sang đơn rủi ro!"
+                    "⚠️ CẢNH BÁO MẤT ĐƠN #ORD-$sc (LẦN 1): Tài xế đang đợi tại điểm giao. Bạn có $round1Minutes phút để ra nhận món. Quá thời gian này đơn sẽ chuyển sang đơn rủi ro!"
                 } else {
-                    "⚠️ CẢNH BÁO GIA HẠN LẦN 2 #ORD-$sc: Đơn đã vào danh sách Rủi ro. Bạn có 15 phút cuối cùng để ra nhận món trước khi đơn bị hủy bom hàng và trả về quán!"
+                    "⚠️ CẢNH BÁO GIA HẠN LẦN 2 #ORD-$sc: Đơn đã vào danh sách Rủi ro. Bạn có $round2Minutes phút cuối cùng để ra nhận món trước khi đơn bị hủy bom hàng và trả về quán!"
                 }
                 val updates = mapOf<String, Any>(
                     "hasIncidentWarning" to true,
@@ -1380,27 +1430,26 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
         binding.btnCountdownExpiredAction.visibility = View.GONE
 
-        binding.tvCountdownDigits.text = "15:00"
+        binding.tvCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:00", targetMinutes)
         binding.tvCountdownDigits.setTextColor(Color.parseColor("#DC2626"))
+        binding.tvCountdownBadge.text = if (round == 1) "Chờ $round1Minutes phút" else "Gia hạn $round2Minutes phút"
 
         if (round == 1) {
             binding.tvCountdownSubtext.text = "LẦN 1/2 • phút còn lại"
             binding.tvCountdownSubtext.setTextColor(Color.parseColor("#9A3412"))
-            binding.tvCountdownStatusMsg.text = "LẦN 1/2: Đã đến nhà khách! Hệ thống đang đếm ngược 15 phút thời gian chờ nhận hàng. Vui lòng gọi điện hoặc nhắn tin cho khách. Nếu sau 15 phút không nhận, bạn có quyền báo cáo đơn rủi ro để kích hoạt 15 phút gia hạn Lần 2!"
+            binding.tvCountdownStatusMsg.text = "LẦN 1/2: Đã đến nhà khách! Hệ thống đang đếm ngược $round1Minutes phút thời gian chờ nhận hàng. Vui lòng gọi điện hoặc nhắn tin cho khách. Nếu sau $round1Minutes phút không nhận, bạn có quyền báo cáo đơn rủi ro để kích hoạt $round2Minutes phút gia hạn Lần 2!"
             binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
             binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
             binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#78350F"))
-            binding.btnFastForwardCountdown.text = "Tua Hết 15P Lần 1 (Demo)"
-            Toast.makeText(this, "📢 Bắt đầu đếm ngược 15 phút LẦN 1 chờ khách ${order.customerName}.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "📢 Bắt đầu đếm ngược $round1Minutes phút LẦN 1 chờ khách ${order.customerName}.", Toast.LENGTH_LONG).show()
         } else {
             binding.tvCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
             binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-            binding.tvCountdownStatusMsg.text = "LẦN 2/2 (CẢNH BÁO GIA HẠN): Đơn đã chuyển sang trạng thái ĐƠN RỦI RO! Nếu sau 15 phút này khách vẫn không nhận, đơn sẽ chính thức bị hủy do bom hàng và bạn sẽ quay về Quán trả món nhận tiền hoàn!"
+            binding.tvCountdownStatusMsg.text = "LẦN 2/2 (CẢNH BÁO GIA HẠN): Đơn đã chuyển sang trạng thái ĐƠN RỦI RO! Nếu sau $round2Minutes phút này khách vẫn không nhận, đơn sẽ chính thức bị hủy do bom hàng và bạn sẽ quay về Quán trả món nhận tiền hoàn!"
             binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
             binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
             binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
-            binding.btnFastForwardCountdown.text = "Tua Hết 15P Lần 2 (Demo)"
-            Toast.makeText(this, "⚠️ Đã kích hoạt đếm ngược 15 phút LẦN 2 (Đơn rủi ro)! Chờ khách gia hạn.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "⚠️ Đã kích hoạt đếm ngược $round2Minutes phút LẦN 2 (Đơn rủi ro)! Chờ khách gia hạn.", Toast.LENGTH_LONG).show()
         }
 
         runCountdownTimer()
@@ -1429,15 +1478,6 @@ class DeliveryTripActivity : AppCompatActivity() {
         val s = sec % 60
         val timeStr = String.format(java.util.Locale.getDefault(), "%02d:%02d", m, s)
         binding.tvCountdownDigits.text = timeStr
-    }
-
-    private fun fastForwardCountdown() {
-        val currRound = countdownRound
-        countdownTimer?.cancel()
-        countdownSecondsRemaining = 0
-        updateCountdownDisplay(0)
-        onCountdownExpired()
-        Toast.makeText(this, "⏩ Đã tua nhanh hết 15 phút (Lần $currRound)!", Toast.LENGTH_SHORT).show()
     }
 
     private fun cancelCountdown() {
@@ -1469,9 +1509,10 @@ class DeliveryTripActivity : AppCompatActivity() {
         val startTime = prefs.getLong("start_time_${targetOrder.orderId}", 0L)
         if (startTime > 0 && currentStep >= 3) {
             val elapsedSec = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-            val totalSec = 15 * 60
-            pendingIncidentReason = prefs.getString("reason_${targetOrder.orderId}", "Khách không nhận món").orEmpty()
             countdownRound = prefs.getInt("round_${targetOrder.orderId}", 1)
+            val targetMinutes = if (countdownRound == 1) round1Minutes else round2Minutes
+            val totalSec = targetMinutes * 60
+            pendingIncidentReason = prefs.getString("reason_${targetOrder.orderId}", "Khách không nhận món").orEmpty()
             isRiskReported = (countdownRound >= 2)
             binding.cardCountdownWarning.visibility = View.VISIBLE
             if (elapsedSec >= totalSec) {
@@ -1482,19 +1523,18 @@ class DeliveryTripActivity : AppCompatActivity() {
                 countdownSecondsRemaining = totalSec - elapsedSec
                 binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
                 binding.btnCountdownExpiredAction.visibility = View.GONE
+                binding.tvCountdownBadge.text = if (countdownRound == 1) "Chờ $round1Minutes phút" else "Gia hạn $round2Minutes phút"
                 if (countdownRound == 1) {
                     binding.tvCountdownSubtext.text = "LẦN 1/2 • phút còn lại"
                     binding.tvCountdownSubtext.setTextColor(Color.parseColor("#9A3412"))
-                    binding.btnFastForwardCountdown.text = "Tua Hết 15P Lần 1 (Demo)"
-                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược 15 phút LẦN 1 chờ khách (${targetOrder.customerName})..."
+                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược $round1Minutes phút LẦN 1 chờ khách (${targetOrder.customerName})..."
                     binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
                     binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
                     binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#78350F"))
                 } else {
                     binding.tvCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
                     binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-                    binding.btnFastForwardCountdown.text = "Tua Hết 15P Lần 2 (Demo)"
-                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược 15 phút LẦN 2 (Cảnh báo gia hạn đơn rủi ro)..."
+                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược $round2Minutes phút LẦN 2 (Cảnh báo gia hạn đơn rủi ro)..."
                     binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
                     binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
                     binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
@@ -1512,34 +1552,34 @@ class DeliveryTripActivity : AppCompatActivity() {
         val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
 
         if (countdownRound == 1) {
-            // HẾT 15 PHÚT LẦN 1: Hiện nút báo cáo đơn rủi ro & tự động mở dialog báo cáo để bắt đầu lần 2
-            binding.tvCountdownSubtext.text = "HẾT 15P LẦN 1"
+            // HẾT LẦN 1: Hiện nút báo cáo đơn rủi ro & tự động mở dialog báo cáo để bắt đầu lần 2
+            binding.tvCountdownSubtext.text = "HẾT ${round1Minutes}P LẦN 1"
             binding.tvCountdownSubtext.setTextColor(Color.parseColor("#EA580C"))
-            binding.tvCountdownStatusMsg.text = "ĐÃ HẾT 15 PHÚT LẦN 1! Khách hàng chưa nhận món.\nBạn được quyền Báo Cáo Sự Cố để chuyển trạng thái sang ĐƠN RỦI RO và kích hoạt 15 phút gia hạn Lần 2 trước khi hủy đơn trả hàng!"
+            binding.tvCountdownStatusMsg.text = "ĐÃ HẾT $round1Minutes PHÚT LẦN 1! Khách hàng chưa nhận món.\nBạn được quyền Báo Cáo Sự Cố để chuyển trạng thái sang ĐƠN RỦI RO và kích hoạt $round2Minutes phút gia hạn Lần 2 trước khi hủy đơn trả hàng!"
             binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FFF7ED"))
             binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#EA580C"))
             binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#C2410C"))
 
-            binding.btnCountdownExpiredAction.text = "BÁO CÁO ĐƠN RỦI RO & BẮT ĐẦU 15P LẦN 2 ➔"
+            binding.btnCountdownExpiredAction.text = "BÁO CÁO ĐƠN RỦI RO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
             binding.btnCountdownExpiredAction.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#EA580C"))
 
             targetOrder?.let {
                 showIncidentReportDialog(it, isExpiredRoundOne = true)
             }
         } else {
-            // HẾT 15 PHÚT LẦN 2: Chính thức hủy đơn bom và quay về Quán trả hàng
-            binding.tvCountdownSubtext.text = "HẾT 15P LẦN 2"
+            // HẾT LẦN 2: Chính thức hủy đơn bom và quay về Quán trả hàng
+            binding.tvCountdownSubtext.text = "HẾT ${round2Minutes}P LẦN 2"
             binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-            binding.tvCountdownStatusMsg.text = "ĐÃ HẾT 15 PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng).\nĐơn hàng chính thức bị hủy. Đang chuyển sang luồng quay về Quán để trả lại món và nhận tiền hoàn!"
+            binding.tvCountdownStatusMsg.text = "ĐÃ HẾT $round2Minutes PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng).\nĐơn hàng chính thức bị hủy. Đang chuyển sang luồng quay về Quán để trả lại món và nhận tiền hoàn!"
             binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
             binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
             binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
 
-            binding.btnCountdownExpiredAction.text = "HẾT 15P LẦN 2 • HỦY ĐƠN & QUAY VỀ TRẢ HÀNG CHO QUÁN ➔"
+            binding.btnCountdownExpiredAction.text = "HẾT ${round2Minutes}P LẦN 2 • HỦY ĐƠN & QUAY VỀ TRẢ HÀNG CHO QUÁN ➔"
             binding.btnCountdownExpiredAction.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#DC2626"))
 
             targetOrder?.let {
-                executeIncidentCancel(it, "Khách bom hàng sau 2 lần đếm ngược 15 phút ($pendingIncidentReason)")
+                executeIncidentCancel(it, "Khách bom hàng sau 2 lần đếm ngược ($round1Minutes phút + $round2Minutes phút) ($pendingIncidentReason)")
             }
         }
     }
@@ -1549,7 +1589,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         if (countdownRound == 1) {
             showIncidentReportDialog(targetOrder, isExpiredRoundOne = true)
         } else {
-            executeIncidentCancel(targetOrder, "Khách bom hàng sau 2 lần đếm ngược 15 phút ($pendingIncidentReason)")
+            executeIncidentCancel(targetOrder, "Khách bom hàng sau 2 lần đếm ngược ($round1Minutes phút + $round2Minutes phút) ($pendingIncidentReason)")
         }
     }
 
@@ -1772,16 +1812,68 @@ class DeliveryTripActivity : AppCompatActivity() {
      * Modal Báo Cáo Sự Cố & Bom Hàng (6.html & 8.html: cancelReportModal)
      * isExpiredRoundOne = true: Đã hết 15 phút lần 1, tài xế xác nhận báo cáo đơn rủi ro để bắt đầu đếm ngược 15 phút lần 2.
      */
+    /**
+     * Modal Báo Cáo Sự Cố & Bom Hàng (Có đếm ngược thời gian thực bên trong)
+     */
     private fun showIncidentReportDialog(order: Order, isExpiredRoundOne: Boolean = false) {
         val repBinding = com.chuyen_de_2.foodorder.internal.databinding.DialogReportIncidentBinding.inflate(layoutInflater)
         val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
-        
-        repBinding.tvIncidentOrderSub.text = if (isExpiredRoundOne) {
-            "Đơn #ORD-$shortCode • ĐÃ HẾT 15P LẦN 1 • Báo cáo đơn rủi ro"
+
+        var dialogCountdownTimer: android.os.CountDownTimer? = null
+
+        if (isExpiredRoundOne) {
+            repBinding.tvIncidentOrderSub.text = "Đơn #ORD-$shortCode • ĐÃ HẾT ${round1Minutes}P LẦN 1 • Báo cáo đơn rủi ro"
+            repBinding.tvIncidentCountdownDigits.text = "00:00"
+            repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round1Minutes}P LẦN 1"
+            repBinding.tvIncidentCountdownDesc.text = "Đã hết $round1Minutes phút chờ lần đầu. Khách chưa nhận món."
+            repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
+            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
         } else if (countdownRound == 2) {
-            "Đơn #ORD-$shortCode • ĐANG ĐẾM NGƯỢC LẦN 2 (Đơn rủi ro)"
+            repBinding.tvIncidentOrderSub.text = "Đơn #ORD-$shortCode • ĐANG ĐẾM NGƯỢC LẦN 2 (Đơn rủi ro)"
+            repBinding.tvIncidentCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
+            repBinding.tvIncidentCountdownDesc.text = "Nếu sau thời gian gia hạn khách không nhận, đơn sẽ bị hủy do bom hàng và bạn quay về Quán trả món."
+            repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
+            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+
+            if (countdownSecondsRemaining > 0) {
+                dialogCountdownTimer = object : android.os.CountDownTimer((countdownSecondsRemaining * 1000).toLong(), 1000) {
+                    override fun onTick(millisUntilFinished: Long) {
+                        val sec = (millisUntilFinished / 1000).toInt()
+                        repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", sec / 60, sec % 60)
+                    }
+
+                    override fun onFinish() {
+                        repBinding.tvIncidentCountdownDigits.text = "00:00"
+                        repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round2Minutes}P LẦN 2"
+                        repBinding.tvIncidentCountdownDesc.text = "Đã hết thời gian gia hạn Lần 2! Khách không nhận hàng."
+                    }
+                }.start()
+            } else {
+                repBinding.tvIncidentCountdownDigits.text = "00:00"
+            }
         } else {
-            "Đơn hàng: #ORD-$shortCode • Khách: ${order.customerName}"
+            repBinding.tvIncidentOrderSub.text = "Đơn hàng: #ORD-$shortCode • Khách: ${order.customerName}"
+            repBinding.tvIncidentCountdownSubtext.text = "LẦN 1/2 • phút còn lại"
+            repBinding.tvIncidentCountdownDesc.text = "Hệ thống đang đếm ngược $round1Minutes phút thời gian chờ nhận hàng..."
+            repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
+            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+
+            if (countdownSecondsRemaining > 0) {
+                dialogCountdownTimer = object : android.os.CountDownTimer((countdownSecondsRemaining * 1000).toLong(), 1000) {
+                    override fun onTick(millisUntilFinished: Long) {
+                        val sec = (millisUntilFinished / 1000).toInt()
+                        repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", sec / 60, sec % 60)
+                    }
+
+                    override fun onFinish() {
+                        repBinding.tvIncidentCountdownDigits.text = "00:00"
+                        repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round1Minutes}P LẦN 1"
+                        repBinding.tvIncidentCountdownDesc.text = "Đã hết $round1Minutes phút Lần 1 chờ khách."
+                    }
+                }.start()
+            } else {
+                repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:00", round1Minutes)
+            }
         }
 
         val reasons = arrayOf(
@@ -1795,12 +1887,19 @@ class DeliveryTripActivity : AppCompatActivity() {
             this, android.R.layout.simple_spinner_dropdown_item, reasons
         )
 
-        if (isExpiredRoundOne || countdownRound == 1) {
-            repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU 15P LẦN 2 ➔"
-            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
-        } else {
-            repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN HỦY ĐƠN BOM & QUAY VỀ TRẢ HÀNG ➔"
-            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+        repBinding.spinnerIncidentReason.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selectedReason = reasons[position]
+                if (selectedReason.contains("Bom hàng", ignoreCase = true) || countdownRound >= 2) {
+                    repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
+                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+                } else if (isExpiredRoundOne || countdownRound == 1) {
+                    repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
+                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+                }
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
         }
 
         var hasProof = false
@@ -1817,20 +1916,32 @@ class DeliveryTripActivity : AppCompatActivity() {
             .setView(repBinding.root)
             .create()
 
-        repBinding.btnCloseIncidentDialog.setOnClickListener { dialog.dismiss() }
-        repBinding.btnDismissIncident.setOnClickListener { dialog.dismiss() }
+        repBinding.btnCloseIncidentDialog.setOnClickListener {
+            dialogCountdownTimer?.cancel()
+            dialog.dismiss()
+        }
+        repBinding.btnDismissIncident.setOnClickListener {
+            dialogCountdownTimer?.cancel()
+            dialog.dismiss()
+        }
+        dialog.setOnDismissListener {
+            dialogCountdownTimer?.cancel()
+        }
 
         repBinding.btnConfirmIncidentCancel.setOnClickListener {
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
             val note = repBinding.etIncidentNote.text.toString().trim()
             val fullReason = if (note.isNotBlank()) "$reason ($note)" else reason
+            dialogCountdownTimer?.cancel()
             dialog.dismiss()
 
-            if (isExpiredRoundOne || countdownRound == 1) {
-                // Báo cáo sự cố lần 1: Đánh dấu ĐƠN RỦI RO trên Firebase & Kích hoạt đếm ngược 15P Lần 2
+            val isDirectBom = reason.contains("Bom hàng", ignoreCase = true) || (!isExpiredRoundOne && countdownRound >= 2)
+
+            if (!isDirectBom && (isExpiredRoundOne || countdownRound == 1)) {
+                // Báo cáo sự cố lần 1: Đánh dấu ĐƠN RỦI RO trên Firebase & Kích hoạt đếm ngược Lần 2
                 lifecycleScope.launch {
                     try {
-                        val riskReason = "Đơn rủi ro: $fullReason (Sau 15 phút chờ Lần 1)"
+                        val riskReason = "Đơn rủi ro: $fullReason (Sau $round1Minutes phút chờ Lần 1)"
                         val updates = mapOf<String, Any>(
                             "isRiskOrder" to true,
                             "riskStatus" to "RISK_REPORTED",
@@ -1842,10 +1953,10 @@ class DeliveryTripActivity : AppCompatActivity() {
                 }
                 start15MinCountdown(order, fullReason, round = 2)
             } else {
-                // Lần 2 (hoặc sự cố ở bước khác): Xác nhận hủy đơn bom và trả hàng về quán
+                // Lần 2 (hoặc khách từ chối nhận - Bom hàng): Xác nhận hủy đơn bom và quay về quán trả món
                 lifecycleScope.launch {
                     try {
-                        val riskReason = "Đơn bom hàng: $fullReason (Sau 2 lần đếm ngược 15 phút)"
+                        val riskReason = "Đơn bom hàng: $fullReason (Sau 2 lần đếm ngược: $round1Minutes phút + $round2Minutes phút)"
                         val updates = mapOf<String, Any>(
                             "isRiskOrder" to true,
                             "riskStatus" to "RISK_CONFIRMED",
@@ -1893,17 +2004,104 @@ class DeliveryTripActivity : AppCompatActivity() {
                 com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
             } catch (_: Exception) {}
 
-            // Nếu là đơn gộp và còn đơn chưa giao -> Hiện modal điều hướng theo 8.html & 6.html (bomReturnFlowModal)
-            val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) }
-            if (isBundleMode && remainingOrders.isNotEmpty()) {
-                showBomReturnFlowDialog(order, isReturningToStore = false, nextOrder = remainingOrders.first())
-            } else if (isCustomerFault) {
-                showBomReturnFlowDialog(order, isReturningToStore = true, nextOrder = null)
+            // Quay ra màn hình chính có đầy đủ địa chỉ quán để tài xế chạy về trả hàng
+            if (isCustomerFault) {
+                switchToReturningToStoreScreen(order)
             } else {
                 Toast.makeText(this@DeliveryTripActivity, "Đã báo cáo sự cố & hủy đơn: $reason", Toast.LENGTH_LONG).show()
                 finish()
             }
         }
+    }
+
+    /**
+     * Chuyển màn hình về chế độ Dẫn Đường Về Quán Trả Món khi đơn bị bom
+     */
+    private fun switchToReturningToStoreScreen(order: Order) {
+        currentStep = 1
+        saveStep(order.orderId, 1)
+
+        // Hiển thị layoutStep1 (Dẫn đường về Quán), ẩn các bước khác
+        binding.layoutStep1.visibility = View.VISIBLE
+        binding.layoutStep2.visibility = View.GONE
+        binding.layoutStep3.visibility = View.GONE
+        binding.layoutStep4.visibility = View.GONE
+        binding.cardCountdownWarning.visibility = View.GONE
+        countdownTimer?.cancel()
+        isCountdownActive = false
+
+        // Ẩn thanh quẹt lấy món, bật thông báo bị bom & nút xác nhận trả món xong
+        binding.swipeTrack.visibility = View.GONE
+        binding.layoutReturningToStoreNotice.visibility = View.VISIBLE
+        binding.btnConfirmReturnFinished.visibility = View.VISIBLE
+
+        // Cập nhật Stepper trên đỉnh: "1. Đã lấy món ✓ -> 2. Về quán trả món 🏪"
+        binding.layoutTripStepperBundle.visibility = View.GONE
+        binding.layoutTripStepper.visibility = View.VISIBLE
+        binding.step1Badge.setBackgroundResource(R.drawable.bg_badge_green)
+        binding.step1Badge.text = "✓"
+        binding.step1Text.text = "Đã lấy món"
+        binding.step2Badge.setBackgroundResource(R.drawable.bg_badge_orange)
+        binding.step2Badge.text = "🏪"
+        binding.step2Text.text = "Về quán trả món"
+        binding.stepDivider.setBackgroundColor(Color.parseColor("#EA580C"))
+
+        // Cập nhật Tên quán & Địa chỉ quán
+        val sName = if (order.shopName.isNotBlank()) order.shopName else binding.tvStep1StoreName.text.toString().ifBlank { "Quán Oishi Food" }
+        val displayAddress = storeAddress.ifBlank { "Địa chỉ Quán ăn" }
+        binding.tvStep1StoreName.text = sName
+        binding.tvStep1StoreAddress.text = displayAddress
+
+        val shortCode = QRCodeUtils.getShortOrderCode(order.orderId)
+        binding.tvStep1OrderCode.text = "🚨 ĐƠN BỊ BOM #ORD-$shortCode • TRẢ MÓN VỀ QUÁN"
+        binding.tvStep1OrderCode.setBackgroundResource(R.drawable.bg_badge_orange)
+        binding.tvStep1OrderCode.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+
+        // Cập nhật khung chỉ đường trên bản đồ
+        binding.tvStep1NavInstruction.text = "Quay về quán: $sName"
+        binding.tvStep1NavSubtext.text = displayAddress
+        binding.btnOpenNavStep1.text = "Chỉ đường"
+        binding.btnOpenNavStep1.setOnClickListener {
+            GoogleMapUtils.openGoogleMapsNavigation(
+                context = this,
+                destLat = storeLat,
+                destLng = storeLng,
+                destinationName = sName,
+                address = displayAddress,
+                mode = "l"
+            )
+        }
+
+        // Nút gọi điện cho quán
+        binding.btnCallStoreStep1.setOnClickListener {
+            val phone = order.shopPhone.ifBlank { storePhone }
+            if (phone.isNotBlank()) {
+                startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+            } else {
+                Toast.makeText(this, "Quán chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Cập nhật thông tin món cần trả & số tiền quán hoàn trả
+        val foodAmount = if (order.subtotalAmount > 0) order.subtotalAmount else (order.effectiveTotal - order.shippingFee).coerceAtLeast(0)
+        val returnFee = 25000L
+        val totalRefund = foodAmount + returnFee
+        val dishesSummary = if (order.items.isNotEmpty()) {
+            order.items.values.joinToString(", ") { "${it.quantity}x ${it.name.ifBlank { it.dishName }}" }
+        } else {
+            "Món ăn theo đơn #ORD-$shortCode"
+        }
+        binding.tvReturnRefundInfo.text = "Món cần trả: $dishesSummary\n💰 Quán phải hoàn tiền cho bạn: ${totalRefund.toVndCurrency()} (Gồm tiền món ${foodAmount.toVndCurrency()} + cước hoàn trả ${returnFee.toVndCurrency()})"
+
+        // Cập nhật bản đồ GPS để điều hướng về Quán
+        if (driverLat != 0.0 && driverLng != 0.0) {
+            binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+        }
+        if (storeLat != 0.0 && storeLng != 0.0) {
+            binding.webViewMapStep1.evaluateJavascript("setDestination($storeLat, $storeLng);", null)
+        }
+
+        Toast.makeText(this, "🚨 Đã xác nhận đơn bị bom! Đang hiển thị địa chỉ Quán để chạy về trả món.", Toast.LENGTH_LONG).show()
     }
 
     /**
@@ -1926,28 +2124,28 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         val dialog = AlertDialog.Builder(this)
             .setView(flowBinding.root)
-            .setCancelable(false)
+            .setCancelable(true)
             .create()
 
         if (!isReturningToStore && nextOrder != null) {
             // Nhánh 1: Còn đơn ghép cần giao (Demo ship/8.html)
             flowBinding.tvBomFlowIcon.text = "🚨"
-            flowBinding.tvBomFlowTitle.text = "ĐÃ HỦY ĐƠN BOM • TIẾP TỤC ĐƠN GHÉP"
+            flowBinding.tvBomFlowTitle.text = "ĐÃ HỦY ĐƠN BOM • TÙY CHỌN HÀNH TRÌNH"
             flowBinding.tvBomFlowTitle.setTextColor(ContextCompat.getColor(this, R.color.danger))
             flowBinding.tvBomOrderSub.text = "Đơn #ORD-$shortCode • Bị khách bom hàng"
-            flowBinding.tvBomFlowTag.text = "Giữ Món Trên Xe"
+            flowBinding.tvBomFlowTag.text = "Tự Do Lựa Chọn"
             flowBinding.tvBomFlowTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EFF6FF"))
             flowBinding.tvBomFlowTag.setTextColor(Color.parseColor("#1D4ED8"))
 
             val nextSc = QRCodeUtils.getShortOrderCode(nextOrder.orderId)
-            flowBinding.tvBomPolicyNote.text = "⚠️ Quy trình đơn ghép: Món ăn được lưu giữ nguyên niêm phong trong thùng xe. Quý tài xế vui lòng tiếp tục đi giao đơn ghép kế tiếp (#ORD-$nextSc) trước. Sau khi hoàn tất, hệ thống sẽ điều hướng bạn quay về Quán để trả lại món và nhận tiền hoàn!"
+            flowBinding.tvBomPolicyNote.text = "⚠️ Bạn có quyền tự do lựa chọn:\n• Tiếp tục đi giao đơn ghép kế tiếp (#ORD-$nextSc) trước, lưu món bom trong thùng xe.\n• HOẶC quay về Quán ngay để trả lại món và nhận tiền hoàn!"
 
             flowBinding.layoutBomStoreAddress.visibility = View.GONE
             flowBinding.layoutBomNextOrderInfo.visibility = View.VISIBLE
 
             val nextIdx = bundleOrders.indexOf(nextOrder)
             val nextCh = if (nextIdx >= 0) nextIdx + 1 else 1
-            flowBinding.tvBomNextTitle.text = "🛵 ĐƠN GHÉP KẾ TIẾP CẦN GIAO NGAY (CHẶNG $nextCh/${bundleOrders.size}):"
+            flowBinding.tvBomNextTitle.text = "🛵 ĐƠN GHÉP KẾ TIẾP CẦN GIAO (CHẶNG $nextCh/${bundleOrders.size}):"
             flowBinding.tvBomNextCustName.text = "#ORD-$nextSc • ${nextOrder.customerName}"
             flowBinding.tvBomNextAddr.text = nextOrder.effectiveAddress
             flowBinding.tvBomNextCod.text = if (nextOrder.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true)) {
@@ -1963,17 +2161,27 @@ class DeliveryTripActivity : AppCompatActivity() {
             flowBinding.tvBomTotalRefund.text = totalRefund.toVndCurrency()
 
             flowBinding.tvBomStatusIcon.text = "🛵"
-            flowBinding.tvBomStoreStatus.text = "Đơn ghép kế tiếp đang chờ: #ORD-$nextSc (${nextOrder.customerName})"
+            flowBinding.tvBomStoreStatus.text = "Tùy chọn của bạn: Giao tiếp đơn 2 (#ORD-$nextSc) hoặc về quán trả món ngay."
 
-            flowBinding.btnConfirmBomAction.text = "🛵 TIẾP TỤC GIAO ĐƠN TIẾP THEO (#ORD-$nextSc) ➔"
+            // Lựa chọn 1: Giao tiếp đơn 2
+            flowBinding.btnConfirmBomAction.text = "🛵 TIẾP TỤC GIAO ĐƠN THỨ 2 (#ORD-$nextSc) ➔"
             flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
             flowBinding.btnConfirmBomAction.setOnClickListener {
                 dialog.dismiss()
                 switchActiveBundleCustomer(nextIdx)
                 updateStepUI(3)
             }
+
+            // Lựa chọn 2: Về quán trả món ngay
+            flowBinding.btnBomReturnToStoreNow.visibility = View.VISIBLE
+            flowBinding.btnBomReturnToStoreNow.text = "🏪 QUAY VỀ QUÁN TRẢ MÓN NGAY ➔"
+            flowBinding.btnBomReturnToStoreNow.setTextColor(Color.parseColor("#DC2626"))
+            flowBinding.btnBomReturnToStoreNow.setOnClickListener {
+                dialog.dismiss()
+                showBomReturnFlowDialog(bomOrder, isReturningToStore = true, nextOrder = null)
+            }
         } else {
-            // Nhánh 2: Đã xong hết các đơn ghép hoặc đơn đơn lẻ -> Về Quán trả món
+            // Nhánh 2: Về Quán trả món
             flowBinding.tvBomFlowIcon.text = "🏪"
             flowBinding.tvBomFlowTitle.text = "LUỒNG TRẢ MÓN VỀ QUÁN"
             flowBinding.tvBomFlowTitle.setTextColor(ContextCompat.getColor(this, R.color.danger))
@@ -1983,7 +2191,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             flowBinding.tvBomFlowTag.setTextColor(Color.parseColor("#DC2626"))
 
             val sName = binding.tvStep1StoreName.text.toString().ifBlank { "Quán Oishi Food" }
-            flowBinding.tvBomPolicyNote.text = "⚠️ Toàn bộ đơn ghép đã hoàn tất! Quý tài xế vui lòng di chuyển về lại $sName để bàn giao lại món ăn. Quán có trách nhiệm hoàn trả tiền món + thanh toán cước hoàn hàng (${totalRefund.toVndCurrency()}) cho bạn."
+            flowBinding.tvBomPolicyNote.text = "Quý tài xế vui lòng di chuyển về lại $sName để bàn giao lại món ăn. Quán có trách nhiệm hoàn trả tiền món + thanh toán cước hoàn hàng (${totalRefund.toVndCurrency()}) cho bạn."
 
             flowBinding.layoutBomStoreAddress.visibility = View.VISIBLE
             flowBinding.layoutBomNextOrderInfo.visibility = View.GONE
@@ -2018,6 +2226,24 @@ class DeliveryTripActivity : AppCompatActivity() {
             flowBinding.tvBomStatusIcon.text = "⏳"
             flowBinding.tvBomStoreStatus.text = "Tài xế đang quay lại quán. Vui lòng bàn giao món và nhận tiền hoàn từ Quán."
 
+            // Nếu vẫn còn đơn ghép chưa giao -> shipper có thể đổi ý đi giao tiếp
+            val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) && it.orderId != bomOrder.orderId }
+            if (isBundleMode && remainingOrders.isNotEmpty()) {
+                val nextRemaining = remainingOrders.first()
+                val nextSc = QRCodeUtils.getShortOrderCode(nextRemaining.orderId)
+                val nextIdx = bundleOrders.indexOf(nextRemaining)
+                flowBinding.btnBomReturnToStoreNow.visibility = View.VISIBLE
+                flowBinding.btnBomReturnToStoreNow.text = "🛵 Đổi ý: Tiếp tục giao đơn #ORD-$nextSc"
+                flowBinding.btnBomReturnToStoreNow.setTextColor(Color.parseColor("#2563EB"))
+                flowBinding.btnBomReturnToStoreNow.setOnClickListener {
+                    dialog.dismiss()
+                    switchActiveBundleCustomer(nextIdx)
+                    updateStepUI(3)
+                }
+            } else {
+                flowBinding.btnBomReturnToStoreNow.visibility = View.GONE
+            }
+
             flowBinding.btnConfirmBomAction.text = "🏪 ĐÃ TỚI QUÁN • TRẢ MÓN & NHẬN ${totalRefund.toVndCurrency()} TỪ QUÁN"
             flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.brand_green))
             flowBinding.btnConfirmBomAction.setOnClickListener {
@@ -2026,18 +2252,34 @@ class DeliveryTripActivity : AppCompatActivity() {
                         firebaseRepository.updateOrderStatus(bo.orderId, Order.Status.RETURNED_TO_STORE, "Shipper đã trả món về quán & nhận hoàn tiền")
                     }
                     flowBinding.tvBomStatusIcon.text = "✓"
-                    flowBinding.tvBomStoreStatus.text = "✓ ĐÃ TRẢ MÓN & NHẬN ĐỦ ${totalRefund.toVndCurrency()} TỪ $sName!"
-                    flowBinding.btnConfirmBomAction.text = "🏠 HOÀN TẤT CHUYẾN • VỀ DANH SÁCH ĐƠN ➔"
-                    flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this@DeliveryTripActivity, R.color.primary))
-                    flowBinding.btnConfirmBomAction.setOnClickListener {
-                        dialog.dismiss()
-                        finish()
+
+                    if (isBundleMode && remainingOrders.isNotEmpty()) {
+                        val nextRemaining = remainingOrders.first()
+                        val nextSc = QRCodeUtils.getShortOrderCode(nextRemaining.orderId)
+                        val nextIdx = bundleOrders.indexOf(nextRemaining)
+                        flowBinding.tvBomStoreStatus.text = "✓ ĐÃ TRẢ MÓN! Bạn còn ${remainingOrders.size} đơn ghép cần giao tiếp."
+                        flowBinding.btnConfirmBomAction.text = "🛵 TIẾP TỤC ĐI GIAO ĐƠN GHÉP (#ORD-$nextSc) ➔"
+                        flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this@DeliveryTripActivity, R.color.primary))
+                        flowBinding.btnConfirmBomAction.setOnClickListener {
+                            dialog.dismiss()
+                            switchActiveBundleCustomer(nextIdx)
+                            updateStepUI(3)
+                        }
+                    } else {
+                        flowBinding.tvBomStoreStatus.text = "✓ ĐÃ TRẢ MÓN & NHẬN ĐỦ ${totalRefund.toVndCurrency()} TỪ $sName!"
+                        flowBinding.btnConfirmBomAction.text = "🏠 HOÀN TẤT CHUYẾN • VỀ DANH SÁCH ĐƠN ➔"
+                        flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this@DeliveryTripActivity, R.color.primary))
+                        flowBinding.btnConfirmBomAction.setOnClickListener {
+                            dialog.dismiss()
+                            finish()
+                        }
                     }
                 }
             }
         }
 
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.show()
     }
 
     private fun launchCameraQrScanner() {

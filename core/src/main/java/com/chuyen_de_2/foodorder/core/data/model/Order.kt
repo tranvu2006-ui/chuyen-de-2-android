@@ -37,6 +37,9 @@ data class Order(
     @SerializedName("shopPhone")
     val shopPhone: String = "",
 
+    @SerializedName("shopImageUrl", alternate = ["shopImage", "storeImageUrl", "storeImage"])
+    val shopImageUrl: String = "",
+
     @SerializedName("driverId")
     var driverId: String? = null,
 

@@ -159,7 +159,8 @@ class DriverListFragment : Fragment() {
                         order.status == Order.Status.ASSIGNED ||
                         order.status == Order.Status.ARRIVED_AT_SHOP ||
                         order.status == Order.Status.DELIVERING ||
-                        order.status == Order.Status.ARRIVED_AT_CUSTOMER
+                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        order.status == Order.Status.RETURNING_TO_STORE
                     )
                 }
                 val activeOrdersByDriver = activeOrders.groupBy { it.shipperId }
@@ -170,7 +171,9 @@ class DriverListFragment : Fragment() {
                     if (deliveringOrders.isNotEmpty()) {
                         val primaryOrder = deliveringOrders.first()
                         val shortCode = QRCodeUtils.getShortOrderCode(primaryOrder.orderId)
-                        val info = if (deliveringOrders.size > 1) {
+                        val info = if (primaryOrder.status == Order.Status.RETURNING_TO_STORE) {
+                            "#ORD-$shortCode • Trả hàng về quán"
+                        } else if (deliveringOrders.size > 1) {
                             "#ORD-$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
                         } else {
                             "#ORD-$shortCode • ${primaryOrder.customerName}"

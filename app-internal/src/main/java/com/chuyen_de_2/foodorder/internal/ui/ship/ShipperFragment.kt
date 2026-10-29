@@ -171,7 +171,8 @@ class ShipperFragment : Fragment() {
                 (it.status == Order.Status.DELIVERING ||
                  it.status == Order.Status.ASSIGNED ||
                  it.status == Order.Status.ARRIVED_AT_SHOP ||
-                 it.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
+                 it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                 it.status == Order.Status.RETURNING_TO_STORE) &&
                         it.shipperId == currentUid
             }
 

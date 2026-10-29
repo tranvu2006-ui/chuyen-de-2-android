@@ -409,7 +409,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Action Button -->
+        <!-- Action Button Chính -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnConfirmBomAction"
             style="@style/Widget.Material3.Button"
@@ -422,6 +422,20 @@
             android:textSize="12.5sp"
             android:textStyle="bold"
             app:cornerRadius="12dp" />
+
+        <!-- Nút tùy chọn quay về Quán trả món ngay (Tự do của shipper) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBomReturnToStoreNow"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginTop="8dp"
+            android:text="🏪 Quay Về Quán Trả Món Ngay"
+            android:textColor="@color/danger"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="12dp"
+            android:visibility="gone" />
 
     </LinearLayout>
 </ScrollView>

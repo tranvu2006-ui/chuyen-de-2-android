@@ -118,7 +118,8 @@ class FirebaseRepository @Inject constructor(
 
             var targetShopPhone = order.shopPhone.trim()
             var targetShopName = order.shopName.trim()
-            if ((targetShopPhone.isBlank() || targetShopName.isBlank()) && targetStoreId.isNotBlank()) {
+            var targetShopImageUrl = order.shopImageUrl.trim()
+            if ((targetShopPhone.isBlank() || targetShopName.isBlank() || targetShopImageUrl.isBlank()) && targetStoreId.isNotBlank()) {
                 try {
                     val storeSnap = database.getReference("stores").child(targetStoreId).get().await()
                     if (targetShopPhone.isBlank()) {
@@ -126,6 +127,10 @@ class FirebaseRepository @Inject constructor(
                     }
                     if (targetShopName.isBlank()) {
                         targetShopName = storeSnap.child("name").getValue(String::class.java).orEmpty().trim()
+                    }
+                    if (targetShopImageUrl.isBlank()) {
+                        val storeObj = storeSnap.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                        targetShopImageUrl = storeObj?.effectiveImageUrl.orEmpty().trim()
                     }
                 } catch (_: Exception) {}
             }
@@ -136,6 +141,7 @@ class FirebaseRepository @Inject constructor(
                 shopId = targetStoreId,
                 shopName = targetShopName.ifBlank { order.shopName },
                 shopPhone = targetShopPhone,
+                shopImageUrl = targetShopImageUrl,
                 deliveryAddress = targetAddress,
                 address = targetAddress,
                 totalPayment = targetTotal,
@@ -2449,6 +2455,65 @@ class FirebaseRepository @Inject constructor(
             true
         } catch (_: Exception) {
             false
+        }
+    }
+
+    // ==================== CẤU HÌNH THỜI GIAN ĐẾM NGƯỢC BOM HÀNG ====================
+
+    /** Lắng nghe cấu hình thời gian đếm ngược sự cố / bom hàng (Lần 1 và Lần 2) */
+    fun observeCountdownConfig(): Flow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = callbackFlow {
+        val ref = database.getReference("system_config").child("delivery_countdown")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val round1 = snapshot.child("round1Minutes").getValue(Int::class.java) ?: 15
+                val round2 = snapshot.child("round2Minutes").getValue(Int::class.java) ?: 15
+                val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
+                trySend(
+                    com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig(
+                        round1Minutes = round1,
+                        round2Minutes = round2,
+                        updatedAt = updatedAt
+                    )
+                )
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lấy 1 lần cấu hình thời gian đếm ngược */
+    suspend fun getCountdownConfig(): com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig {
+        return try {
+            val snapshot = database.getReference("system_config").child("delivery_countdown").get().await()
+            val round1 = snapshot.child("round1Minutes").getValue(Int::class.java) ?: 15
+            val round2 = snapshot.child("round2Minutes").getValue(Int::class.java) ?: 15
+            val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
+            com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig(
+                round1Minutes = round1,
+                round2Minutes = round2,
+                updatedAt = updatedAt
+            )
+        } catch (_: Exception) {
+            com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig()
+        }
+    }
+
+    /** Cập nhật cấu hình thời gian đếm ngược giao hàng */
+    suspend fun updateCountdownConfig(round1Minutes: Int, round2Minutes: Int): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "round1Minutes" to round1Minutes,
+                "round2Minutes" to round2Minutes,
+                "updatedAt" to System.currentTimeMillis()
+            )
+            database.getReference("system_config").child("delivery_countdown").updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }

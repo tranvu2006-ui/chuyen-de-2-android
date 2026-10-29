@@ -69,12 +69,13 @@ class ShipperViewModel @Inject constructor(
                 val myOrders = orders.filter { it.shipperId == shipperId }
                 _assignedOrders.value = myOrders
 
-                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER)
+                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER, RETURNING_TO_STORE)
                 val delivering = myOrders.find {
                     it.status == Order.Status.DELIVERING ||
                     it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
                     it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
                 }
                 _currentDeliveryOrderId.value = delivering?.orderId
 
@@ -82,7 +83,11 @@ class ShipperViewModel @Inject constructor(
                 val isCurrentlyOnline = _isOnline.value ?: true
                 if (delivering != null) {
                     val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
-                    val displayCode = "#ORD-$shortCode (${delivering.customerName})"
+                    val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
+                        "#ORD-$shortCode (Trả hàng về quán)"
+                    } else {
+                        "#ORD-$shortCode (${delivering.customerName})"
+                    }
                     firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
                 } else {
                     val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
@@ -121,7 +126,8 @@ class ShipperViewModel @Inject constructor(
                     it.status == Order.Status.DELIVERING ||
                     it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
                     it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
                 } == true
                 val status = if (hasDelivering) {
                     com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
@@ -141,7 +147,8 @@ class ShipperViewModel @Inject constructor(
             it.status == Order.Status.DELIVERING ||
             it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
             it.status == Order.Status.ARRIVED_AT_SHOP ||
-            it.status == Order.Status.ASSIGNED
+            it.status == Order.Status.ASSIGNED ||
+            it.status == Order.Status.RETURNING_TO_STORE
         } ?: 0
 
         if (currentActiveCount >= 3) {

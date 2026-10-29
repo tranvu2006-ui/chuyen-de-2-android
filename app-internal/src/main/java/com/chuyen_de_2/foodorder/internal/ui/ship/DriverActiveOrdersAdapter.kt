@@ -67,12 +67,30 @@ class DriverActiveOrdersAdapter(
                 binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#15803D"))
             }
 
-            binding.tvActiveOrderStatusTag.text = when (order.status) {
-                Order.Status.ARRIVED_AT_SHOP -> "Đã đến quán"
-                Order.Status.DELIVERING -> "Đang giao khách"
-                Order.Status.ARRIVED_AT_CUSTOMER -> "Đã đến nhà khách"
-                Order.Status.RETURNING_TO_STORE -> "Đang trả quán"
-                else -> "Đang lấy món"
+            val isReturningToStore = order.status == Order.Status.RETURNING_TO_STORE
+            if (isReturningToStore) {
+                binding.tvActiveOrderStatusTag.text = "🚨 Đang trả món về quán"
+                binding.tvActiveOrderStatusTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
+                binding.tvActiveOrderStatusTag.setTextColor(Color.parseColor("#DC2626"))
+                binding.btnCancelOrder.visibility = View.GONE
+                binding.btnContinueTrip.text = "🏪 QUAY VỀ QUÁN TRẢ MÓN ➔"
+                binding.btnContinueTrip.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+            } else {
+                binding.tvActiveOrderStatusTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EFF6FF"))
+                binding.tvActiveOrderStatusTag.setTextColor(Color.parseColor("#1D4ED8"))
+                binding.tvActiveOrderStatusTag.text = when (order.status) {
+                    Order.Status.ARRIVED_AT_SHOP -> "Đã đến quán"
+                    Order.Status.DELIVERING -> "Đang giao khách"
+                    Order.Status.ARRIVED_AT_CUSTOMER -> "Đã đến nhà khách"
+                    else -> "Đang lấy món"
+                }
+                binding.btnCancelOrder.visibility = View.VISIBLE
+                binding.btnContinueTrip.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EE4D2D"))
+                if (orders.size > 1) {
+                    binding.btnContinueTrip.text = "🛵 TIẾP TỤC CHẶNG $ch/${orders.size} ➔"
+                } else {
+                    binding.btnContinueTrip.text = "🛵 TIẾP TỤC LỘ TRÌNH ➔"
+                }
             }
 
             val cusName = order.customerName.ifBlank { "Khách hàng" }
@@ -85,12 +103,6 @@ class DriverActiveOrdersAdapter(
                 "Món ăn theo đơn"
             }
             binding.tvActiveOrderDishes.text = "Món: $dishSummary"
-
-            if (orders.size > 1) {
-                binding.btnContinueTrip.text = "🛵 TIẾP TỤC CHẶNG $ch/${orders.size} ➔"
-            } else {
-                binding.btnContinueTrip.text = "🛵 TIẾP TỤC LỘ TRÌNH ➔"
-            }
 
             binding.btnContinueTrip.setOnClickListener {
                 onContinueTrip(order)

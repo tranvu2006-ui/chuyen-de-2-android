@@ -46,6 +46,10 @@ class AdminDashboardFragment : Fragment() {
             viewModel.restoreDefaultCategories()
         }
 
+        binding.btnConfigureCountdown.setOnClickListener {
+            showCountdownConfigDialog()
+        }
+
         setupNavigationClicks()
         observeViewModel()
     }
@@ -139,8 +143,59 @@ class AdminDashboardFragment : Fragment() {
                         }
                     }
                 }
+
+                launch {
+                    viewModel.countdownConfig.collect { config ->
+                        binding.tvCurrentCountdownConfig.text =
+                            "Lần 1: ${config.round1Minutes} phút • Lần 2 (gia hạn): ${config.round2Minutes} phút"
+                    }
+                }
             }
         }
+    }
+
+    private fun showCountdownConfigDialog() {
+        val dialogBinding = com.chuyen_de_2.foodorder.admin.databinding.DialogEditCountdownConfigBinding.inflate(layoutInflater)
+        val currentConfig = viewModel.countdownConfig.value
+
+        dialogBinding.etRound1Minutes.setText(currentConfig.round1Minutes.toString())
+        dialogBinding.etRound2Minutes.setText(currentConfig.round2Minutes.toString())
+
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setView(dialogBinding.root)
+            .create()
+
+        dialogBinding.btnResetDefault.setOnClickListener {
+            dialogBinding.etRound1Minutes.setText("15")
+            dialogBinding.etRound2Minutes.setText("15")
+        }
+
+        dialogBinding.btnSaveConfig.setOnClickListener {
+            val r1Str = dialogBinding.etRound1Minutes.text?.toString()?.trim().orEmpty()
+            val r2Str = dialogBinding.etRound2Minutes.text?.toString()?.trim().orEmpty()
+
+            val r1 = r1Str.toIntOrNull()
+            val r2 = r2Str.toIntOrNull()
+
+            if (r1 == null || r1 <= 0 || r1 > 120) {
+                dialogBinding.tilRound1Minutes.error = "Vui lòng nhập từ 1 đến 120 phút"
+                return@setOnClickListener
+            } else {
+                dialogBinding.tilRound1Minutes.error = null
+            }
+
+            if (r2 == null || r2 <= 0 || r2 > 120) {
+                dialogBinding.tilRound2Minutes.error = "Vui lòng nhập từ 1 đến 120 phút"
+                return@setOnClickListener
+            } else {
+                dialogBinding.tilRound2Minutes.error = null
+            }
+
+            viewModel.saveCountdownConfig(r1, r2)
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     override fun onDestroyView() {

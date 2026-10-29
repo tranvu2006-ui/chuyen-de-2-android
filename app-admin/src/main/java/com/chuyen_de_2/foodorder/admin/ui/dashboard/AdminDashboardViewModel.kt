@@ -36,11 +36,34 @@ class AdminDashboardViewModel @Inject constructor(
     private val _kpi = MutableStateFlow(DashboardKpi())
     val kpi: StateFlow<DashboardKpi> = _kpi.asStateFlow()
 
+    private val _countdownConfig = MutableStateFlow(com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig())
+    val countdownConfig: StateFlow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = _countdownConfig.asStateFlow()
+
     private val _actionMessage = MutableStateFlow<String?>(null)
     val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
 
     init {
         observePlatformData()
+        observeCountdownConfig()
+    }
+
+    private fun observeCountdownConfig() {
+        viewModelScope.launch {
+            firebaseRepo.observeCountdownConfig().collect { config ->
+                _countdownConfig.value = config
+            }
+        }
+    }
+
+    fun saveCountdownConfig(round1Minutes: Int, round2Minutes: Int) {
+        viewModelScope.launch {
+            val result = firebaseRepo.updateCountdownConfig(round1Minutes, round2Minutes)
+            if (result.isSuccess) {
+                _actionMessage.value = "Đã lưu cài đặt: Lần 1 = $round1Minutes phút, Lần 2 = $round2Minutes phút!"
+            } else {
+                _actionMessage.value = "Lưu thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
     }
 
     private fun observePlatformData() {

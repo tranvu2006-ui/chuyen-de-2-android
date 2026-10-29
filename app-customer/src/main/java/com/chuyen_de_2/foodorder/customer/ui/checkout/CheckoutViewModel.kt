@@ -163,6 +163,7 @@ class CheckoutViewModel @Inject constructor(
 
                     val resolvedShopPhone = targetStore?.phone.orEmpty().trim()
                     val resolvedShopName = targetStore?.name?.ifBlank { cart.shopName } ?: cart.shopName
+                    val resolvedShopImage = targetStore?.effectiveImageUrl.orEmpty().trim()
 
                     val initialStatus = if (paymentMode == Order.PaymentMode.COD) {
                         Order.Status.PENDING
@@ -178,6 +179,7 @@ class CheckoutViewModel @Inject constructor(
                         shopId = cart.shopId,
                         shopName = resolvedShopName,
                         shopPhone = resolvedShopPhone,
+                        shopImageUrl = resolvedShopImage,
                         status = initialStatus,
                         orderStatus = initialStatus,
                         total = finalPayment,

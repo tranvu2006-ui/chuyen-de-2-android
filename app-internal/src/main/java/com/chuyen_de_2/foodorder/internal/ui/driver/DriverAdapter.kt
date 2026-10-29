@@ -60,11 +60,17 @@ class DriverAdapter(
                     binding.tvActionNote.setTextColor(Color.parseColor("#10B981"))
                 }
                 Driver.DutyStatus.DELIVERING -> {
-                    binding.tvStatusBadge.text = "🚚 Đang giao đơn"
+                    val isReturning = driver.currentOrderCode.contains("Trả hàng", ignoreCase = true) ||
+                            driver.currentOrderCode.contains("Trả món", ignoreCase = true)
+                    if (isReturning) {
+                        binding.tvStatusBadge.text = "🚨 Đang trả món về quán"
+                        binding.tvActionNote.text = "Quay về quán trả món"
+                    } else {
+                        binding.tvStatusBadge.text = "🚚 Đang giao đơn"
+                        binding.tvActionNote.text = "Đang giao trên đường"
+                    }
                     binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_busy)
                     binding.tvStatusBadge.setTextColor(Color.parseColor("#EE4D2D"))
-
-                    binding.tvActionNote.text = "Đang giao trên đường"
                     binding.tvActionNote.background = null
                     binding.tvActionNote.setTextColor(Color.parseColor("#EE4D2D"))
                 }

@@ -669,6 +669,51 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- Banner thông báo quay về quán trả món do bị bom -->
+                    <LinearLayout
+                        android:id="@+id/layoutReturningToStoreNotice"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:background="@drawable/bg_warning_inline"
+                        android:backgroundTint="#FEF2F2"
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🚨"
+                                android:textSize="18sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:text="ĐƠN HÀNG BỊ BOM • ĐANG QUAY VỀ QUÁN"
+                                android:textColor="#DC2626"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvReturnRefundInfo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:lineSpacingExtra="2dp"
+                            android:text="Quán sẽ hoàn trả tiền món + cước hoàn hàng (25.000đ) khi bạn bàn giao lại món ăn tại Quán."
+                            android:textColor="#991B1B"
+                            android:textSize="11.5sp" />
+                    </LinearLayout>
+
                     <!-- THANH TRƯỢT GẠT SANG PHẢI XÁC NHẬN ĐÃ ĐẾN QUÁN (4.html: swipe-container) -->
                     <FrameLayout
                         android:id="@+id/swipeTrack"
@@ -707,6 +752,22 @@
                                 android:textStyle="bold" />
                         </FrameLayout>
                     </FrameLayout>
+
+                    <!-- Nút bấm xác nhận đã trả món cho quán khi bị bom hàng -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnConfirmReturnFinished"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:backgroundTint="@color/brand_green"
+                        android:text="🏪 TÔI ĐÃ VỀ TỚI QUÁN &amp; TRẢ MÓN XONG"
+                        android:textColor="#FFFFFF"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        app:cornerRadius="12dp"
+                        app:icon="@drawable/ic_check_circle"
+                        app:iconGravity="textStart"
+                        app:iconTint="#FFFFFF" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -1941,6 +2002,7 @@
                                 android:textStyle="bold" />
 
                             <TextView
+                                android:id="@+id/tvCountdownBadge"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:background="@drawable/bg_badge_shop_tag"
@@ -2016,7 +2078,7 @@
                                 android:textSize="11sp" />
                         </LinearLayout>
 
-                        <!-- Nút tua nhanh & hủy đếm ngược -->
+                        <!-- Nút xác nhận khách đã ra nhận -->
                         <LinearLayout
                             android:id="@+id/layoutCountdownActiveButtons"
                             android:layout_width="match_parent"
@@ -2025,41 +2087,22 @@
                             android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnFastForwardCountdown"
-                                style="@style/Widget.Material3.Button.TonalButton"
-                                android:layout_width="0dp"
-                                android:layout_height="40dp"
-                                android:layout_marginEnd="4dp"
-                                android:layout_weight="1"
-                                android:backgroundTint="#EFF6FF"
-                                android:text="Tua Hết 15P (Demo)"
-                                app:icon="@drawable/ic_zap"
-                                app:iconSize="14dp"
-                                app:iconTint="#1D4ED8"
-                                android:textColor="#1D4ED8"
-                                android:textSize="11sp"
-                                android:textStyle="bold"
-                                app:cornerRadius="10dp" />
-
-                            <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnCancelCountdown"
                                 style="@style/Widget.Material3.Button.TonalButton"
-                                android:layout_width="0dp"
-                                android:layout_height="40dp"
-                                android:layout_marginStart="4dp"
-                                android:layout_weight="1"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
                                 android:backgroundTint="#F0FDF4"
                                 android:text="Khách đã ra nhận"
                                 app:icon="@drawable/ic_check"
-                                app:iconSize="14dp"
+                                app:iconSize="16dp"
                                 app:iconTint="#15803D"
                                 android:textColor="#15803D"
-                                android:textSize="11sp"
+                                android:textSize="13sp"
                                 android:textStyle="bold"
                                 app:cornerRadius="10dp" />
                         </LinearLayout>
 
-                        <!-- Nút hủy khi hết 15 phút -->
+                        <!-- Nút hủy khi hết thời gian -->
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnCountdownExpiredAction"
                             style="@style/Widget.Material3.Button"

@@ -53,7 +53,7 @@ class OrderHistoryAdapter(
             val orderCode = "#ORD_OISHI_${order.orderId.takeLast(6).uppercase()}"
             binding.tvOrderCodeMono.text = orderCode
 
-            // Logo mini quán dạng emoji
+            // Logo mini quán dạng emoji fallback
             val shopEmoji = when {
                 shopName.contains("trà", ignoreCase = true) || shopName.contains("sữa", ignoreCase = true) -> "🧋"
                 shopName.contains("cơm", ignoreCase = true) -> "🍛"
@@ -63,6 +63,69 @@ class OrderHistoryAdapter(
                 else -> "🍲"
             }
             binding.tvShopLogoMini.text = shopEmoji
+
+            // Ảnh đại diện quán ăn (Avatar quán)
+            val targetStoreId = order.effectiveStoreId
+            val directShopImage = order.shopImageUrl.trim()
+            val cachedImage = if (targetStoreId.isNotBlank()) storeImageCache[targetStoreId] else null
+            val effectiveShopImage = directShopImage.ifBlank { cachedImage.orEmpty() }
+
+            if (effectiveShopImage.isNotBlank()) {
+                binding.ivShopLogoMini.visibility = View.VISIBLE
+                binding.tvShopLogoMini.visibility = View.GONE
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = binding.ivShopLogoMini,
+                    imageUrl = effectiveShopImage,
+                    placeholderResId = R.drawable.placeholder_restaurant,
+                    cornerDp = 17
+                )
+            } else if (targetStoreId.isNotBlank()) {
+                binding.ivShopLogoMini.visibility = View.VISIBLE
+                binding.tvShopLogoMini.visibility = View.GONE
+                binding.ivShopLogoMini.setImageResource(R.drawable.placeholder_restaurant)
+                binding.ivShopLogoMini.tag = targetStoreId
+
+                com.google.firebase.database.FirebaseDatabase.getInstance()
+                    .getReference("stores")
+                    .child(targetStoreId)
+                    .addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
+                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                            val store = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                            val resolvedUrl = store?.effectiveImageUrl.orEmpty().trim()
+                            if (resolvedUrl.isNotBlank()) {
+                                storeImageCache[targetStoreId] = resolvedUrl
+                                if (binding.ivShopLogoMini.tag == targetStoreId) {
+                                    binding.ivShopLogoMini.visibility = View.VISIBLE
+                                    binding.tvShopLogoMini.visibility = View.GONE
+                                    com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                                        imageView = binding.ivShopLogoMini,
+                                        imageUrl = resolvedUrl,
+                                        placeholderResId = R.drawable.placeholder_restaurant,
+                                        cornerDp = 17
+                                    )
+                                }
+                            } else {
+                                if (binding.ivShopLogoMini.tag == targetStoreId) {
+                                    binding.ivShopLogoMini.visibility = View.GONE
+                                    binding.tvShopLogoMini.visibility = View.VISIBLE
+                                    binding.tvShopLogoMini.text = shopEmoji
+                                }
+                            }
+                        }
+
+                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                            if (binding.ivShopLogoMini.tag == targetStoreId) {
+                                binding.ivShopLogoMini.visibility = View.GONE
+                                binding.tvShopLogoMini.visibility = View.VISIBLE
+                                binding.tvShopLogoMini.text = shopEmoji
+                            }
+                        }
+                    })
+            } else {
+                binding.ivShopLogoMini.visibility = View.GONE
+                binding.tvShopLogoMini.visibility = View.VISIBLE
+                binding.tvShopLogoMini.text = shopEmoji
+            }
 
             // Tóm tắt món
             val summaryText = if (order.items.isNotEmpty()) {
@@ -385,6 +448,8 @@ class OrderHistoryAdapter(
     }
 
     companion object DiffCallback : DiffUtil.ItemCallback<Order>() {
+        private val storeImageCache = mutableMapOf<String, String>()
+
         override fun areItemsTheSame(oldItem: Order, newItem: Order): Boolean =
             oldItem.orderId == newItem.orderId
 

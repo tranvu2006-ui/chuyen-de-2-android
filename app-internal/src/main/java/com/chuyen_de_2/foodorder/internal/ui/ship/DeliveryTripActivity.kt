@@ -1436,50 +1436,25 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.tvCountdownDigits.text = "00:00"
         binding.tvCountdownSubtext.text = "HẾT GIỜ"
         binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-        binding.tvCountdownStatusMsg.text = "🚫 ĐÃ HẾT 15 PHÚT CHỜ ĐỢI! Khách hàng không nhận món.\nQuý tài xế nhấn nút bên dưới để BÁO CÁO KHÁCH KHÔNG NHẬN và chuyển sang ĐƠN RỦI RO."
+        binding.tvCountdownStatusMsg.text = "🚫 ĐÃ HẾT 15 PHÚT CHỜ ĐỢI! Khách hàng không nhận món.\nHệ thống đang mở màn hình Báo Cáo Sự Cố để bạn xác nhận hủy đơn và nhận hướng dẫn trả món về Quán."
         binding.tvCountdownStatusMsg.setBackgroundColor(Color.parseColor("#FEF2F2"))
         binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
 
         binding.layoutCountdownActiveButtons.visibility = View.GONE
         binding.btnCountdownExpiredAction.visibility = View.VISIBLE
-        binding.btnCountdownExpiredAction.text = "🚨 BÁO CÁO KHÁCH KHÔNG NHẬN • ĐỔI SANG ĐƠN RỦI RO"
-        binding.btnCountdownExpiredAction.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
-        isRiskReported = false
+        binding.btnCountdownExpiredAction.text = "🚨 BÁO CÁO SỰ CỐ & HỦY ĐƠN BOM (ĐÃ HẾT 15P) ➔"
+        binding.btnCountdownExpiredAction.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+
+        // Sau 15 phút: Tự động hiện màn hình báo cáo sự cố chuẩn theo demo 8.html
+        val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+        targetOrder?.let {
+            showIncidentReportDialog(it, isExpired = true)
+        }
     }
 
     private fun triggerExpiredCancelOrder() {
         val targetOrder = (if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder) ?: return
-
-        if (!isRiskReported) {
-            // Bước 1: Báo cáo khách không nhận -> đổi trạng thái đơn sang ĐƠN RỦI RO trên Firebase
-            lifecycleScope.launch {
-                try {
-                    val riskReason = "Đơn rủi ro: Khách không nhận hàng sau 15 phút đếm ngược"
-                    firebaseRepository.updateOrderStatus(targetOrder.orderId, Order.Status.RETURNING_TO_STORE, riskReason)
-
-                    val updates = mapOf<String, Any>(
-                        "isRiskOrder" to true,
-                        "riskStatus" to "RISK_CONFIRMED",
-                        "riskReason" to riskReason,
-                        "riskReportedAt" to System.currentTimeMillis()
-                    )
-                    com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(targetOrder.orderId).updateChildren(updates)
-                } catch (_: Exception) {}
-            }
-
-            isRiskReported = true
-            binding.tvCountdownStatusMsg.text = "⚠️ ĐÃ GHI NHẬN ĐƠN RỦI RO! Đơn này được phép hủy do khách bom hàng. Bấm nút bên dưới để xác nhận hủy và xem luồng trả món về quán."
-            binding.tvCountdownStatusMsg.setBackgroundColor(Color.parseColor("#FEF2F2"))
-            binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
-
-            binding.btnCountdownExpiredAction.text = "🚫 XÁC NHẬN HỦY ĐƠN BOM & TRẢ MÓN VỀ QUÁN ➔"
-            binding.btnCountdownExpiredAction.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
-
-            Toast.makeText(this, "✓ Đã báo cáo đơn rủi ro do khách không nhận! Nhấn xác nhận để hủy đơn và trả món về quán.", Toast.LENGTH_LONG).show()
-        } else {
-            // Bước 2: Hủy đơn bom và kích hoạt luồng trả món về quán (showBomReturnFlowDialog)
-            executeIncidentCancel(targetOrder, "Khách không nghe máy, bom hàng sau 15 phút đếm ngược")
-        }
+        showIncidentReportDialog(targetOrder, isExpired = true)
     }
 
     private fun checkCameraAndOpenScanner() {
@@ -1698,12 +1673,17 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     /**
-     * Modal Báo Cáo Sự Cố & Bom Hàng (6.html: cancelReportModal)
+     * Modal Báo Cáo Sự Cố & Bom Hàng (6.html & 8.html: cancelReportModal)
+     * isExpired = true: Đã đếm ngược xong 15 phút, tài xế xác nhận báo cáo đơn rủi ro & hủy đơn bom để chạy về trả món.
      */
-    private fun showIncidentReportDialog(order: Order) {
+    private fun showIncidentReportDialog(order: Order, isExpired: Boolean = false) {
         val repBinding = com.chuyen_de_2.foodorder.internal.databinding.DialogReportIncidentBinding.inflate(layoutInflater)
         val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
-        repBinding.tvIncidentOrderSub.text = "Đơn hàng: #ORD-$shortCode • Khách: ${order.customerName}"
+        repBinding.tvIncidentOrderSub.text = if (isExpired) {
+            "Đơn #ORD-$shortCode • ĐÃ HẾT 15P CHỜ ĐỢI • Báo cáo đơn rủi ro"
+        } else {
+            "Đơn hàng: #ORD-$shortCode • Khách: ${order.customerName}"
+        }
 
         val reasons = arrayOf(
             "📵 Khách không nghe máy (Đã gọi 3 cuộc)",
@@ -1715,6 +1695,14 @@ class DeliveryTripActivity : AppCompatActivity() {
         repBinding.spinnerIncidentReason.adapter = ArrayAdapter(
             this, android.R.layout.simple_spinner_dropdown_item, reasons
         )
+
+        if (isExpired) {
+            repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN BÁO CÁO ĐƠN RỦI RO & HỦY ĐƠN BOM ➔"
+            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+        } else {
+            repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ĐẾM NGƯỢC 15P"
+            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+        }
 
         var hasProof = false
         repBinding.btnAttachProof.setOnClickListener {
@@ -1734,12 +1722,30 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         repBinding.btnConfirmIncidentCancel.setOnClickListener {
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
+            val note = repBinding.etIncidentNote.text.toString().trim()
+            val fullReason = if (note.isNotBlank()) "$reason ($note)" else reason
             dialog.dismiss()
-            if (currentStep >= 3) {
+
+            if (isExpired) {
+                // Đã hết 15 phút: Báo cáo chuyển sang ĐƠN RỦI RO trên Firebase & hủy đơn, chuyển sang luồng trả món về quán
+                lifecycleScope.launch {
+                    try {
+                        val riskReason = "Đơn rủi ro: $fullReason (Sau 15 phút chờ)"
+                        val updates = mapOf<String, Any>(
+                            "isRiskOrder" to true,
+                            "riskStatus" to "RISK_CONFIRMED",
+                            "riskReason" to riskReason,
+                            "riskReportedAt" to System.currentTimeMillis()
+                        )
+                        com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
+                    } catch (_: Exception) {}
+                }
+                executeIncidentCancel(order, fullReason)
+            } else if (currentStep >= 3) {
                 // Tại bước giao hàng (8.html): Bắt đầu quy trình đếm ngược 15 phút cảnh báo trước khi hủy
-                start15MinCountdown(order, reason)
+                start15MinCountdown(order, fullReason)
             } else {
-                executeIncidentCancel(order, reason)
+                executeIncidentCancel(order, fullReason)
             }
         }
 

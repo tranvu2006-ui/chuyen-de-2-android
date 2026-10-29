@@ -2327,6 +2327,26 @@ class FirebaseRepository @Inject constructor(
                     dishRef.child("ratingAvg").setValue(newAvg).await()
                     dishRef.child("reviewCount").setValue(count).await()
                 }
+
+                // Tự động tính toán lại ĐIỂM TRUNG BÌNH CẢ QUÁN:
+                // Điểm quán = Tổng tất cả số sao của các bình luận từng món cộng lại / Tổng số bình luận quán
+                var storeTotalStars = 0
+                var storeReviewCount = 0
+                for (child in snap.children) {
+                    val r = child.getValue(DishReview::class.java)
+                    if (r != null && r.storeId == storeId) {
+                        storeTotalStars += r.rating
+                        storeReviewCount++
+                    }
+                }
+                val storeRatingAvg = if (storeReviewCount > 0) {
+                    String.format(java.util.Locale.US, "%.1f", storeTotalStars.toFloat() / storeReviewCount).toFloat()
+                } else 5.0f
+
+                val storeRef = database.getReference("stores").child(storeId)
+                storeRef.child("ratingAvg").setValue(storeRatingAvg).await()
+                storeRef.child("rating").setValue(storeRatingAvg).await()
+                storeRef.child("reviewCount").setValue(storeReviewCount).await()
             }
             true
         } catch (_: Exception) {

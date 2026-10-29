@@ -631,6 +631,10 @@ class DeliveryTripActivity : AppCompatActivity() {
                         currentOrder = activeOrder
                         bindOrderData(activeOrder)
                     }
+
+                    if (currentStep >= 3) {
+                        updateStepUI(currentStep)
+                    }
                 } else if (!isBundleMode) {
                     isBundleMode = false
                     binding.tvTripBundleBadge.visibility = View.GONE
@@ -1122,8 +1126,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         bindOrderData(targetOrder)
 
         if (currentStep >= 3) {
-            val targetStep = if (targetOrder.status == Order.Status.ARRIVED_AT_CUSTOMER) 4 else 3
-            updateStepUI(targetStep)
+            updateStepUI(3)
         }
 
         val shortCode = QRCodeUtils.getShortOrderCode(targetOrder.orderId)
@@ -1187,8 +1190,18 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         binding.btnTripBack.setOnClickListener {
-            finish()
+            handleBackNavigation()
         }
+
+        binding.btnBackToMapStep3.setOnClickListener {
+            handleBackNavigation()
+        }
+
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleBackNavigation()
+            }
+        })
 
         binding.btnTripCancel.setOnClickListener {
             showCancelOrderDialog()
@@ -1401,6 +1414,34 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         binding.btnCountdownExpiredAction.setOnClickListener {
             triggerExpiredCancelOrder()
+        }
+    }
+
+    /**
+     * Xử lý lùi bước điều hướng: Từ Bước 4 (Quét QR) lùi về Bước 3 (Bản đồ chọn khách giao)
+     */
+    private fun handleBackNavigation() {
+        if (currentStep == 4) {
+            val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+            targetOrder?.let { o ->
+                saveStep(o.orderId, 3)
+                lifecycleScope.launch {
+                    try {
+                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                    } catch (_: Exception) {}
+                }
+            }
+            updateStepUI(3)
+            Toast.makeText(this, "🛵 Đã quay lại bản đồ giao hàng để bạn tự do chọn khách giao!", Toast.LENGTH_SHORT).show()
+        } else if (currentStep == 3) {
+            AlertDialog.Builder(this)
+                .setTitle("Rời màn hình giao hàng?")
+                .setMessage("Chuyến đi giao hàng vẫn đang diễn ra. Bạn có muốn tạm thoát ra danh sách đơn?")
+                .setPositiveButton("Rời màn hình") { _, _ -> finish() }
+                .setNegativeButton("Ở lại giao hàng", null)
+                .show()
+        } else {
+            finish()
         }
     }
 

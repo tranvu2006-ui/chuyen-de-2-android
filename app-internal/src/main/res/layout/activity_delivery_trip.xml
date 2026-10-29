@@ -2009,7 +2009,7 @@
                                 android:backgroundTint="#FFEDD5"
                                 android:paddingHorizontal="6dp"
                                 android:paddingVertical="2dp"
-                                android:text="Chờ 15 phút"
+                                tools:text="Chờ 15 phút"
                                 android:textColor="#C2410C"
                                 android:textSize="9.5sp"
                                 android:textStyle="bold" />
@@ -2031,7 +2031,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:fontFamily="monospace"
-                                android:text="15:00"
+                                tools:text="15:00"
                                 android:textColor="#DC2626"
                                 android:textSize="32sp"
                                 android:textStyle="bold" />
@@ -2073,7 +2073,7 @@
                                 android:layout_marginStart="6dp"
                                 android:layout_weight="1"
                                 android:lineSpacingExtra="2dp"
-                                android:text="Đã gửi cảnh báo mất đơn đến khách hàng: Nếu sau 15 phút không nhận món, đơn sẽ bị hủy do bom hàng và bạn được quyền hoàn trả món về Quán!"
+                                tools:text="Đã gửi cảnh báo mất đơn đến khách hàng: Nếu sau thời gian quy định không nhận món, đơn sẽ bị hủy do bom hàng và bạn được quyền hoàn trả món về Quán!"
                                 android:textColor="#78350F"
                                 android:textSize="11sp" />
                         </LinearLayout>
@@ -2110,7 +2110,7 @@
                             android:layout_height="46dp"
                             android:layout_marginTop="10dp"
                             android:backgroundTint="#DC2626"
-                            android:text="HẾT 15P • HỦY ĐƠN BOM &amp; TIẾP TỤC ĐƠN GHÉP"
+                            tools:text="HẾT GIỜ • HỦY ĐƠN BOM &amp; TIẾP TỤC ĐƠN GHÉP"
                             app:icon="@drawable/ic_alert_triangle"
                             app:iconSize="16dp"
                             app:iconTint="#FFFFFF"

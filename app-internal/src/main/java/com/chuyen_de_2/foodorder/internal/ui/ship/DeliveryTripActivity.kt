@@ -526,40 +526,8 @@ class DeliveryTripActivity : AppCompatActivity() {
                     .putInt("round2Minutes", round2Minutes)
                     .apply()
 
-                if (isCountdownActive) {
-                    val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
-                    targetOrder?.let { o ->
-                        val prefs = getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
-                        val startTime = prefs.getLong("start_time_${o.orderId}", 0L)
-                        if (startTime > 0) {
-                            val elapsedSec = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-                            val curTarget = if (countdownRound == 1) round1Minutes else round2Minutes
-                            val totalSec = curTarget * 60
-                            if (elapsedSec >= totalSec) {
-                                countdownSecondsRemaining = 0
-                                onCountdownExpired()
-                            } else {
-                                countdownSecondsRemaining = totalSec - elapsedSec
-                                binding.tvCountdownBadge.text = if (countdownRound == 1) "Chờ $round1Minutes phút" else "Gia hạn $round2Minutes phút"
-                                if (countdownRound == 1) {
-                                    binding.tvCountdownSubtext.text = "LẦN 1/2 • phút còn lại"
-                                    binding.tvCountdownSubtext.setTextColor(Color.parseColor("#9A3412"))
-                                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược $round1Minutes phút LẦN 1 chờ khách (${o.customerName})..."
-                                    binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
-                                    binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
-                                    binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#78350F"))
-                                } else {
-                                    binding.tvCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
-                                    binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-                                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược $round2Minutes phút LẦN 2 (Cảnh báo gia hạn đơn rủi ro)..."
-                                    binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
-                                    binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
-                                    binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
-                                }
-                                runCountdownTimer()
-                            }
-                        }
-                    }
+                if (isCountdownActive || currentStep >= 3) {
+                    checkAndRestoreActiveCountdown()
                 }
             }
         }

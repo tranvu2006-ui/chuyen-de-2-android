@@ -75,9 +75,13 @@
 
                     <!-- Stat 1: Tổng tài xế -->
                     <LinearLayout
+                        android:id="@+id/layoutStatTotal"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:gravity="center"
                         android:orientation="vertical">
 
@@ -106,9 +110,13 @@
 
                     <!-- Stat 2: Đang rảnh -->
                     <LinearLayout
+                        android:id="@+id/layoutStatAvailable"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:gravity="center"
                         android:orientation="vertical">
 
@@ -137,9 +145,13 @@
 
                     <!-- Stat 3: Đang giao -->
                     <LinearLayout
+                        android:id="@+id/layoutStatDelivering"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:gravity="center"
                         android:orientation="vertical">
 
@@ -168,9 +180,13 @@
 
                     <!-- Stat 4: Nghỉ ca -->
                     <LinearLayout
+                        android:id="@+id/layoutStatOffDuty"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:gravity="center"
                         android:orientation="vertical">
 

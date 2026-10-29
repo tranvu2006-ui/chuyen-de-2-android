@@ -44,6 +44,12 @@ class ShipperViewModel @Inject constructor(
     private fun loadShipperStoreAndOrders() {
         val shipperId = auth.currentUser?.uid.orEmpty()
         viewModelScope.launch {
+            if (shipperId.isNotBlank()) {
+                firebaseRepository.setupDriverPresence(shipperId)
+                val isCurrentlyOnline = _isOnline.value ?: true
+                val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
+            }
             val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
             _shipperStore.value = storeInfo
             observeShipperOrders()
@@ -71,6 +77,17 @@ class ShipperViewModel @Inject constructor(
                     it.status == Order.Status.ASSIGNED
                 }
                 _currentDeliveryOrderId.value = delivering?.orderId
+
+                // Đồng bộ trạng thái thật (DELIVERING / AVAILABLE / OFF_DUTY) lên Firebase cho Quán thấy
+                val isCurrentlyOnline = _isOnline.value ?: true
+                if (delivering != null) {
+                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
+                    val displayCode = "#ORD-$shortCode (${delivering.customerName})"
+                    firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
+                } else {
+                    val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                    firebaseRepository.updateDriverDutyStatus(shipperId, status, "")
+                }
             }
         }
     }
@@ -97,6 +114,25 @@ class ShipperViewModel @Inject constructor(
 
     fun toggleDuty(online: Boolean) {
         _isOnline.value = online
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        if (shipperId.isNotBlank()) {
+            viewModelScope.launch {
+                val hasDelivering = _assignedOrders.value?.any {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED
+                } == true
+                val status = if (hasDelivering) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
+                } else if (online) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE
+                } else {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                }
+                firebaseRepository.updateDriverDutyStatus(shipperId, status)
+            }
+        }
     }
 
     /** Nhận đơn mới từ quán (ghép chuyến) */

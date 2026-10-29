@@ -51,11 +51,11 @@ class DriverAdapter(
             // Status Badge & Styling
             when (driver.dutyStatus) {
                 Driver.DutyStatus.AVAILABLE -> {
-                    binding.tvStatusBadge.text = "🟢 Đang trực"
+                    binding.tvStatusBadge.text = "🟢 Đang trực (Sẵn sàng)"
                     binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_free)
                     binding.tvStatusBadge.setTextColor(Color.parseColor("#10B981"))
 
-                    binding.tvActionNote.text = "✓ Tự nhận đơn của quán"
+                    binding.tvActionNote.text = "✓ Sẵn sàng nhận đơn"
                     binding.tvActionNote.setBackgroundResource(R.drawable.bg_badge_free)
                     binding.tvActionNote.setTextColor(Color.parseColor("#10B981"))
                 }
@@ -64,16 +64,16 @@ class DriverAdapter(
                     binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_busy)
                     binding.tvStatusBadge.setTextColor(Color.parseColor("#EE4D2D"))
 
-                    binding.tvActionNote.text = "Đang thực hiện cuốc xe"
+                    binding.tvActionNote.text = "Đang giao trên đường"
                     binding.tvActionNote.background = null
-                    binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
+                    binding.tvActionNote.setTextColor(Color.parseColor("#EE4D2D"))
                 }
                 else -> {
-                    binding.tvStatusBadge.text = "⏸️ Nghỉ ca"
+                    binding.tvStatusBadge.text = "⏸️ Nghỉ ca (OFF)"
                     binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_offline)
                     binding.tvStatusBadge.setTextColor(Color.parseColor("#64748B"))
 
-                    val noteText = driver.note.ifBlank { "Vào ca lúc 14:00" }
+                    val noteText = driver.note.ifBlank { "Tài xế đang ngắt kết nối" }
                     binding.tvActionNote.text = noteText
                     binding.tvActionNote.background = null
                     binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
@@ -87,12 +87,17 @@ class DriverAdapter(
 
             // Đơn giao
             if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {
-                val ordCode = driver.currentOrderCode.ifBlank { "#ORD_OISHI_88290 (Giao Q.1)" }
+                val ordCode = driver.currentOrderCode.ifBlank { "Đang giao đơn của quán" }
                 binding.tvOrderStats.text = "📦 Đang giao đơn: $ordCode"
-            } else {
+                binding.tvOrderStats.setTextColor(Color.parseColor("#DC2626"))
+            } else if (driver.dutyStatus == Driver.DutyStatus.AVAILABLE) {
                 val today = driver.todayOrdersCount
                 val total = driver.totalOrdersCount
-                binding.tvOrderStats.text = "📦 Đã giao cho quán: $today đơn hôm nay • $total đơn tổng"
+                binding.tvOrderStats.text = "📦 Sẵn sàng • Đã giao $today đơn hôm nay ($total đơn tổng)"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#059669"))
+            } else {
+                binding.tvOrderStats.text = "📦 Tài xế đang tắt ca, không nhận đơn"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#64748B"))
             }
 
             // Đánh giá

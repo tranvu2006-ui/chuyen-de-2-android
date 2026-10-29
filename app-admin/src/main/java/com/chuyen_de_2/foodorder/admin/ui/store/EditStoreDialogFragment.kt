@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import androidx.activity.result.contract.ActivityResultContracts
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import androidx.core.content.ContextCompat
 import com.bumptech.glide.Glide
 import java.io.ByteArrayOutputStream
@@ -58,24 +59,7 @@ class EditStoreDialogFragment(
     }
 
     private fun uriToBase64(uri: Uri): String? {
-        return try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri) ?: return null
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            val scaledBitmap = Bitmap.createScaledBitmap(
-                originalBitmap,
-                500,
-                (500 * (originalBitmap.height.toFloat() / originalBitmap.width)).toInt(),
-                true
-            )
-            val outputStream = ByteArrayOutputStream()
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-            val byteArray = outputStream.toByteArray()
-            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+        return ImagePickerUtils.compressUriToBase64(requireContext(), uri, maxDimension = 600, quality = 85)
     }
 
     private fun updateStoreImagePreview(imageSource: String) {

@@ -16,6 +16,7 @@ import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.admin.R
 import com.chuyen_de_2.foodorder.admin.databinding.DialogAddEditCategoryBinding
 import com.chuyen_de_2.foodorder.core.data.model.Category
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import java.io.ByteArrayOutputStream
 
 class AddEditCategoryDialogFragment(

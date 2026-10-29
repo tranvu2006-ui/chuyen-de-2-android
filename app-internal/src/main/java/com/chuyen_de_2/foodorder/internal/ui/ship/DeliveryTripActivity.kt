@@ -1419,11 +1419,45 @@ class DeliveryTripActivity : AppCompatActivity() {
             .setPositiveButton("Xác nhận") { _, _ ->
                 countdownTimer?.cancel()
                 isCountdownActive = false
+                val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+                targetOrder?.let { o ->
+                    getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
+                        .edit()
+                        .remove("start_time_${o.orderId}")
+                        .remove("reason_${o.orderId}")
+                        .apply()
+                }
                 binding.cardCountdownWarning.visibility = View.GONE
                 Toast.makeText(this, "✓ Đã hủy cảnh báo mất đơn. Vui lòng quét mã QR để đối soát!", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Tiếp tục chờ", null)
             .show()
+    }
+
+    private fun checkAndRestoreActiveCountdown() {
+        val targetOrder = (if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder) ?: return
+        val prefs = getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
+        val startTime = prefs.getLong("start_time_${targetOrder.orderId}", 0L)
+        if (startTime > 0 && currentStep >= 3) {
+            val elapsedSec = ((System.currentTimeMillis() - startTime) / 1000).toInt()
+            val totalSec = 15 * 60
+            pendingIncidentReason = prefs.getString("reason_${targetOrder.orderId}", "Khách không nhận món").orEmpty()
+            binding.cardCountdownWarning.visibility = View.VISIBLE
+            if (elapsedSec >= totalSec) {
+                countdownSecondsRemaining = 0
+                onCountdownExpired()
+            } else {
+                isCountdownActive = true
+                countdownSecondsRemaining = totalSec - elapsedSec
+                binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
+                binding.btnCountdownExpiredAction.visibility = View.GONE
+                binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược cảnh báo mất đơn (${targetOrder.customerName}): Nếu sau 15 phút không nhận món, đơn sẽ bị hủy do bom hàng!"
+                binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
+                binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
+                binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#78350F"))
+                runCountdownTimer()
+            }
+        }
     }
 
     private fun onCountdownExpired() {
@@ -1721,6 +1755,11 @@ class DeliveryTripActivity : AppCompatActivity() {
             }
             binding.cardCountdownWarning.visibility = View.GONE
             countdownTimer?.cancel()
+            getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
+                .edit()
+                .remove("start_time_${order.orderId}")
+                .remove("reason_${order.orderId}")
+                .apply()
             isCountdownActive = false
 
             // Nếu là đơn gộp và còn đơn chưa giao -> Hiện modal điều hướng theo 8.html & 6.html (bomReturnFlowModal)
@@ -2095,6 +2134,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         try {
             activeScannerView?.resume()
         } catch (_: Exception) {}
+        checkAndRestoreActiveCountdown()
     }
 
     override fun onPause() {

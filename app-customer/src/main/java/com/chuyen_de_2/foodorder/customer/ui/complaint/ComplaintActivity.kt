@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Complaint
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.customer.R
@@ -55,24 +56,7 @@ class ComplaintActivity : AppCompatActivity() {
     }
 
     private fun uriToBase64(uri: Uri): String? {
-        return try {
-            val inputStream = contentResolver.openInputStream(uri) ?: return null
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            val scaledBitmap = Bitmap.createScaledBitmap(
-                originalBitmap,
-                500,
-                (500 * (originalBitmap.height.toFloat() / originalBitmap.width)).toInt(),
-                true
-            )
-            val outputStream = ByteArrayOutputStream()
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-            val byteArray = outputStream.toByteArray()
-            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+        return ImagePickerUtils.compressUriToBase64(this, uri, maxDimension = 800, quality = 85)
     }
 
 

@@ -2153,10 +2153,10 @@ class FirebaseRepository @Inject constructor(
                 .ifBlank { custSnap.child("avatarUrl").getValue(String::class.java).orEmpty() }
                 .ifBlank { driverSnap?.child("avatarUrl")?.getValue(String::class.java).orEmpty() }
 
-            val effectiveAvatar = if (user.avatarUrl.isNotBlank()) {
-                user.avatarUrl.trim()
-            } else {
-                existingAvatar
+            val effectiveAvatar = when {
+                user.avatarUrl == "RESET_DEFAULT_AVATAR" -> ""
+                user.avatarUrl.isNotBlank() -> user.avatarUrl.trim()
+                else -> existingAvatar
             }
 
             val isUnlocked = user.isActive && (user.status.equals(User.Status.ACTIVE, ignoreCase = true) || user.status.equals(User.Status.OFFLINE, ignoreCase = true))

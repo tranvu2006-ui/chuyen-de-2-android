@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import androidx.activity.result.contract.ActivityResultContracts
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import java.io.ByteArrayOutputStream
 import android.view.LayoutInflater
 import android.view.View
@@ -48,24 +49,7 @@ class EditUserDialogFragment(
     }
 
     private fun uriToBase64(uri: Uri): String? {
-        return try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri) ?: return null
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            val scaledBitmap = Bitmap.createScaledBitmap(
-                originalBitmap,
-                300,
-                (300 * (originalBitmap.height.toFloat() / originalBitmap.width)).toInt(),
-                true
-            )
-            val outputStream = ByteArrayOutputStream()
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-            val byteArray = outputStream.toByteArray()
-            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+        return ImagePickerUtils.compressUriToBase64(requireContext(), uri, maxDimension = 400, quality = 85)
     }
 
     private val roleOptions = listOf(
@@ -301,7 +285,7 @@ class EditUserDialogFragment(
             val phone = binding.etUserPhone.text?.toString().orEmpty().trim()
             val storeId = binding.etUserStoreId.text?.toString().orEmpty().trim()
 
-            val finalAvatar = if (isAvatarResetToDefault) "" else currentAvatar
+            val finalAvatar = if (isAvatarResetToDefault) "RESET_DEFAULT_AVATAR" else currentAvatar
 
             val trustScore = (binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100).coerceIn(0, 100)
             val completedOrders = (binding.etUserCompletedOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)

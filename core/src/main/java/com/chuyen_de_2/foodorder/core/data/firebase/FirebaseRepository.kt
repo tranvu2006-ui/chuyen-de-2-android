@@ -2245,5 +2245,92 @@ class FirebaseRepository @Inject constructor(
             Result.failure(e)
         }
     }
-}
 
+    // ==================== BÌNH LUẬN & ĐÁNH GIÁ (DISH REVIEWS & RATINGS) ====================
+
+    /** Lắng nghe danh sách đánh giá của món ăn theo thời gian thực (b5.html: reviews-sheet) */
+    fun observeDishReviews(dishId: String): Flow<List<DishReview>> = callbackFlow {
+        if (dishId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val query = database.getReference("dish_reviews").orderByChild("dishId").equalTo(dishId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<DishReview>()
+                for (child in snapshot.children) {
+                    val rev = child.getValue(DishReview::class.java)
+                    if (rev != null) {
+                        val finalRev = if (rev.reviewId.isBlank()) rev.copy(reviewId = child.key ?: "") else rev
+                        list.add(finalRev)
+                    }
+                }
+                list.sortByDescending { it.createdAt }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        query.addValueEventListener(listener)
+        awaitClose { query.removeEventListener(listener) }
+    }
+
+    /**
+     * Gửi đánh giá món ăn lên Firebase (dish_reviews) và tự động tính toán lại ratingAvg, reviewCount
+     * Tự động đồng bộ số sao vào thực đơn quán (stores/{storeId}/dishes/{dishId})
+     */
+    suspend fun submitDishReview(review: DishReview): Boolean {
+        return try {
+            val reviewId = review.reviewId.ifBlank {
+                database.getReference("dish_reviews").push().key ?: "rev_${System.currentTimeMillis()}"
+            }
+            val finalReview = review.copy(reviewId = reviewId)
+            database.getReference("dish_reviews").child(reviewId).setValue(finalReview).await()
+
+            // Tự động tính toán lại ratingAvg và reviewCount của món ăn
+            if (review.dishId.isNotBlank()) {
+                val snap = database.getReference("dish_reviews")
+                    .orderByChild("dishId")
+                    .equalTo(review.dishId)
+                    .get()
+                    .await()
+                var totalStars = 0
+                var count = 0
+                for (child in snap.children) {
+                    val r = child.getValue(DishReview::class.java)
+                    if (r != null) {
+                        totalStars += r.rating
+                        count++
+                    }
+                }
+                val newAvg = if (count > 0) {
+                    String.format(java.util.Locale.US, "%.1f", totalStars.toFloat() / count).toFloat()
+                } else 5.0f
+
+                val storeId = review.storeId
+                if (storeId.isNotBlank()) {
+                    val dishRef = database.getReference("stores").child(storeId).child("dishes").child(review.dishId)
+                    dishRef.child("ratingAvg").setValue(newAvg).await()
+                    dishRef.child("reviewCount").setValue(count).await()
+                }
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Tăng hoặc giảm lượt thích (Like / Hữu ích) của đánh giá */
+    suspend fun toggleReviewLike(reviewId: String, currentLikes: Int, isLiked: Boolean): Boolean {
+        return try {
+            val newLikes = if (isLiked) currentLikes + 1 else maxOf(0, currentLikes - 1)
+            database.getReference("dish_reviews").child(reviewId).child("likes").setValue(newLikes).await()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+}

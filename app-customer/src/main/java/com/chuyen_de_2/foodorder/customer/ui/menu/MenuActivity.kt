@@ -40,6 +40,7 @@ class MenuActivity : AppCompatActivity() {
     private val viewModel: MenuViewModel by viewModels()
     private lateinit var adapter: MenuAdapter
     private var shopName: String = "Nhà hàng"
+    private var currentShopId: String = ""
 
     /**
      * Tên chức năng: Khởi tạo màn hình thực đơn quán
@@ -60,6 +61,7 @@ class MenuActivity : AppCompatActivity() {
             finish()
             return
         }
+        currentShopId = shopId
         shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Nhà hàng"
         val initialDishId = intent.getStringExtra(Constants.EXTRA_DISH_ID)
         val initialDishName = intent.getStringExtra(Constants.EXTRA_DISH_NAME)
@@ -282,11 +284,17 @@ class MenuActivity : AppCompatActivity() {
 
         binding.btnViewDishReviews.setOnClickListener {
             val sheet = DishReviewsBottomSheetDialogFragment.newInstance(
+                dishId = dish.id,
                 dishName = dish.name,
                 dishRating = rating,
-                reviewCount = reviewCount
+                reviewCount = reviewCount,
+                storeId = dish.storeId.ifBlank { currentShopId }
             )
             sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
+        }
+
+        binding.tvDetailRatingText.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
         }
 
         binding.cardTopDetail.setOnClickListener {

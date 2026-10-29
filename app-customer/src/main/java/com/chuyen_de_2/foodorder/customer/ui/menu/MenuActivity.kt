@@ -62,8 +62,23 @@ class MenuActivity : AppCompatActivity() {
         }
         shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Nhà hàng"
         val initialDishId = intent.getStringExtra(Constants.EXTRA_DISH_ID)
+        val initialDishName = intent.getStringExtra(Constants.EXTRA_DISH_NAME)
+        val initialDishPrice = intent.getLongExtra(Constants.EXTRA_DISH_PRICE, 0L)
+        val initialDishImage = intent.getStringExtra(Constants.EXTRA_DISH_IMAGE) ?: ""
+        val initialDishCategory = intent.getStringExtra(Constants.EXTRA_DISH_CATEGORY) ?: ""
 
-        viewModel.setShopInfo(shopId, shopName, initialDishId)
+        val initialDish = if (!initialDishId.isNullOrEmpty() && !initialDishName.isNullOrEmpty()) {
+            Dish(
+                id = initialDishId,
+                storeId = shopId,
+                name = initialDishName,
+                basePrice = initialDishPrice,
+                imageUrl = initialDishImage,
+                category = initialDishCategory
+            )
+        } else null
+
+        viewModel.setShopInfo(shopId, shopName, initialDishId, initialDish)
 
         setupTopNav()
         setupCategoryChips()

@@ -845,67 +845,22 @@
                         android:textSize="13.5sp"
                         android:textStyle="bold" />
 
-                    <!-- Dãy 5 sao -->
-                    <LinearLayout
-                        android:id="@+id/starGroup"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginVertical="10dp"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:id="@+id/star1"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:gravity="center"
-                            android:text="★"
-                            android:textColor="#F59E0B"
-                            android:textSize="28sp" />
-
-                        <TextView
-                            android:id="@+id/star2"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:gravity="center"
-                            android:text="★"
-                            android:textColor="#F59E0B"
-                            android:textSize="28sp" />
-
-                        <TextView
-                            android:id="@+id/star3"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:gravity="center"
-                            android:text="★"
-                            android:textColor="#F59E0B"
-                            android:textSize="28sp" />
-
-                        <TextView
-                            android:id="@+id/star4"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:gravity="center"
-                            android:text="★"
-                            android:textColor="#F59E0B"
-                            android:textSize="28sp" />
-
-                        <TextView
-                            android:id="@+id/star5"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:gravity="center"
-                            android:text="★"
-                            android:textColor="#F59E0B"
-                            android:textSize="28sp" />
-                    </LinearLayout>
-
                     <TextView
-                        android:id="@+id/ratingHintText"
+                        android:id="@+id/tvRatingSub"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Cực kỳ hài lòng! Món ngon, giao nhanh đúng giờ."
+                        android:layout_marginTop="4dp"
+                        android:text="Chấm điểm và nhận xét cho từng món ăn bạn đã nhận:"
                         android:textColor="#64748B"
                         android:textSize="11sp" />
+
+                    <!-- Danh sách các món ăn trong đơn để khách chấm điểm riêng (Cách 2) -->
+                    <LinearLayout
+                        android:id="@+id/llReviewDishesContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="vertical" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSubmitReview"

@@ -21,9 +21,13 @@ object Constants {
     const val EXTRA_SHOP_NAME = "extra_shop_name"
     const val EXTRA_ORDER_ID = "extra_order_id"
     const val EXTRA_DISH_ID = "extra_dish_id"
+    const val EXTRA_DISH_NAME = "extra_dish_name"
+    const val EXTRA_DISH_PRICE = "extra_dish_price"
+    const val EXTRA_DISH_IMAGE = "extra_dish_image"
+    const val EXTRA_DISH_CATEGORY = "extra_dish_category"
 
     // Debounce timeout (Section 6 - doc-adr)
-    const val DEBOUNCE_TIMEOUT_MS = 1500L
+    const val DEBOUNCE_TIMEOUT_MS = 300L
 
     // GPS update interval (Foreground Service)
     const val GPS_UPDATE_INTERVAL_MS = 5000L

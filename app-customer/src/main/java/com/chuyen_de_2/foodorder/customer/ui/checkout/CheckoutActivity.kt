@@ -274,6 +274,7 @@ class CheckoutActivity : AppCompatActivity() {
 
             if (streetAddress.isBlank()) {
                 binding.tilAddress.error = "Vui lòng nhập địa chỉ giao hàng"
+                binding.nestedScrollView.smoothScrollTo(0, 0)
                 binding.etAddress.requestFocus()
                 return@setOnClickListener
             }
@@ -281,6 +282,7 @@ class CheckoutActivity : AppCompatActivity() {
 
             if (phone.isBlank()) {
                 binding.tilPhone.error = "Vui lòng nhập số điện thoại người nhận"
+                binding.nestedScrollView.smoothScrollTo(0, 0)
                 binding.etPhone.requestFocus()
                 return@setOnClickListener
             }
@@ -627,10 +629,10 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.txtPayNowAmount.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 binding.rowRemainNotice.visibility = View.GONE
 
-                binding.lblBottomTitle.text = "Thanh toán ngay (100%):"
+                binding.lblBottomTitle.text = "Tổng thanh toán:"
                 binding.tvBottomTotal.text = finalTotal.toVndCurrency()
                 binding.lblBottomSubNotice.visibility = View.GONE
-                binding.btnPlaceOrder.text = "Thanh Toán Đủ (Quét Mã QR) ➔"
+                binding.btnPlaceOrder.text = "Thanh toán ngay ➔"
             }
             Order.PaymentMode.DEPOSIT -> {
                 binding.txtSelectedMode.text = "Đặt cọc 20% (VietQR Ngân Hàng)"
@@ -643,11 +645,11 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.lblPayRemainTitle.text = "Thu khi nhận món:"
                 binding.txtPayRemainAmount.text = "${remainAmount.toVndCurrency()} (Thu tiền mặt)"
 
-                binding.lblBottomTitle.text = "Thanh toán cọc (20%):"
+                binding.lblBottomTitle.text = "Tiền cọc (20%):"
                 binding.tvBottomTotal.text = depositAmount.toVndCurrency()
                 binding.lblBottomSubNotice.visibility = View.VISIBLE
-                binding.lblBottomSubNotice.text = "Còn lại ${remainAmount.toVndCurrency()} thu khi nhận"
-                binding.btnPlaceOrder.text = "Thanh Toán Cọc (Quét Mã QR) ➔"
+                binding.lblBottomSubNotice.text = "💡 Còn lại ${remainAmount.toVndCurrency()} thu khi nhận hàng"
+                binding.btnPlaceOrder.text = "Thanh toán cọc ➔"
             }
             Order.PaymentMode.COD -> {
                 binding.txtSelectedMode.text = "Thanh toán khi nhận hàng (COD - Uy tín cao)"
@@ -660,11 +662,11 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.lblPayRemainTitle.text = "Thu khi nhận món:"
                 binding.txtPayRemainAmount.text = "${finalTotal.toVndCurrency()} (Shipper thu khi giao món)"
 
-                binding.lblBottomTitle.text = "Cần thanh toán ngay:"
+                binding.lblBottomTitle.text = "Cần trả trước:"
                 binding.tvBottomTotal.text = "0 đ"
                 binding.lblBottomSubNotice.visibility = View.VISIBLE
-                binding.lblBottomSubNotice.text = "Thu ${finalTotal.toVndCurrency()} khi nhận món"
-                binding.btnPlaceOrder.text = "Đặt Đơn COD (0đ Trả Trước) ➔"
+                binding.lblBottomSubNotice.text = "💡 Shipper thu ${finalTotal.toVndCurrency()} khi giao món"
+                binding.btnPlaceOrder.text = "Đặt hàng COD ➔"
             }
         }
     }

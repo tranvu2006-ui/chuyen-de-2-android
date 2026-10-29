@@ -86,6 +86,9 @@ data class Store(
     @SerializedName("ratingAvg", alternate = ["rating"])
     val ratingAvg: Float = 5.0f,
 
+    @SerializedName("reviewCount", alternate = ["ratingCount"])
+    val reviewCount: Int = 0,
+
     @SerializedName("deliveryTimeFrameId")
     val deliveryTimeFrameId: Int = 2,
 

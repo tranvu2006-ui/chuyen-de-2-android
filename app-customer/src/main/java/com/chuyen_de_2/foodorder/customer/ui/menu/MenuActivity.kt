@@ -40,6 +40,7 @@ class MenuActivity : AppCompatActivity() {
     private val viewModel: MenuViewModel by viewModels()
     private lateinit var adapter: MenuAdapter
     private var shopName: String = "Nhà hàng"
+    private var currentShopId: String = ""
 
     /**
      * Tên chức năng: Khởi tạo màn hình thực đơn quán
@@ -60,10 +61,26 @@ class MenuActivity : AppCompatActivity() {
             finish()
             return
         }
+        currentShopId = shopId
         shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Nhà hàng"
         val initialDishId = intent.getStringExtra(Constants.EXTRA_DISH_ID)
+        val initialDishName = intent.getStringExtra(Constants.EXTRA_DISH_NAME)
+        val initialDishPrice = intent.getLongExtra(Constants.EXTRA_DISH_PRICE, 0L)
+        val initialDishImage = intent.getStringExtra(Constants.EXTRA_DISH_IMAGE) ?: ""
+        val initialDishCategory = intent.getStringExtra(Constants.EXTRA_DISH_CATEGORY) ?: ""
 
-        viewModel.setShopInfo(shopId, shopName, initialDishId)
+        val initialDish = if (!initialDishId.isNullOrEmpty() && !initialDishName.isNullOrEmpty()) {
+            Dish(
+                id = initialDishId,
+                storeId = shopId,
+                name = initialDishName,
+                basePrice = initialDishPrice,
+                imageUrl = initialDishImage,
+                category = initialDishCategory
+            )
+        } else null
+
+        viewModel.setShopInfo(shopId, shopName, initialDishId, initialDish)
 
         setupTopNav()
         setupCategoryChips()
@@ -233,16 +250,22 @@ class MenuActivity : AppCompatActivity() {
 
         binding.tvDetailPriceOld.visibility = View.GONE
 
-        val rating = dish.ratingAvg
+        val rating = if (dish.ratingAvg > 0f) dish.ratingAvg else 5.0f
         val reviewCount = dish.reviewCount
-        if (reviewCount > 0 && rating > 0f) {
-            binding.tvDetailRatingText.visibility = View.VISIBLE
-            binding.tvDetailRatingText.text = "⭐ $rating"
-            binding.btnViewDishReviews.visibility = View.VISIBLE
-            binding.btnViewDishReviews.text = "⭐ Đánh giá ($reviewCount) ➔"
+
+        // Luôn hiển thị đánh giá & nút xem/viết đánh giá theo chuẩn b5.html
+        binding.tvDetailRatingText.visibility = View.VISIBLE
+        binding.btnViewDishReviews.visibility = View.VISIBLE
+        binding.btnHeaderDishReviews.visibility = View.VISIBLE
+
+        if (reviewCount > 0) {
+            binding.tvDetailRatingText.text = "⭐ $rating ($reviewCount đánh giá)"
+            binding.btnViewDishReviews.text = "⭐ Xem đánh giá ($reviewCount) ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ($reviewCount) ➔"
         } else {
-            binding.tvDetailRatingText.visibility = View.GONE
-            binding.btnViewDishReviews.visibility = View.GONE
+            binding.tvDetailRatingText.text = "⭐ 5.0 (Chưa có đánh giá)"
+            binding.btnViewDishReviews.text = "💬 Xem đánh giá ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ➔"
         }
 
         binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {
@@ -267,11 +290,21 @@ class MenuActivity : AppCompatActivity() {
 
         binding.btnViewDishReviews.setOnClickListener {
             val sheet = DishReviewsBottomSheetDialogFragment.newInstance(
+                dishId = dish.id,
                 dishName = dish.name,
                 dishRating = rating,
-                reviewCount = reviewCount
+                reviewCount = reviewCount,
+                storeId = dish.storeId.ifBlank { currentShopId }
             )
             sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
+        }
+
+        binding.tvDetailRatingText.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
+        }
+
+        binding.btnHeaderDishReviews.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
         }
 
         binding.cardTopDetail.setOnClickListener {

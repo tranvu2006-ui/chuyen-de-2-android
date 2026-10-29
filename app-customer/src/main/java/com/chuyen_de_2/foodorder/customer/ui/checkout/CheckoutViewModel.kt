@@ -193,6 +193,7 @@ class CheckoutViewModel @Inject constructor(
                         items = cart.items.mapValues { (_, item) ->
                             com.chuyen_de_2.foodorder.core.data.model.OrderItem(
                                 itemId = item.itemId,
+                                dishId = item.itemId,
                                 name = if (item.options.isNotBlank()) "${item.name} (${item.options})" else item.name,
                                 price = item.price,
                                 quantity = item.quantity,

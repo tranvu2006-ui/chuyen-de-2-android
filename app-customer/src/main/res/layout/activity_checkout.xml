@@ -8,23 +8,27 @@
     <!-- Header Toolbar chuẩn Phở Hà Nội 36 / ShopeeFood -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="?attr/actionBarSize"
         android:background="@color/primary"
         app:navigationIcon="@drawable/ic_arrow_back_curved"
         app:navigationIconTint="@color/on_primary"
-        app:title="Phở Hà Nội 36"
+        app:title="Thanh Toán Đơn Hàng"
         app:titleTextColor="@color/on_primary"
         app:titleTextAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
+        android:id="@+id/nestedScrollView"
+        android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipToPadding="false"
-        android:paddingBottom="84dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/toolbar">
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -1058,64 +1062,87 @@
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-
-    <!-- Bottom Bar Cố Định (b8.html: bottom-bar) -->
+    </androidx.core.widget.NestedScrollView>    <!-- Bottom Bar Cố Định (b8.html: bottom-bar) -->
     <LinearLayout
         android:id="@+id/bottomBar"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@color/surface"
         android:elevation="12dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="12dp"
+        android:orientation="vertical"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <LinearLayout
-            android:layout_width="0dp"
+        <!-- Banner thông báo tiền còn lại (cho phương thức Cọc hoặc COD) -->
+        <TextView
+            android:id="@+id/lblBottomSubNotice"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/lblBottomTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Thanh toán ngay (100%):"
-                android:textColor="#64748B"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tvBottomTotal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/primary"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/lblBottomSubNotice"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Còn lại 0đ thu khi nhận"
-                android:textColor="#D97706"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-        </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPlaceOrder"
-            style="@style/Widget.FoodOrder.Button.Primary"
-            android:layout_width="wrap_content"
-            android:layout_height="50dp"
-            android:paddingHorizontal="24dp"
-            android:text="@string/btn_place_order"
-            android:textSize="14.5sp"
+            android:background="#FFF7ED"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="7dp"
+            android:text="Còn lại 0đ thu khi nhận"
+            android:textColor="#D97706"
+            android:textSize="11.5sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="10dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/lblBottomTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:singleLine="true"
+                    android:text="Thanh toán ngay (100%):"
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvBottomTotal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:textColor="@color/primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPlaceOrder"
+                style="@style/Widget.FoodOrder.Button.Primary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:minWidth="130dp"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:gravity="center"
+                android:text="@string/btn_place_order"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:cornerRadius="12dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

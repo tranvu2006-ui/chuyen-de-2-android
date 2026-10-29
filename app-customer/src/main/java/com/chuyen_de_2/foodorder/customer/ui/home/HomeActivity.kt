@@ -409,6 +409,10 @@ class HomeActivity : AppCompatActivity() {
                     putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
                     putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
                     putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
+                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
+                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
+                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
                 }
                 startActivity(intent)
             },
@@ -417,6 +421,10 @@ class HomeActivity : AppCompatActivity() {
                     putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
                     putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
                     putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
+                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
+                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
+                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
                 }
                 startActivity(intent)
             }

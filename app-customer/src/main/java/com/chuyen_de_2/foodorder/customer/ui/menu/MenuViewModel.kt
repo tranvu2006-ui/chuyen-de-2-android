@@ -88,9 +88,16 @@ class MenuViewModel @Inject constructor(
     private var currentShopDistrict: String = ""
     private var currentShopAddress: String = ""
 
-    fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null) {
+    fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null, initialDish: Dish? = null) {
         currentShopId = shopId
         currentShopName = shopName
+
+        // Optimistic UI: Nếu có món truyền từ trang chủ, lập tức chọn và cộng giỏ hàng tức thì (0ms)
+        if (initialDish != null) {
+            _selectedDish.value = initialDish
+            addToCart(initialDish)
+        }
+
         loadMenu(shopId, initialDishId)
         observeShopCart(shopId)
         loadShopDetails(shopId)
@@ -112,11 +119,20 @@ class MenuViewModel @Inject constructor(
         val userId = auth.currentUser?.uid ?: return
         viewModelScope.launch {
             firebaseRepository.observeCart(userId, shopId).collectLatest { cart ->
+                val currentLocal = _cartItems.value ?: emptyMap()
                 if (cart != null && cart.items.isNotEmpty()) {
-                    _cartItems.value = cart.items.toMutableMap()
+                    val merged = cart.items.toMutableMap()
+                    // Giữ lại các món local nếu người dùng đã cộng dồn (tránh bị Firebase snapshot cũ ghi đè)
+                    for ((k, v) in currentLocal) {
+                        val remote = merged[k]
+                        if (remote == null || remote.quantity < v.quantity) {
+                            merged[k] = v
+                        }
+                    }
+                    _cartItems.value = merged
                     updateCartTotals()
-                } else if (cart == null && !_cartItems.value.isNullOrEmpty()) {
-                    _cartItems.value = mutableMapOf()
+                } else if (currentLocal.isNotEmpty()) {
+                    // Nếu Firebase trả về null nhưng local đã thêm món, giữ nguyên giỏ hàng hiện tại
                     updateCartTotals()
                 }
             }
@@ -145,7 +161,10 @@ class MenuViewModel @Inject constructor(
                         val targetDish = visibleDishes.find { it.id == initialDishId }
                         if (targetDish != null) {
                             _selectedDish.value = targetDish
-                            addToCart(targetDish)
+                            // Chỉ cộng nếu chưa được cộng lúc khởi tạo setShopInfo
+                            if (getItemQuantity(targetDish.id) == 0) {
+                                addToCart(targetDish)
+                            }
                         }
                     } else if (_selectedDish.value == null && visibleDishes.isNotEmpty()) {
                         val firstDish = visibleDishes.first()

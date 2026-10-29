@@ -2460,14 +2460,32 @@ class FirebaseRepository @Inject constructor(
 
     // ==================== CẤU HÌNH THỜI GIAN ĐẾM NGƯỢC BOM HÀNG ====================
 
+    private fun parseSafeInt(snapshot: DataSnapshot, key: String, default: Int): Int {
+        val v = snapshot.child(key).value ?: return default
+        return when (v) {
+            is Number -> v.toInt()
+            is String -> v.toIntOrNull() ?: default
+            else -> default
+        }
+    }
+
+    private fun parseSafeLong(snapshot: DataSnapshot, key: String, default: Long): Long {
+        val v = snapshot.child(key).value ?: return default
+        return when (v) {
+            is Number -> v.toLong()
+            is String -> v.toLongOrNull() ?: default
+            else -> default
+        }
+    }
+
     /** Lắng nghe cấu hình thời gian đếm ngược sự cố / bom hàng (Lần 1 và Lần 2) */
     fun observeCountdownConfig(): Flow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = callbackFlow {
         val ref = database.getReference("system_config").child("delivery_countdown")
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val round1 = snapshot.child("round1Minutes").getValue(Int::class.java) ?: 15
-                val round2 = snapshot.child("round2Minutes").getValue(Int::class.java) ?: 15
-                val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
+                val round1 = parseSafeInt(snapshot, "round1Minutes", 15)
+                val round2 = parseSafeInt(snapshot, "round2Minutes", 15)
+                val updatedAt = parseSafeLong(snapshot, "updatedAt", 0L)
                 trySend(
                     com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig(
                         round1Minutes = round1,
@@ -2489,9 +2507,9 @@ class FirebaseRepository @Inject constructor(
     suspend fun getCountdownConfig(): com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig {
         return try {
             val snapshot = database.getReference("system_config").child("delivery_countdown").get().await()
-            val round1 = snapshot.child("round1Minutes").getValue(Int::class.java) ?: 15
-            val round2 = snapshot.child("round2Minutes").getValue(Int::class.java) ?: 15
-            val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
+            val round1 = parseSafeInt(snapshot, "round1Minutes", 15)
+            val round2 = parseSafeInt(snapshot, "round2Minutes", 15)
+            val updatedAt = parseSafeLong(snapshot, "updatedAt", 0L)
             com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig(
                 round1Minutes = round1,
                 round2Minutes = round2,

@@ -256,6 +256,7 @@ class CheckoutActivity : AppCompatActivity() {
 
             if (streetAddress.isBlank()) {
                 binding.tilAddress.error = "Vui lòng nhập địa chỉ giao hàng"
+                binding.nestedScrollView.smoothScrollTo(0, 0)
                 binding.etAddress.requestFocus()
                 return@setOnClickListener
             }
@@ -263,6 +264,7 @@ class CheckoutActivity : AppCompatActivity() {
 
             if (phone.isBlank()) {
                 binding.tilPhone.error = "Vui lòng nhập số điện thoại người nhận"
+                binding.nestedScrollView.smoothScrollTo(0, 0)
                 binding.etPhone.requestFocus()
                 return@setOnClickListener
             }

@@ -59,6 +59,11 @@ class AdminDashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val result = firebaseRepo.updateCountdownConfig(round1Minutes, round2Minutes)
             if (result.isSuccess) {
+                _countdownConfig.value = com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig(
+                    round1Minutes = round1Minutes,
+                    round2Minutes = round2Minutes,
+                    updatedAt = System.currentTimeMillis()
+                )
                 _actionMessage.value = "Đã lưu cài đặt: Lần 1 = $round1Minutes phút, Lần 2 = $round2Minutes phút!"
             } else {
                 _actionMessage.value = "Lưu thất bại: ${result.exceptionOrNull()?.localizedMessage}"

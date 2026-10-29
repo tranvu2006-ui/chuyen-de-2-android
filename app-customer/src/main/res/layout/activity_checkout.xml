@@ -8,23 +8,27 @@
     <!-- Header Toolbar chuẩn Phở Hà Nội 36 / ShopeeFood -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="?attr/actionBarSize"
         android:background="@color/primary"
         app:navigationIcon="@drawable/ic_arrow_back_curved"
         app:navigationIconTint="@color/on_primary"
-        app:title="Phở Hà Nội 36"
+        app:title="Thanh Toán Đơn Hàng"
         app:titleTextColor="@color/on_primary"
         app:titleTextAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
+        android:id="@+id/nestedScrollView"
+        android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipToPadding="false"
-        android:paddingBottom="84dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/toolbar">
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -1049,7 +1053,7 @@
     <!-- Bottom Bar Cố Định (b8.html: bottom-bar) -->
     <LinearLayout
         android:id="@+id/bottomBar"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@color/surface"
         android:elevation="12dp"
@@ -1057,18 +1061,23 @@
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
         android:paddingVertical="12dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginEnd="8dp"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/lblBottomTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
                 android:text="Thanh toán ngay (100%):"
                 android:textColor="#64748B"
                 android:textSize="12sp" />
@@ -1077,6 +1086,7 @@
                 android:id="@+id/tvBottomTotal"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:maxLines="1"
                 android:textColor="@color/primary"
                 android:textSize="20sp"
                 android:textStyle="bold" />
@@ -1085,6 +1095,8 @@
                 android:id="@+id/lblBottomSubNotice"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="2"
                 android:text="Còn lại 0đ thu khi nhận"
                 android:textColor="#D97706"
                 android:textSize="11sp"
@@ -1097,9 +1109,9 @@
             style="@style/Widget.FoodOrder.Button.Primary"
             android:layout_width="wrap_content"
             android:layout_height="50dp"
-            android:paddingHorizontal="24dp"
+            android:paddingHorizontal="14dp"
             android:text="@string/btn_place_order"
-            android:textSize="14.5sp"
+            android:textSize="13.5sp"
             android:textStyle="bold"
             app:cornerRadius="12dp" />
 

@@ -1742,6 +1742,318 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- Banner nhắc nhở giữ món bom của đơn trước nếu có (8.html) -->
+                <LinearLayout
+                    android:id="@+id/boxBomOnBikeReminder"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    android:background="@drawable/bg_warning_inline"
+                    android:backgroundTint="#FFF7ED"
+                    android:orientation="horizontal"
+                    android:padding="10dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📦"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvBomOnBikeReminderText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:lineSpacingExtra="2dp"
+                        android:text="Lưu ý trên xe: Đang giữ món ăn của đơn bom #ORD-... Giao xong đơn này bạn sẽ quay về Quán trả món và nhận tiền hoàn!"
+                        android:textColor="#C2410C"
+                        android:textSize="11.5sp" />
+                </LinearLayout>
+
+                <!-- BỘ 3 NÚT THAO TÁC: GỌI KHÁCH, NHẮN TIN, BÁO CÁO SỰ CỐ (8.html: driver-actions-grid) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:orientation="horizontal">
+
+                    <!-- 1. NÚT GỌI KHÁCH -->
+                    <LinearLayout
+                        android:id="@+id/btnStep4CallCustomer"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_badge_shop_tag"
+                        android:backgroundTint="#ECFDF5"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="9dp"
+                        android:paddingHorizontal="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📞"
+                            android:textSize="18sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Gọi Khách"
+                            android:textColor="#047857"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvStep4PhoneSub"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="09xx xxx xxx"
+                            android:textColor="#059669"
+                            android:textSize="9.5sp" />
+                    </LinearLayout>
+
+                    <!-- 2. NÚT NHẮN TIN -->
+                    <LinearLayout
+                        android:id="@+id/btnStep4ChatCustomer"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="4dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_badge_shop_tag"
+                        android:backgroundTint="#EFF6FF"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="9dp"
+                        android:paddingHorizontal="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="💬"
+                            android:textSize="18sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Nhắn Tin"
+                            android:textColor="#1D4ED8"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Chat trực tiếp"
+                            android:textColor="#2563EB"
+                            android:textSize="9.5sp" />
+                    </LinearLayout>
+
+                    <!-- 3. NÚT BÁO CÁO SỰ CỐ -->
+                    <LinearLayout
+                        android:id="@+id/btnStep4ReportIncident"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1.2"
+                        android:background="@drawable/bg_badge_shop_tag"
+                        android:backgroundTint="#FEF2F2"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="9dp"
+                        android:paddingHorizontal="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="⚠️"
+                            android:textSize="18sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Báo Cáo Sự Cố"
+                            android:textColor="#DC2626"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Hủy hàng sự cố"
+                            android:textColor="#EF4444"
+                            android:textSize="9.5sp" />
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- KHUNG ĐẾM NGƯỢC 15 PHÚT CẢNH BÁO MẤT ĐƠN (8.html: boxCountdownCard) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardCountdownWarning"
+                    style="@style/Widget.Material3.CardView.Elevated"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="14dp"
+                    android:visibility="gone"
+                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="3dp"
+                    app:strokeColor="#F97316"
+                    app:strokeWidth="1.5dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🔴"
+                                android:textSize="10sp" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:text="ĐANG ĐẾM NGƯỢC CẢNH BÁO MẤT ĐƠN"
+                                android:textColor="#C2410C"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_badge_shop_tag"
+                                android:backgroundTint="#FFEDD5"
+                                android:paddingHorizontal="6dp"
+                                android:paddingVertical="2dp"
+                                android:text="Chờ 15 phút"
+                                android:textColor="#C2410C"
+                                android:textSize="9.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Đồng hồ chữ số đếm ngược -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_badge_shop_tag"
+                            android:backgroundTint="#FFF7ED"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:paddingVertical="10dp">
+
+                            <TextView
+                                android:id="@+id/tvCountdownDigits"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="15:00"
+                                android:textColor="#DC2626"
+                                android:textSize="32sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvCountdownSubtext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:text="phút còn lại"
+                                android:textColor="#9A3412"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Lời nhắc -->
+                        <TextView
+                            android:id="@+id/tvCountdownStatusMsg"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/bg_warning_inline"
+                            android:backgroundTint="#FEF3C7"
+                            android:lineSpacingExtra="2dp"
+                            android:padding="8dp"
+                            android:text="📢 Đã gửi cảnh báo mất đơn đến khách hàng: Nếu sau 15 phút không nhận món, đơn sẽ có thể bị hủy do bom hàng và bạn được quyền hoàn trả món về Quán!"
+                            android:textColor="#78350F"
+                            android:textSize="11sp" />
+
+                        <!-- Nút tua nhanh & hủy đếm ngược -->
+                        <LinearLayout
+                            android:id="@+id/layoutCountdownActiveButtons"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnFastForwardCountdown"
+                                style="@style/Widget.Material3.Button.TonalButton"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_marginEnd="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#EFF6FF"
+                                android:text="⏩ Tua Hết 15P (Demo)"
+                                android:textColor="#1D4ED8"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                app:cornerRadius="10dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnCancelCountdown"
+                                style="@style/Widget.Material3.Button.TonalButton"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_marginStart="4dp"
+                                android:layout_weight="1"
+                                android:backgroundTint="#F0FDF4"
+                                android:text="✓ Khách đã ra nhận"
+                                android:textColor="#15803D"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                app:cornerRadius="10dp" />
+                        </LinearLayout>
+
+                        <!-- Nút hủy khi hết 15 phút -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCountdownExpiredAction"
+                            style="@style/Widget.Material3.Button"
+                            android:layout_width="match_parent"
+                            android:layout_height="46dp"
+                            android:layout_marginTop="10dp"
+                            android:backgroundTint="#DC2626"
+                            android:text="🚫 HẾT 15P • HỦY ĐƠN BOM &amp; TIẾP TỤC ĐƠN GHÉP ➔"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold"
+                            android:visibility="gone"
+                            app:cornerRadius="10dp" />
+
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
                 <!-- Khung Quét QR Scanner Camera -->
                 <com.google.android.material.card.MaterialCardView
                     style="@style/Widget.Material3.CardView.Elevated"

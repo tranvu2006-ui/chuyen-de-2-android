@@ -344,7 +344,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Hãy là người đầu tiên chia sẻ cảm nhận và hình ảnh món ăn!"
+                    android:text="Món ăn này chưa có đánh giá nào từ khách mua hàng."
                     android:textColor="#94A3B8"
                     android:textSize="11sp" />
             </LinearLayout>

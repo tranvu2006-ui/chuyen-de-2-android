@@ -293,8 +293,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                     val review = DishReview(
                         reviewId = "rev_${System.currentTimeMillis()}_${(1000..9999).random()}",
                         orderId = currentOrderId,
-                        dishId = item.dishId,
-                        dishName = item.dishName,
+                        dishId = item.dishId.ifBlank { item.itemId },
+                        dishName = item.dishName.ifBlank { item.name },
                         storeId = storeId,
                         customerId = customerId,
                         customerName = customerName,

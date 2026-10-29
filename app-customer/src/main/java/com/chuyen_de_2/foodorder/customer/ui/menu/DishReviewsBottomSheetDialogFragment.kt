@@ -136,10 +136,10 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
     }
 
     private fun observeReviewsFromFirebase() {
-        if (dishId.isBlank()) return
+        if (dishId.isBlank() && dishName.isBlank()) return
 
         lifecycleScope.launch {
-            firebaseRepository.observeDishReviews(dishId).collectLatest { reviews ->
+            firebaseRepository.observeDishReviews(dishId, dishName).collectLatest { reviews ->
                 allReviewsList = reviews
                 updateOverviewCard(reviews)
                 filterAndDisplayReviews()

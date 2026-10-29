@@ -260,12 +260,12 @@ class MenuActivity : AppCompatActivity() {
 
         if (reviewCount > 0) {
             binding.tvDetailRatingText.text = "⭐ $rating ($reviewCount đánh giá)"
-            binding.btnViewDishReviews.text = "⭐ Đánh giá ($reviewCount) ➔"
-            binding.btnHeaderDishReviews.text = "💬 Đánh giá ($reviewCount) ➔"
+            binding.btnViewDishReviews.text = "⭐ Xem đánh giá ($reviewCount) ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ($reviewCount) ➔"
         } else {
             binding.tvDetailRatingText.text = "⭐ 5.0 (Chưa có đánh giá)"
-            binding.btnViewDishReviews.text = "✍️ Viết đánh giá ➔"
-            binding.btnHeaderDishReviews.text = "✍️ Viết đánh giá ➔"
+            binding.btnViewDishReviews.text = "💬 Xem đánh giá ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ➔"
         }
 
         binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {

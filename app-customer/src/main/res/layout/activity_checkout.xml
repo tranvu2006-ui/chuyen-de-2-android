@@ -1048,72 +1048,81 @@
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-
-    <!-- Bottom Bar Cố Định (b8.html: bottom-bar) -->
+    </androidx.core.widget.NestedScrollView>    <!-- Bottom Bar Cố Định (b8.html: bottom-bar) -->
     <LinearLayout
         android:id="@+id/bottomBar"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@color/surface"
         android:elevation="12dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="12dp"
+        android:orientation="vertical"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <LinearLayout
-            android:layout_width="0dp"
+        <!-- Banner thông báo tiền còn lại (cho phương thức Cọc hoặc COD) -->
+        <TextView
+            android:id="@+id/lblBottomSubNotice"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/lblBottomTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="Thanh toán ngay (100%):"
-                android:textColor="#64748B"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tvBottomTotal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:textColor="@color/primary"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/lblBottomSubNotice"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:text="Còn lại 0đ thu khi nhận"
-                android:textColor="#D97706"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-        </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPlaceOrder"
-            style="@style/Widget.FoodOrder.Button.Primary"
-            android:layout_width="wrap_content"
-            android:layout_height="50dp"
-            android:paddingHorizontal="14dp"
-            android:text="@string/btn_place_order"
-            android:textSize="13.5sp"
+            android:background="#FFF7ED"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="7dp"
+            android:text="Còn lại 0đ thu khi nhận"
+            android:textColor="#D97706"
+            android:textSize="11.5sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="10dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/lblBottomTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:singleLine="true"
+                    android:text="Thanh toán ngay (100%):"
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvBottomTotal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:textColor="@color/primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPlaceOrder"
+                style="@style/Widget.FoodOrder.Button.Primary"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:minWidth="130dp"
+                android:paddingHorizontal="14dp"
+                android:text="@string/btn_place_order"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                app:cornerRadius="12dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

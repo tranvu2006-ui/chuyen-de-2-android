@@ -143,6 +143,13 @@ class OrderListFragment : Fragment() {
                     currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
                     currentB.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
 
+                    com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                        imageView = currentB.ivShopHeaderLogo,
+                        imageUrl = store.effectiveImageUrl,
+                        placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+                        cornerDp = 10
+                    )
+
                     val st = store.storeStatus.uppercase()
                     currentB.switchShopStatus.setOnCheckedChangeListener(null)
                     when (st) {

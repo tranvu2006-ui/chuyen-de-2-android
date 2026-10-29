@@ -74,16 +74,13 @@ class AdminStoreAdapter(
                 binding.tvPenaltyBadge.visibility = View.GONE
             }
 
-            // Avatar
-            if (store.imageUrl.isNotBlank()) {
-                Glide.with(context)
-                    .load(store.imageUrl)
-                    .placeholder(R.drawable.ic_store)
-                    .error(R.drawable.ic_store)
-                    .into(binding.ivStoreAvatar)
-            } else {
-                binding.ivStoreAvatar.setImageResource(R.drawable.ic_store)
-            }
+            // Avatar quán đồng bộ URL / Base64
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivStoreAvatar,
+                imageUrl = store.effectiveImageUrl,
+                placeholderResId = R.drawable.ic_store,
+                cornerDp = 10
+            )
 
             binding.root.setOnClickListener {
                 onStoreClick(store)

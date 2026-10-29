@@ -44,6 +44,12 @@ class AdminStoreDetailBottomSheetDialogFragment(
 
     private fun populateData() {
         val context = requireContext()
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+            imageView = binding.ivDetailStoreAvatar,
+            imageUrl = store.effectiveImageUrl,
+            placeholderResId = R.drawable.ic_store,
+            cornerDp = 12
+        )
         binding.tvDetailStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
         binding.tvDetailStoreId.text = "Mã quán: ${store.id}"
         binding.tvDetailAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật" }} (${store.district.ifBlank { "Quận chưa rõ" }})"

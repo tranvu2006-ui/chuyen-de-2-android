@@ -46,15 +46,16 @@ class NearbyStoreAdapter(
             binding.tvNearbyEta.text = "⏱ ${store.eta}"
             binding.tvNearbyRating.text = "⭐ ${store.rating}"
 
-            if (store.imageUrl.isNotBlank()) {
+            val displayImg = store.imageUrl.ifBlank { store.originalStore?.effectiveImageUrl.orEmpty() }
+            if (displayImg.isNotBlank()) {
                 binding.ivNearbyStore.visibility = View.VISIBLE
                 binding.tvNearbyStoreEmoji.visibility = View.GONE
-                Glide.with(context)
-                    .load(store.imageUrl)
-                    .transform(CenterCrop(), RoundedCorners(10))
-                    .placeholder(R.drawable.placeholder_restaurant)
-                    .error(R.drawable.placeholder_restaurant)
-                    .into(binding.ivNearbyStore)
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = binding.ivNearbyStore,
+                    imageUrl = displayImg,
+                    placeholderResId = R.drawable.placeholder_restaurant,
+                    cornerDp = 10
+                )
             } else {
                 binding.ivNearbyStore.visibility = View.VISIBLE
                 binding.ivNearbyStore.setImageResource(R.drawable.placeholder_restaurant)

@@ -12,6 +12,7 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.chuyen_de_2.foodorder.core.data.model.Dish
+import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
@@ -99,6 +100,16 @@ class MenuActivity : AppCompatActivity() {
             onBackPressedDispatcher.onBackPressed()
         }
         binding.tvShopNavTitle.text = shopName
+
+        val initialShopImage = intent.getStringExtra(Constants.EXTRA_SHOP_IMAGE).orEmpty()
+        if (initialShopImage.isNotBlank()) {
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivShopNavAvatar,
+                imageUrl = initialShopImage,
+                placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+                cornerDp = 14
+            )
+        }
 
         binding.btnShare.setOnClickListener {
             Toast.makeText(this, "Chia sẻ liên kết quán $shopName", Toast.LENGTH_SHORT).show()
@@ -235,6 +246,17 @@ class MenuActivity : AppCompatActivity() {
 
         viewModel.cartItems.observe(this) {
             adapter.notifyDataSetChanged()
+        }
+
+        viewModel.store.observe(this) { store ->
+            if (store != null) {
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = binding.ivShopNavAvatar,
+                    imageUrl = store.effectiveImageUrl,
+                    placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+                    cornerDp = 14
+                )
+            }
         }
     }
 

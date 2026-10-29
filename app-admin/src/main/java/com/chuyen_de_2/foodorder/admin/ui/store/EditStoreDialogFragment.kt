@@ -66,11 +66,12 @@ class EditStoreDialogFragment(
         val trimmed = imageSource.trim()
         if (trimmed.isNotBlank()) {
             binding.ivStoreImagePreview.clearColorFilter()
-            Glide.with(this)
-                .load(trimmed)
-                .placeholder(R.drawable.ic_store)
-                .error(R.drawable.ic_store)
-                .into(binding.ivStoreImagePreview)
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivStoreImagePreview,
+                imageUrl = trimmed,
+                placeholderResId = R.drawable.ic_store,
+                cornerDp = 10
+            )
         } else {
             Glide.with(this).clear(binding.ivStoreImagePreview)
             binding.ivStoreImagePreview.setImageResource(R.drawable.ic_store)
@@ -137,7 +138,7 @@ class EditStoreDialogFragment(
         binding.etStorePhone.setText(store.phone)
         binding.etStoreAddress.setText(store.address)
         binding.etStoreDistrict.setText(store.district)
-        currentStoreImageUrl = store.imageUrl
+        currentStoreImageUrl = store.effectiveImageUrl
         updateStoreImagePreview(currentStoreImageUrl)
         binding.etStoreOpenHours.setText(store.openHours)
         binding.etStorePrepTime.setText(store.prepTime)
@@ -221,6 +222,10 @@ class EditStoreDialogFragment(
                 address = address,
                 district = district,
                 imageUrl = imageUrl,
+                avatarUrl = imageUrl,
+                avatar = imageUrl,
+                logoUrl = imageUrl,
+                image = imageUrl,
                 openHours = openHours,
                 prepTime = prepTime,
                 deliveryTime = deliveryTime,

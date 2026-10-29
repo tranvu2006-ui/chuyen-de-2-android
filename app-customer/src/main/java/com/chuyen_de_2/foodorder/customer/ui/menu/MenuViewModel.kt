@@ -10,6 +10,7 @@ import com.chuyen_de_2.foodorder.core.data.model.CartItem
 import com.chuyen_de_2.foodorder.core.data.model.CartPayload
 import com.chuyen_de_2.foodorder.core.data.model.Dish
 import com.chuyen_de_2.foodorder.core.data.model.MenuItem
+import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.data.remote.RestBackendApi
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.google.firebase.auth.FirebaseAuth
@@ -103,13 +104,18 @@ class MenuViewModel @Inject constructor(
         loadShopDetails(shopId)
     }
 
+    private val _store = MutableLiveData<Store?>()
+    val store: LiveData<Store?> = _store
+
     private fun loadShopDetails(shopId: String) {
         viewModelScope.launch {
             try {
-                val store = firebaseRepository.getStoreOnce(shopId)
-                if (store != null) {
-                    currentShopDistrict = store.district
-                    currentShopAddress = store.address
+                firebaseRepository.observeStore(shopId).collectLatest { store ->
+                    if (store != null) {
+                        currentShopDistrict = store.district
+                        currentShopAddress = store.address
+                        _store.postValue(store)
+                    }
                 }
             } catch (_: Exception) {}
         }

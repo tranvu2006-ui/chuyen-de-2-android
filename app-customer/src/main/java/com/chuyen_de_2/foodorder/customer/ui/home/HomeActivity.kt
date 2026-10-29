@@ -301,6 +301,7 @@ class HomeActivity : AppCompatActivity() {
             val intent = Intent(this, MenuActivity::class.java).apply {
                 putExtra(Constants.EXTRA_SHOP_ID, storeItem.id)
                 putExtra(Constants.EXTRA_SHOP_NAME, storeItem.name)
+                putExtra(Constants.EXTRA_SHOP_IMAGE, storeItem.imageUrl)
             }
             startActivity(intent)
         }

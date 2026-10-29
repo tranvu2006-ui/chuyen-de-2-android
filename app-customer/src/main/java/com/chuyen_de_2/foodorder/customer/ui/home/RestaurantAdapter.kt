@@ -43,13 +43,13 @@ class RestaurantAdapter(
                 binding.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.status_closed))
             }
 
-            // Load ảnh với Glide + bo góc
-            Glide.with(context)
-                .load(store.imageUrl)
-                .transform(CenterCrop(), RoundedCorners(16))
-                .placeholder(R.drawable.placeholder_restaurant)
-                .error(R.drawable.placeholder_restaurant)
-                .into(binding.ivRestaurant)
+            // Load ảnh quán đồng bộ URL / Base64 qua ImageLoadUtils
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivRestaurant,
+                imageUrl = store.effectiveImageUrl,
+                placeholderResId = R.drawable.placeholder_restaurant,
+                cornerDp = 16
+            )
 
             // Click animation
             binding.root.setOnClickListener {

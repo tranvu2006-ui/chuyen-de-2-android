@@ -250,15 +250,15 @@ class StoreProfileFragment : Fragment() {
     }
 
     private fun displayStoreAvatar(avatarUrl: String) {
-        if (avatarUrl.isNotBlank() && (avatarUrl.startsWith("data:image") || avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://"))) {
+        if (avatarUrl.isNotBlank()) {
             binding.ivProfileStoreAvatar.visibility = View.VISIBLE
             binding.tvProfileStoreEmoji.visibility = View.GONE
-            Glide.with(this)
-                .load(avatarUrl)
-                .transform(CenterCrop(), RoundedCorners(24))
-                .placeholder(R.drawable.bg_badge_orange)
-                .error(R.drawable.bg_badge_orange)
-                .into(binding.ivProfileStoreAvatar)
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivProfileStoreAvatar,
+                imageUrl = avatarUrl,
+                placeholderResId = R.drawable.bg_badge_orange,
+                cornerDp = 24
+            )
         } else {
             binding.ivProfileStoreAvatar.visibility = View.GONE
             binding.tvProfileStoreEmoji.visibility = View.VISIBLE
@@ -271,7 +271,7 @@ class StoreProfileFragment : Fragment() {
      * Luồng hướng tới: Hiển thị trực quan cho chủ quán.
      */
     private fun bindStoreData(store: Store) {
-        displayStoreAvatar(store.imageUrl)
+        displayStoreAvatar(store.effectiveImageUrl)
         binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
         binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
         binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
@@ -359,15 +359,17 @@ class StoreProfileFragment : Fragment() {
         currentDialogAvatarPreview = ivAvatarPreview
         currentDialogAvatarPlaceholder = tvAvatarPlaceholder
 
-        val currentAvatarUrl = store.imageUrl
-        if (currentAvatarUrl.isNotBlank() && (currentAvatarUrl.startsWith("data:image") || currentAvatarUrl.startsWith("http"))) {
+        val currentAvatarUrl = store.effectiveImageUrl
+        if (currentAvatarUrl.isNotBlank()) {
             ivAvatarPreview?.visibility = View.VISIBLE
             tvAvatarPlaceholder?.visibility = View.GONE
             ivAvatarPreview?.let {
-                Glide.with(this)
-                    .load(currentAvatarUrl)
-                    .transform(CenterCrop(), RoundedCorners(24))
-                    .into(it)
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = it,
+                    imageUrl = currentAvatarUrl,
+                    placeholderResId = R.drawable.bg_badge_orange,
+                    cornerDp = 24
+                )
             }
         } else {
             ivAvatarPreview?.visibility = View.GONE
@@ -494,7 +496,7 @@ class StoreProfileFragment : Fragment() {
                     coords.latitude to coords.longitude
                 }
 
-                val avatarToSave = pendingAvatarBase64 ?: store.imageUrl
+                val avatarToSave = pendingAvatarBase64 ?: store.effectiveImageUrl
 
                 val result = firebaseRepository.updateStoreProfile(
                     storeId = currentStoreId,

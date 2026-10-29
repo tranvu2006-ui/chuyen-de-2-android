@@ -584,8 +584,22 @@ class FirebaseRepository @Inject constructor(
                                 }
                             }
                         }
+                        val rawImg = child.child("imageUrl").getValue(String::class.java)
+                            ?: child.child("avatarUrl").getValue(String::class.java)
+                            ?: child.child("avatar").getValue(String::class.java)
+                            ?: child.child("logoUrl").getValue(String::class.java)
+                            ?: child.child("image").getValue(String::class.java)
+                            ?: store.effectiveImageUrl
                         val finalDishes = if (dishesMap.isNotEmpty()) dishesMap else store.dishes
-                        val finalStore = store.copy(id = storeId, dishes = finalDishes)
+                        val finalStore = store.copy(
+                            id = storeId,
+                            imageUrl = rawImg,
+                            avatarUrl = rawImg,
+                            avatar = rawImg,
+                            logoUrl = rawImg,
+                            image = rawImg,
+                            dishes = finalDishes
+                        )
                         list.add(finalStore)
                     }
                 }
@@ -709,7 +723,23 @@ class FirebaseRepository @Inject constructor(
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val store = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
-                trySend(store)
+                if (store != null) {
+                    val rawImg = snapshot.child("imageUrl").getValue(String::class.java)
+                        ?: snapshot.child("avatarUrl").getValue(String::class.java)
+                        ?: snapshot.child("avatar").getValue(String::class.java)
+                        ?: snapshot.child("logoUrl").getValue(String::class.java)
+                        ?: snapshot.child("image").getValue(String::class.java)
+                        ?: store.effectiveImageUrl
+                    trySend(store.copy(
+                        imageUrl = rawImg,
+                        avatarUrl = rawImg,
+                        avatar = rawImg,
+                        logoUrl = rawImg,
+                        image = rawImg
+                    ))
+                } else {
+                    trySend(null)
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -759,6 +789,9 @@ class FirebaseRepository @Inject constructor(
             if (imageUrl.isNotBlank()) {
                 updates["imageUrl"] = imageUrl
                 updates["avatarUrl"] = imageUrl
+                updates["avatar"] = imageUrl
+                updates["logoUrl"] = imageUrl
+                updates["image"] = imageUrl
             }
             if (latitude != 0.0) updates["latitude"] = latitude
             if (longitude != 0.0) updates["longitude"] = longitude
@@ -786,7 +819,18 @@ class FirebaseRepository @Inject constructor(
                 val dist = snap.child("district").getValue(String::class.java) ?: store?.district.orEmpty()
                 val cccd = snap.child("cccdNumber").getValue(String::class.java) ?: store?.cccdNumber.orEmpty()
                 val owner = snap.child("ownerName").getValue(String::class.java) ?: store?.ownerName.orEmpty()
+                val rawImg = snap.child("imageUrl").getValue(String::class.java)
+                    ?: snap.child("avatarUrl").getValue(String::class.java)
+                    ?: snap.child("avatar").getValue(String::class.java)
+                    ?: snap.child("logoUrl").getValue(String::class.java)
+                    ?: snap.child("image").getValue(String::class.java)
+                    ?: store?.effectiveImageUrl.orEmpty()
                 store?.copy(
+                    imageUrl = rawImg,
+                    avatarUrl = rawImg,
+                    avatar = rawImg,
+                    logoUrl = rawImg,
+                    image = rawImg,
                     isVerified = isVer,
                     address = addr,
                     district = dist,
@@ -1978,7 +2022,11 @@ class FirebaseRepository @Inject constructor(
                 "district" to finalStore.district,
                 "latitude" to finalStore.latitude,
                 "longitude" to finalStore.longitude,
-                "imageUrl" to finalStore.imageUrl,
+                "imageUrl" to finalStore.effectiveImageUrl,
+                "avatarUrl" to finalStore.effectiveImageUrl,
+                "avatar" to finalStore.effectiveImageUrl,
+                "logoUrl" to finalStore.effectiveImageUrl,
+                "image" to finalStore.effectiveImageUrl,
                 "storeStatus" to finalStore.storeStatus,
                 "status" to finalStore.storeStatus,
                 "open" to (finalStore.storeStatus == com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN),

@@ -19,6 +19,7 @@ object Constants {
     // Intent Extras
     const val EXTRA_SHOP_ID = "extra_shop_id"
     const val EXTRA_SHOP_NAME = "extra_shop_name"
+    const val EXTRA_SHOP_IMAGE = "extra_shop_image"
     const val EXTRA_ORDER_ID = "extra_order_id"
     const val EXTRA_DISH_ID = "extra_dish_id"
     const val EXTRA_DISH_NAME = "extra_dish_name"

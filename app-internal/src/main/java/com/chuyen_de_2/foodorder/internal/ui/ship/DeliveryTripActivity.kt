@@ -1524,8 +1524,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             isQrVerified = true
             verifiedTokenString = verifyResult.matchedToken
             markStep4QrVerified(verifyResult.matchedToken)
-            Toast.makeText(this, "✓ Xác minh ảnh QR thành công! Khớp Token: ${verifyResult.matchedToken}", Toast.LENGTH_SHORT).show()
-            completeTripOrder()
+            Toast.makeText(this, "✓ Xác minh ảnh QR thành công! Vui lòng thu tiền COD (nếu có) và nhấn nút Xác nhận hoàn tất.", Toast.LENGTH_LONG).show()
         } else {
             Toast.makeText(this, "❌ Mã QR trong ảnh không khớp với đơn #ORD-$shortCode!", Toast.LENGTH_LONG).show()
         }
@@ -1886,8 +1885,8 @@ class DeliveryTripActivity : AppCompatActivity() {
                         scannedValue.contains(ordId, ignoreCase = true) ||
                         scannedValue.contains("TOKEN_OISHI", ignoreCase = true) ||
                         scannedValue.isNotBlank()) {
-                        Toast.makeText(this, "✓ Quét Camera thành công! Khớp mã: $scannedValue", Toast.LENGTH_SHORT).show()
-                        completeTripOrder()
+                        markStep4QrVerified(scannedValue)
+                        Toast.makeText(this, "✓ Quét Camera thành công! Khớp mã: $scannedValue\nVui lòng thu tiền COD (nếu có) và nhấn nút Xác nhận hoàn tất.", Toast.LENGTH_LONG).show()
                     } else {
                         Toast.makeText(this, "⚠️ Mã QR không khớp: $scannedValue", Toast.LENGTH_LONG).show()
                     }
@@ -1948,9 +1947,8 @@ class DeliveryTripActivity : AppCompatActivity() {
                 tvDetectedToken?.text = verifyResult.message
                 btnConfirm.isEnabled = true
                 markStep4QrVerified(verifyResult.matchedToken)
-                Toast.makeText(this, "✓ Xác minh thành công! Khớp Token: ${verifyResult.matchedToken}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "✓ Xác minh thành công! Khớp Token: ${verifyResult.matchedToken}\nVui lòng thu tiền COD (nếu có) và bấm Xác nhận hoàn tất.", Toast.LENGTH_LONG).show()
                 dialog.dismiss()
-                completeTripOrder()
             } else {
                 tvScannerStatus?.text = "❌ MÃ KHÔNG KHỚP ĐƠN #ORD-$shortCode"
                 tvScannerStatus?.setTextColor(android.graphics.Color.parseColor("#F87171"))
@@ -1983,7 +1981,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         btnCancel?.setOnClickListener { dialog.dismiss() }
         btnConfirm?.setOnClickListener {
             dialog.dismiss()
-            completeTripOrder()
+            Toast.makeText(this, "✓ Đã xác minh mã QR! Vui lòng thu tiền COD (nếu có) và nhấn nút 'Xác nhận thu tiền & hoàn tất' khi giao xong.", Toast.LENGTH_LONG).show()
         }
 
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
@@ -2033,11 +2031,20 @@ class DeliveryTripActivity : AppCompatActivity() {
                     } else {
                         "#ORD-" + QRCodeUtils.getShortOrderCode(ordId)
                     }
+                    val sUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+                    if (sUid.isNotBlank()) {
+                        firebaseRepository.updateDriverDutyStatus(sUid, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE, "")
+                    }
                     AlertDialog.Builder(this@DeliveryTripActivity)
                         .setTitle("🎉 Hoàn Thành Toàn Bộ Chuyến Giao Hàng!")
                         .setMessage("Đã hoàn tất tất cả các đơn hàng ($allCodes).\n\n+${totalFee.toVndCurrency()} tiền công ship đã được cộng vào Ví Thu Nhập của bạn!")
                         .setPositiveButton("Về Danh Sách Đơn") { _, _ ->
                             finish()
+                        }
+                        .setNegativeButton("Ở Lại Xem Chi Tiết") { d, _ ->
+                            d.dismiss()
+                            binding.btnCompleteTripFinal.isEnabled = false
+                            binding.btnCompleteTripFinal.text = "✓ CHUYẾN ĐÃ HOÀN TẤT THÀNH CÔNG"
                         }
                         .setCancelable(false)
                         .show()

@@ -1431,6 +1431,28 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Cập nhật trạng thái ca trực (AVAILABLE, DELIVERING, OFF_DUTY) và mã đơn đang giao của tài xế */
+    suspend fun updateDriverDutyStatus(driverId: String, dutyStatus: String, currentOrderCode: String = "") {
+        if (driverId.isBlank()) return
+        try {
+            val updates = mutableMapOf<String, Any>(
+                "dutyStatus" to dutyStatus,
+                "currentOrderCode" to currentOrderCode
+            )
+            database.getReference("drivers").child(driverId).updateChildren(updates).await()
+        } catch (_: Exception) {}
+    }
+
+    /** Thiết lập tự động chuyển trạng thái OFF_DUTY khi tài xế mất mạng hoặc thoát app */
+    fun setupDriverPresence(driverId: String) {
+        if (driverId.isBlank()) return
+        try {
+            val ref = database.getReference("drivers").child(driverId)
+            ref.child("dutyStatus").onDisconnect().setValue(com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY)
+            ref.child("currentOrderCode").onDisconnect().setValue("")
+        } catch (_: Exception) {}
+    }
+
     /**
      * Dọn dẹp toàn bộ dữ liệu của các tài khoản đã bị xóa:
      * 1. Xóa giỏ hàng mồ côi (carts)

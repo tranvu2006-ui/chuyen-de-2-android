@@ -155,14 +155,28 @@
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="🛡️ HỆ THỐNG ĐIỂM UY TÍN (TRUSTSCORE)"
-                            android:textColor="#334155"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:src="@drawable/ic_shield"
+                                app:tint="@color/primary" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="HỆ THỐNG ĐIỂM UY TÍN (TRUSTSCORE)"
+                                android:textColor="#334155"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvTrustBadge"
@@ -272,16 +286,20 @@
                         android:id="@+id/btnViewTrustHistory"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                         android:layout_width="match_parent"
-                        android:layout_height="40dp"
+                        android:layout_height="42dp"
                         android:layout_marginTop="10dp"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
-                        android:text="📜 Xem Lịch Sử Biến Động &amp; Quyền Lợi Hạng Uy Tín"
+                        android:text="Xem Đặc Quyền &amp; Lịch Sử Điểm Uy Tín"
                         android:textAllCaps="false"
                         android:textColor="#B45309"
                         android:textSize="12sp"
                         android:textStyle="bold"
                         app:cornerRadius="10dp"
+                        app:icon="@drawable/ic_file_text"
+                        app:iconGravity="textStart"
+                        app:iconSize="16dp"
+                        app:iconTint="#B45309"
                         app:strokeColor="#F59E0B"
                         app:strokeWidth="1dp" />
                 </LinearLayout>

@@ -77,13 +77,32 @@ class AdminUserAdapter(
             }
 
             // Customer Trust Score & Tier Badge
-            if (item.customer != null) {
-                val c = item.customer
-                binding.tvCustomerTrust.visibility = View.VISIBLE
-                binding.tvCustomerTrust.text = "${c.tierBadge} (${c.trustScore}/100) • Nhận: ${c.completedOrders} • Bom: ${c.boomOrders}"
-            } else {
-                binding.tvCustomerTrust.visibility = View.VISIBLE
-                binding.tvCustomerTrust.text = "💎 Hạng Kim Cương (100/100) • Nhận: 0 • Bom: 0"
+            val c = item.customer
+            val score = c?.trustScore ?: 100
+            val completed = c?.completedOrders ?: 0
+            val boomed = c?.boomOrders ?: 0
+            val tierBadge = c?.tierBadge ?: "💎 Hạng Kim Cương"
+
+            binding.tvCustomerTrust.visibility = View.VISIBLE
+            binding.tvCustomerTrust.text = "$tierBadge ($score/100) • Nhận: $completed • Bom: $boomed"
+
+            when {
+                score >= 95 -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_green)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                }
+                score >= 80 -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+                score >= 50 -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+                else -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                }
             }
 
             // Lock / Unlock button & indicator

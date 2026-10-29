@@ -17,6 +17,7 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import android.view.LayoutInflater
 import android.graphics.Color
+import android.content.res.ColorStateList
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
@@ -232,11 +233,28 @@ class CheckoutActivity : AppCompatActivity() {
         binding.layoutPayFull.setOnClickListener { selectPaymentMode(Order.PaymentMode.FULL) }
         binding.layoutPayDeposit.setOnClickListener { selectPaymentMode(Order.PaymentMode.DEPOSIT) }
         binding.layoutPayCod.setOnClickListener {
-            if (currentCustomerTrustScore < 100) {
+            val orderTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
+            if (currentCustomerTrustScore < 50) {
                 Toast.makeText(
                     this,
-                    "Chỉ khách hàng đạt 100 điểm uy tín mới được đặt đơn COD (Điểm hiện tại: $currentCustomerTrustScore/100). Vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!",
-                    Toast.LENGTH_SHORT
+                    "Điểm uy tín của bạn là $currentCustomerTrustScore/100 (< 50 điểm). Hình thức COD bị khóa, vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+            if (currentCustomerTrustScore < 80 && orderTotal > 150_000L) {
+                Toast.makeText(
+                    this,
+                    "Điểm uy tín Hạng Bạc ($currentCustomerTrustScore/100) chỉ hỗ trợ COD tối đa 150.000đ. Đơn này giá trị ${orderTotal.toVndCurrency()}, vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+            if (currentCustomerTrustScore < 95 && orderTotal > 500_000L) {
+                Toast.makeText(
+                    this,
+                    "Điểm uy tín Hạng Vàng ($currentCustomerTrustScore/100) hỗ trợ COD tối đa 500.000đ. Đơn này giá trị ${orderTotal.toVndCurrency()}, vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!",
+                    Toast.LENGTH_LONG
                 ).show()
                 return@setOnClickListener
             }
@@ -349,33 +367,45 @@ class CheckoutActivity : AppCompatActivity() {
                     recalculateTotal()
                 }
 
-                if (cust.trustScore >= 100) {
-                    // Đạt 100 điểm uy tín:
-                    // 1. Mới cho đặt đơn COD
+                val orderTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
+                binding.tvTrustScoreTitle.text = "Điểm Uy Tín: ${cust.trustScore}/100 (${cust.tierBadge})"
+
+                if (cust.trustScore >= 80) {
+                    // Hạng Kim Cương hoặc Hạng Vàng: Mở khóa hoàn toàn COD
                     binding.layoutPayCod.isEnabled = true
                     binding.layoutPayCod.alpha = 1.0f
-                    binding.tvCodTrustPill.text = "⭐ Điểm uy tín: ${cust.trustScore}/100 (💎 Đạt 100 điểm: Đủ điều kiện thanh toán COD)"
+                    binding.tvCodTrustPill.text = "Điểm uy tín: ${cust.trustScore}/100 (${cust.tierBadge}) • Đủ điều kiện nhận hàng trả sau (COD)"
                     binding.tvCodTrustPill.setTextColor(Color.parseColor("#059669"))
-
-                    // 2. Ẩn phần đặt cọc
-                    binding.layoutPayDeposit.visibility = View.GONE
-
-                    // Nếu trước đó đang chọn Cọc thì chuyển sang COD
-                    if (selectedPaymentMode == Order.PaymentMode.DEPOSIT) {
-                        selectPaymentMode(Order.PaymentMode.COD)
+                    binding.tvCodTrustPill.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_check_circle, 0, 0, 0)
+                    binding.tvCodTrustPill.compoundDrawableTintList = ColorStateList.valueOf(Color.parseColor("#059669"))
+                } else if (cust.trustScore >= 50) {
+                    // Hạng Bạc (50 - 79 điểm): Giới hạn COD 150.000đ
+                    if (orderTotal <= 150_000L) {
+                        binding.layoutPayCod.isEnabled = true
+                        binding.layoutPayCod.alpha = 1.0f
+                        binding.tvCodTrustPill.text = "Điểm uy tín Hạng Bạc (${cust.trustScore}/100) • Đơn dưới 150k được thanh toán COD"
+                        binding.tvCodTrustPill.setTextColor(Color.parseColor("#D97706"))
+                        binding.tvCodTrustPill.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_shield, 0, 0, 0)
+                        binding.tvCodTrustPill.compoundDrawableTintList = ColorStateList.valueOf(Color.parseColor("#D97706"))
+                    } else {
+                        binding.layoutPayCod.isEnabled = false
+                        binding.layoutPayCod.alpha = 0.55f
+                        binding.tvCodTrustPill.text = "Hạng Bạc (${cust.trustScore}/100): Đơn > 150k vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!"
+                        binding.tvCodTrustPill.setTextColor(Color.parseColor("#DC2626"))
+                        binding.tvCodTrustPill.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_alert_triangle, 0, 0, 0)
+                        binding.tvCodTrustPill.compoundDrawableTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+                        if (selectedPaymentMode == Order.PaymentMode.COD) {
+                            selectPaymentMode(Order.PaymentMode.DEPOSIT)
+                        }
                     }
                 } else {
-                    // Dưới 100 điểm uy tín:
-                    // 1. Mới có phần đặt cọc 20%
-                    binding.layoutPayDeposit.visibility = View.VISIBLE
-
-                    // 2. Khóa hình thức COD (chỉ khách hàng đạt 100 điểm mới được đặt COD)
+                    // Dưới 50 điểm: Khóa hoàn toàn COD
                     binding.layoutPayCod.isEnabled = false
                     binding.layoutPayCod.alpha = 0.55f
-                    binding.tvCodTrustPill.text = "🔒 Cần đạt 100 điểm uy tín để mở khóa COD (Điểm hiện tại: ${cust.trustScore}/100)"
+                    binding.tvCodTrustPill.text = "Điểm uy tín thấp (${cust.trustScore}/100 < 50): Đã khóa COD. Vui lòng chọn Đặt cọc 20% hoặc Trả thẳng!"
                     binding.tvCodTrustPill.setTextColor(Color.parseColor("#DC2626"))
-
-                    // Nếu đang chọn COD thì chuyển sang Đặt Cọc 20%
+                    binding.tvCodTrustPill.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_lock, 0, 0, 0)
+                    binding.tvCodTrustPill.compoundDrawableTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
                     if (selectedPaymentMode == Order.PaymentMode.COD) {
                         selectPaymentMode(Order.PaymentMode.DEPOSIT)
                     }

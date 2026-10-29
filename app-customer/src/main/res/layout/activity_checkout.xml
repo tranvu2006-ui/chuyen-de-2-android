@@ -56,11 +56,11 @@
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="⭐"
-                            android:textSize="18sp" />
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_shield"
+                            app:tint="#D97706" />
 
                         <TextView
                             android:id="@+id/tvTrustScoreTitle"
@@ -515,16 +515,29 @@
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
 
-                            <TextView
+                            <LinearLayout
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:background="@drawable/bg_badge_cod"
-                                android:paddingHorizontal="6dp"
-                                android:paddingVertical="2dp"
-                                android:text="👑 Uy tín cao"
-                                android:textColor="#EA580C"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
+                                android:gravity="center_vertical"
+                                android:paddingHorizontal="7dp"
+                                android:paddingVertical="3dp">
+
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    android:src="@drawable/ic_badge_check"
+                                    app:tint="#EA580C" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="4dp"
+                                    android:text="Uy tín cao"
+                                    android:textColor="#EA580C"
+                                    android:textSize="11sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
                         </LinearLayout>
 
                         <TextView
@@ -543,7 +556,8 @@
                             android:layout_marginStart="28dp"
                             android:layout_marginTop="6dp"
                             android:background="@drawable/bg_badge_trust_pill"
-                            android:text="⭐ Điểm uy tín của bạn đủ điều kiện nhận hàng trả sau"
+                            android:drawablePadding="6dp"
+                            android:text="Điểm uy tín của bạn đủ điều kiện nhận hàng trả sau"
                             android:textColor="#059669"
                             android:textSize="11.5sp"
                             android:textStyle="bold" />

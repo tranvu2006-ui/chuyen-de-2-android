@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
+import android.widget.ImageView
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -91,9 +93,20 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentStorePhone: String = ""
     private var currentShipperName: String = "Tài xế giao hàng"
     private var currentShipperPhone: String = ""
-    private var currentRating: Int = 5
     private var currentOrder: Order? = null
     private var pendingImageBase64: String? = null
+
+    // Quản lý trạng thái đánh giá riêng cho từng món trong đơn (Cách 2)
+    private data class DishRatingState(
+        val dishId: String,
+        val dishName: String,
+        val specText: String,
+        var rating: Int = 5,
+        var commentEt: EditText? = null,
+        var starLabelTv: TextView? = null,
+        var starTvs: List<TextView> = emptyList()
+    )
+    private val dishRatingStates = mutableListOf<DishRatingState>()
 
     // Launcher chọn ảnh từ thư viện
     private val pickReviewImageLauncher = registerForActivityResult(
@@ -203,13 +216,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupRatingComponent() {
-        val stars = listOf(binding.star1, binding.star2, binding.star3, binding.star4, binding.star5)
-        stars.forEachIndexed { index, textView ->
-            textView.setOnClickListener {
-                setRating(index + 1)
-            }
-        }
-
         // Nút mở thư viện chọn ảnh chụp món ăn
         binding.btnPickReviewImage.setOnClickListener {
             pickReviewImageLauncher.launch("image/*")
@@ -224,6 +230,98 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.btnSubmitReview.setOnClickListener {
             handleSubmitReview()
         }
+    }
+
+    private fun setupDishRatingList(order: Order) {
+        if (dishRatingStates.isNotEmpty()) return
+        val container = binding.llReviewDishesContainer
+        container.removeAllViews()
+
+        val itemsList = order.items.values.toList()
+        if (itemsList.isEmpty()) {
+            val state = DishRatingState(
+                dishId = "general_${currentOrderId}",
+                dishName = "Đơn món ăn #${currentOrderId.takeLast(6).uppercase()}",
+                specText = "Đã giao thành công",
+                rating = 5
+            )
+            dishRatingStates.add(state)
+            val itemView = createDishRatingView(state, null)
+            container.addView(itemView)
+            return
+        }
+
+        for (item in itemsList) {
+            val resolvedDishId = if (item.dishId.isNotBlank()) item.dishId else item.itemId
+            val resolvedDishName = if (item.dishName.isNotBlank()) item.dishName else item.name
+            val state = DishRatingState(
+                dishId = resolvedDishId,
+                dishName = resolvedDishName,
+                specText = "Số lượng: ${item.quantity} phần",
+                rating = 5
+            )
+            dishRatingStates.add(state)
+            val itemView = createDishRatingView(state, item.effectiveImageUrl)
+            container.addView(itemView)
+        }
+    }
+
+    private fun createDishRatingView(state: DishRatingState, imageUrl: String?): View {
+        val rowView = LayoutInflater.from(this).inflate(R.layout.item_order_dish_rating, binding.llReviewDishesContainer, false)
+        val tvDishName = rowView.findViewById<TextView>(R.id.tvDishName)
+        val tvDishSpec = rowView.findViewById<TextView>(R.id.tvDishSpec)
+        val ivDishThumb = rowView.findViewById<ImageView>(R.id.ivDishThumb)
+        val tvDishStarLabel = rowView.findViewById<TextView>(R.id.tvDishStarLabel)
+        val etDishReviewComment = rowView.findViewById<EditText>(R.id.etDishReviewComment)
+
+        val starTvs = listOf<TextView>(
+            rowView.findViewById(R.id.tvStar1),
+            rowView.findViewById(R.id.tvStar2),
+            rowView.findViewById(R.id.tvStar3),
+            rowView.findViewById(R.id.tvStar4),
+            rowView.findViewById(R.id.tvStar5)
+        )
+
+        tvDishName.text = state.dishName
+        tvDishSpec.text = state.specText
+
+        if (!imageUrl.isNullOrBlank()) {
+            Glide.with(this)
+                .load(imageUrl)
+                .placeholder(R.drawable.placeholder_food)
+                .error(R.drawable.placeholder_food)
+                .into(ivDishThumb)
+        }
+
+        val activeColor = ContextCompat.getColor(this, R.color.rating_star)
+        val inactiveColor = ContextCompat.getColor(this, R.color.divider)
+
+        fun updateStarUI(starCount: Int) {
+            state.rating = starCount
+            starTvs.forEachIndexed { idx, tv ->
+                tv.setTextColor(if (idx < starCount) activeColor else inactiveColor)
+            }
+            tvDishStarLabel.text = when (starCount) {
+                1 -> "1★ Rất tệ"
+                2 -> "2★ Chưa hài lòng"
+                3 -> "3★ Tạm ổn"
+                4 -> "4★ Hài lòng, ngon"
+                else -> "5★ Tuyệt vời!"
+            }
+        }
+
+        starTvs.forEachIndexed { index, textView ->
+            textView.setOnClickListener {
+                updateStarUI(index + 1)
+            }
+        }
+        updateStarUI(5)
+
+        state.commentEt = etDishReviewComment
+        state.starLabelTv = tvDishStarLabel
+        state.starTvs = starTvs
+
+        return rowView
     }
 
     private fun processAndPreviewImage(uri: Uri) {
@@ -267,10 +365,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun handleSubmitReview() {
+        if (dishRatingStates.isEmpty()) return
         val order = currentOrder
-        val comment = binding.etReviewComment.text?.toString()?.trim().orEmpty().ifBlank {
-            binding.ratingHintText.text.toString()
-        }
         val image = pendingImageBase64.orEmpty()
         val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
         val customerId = authUser?.uid ?: order?.customerId ?: "user_${System.currentTimeMillis()}"
@@ -287,39 +383,22 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             binding.btnSubmitReview.isEnabled = false
             binding.btnSubmitReview.text = "Đang gửi đánh giá..."
 
-            val itemsList = order?.items?.values?.toList().orEmpty()
-            if (itemsList.isNotEmpty()) {
-                for (item in itemsList) {
-                    val review = DishReview(
-                        reviewId = "rev_${System.currentTimeMillis()}_${(1000..9999).random()}",
-                        orderId = currentOrderId,
-                        dishId = item.dishId.ifBlank { item.itemId },
-                        dishName = item.dishName.ifBlank { item.name },
-                        storeId = storeId,
-                        customerId = customerId,
-                        customerName = customerName,
-                        rating = currentRating,
-                        comment = comment,
-                        imageUrl = image,
-                        specText = "Đã mua ${item.quantity} phần",
-                        avatarColorHex = avatarColor,
-                        createdAt = System.currentTimeMillis()
-                    )
-                    firebaseRepository.submitDishReview(review)
+            for (state in dishRatingStates) {
+                val comment = state.commentEt?.text?.toString()?.trim().orEmpty().ifBlank {
+                    state.starLabelTv?.text?.toString() ?: "Món ăn ngon, rất hài lòng!"
                 }
-            } else {
                 val review = DishReview(
                     reviewId = "rev_${System.currentTimeMillis()}_${(1000..9999).random()}",
                     orderId = currentOrderId,
-                    dishId = "general_${currentOrderId}",
-                    dishName = "Đơn món ăn #${currentOrderId.takeLast(6).uppercase()}",
+                    dishId = state.dishId,
+                    dishName = state.dishName,
                     storeId = storeId,
                     customerId = customerId,
                     customerName = customerName,
-                    rating = currentRating,
+                    rating = state.rating,
                     comment = comment,
                     imageUrl = image,
-                    specText = "Đã giao thành công",
+                    specText = state.specText,
                     avatarColorHex = avatarColor,
                     createdAt = System.currentTimeMillis()
                 )
@@ -328,39 +407,17 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
             Toast.makeText(
                 this@TrackingActivity,
-                "✓ Cảm ơn bạn đã gửi đánh giá $currentRating sao! Bạn nhận được +50 điểm Oishi Rewards",
+                "✓ Cảm ơn bạn đã gửi đánh giá các món ăn! Bạn nhận được +50 điểm Oishi Rewards",
                 Toast.LENGTH_LONG
             ).show()
 
             binding.btnSubmitReview.isEnabled = false
             binding.btnSubmitReview.text = "✓ Đã Gửi Đánh Giá"
             binding.btnSubmitReview.setBackgroundColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_muted))
-            binding.etReviewComment.visibility = View.GONE
             binding.btnPickReviewImage.visibility = View.GONE
             binding.layoutImagePreview.visibility = View.GONE
-        }
-    }
-
-    private fun setRating(starCount: Int) {
-        currentRating = starCount
-        val stars = listOf(binding.star1, binding.star2, binding.star3, binding.star4, binding.star5)
-        val activeColor = ContextCompat.getColor(this, R.color.rating_star)
-        val inactiveColor = ContextCompat.getColor(this, R.color.divider)
-
-        stars.forEachIndexed { idx, tv ->
-            if (idx < starCount) {
-                tv.setTextColor(activeColor)
-            } else {
-                tv.setTextColor(inactiveColor)
-            }
-        }
-
-        binding.ratingHintText.text = when (starCount) {
-            1 -> "Rất tệ! Quán phục vụ chưa đạt yêu cầu."
-            2 -> "Chưa hài lòng! Mong quán cải thiện."
-            3 -> "Bình thường! Tạm ổn."
-            4 -> "Hài lòng! Món ngon, đóng gói cẩn thận."
-            else -> "Cực kỳ hài lòng! Món ngon, giao nhanh đúng giờ."
+            binding.llReviewDishesContainer.visibility = View.GONE
+            binding.tvRatingSub.text = "Cảm ơn bạn đã gửi đánh giá cho các món ăn trong đơn hàng!"
         }
     }
 
@@ -443,6 +500,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Cập nhật Stepper 4 bước
         updateStatusStep(order.status)
+        setupDishRatingList(order)
 
         // Cập nhật chi tiết các món ăn & thanh toán
         bindOrderItems(order)

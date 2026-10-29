@@ -1,27 +1,19 @@
 package com.chuyen_de_2.foodorder.customer.ui.menu
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.os.Bundle
-import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.customer.databinding.DialogDishReviewsBinding
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -36,30 +28,17 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
     @Inject
     lateinit var firebaseRepository: FirebaseRepository
 
-    @Inject
-    lateinit var firebaseAuth: FirebaseAuth
-
     private var dishId: String = ""
     private var dishName: String = ""
     private var storeId: String = ""
     private var dishRating: Float = 0.0f
     private var reviewCount: Int = 0
 
-    private var pendingImageBase64: String? = null
     private var currentFilter: String = "ALL"
     private var allReviewsList: List<DishReview> = emptyList()
     private val likedReviewIds = mutableSetOf<String>()
 
     private lateinit var reviewsAdapter: DishReviewsAdapter
-
-    // Launcher chọn ảnh từ thư viện
-    private val pickReviewImageLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            processAndPreviewImage(uri)
-        }
-    }
 
     companion object {
         private const val ARG_DISH_ID = "dish_id"
@@ -115,10 +94,7 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
         }
 
         setupAdapter()
-        setupStarPicker()
-        setupImagePicker()
         setupFilterChips()
-        setupSubmitButton()
 
         observeReviewsFromFirebase()
     }
@@ -140,74 +116,6 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
         }
     }
 
-    private fun setupStarPicker() {
-        binding.rbQuickStar.setOnRatingBarChangeListener { _, rating, _ ->
-            val star = rating.toInt().coerceIn(1, 5)
-            val labels = mapOf(
-                5 to "5★ Tuyệt vời",
-                4 to "4★ Rất ngon",
-                3 to "3★ Tạm ổn",
-                2 to "2★ Chưa hài lòng",
-                1 to "1★ Kém"
-            )
-            binding.tvRatingLabel.text = labels[star] ?: "${star}★"
-        }
-    }
-
-    private fun setupImagePicker() {
-        // Nút mở thư viện ảnh
-        binding.btnPickReviewImage.setOnClickListener {
-            pickReviewImageLauncher.launch("image/*")
-        }
-
-        // Nút xóa ảnh đã chọn
-        binding.btnRemoveImage.setOnClickListener {
-            pendingImageBase64 = null
-            binding.layoutImagePreview.visibility = View.GONE
-        }
-    }
-
-    private fun processAndPreviewImage(uri: Uri) {
-        try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            if (originalBitmap != null) {
-                // Resize ảnh về tối đa 480px để tối ưu kích thước lưu Firebase
-                val maxDim = 480
-                val width = originalBitmap.width
-                val height = originalBitmap.height
-                val ratio = width.toFloat() / height.toFloat()
-                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
-                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
-
-                val scaledBitmap = Bitmap.createScaledBitmap(
-                    originalBitmap,
-                    maxOf(1, targetWidth),
-                    maxOf(1, targetHeight),
-                    true
-                )
-
-                val outputStream = ByteArrayOutputStream()
-                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
-                val byteArray = outputStream.toByteArray()
-
-                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-                pendingImageBase64 = base64String
-
-                binding.layoutImagePreview.visibility = View.VISIBLE
-                Glide.with(this)
-                    .load(scaledBitmap)
-                    .into(binding.ivReviewPreview)
-
-                Toast.makeText(requireContext(), "📷 Đã đính kèm ảnh món ăn!", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(requireContext(), "Không thể tải ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     private fun setupFilterChips() {
         binding.chipFilterAll.setOnClickListener {
             currentFilter = "ALL"
@@ -224,59 +132,6 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
         binding.chipFilterWithImage.setOnClickListener {
             currentFilter = "HAS_IMG"
             filterAndDisplayReviews()
-        }
-    }
-
-    private fun setupSubmitButton() {
-        binding.btnSubmitReview.setOnClickListener {
-            val commentText = binding.etQuickReview.text.toString().trim()
-            if (commentText.isEmpty()) {
-                Toast.makeText(requireContext(), "Vui lòng nhập nội dung đánh giá!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val user = firebaseAuth.currentUser
-            val customerId = user?.uid ?: "guest_${System.currentTimeMillis()}"
-            val customerName = user?.displayName?.ifBlank {
-                user.email?.substringBefore("@") ?: "Bạn (Khách hàng)"
-            } ?: "Bạn (Khách hàng)"
-
-            val ratingValue = binding.rbQuickStar.rating.toInt().coerceIn(1, 5)
-
-            binding.btnSubmitReview.isEnabled = false
-            binding.btnSubmitReview.text = "Đang gửi..."
-
-            val colors = listOf("#EE4D2D", "#2563EB", "#10B981", "#7C3AED", "#EA580C")
-            val chosenColor = colors.random()
-
-            val newReview = DishReview(
-                dishId = dishId,
-                dishName = dishName,
-                storeId = storeId,
-                customerId = customerId,
-                customerName = customerName,
-                rating = ratingValue,
-                comment = commentText,
-                imageUrl = pendingImageBase64 ?: "",
-                specText = "Tiêu chuẩn quán",
-                avatarColorHex = chosenColor,
-                createdAt = System.currentTimeMillis()
-            )
-
-            lifecycleScope.launch {
-                val success = firebaseRepository.submitDishReview(newReview)
-                binding.btnSubmitReview.isEnabled = true
-                binding.btnSubmitReview.text = "Gửi"
-
-                if (success) {
-                    binding.etQuickReview.text?.clear()
-                    pendingImageBase64 = null
-                    binding.layoutImagePreview.visibility = View.GONE
-                    Toast.makeText(requireContext(), "🎉 Cảm ơn bạn đã gửi đánh giá!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(requireContext(), "Gửi đánh giá thất bại, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
-                }
-            }
         }
     }
 

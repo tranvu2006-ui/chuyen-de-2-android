@@ -12,7 +12,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.core.data.model.Order
+import java.io.ByteArrayOutputStream
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
@@ -85,6 +92,17 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentShipperName: String = "Tài xế giao hàng"
     private var currentShipperPhone: String = ""
     private var currentRating: Int = 5
+    private var currentOrder: Order? = null
+    private var pendingImageBase64: String? = null
+
+    // Launcher chọn ảnh từ thư viện
+    private val pickReviewImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processAndPreviewImage(uri)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -192,15 +210,134 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
+        // Nút mở thư viện chọn ảnh chụp món ăn
+        binding.btnPickReviewImage.setOnClickListener {
+            pickReviewImageLauncher.launch("image/*")
+        }
+
+        // Nút xóa ảnh đã chọn
+        binding.btnRemoveImage.setOnClickListener {
+            pendingImageBase64 = null
+            binding.layoutImagePreview.visibility = View.GONE
+        }
+
         binding.btnSubmitReview.setOnClickListener {
+            handleSubmitReview()
+        }
+    }
+
+    private fun processAndPreviewImage(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap != null) {
+                val maxDim = 480
+                val width = originalBitmap.width
+                val height = originalBitmap.height
+                val ratio = width.toFloat() / height.toFloat()
+                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
+                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
+
+                val scaledBitmap = Bitmap.createScaledBitmap(
+                    originalBitmap,
+                    maxOf(1, targetWidth),
+                    maxOf(1, targetHeight),
+                    true
+                )
+
+                val outputStream = ByteArrayOutputStream()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                val byteArray = outputStream.toByteArray()
+
+                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                pendingImageBase64 = base64String
+
+                binding.layoutImagePreview.visibility = View.VISIBLE
+                Glide.with(this)
+                    .load(scaledBitmap)
+                    .into(binding.ivReviewPreview)
+
+                Toast.makeText(this, "📷 Đã đính kèm ảnh món ăn!", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Không thể tải ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun handleSubmitReview() {
+        val order = currentOrder
+        val comment = binding.etReviewComment.text?.toString()?.trim().orEmpty().ifBlank {
+            binding.ratingHintText.text.toString()
+        }
+        val image = pendingImageBase64.orEmpty()
+        val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        val customerId = authUser?.uid ?: order?.customerId ?: "user_${System.currentTimeMillis()}"
+        val customerName = authUser?.displayName?.ifBlank { null }
+            ?: authUser?.email?.substringBefore("@")
+            ?: order?.customerName?.ifBlank { null }
+            ?: "Bạn (Khách hàng)"
+
+        val colors = listOf("#EE4D2D", "#10B981", "#3B82F6", "#8B5CF6", "#F59E0B", "#EC4899")
+        val avatarColor = colors[kotlin.math.abs(customerId.hashCode()) % colors.size]
+        val storeId = order?.storeId?.ifBlank { order.shopId }.orEmpty()
+
+        lifecycleScope.launch {
+            binding.btnSubmitReview.isEnabled = false
+            binding.btnSubmitReview.text = "Đang gửi đánh giá..."
+
+            val itemsList = order?.items?.values?.toList().orEmpty()
+            if (itemsList.isNotEmpty()) {
+                for (item in itemsList) {
+                    val review = DishReview(
+                        reviewId = "rev_${System.currentTimeMillis()}_${(1000..9999).random()}",
+                        orderId = currentOrderId,
+                        dishId = item.dishId,
+                        dishName = item.dishName,
+                        storeId = storeId,
+                        customerId = customerId,
+                        customerName = customerName,
+                        rating = currentRating,
+                        comment = comment,
+                        imageUrl = image,
+                        specText = "Đã mua ${item.quantity} phần",
+                        avatarColorHex = avatarColor,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    firebaseRepository.submitDishReview(review)
+                }
+            } else {
+                val review = DishReview(
+                    reviewId = "rev_${System.currentTimeMillis()}_${(1000..9999).random()}",
+                    orderId = currentOrderId,
+                    dishId = "general_${currentOrderId}",
+                    dishName = "Đơn món ăn #${currentOrderId.takeLast(6).uppercase()}",
+                    storeId = storeId,
+                    customerId = customerId,
+                    customerName = customerName,
+                    rating = currentRating,
+                    comment = comment,
+                    imageUrl = image,
+                    specText = "Đã giao thành công",
+                    avatarColorHex = avatarColor,
+                    createdAt = System.currentTimeMillis()
+                )
+                firebaseRepository.submitDishReview(review)
+            }
+
             Toast.makeText(
-                this,
-                "✓ Đã gửi đánh giá $currentRating sao! Bạn nhận được +50 điểm Oishi Rewards",
+                this@TrackingActivity,
+                "✓ Cảm ơn bạn đã gửi đánh giá $currentRating sao! Bạn nhận được +50 điểm Oishi Rewards",
                 Toast.LENGTH_LONG
             ).show()
+
             binding.btnSubmitReview.isEnabled = false
             binding.btnSubmitReview.text = "✓ Đã Gửi Đánh Giá"
-            binding.btnSubmitReview.setBackgroundColor(ContextCompat.getColor(this, R.color.text_muted))
+            binding.btnSubmitReview.setBackgroundColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_muted))
+            binding.etReviewComment.visibility = View.GONE
+            binding.btnPickReviewImage.visibility = View.GONE
+            binding.layoutImagePreview.visibility = View.GONE
         }
     }
 
@@ -270,6 +407,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var lastGeocodedAddress: String = ""
 
     private fun updateOrderUI(order: Order) {
+        currentOrder = order
         // Cập nhật tên quán & số điện thoại
         if (order.shopName.isNotBlank()) {
             currentStoreName = order.shopName

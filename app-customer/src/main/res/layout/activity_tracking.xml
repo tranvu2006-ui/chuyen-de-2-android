@@ -862,66 +862,6 @@
                         android:layout_marginTop="10dp"
                         android:orientation="vertical" />
 
-                    <!-- Khu vực đính kèm ảnh chụp món ăn thực tế -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnPickReviewImage"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="36dp"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:paddingHorizontal="12dp"
-                            android:text="📷 Thêm ảnh món"
-                            android:textColor="#64748B"
-                            android:textSize="11.5sp"
-                            app:cornerRadius="8dp"
-                            app:strokeColor="@color/border_light" />
-
-                        <!-- Khung xem trước ảnh đính kèm (Preview) -->
-                        <LinearLayout
-                            android:id="@+id/layoutImagePreview"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="10dp"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:visibility="gone">
-
-                            <com.google.android.material.card.MaterialCardView
-                                android:layout_width="40dp"
-                                android:layout_height="40dp"
-                                app:cardCornerRadius="8dp"
-                                app:strokeColor="@color/border_light"
-                                app:strokeWidth="1dp">
-
-                                <ImageView
-                                    android:id="@+id/ivReviewPreview"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="match_parent"
-                                    android:scaleType="centerCrop" />
-                            </com.google.android.material.card.MaterialCardView>
-
-                            <TextView
-                                android:id="@+id/btnRemoveImage"
-                                android:layout_width="22dp"
-                                android:layout_height="22dp"
-                                android:layout_marginStart="6dp"
-                                android:background="@drawable/bg_btn_circle_nav"
-                                android:gravity="center"
-                                android:text="✕"
-                                android:textColor="#EF4444"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSubmitReview"
                         style="@style/Widget.Material3.Button"

@@ -94,7 +94,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentShipperName: String = "Tài xế giao hàng"
     private var currentShipperPhone: String = ""
     private var currentOrder: Order? = null
-    private var pendingImageBase64: String? = null
 
     // Quản lý trạng thái đánh giá riêng cho từng món trong đơn (Cách 2)
     private data class DishRatingState(
@@ -104,9 +103,13 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         var rating: Int = 5,
         var commentEt: EditText? = null,
         var starLabelTv: TextView? = null,
-        var starTvs: List<TextView> = emptyList()
+        var starTvs: List<TextView> = emptyList(),
+        var imageBase64: String? = null,
+        var layoutPreview: View? = null,
+        var ivPreview: ImageView? = null
     )
     private val dishRatingStates = mutableListOf<DishRatingState>()
+    private var currentPickingDishState: DishRatingState? = null
 
     // Launcher chọn ảnh từ thư viện
     private val pickReviewImageLauncher = registerForActivityResult(
@@ -216,17 +219,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupRatingComponent() {
-        // Nút mở thư viện chọn ảnh chụp món ăn
-        binding.btnPickReviewImage.setOnClickListener {
-            pickReviewImageLauncher.launch("image/*")
-        }
-
-        // Nút xóa ảnh đã chọn
-        binding.btnRemoveImage.setOnClickListener {
-            pendingImageBase64 = null
-            binding.layoutImagePreview.visibility = View.GONE
-        }
-
         binding.btnSubmitReview.setOnClickListener {
             handleSubmitReview()
         }
@@ -273,6 +265,13 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val ivDishThumb = rowView.findViewById<ImageView>(R.id.ivDishThumb)
         val tvDishStarLabel = rowView.findViewById<TextView>(R.id.tvDishStarLabel)
         val etDishReviewComment = rowView.findViewById<EditText>(R.id.etDishReviewComment)
+        val btnDishPickImage = rowView.findViewById<View>(R.id.btnDishPickImage)
+        val layoutDishImagePreview = rowView.findViewById<View>(R.id.layoutDishImagePreview)
+        val ivDishReviewPreview = rowView.findViewById<ImageView>(R.id.ivDishReviewPreview)
+        val btnDishRemoveImage = rowView.findViewById<View>(R.id.btnDishRemoveImage)
+
+        state.layoutPreview = layoutDishImagePreview
+        state.ivPreview = ivDishReviewPreview
 
         val starTvs = listOf<TextView>(
             rowView.findViewById(R.id.tvStar1),
@@ -317,6 +316,16 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         updateStarUI(5)
 
+        btnDishPickImage.setOnClickListener {
+            currentPickingDishState = state
+            pickReviewImageLauncher.launch("image/*")
+        }
+
+        btnDishRemoveImage.setOnClickListener {
+            state.imageBase64 = null
+            layoutDishImagePreview.visibility = View.GONE
+        }
+
         state.commentEt = etDishReviewComment
         state.starLabelTv = tvDishStarLabel
         state.starTvs = starTvs
@@ -350,14 +359,18 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 val byteArray = outputStream.toByteArray()
 
                 val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-                pendingImageBase64 = base64String
 
-                binding.layoutImagePreview.visibility = View.VISIBLE
-                Glide.with(this)
-                    .load(scaledBitmap)
-                    .into(binding.ivReviewPreview)
-
-                Toast.makeText(this, "📷 Đã đính kèm ảnh món ăn!", Toast.LENGTH_SHORT).show()
+                val targetState = currentPickingDishState
+                if (targetState != null) {
+                    targetState.imageBase64 = base64String
+                    targetState.layoutPreview?.visibility = View.VISIBLE
+                    targetState.ivPreview?.let { iv ->
+                        Glide.with(this)
+                            .load(scaledBitmap)
+                            .into(iv)
+                    }
+                    Toast.makeText(this, "📷 Đã thêm ảnh cho món ${targetState.dishName}!", Toast.LENGTH_SHORT).show()
+                }
             }
         } catch (e: Exception) {
             Toast.makeText(this, "Không thể tải ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -367,7 +380,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun handleSubmitReview() {
         if (dishRatingStates.isEmpty()) return
         val order = currentOrder
-        val image = pendingImageBase64.orEmpty()
         val authUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
         val customerId = authUser?.uid ?: order?.customerId ?: "user_${System.currentTimeMillis()}"
         val customerName = authUser?.displayName?.ifBlank { null }
@@ -387,6 +399,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 val comment = state.commentEt?.text?.toString()?.trim().orEmpty().ifBlank {
                     state.starLabelTv?.text?.toString() ?: "Món ăn ngon, rất hài lòng!"
                 }
+                val dishImage = state.imageBase64.orEmpty()
                 val review = DishReview(
                     reviewId = "rev_${System.currentTimeMillis()}_${(1000..9999).random()}",
                     orderId = currentOrderId,
@@ -397,7 +410,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                     customerName = customerName,
                     rating = state.rating,
                     comment = comment,
-                    imageUrl = image,
+                    imageUrl = dishImage,
                     specText = state.specText,
                     avatarColorHex = avatarColor,
                     createdAt = System.currentTimeMillis()
@@ -414,8 +427,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             binding.btnSubmitReview.isEnabled = false
             binding.btnSubmitReview.text = "✓ Đã Gửi Đánh Giá"
             binding.btnSubmitReview.setBackgroundColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_muted))
-            binding.btnPickReviewImage.visibility = View.GONE
-            binding.layoutImagePreview.visibility = View.GONE
             binding.llReviewDishesContainer.visibility = View.GONE
             binding.tvRatingSub.text = "Cảm ơn bạn đã gửi đánh giá cho các món ăn trong đơn hàng!"
         }

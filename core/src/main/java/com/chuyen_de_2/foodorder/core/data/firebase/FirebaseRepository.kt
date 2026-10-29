@@ -2480,9 +2480,12 @@ class FirebaseRepository @Inject constructor(
 
     /** Lắng nghe cấu hình thời gian đếm ngược sự cố / bom hàng (Lần 1 và Lần 2) */
     fun observeCountdownConfig(): Flow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = callbackFlow {
-        val ref = database.getReference("system_config").child("delivery_countdown")
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
+        // Ưu tiên lắng nghe tại delivery_time_frames/countdown_config (node này có sẵn .read: true trong Firebase Rules)
+        val primaryRef = database.getReference("delivery_time_frames").child("countdown_config")
+        val fallbackRef = database.getReference("system_config").child("delivery_countdown")
+
+        fun handleSnapshot(snapshot: DataSnapshot) {
+            if (snapshot.exists()) {
                 val round1 = parseSafeInt(snapshot, "round1Minutes", 15)
                 val round2 = parseSafeInt(snapshot, "round2Minutes", 15)
                 val updatedAt = parseSafeLong(snapshot, "updatedAt", 0L)
@@ -2494,19 +2497,38 @@ class FirebaseRepository @Inject constructor(
                     )
                 )
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                close()
-            }
         }
-        ref.addValueEventListener(listener)
-        awaitClose { ref.removeEventListener(listener) }
+
+        val primaryListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                handleSnapshot(snapshot)
+            }
+
+            override fun onCancelled(error: DatabaseError) {}
+        }
+
+        val fallbackListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                handleSnapshot(snapshot)
+            }
+
+            override fun onCancelled(error: DatabaseError) {}
+        }
+
+        primaryRef.addValueEventListener(primaryListener)
+        fallbackRef.addValueEventListener(fallbackListener)
+
+        awaitClose {
+            primaryRef.removeEventListener(primaryListener)
+            fallbackRef.removeEventListener(fallbackListener)
+        }
     }
 
     /** Lấy 1 lần cấu hình thời gian đếm ngược */
     suspend fun getCountdownConfig(): com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig {
         return try {
-            val snapshot = database.getReference("system_config").child("delivery_countdown").get().await()
+            val snap1 = try { database.getReference("delivery_time_frames").child("countdown_config").get().await() } catch (_: Exception) { null }
+            val snapshot = if (snap1 != null && snap1.exists()) snap1 else database.getReference("system_config").child("delivery_countdown").get().await()
             val round1 = parseSafeInt(snapshot, "round1Minutes", 15)
             val round2 = parseSafeInt(snapshot, "round2Minutes", 15)
             val updatedAt = parseSafeLong(snapshot, "updatedAt", 0L)
@@ -2528,7 +2550,13 @@ class FirebaseRepository @Inject constructor(
                 "round2Minutes" to round2Minutes,
                 "updatedAt" to System.currentTimeMillis()
             )
-            database.getReference("system_config").child("delivery_countdown").updateChildren(updates).await()
+            // Cập nhật cả 2 node để đảm bảo tương thích mọi tầng rules
+            try {
+                database.getReference("delivery_time_frames").child("countdown_config").updateChildren(updates).await()
+            } catch (_: Exception) {}
+            try {
+                database.getReference("system_config").child("delivery_countdown").updateChildren(updates).await()
+            } catch (_: Exception) {}
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

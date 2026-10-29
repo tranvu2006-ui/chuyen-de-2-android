@@ -108,13 +108,13 @@
                                 android:scaleType="centerCrop"
                                 android:visibility="gone" />
 
-                            <TextView
+                            <ImageView
                                 android:id="@+id/tvProfileStoreEmoji"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
+                                android:layout_width="36dp"
+                                android:layout_height="36dp"
                                 android:layout_gravity="center"
-                                android:text="🏪"
-                                android:textSize="26sp" />
+                                android:src="@drawable/ic_store"
+                                app:tint="@color/brand_orange" />
                         </FrameLayout>
                     </com.google.android.material.card.MaterialCardView>
 

@@ -10,6 +10,10 @@ import android.widget.ArrayAdapter
 import com.chuyen_de_2.foodorder.admin.databinding.DialogEditUserBinding
 import com.chuyen_de_2.foodorder.core.data.model.Customer
 import com.chuyen_de_2.foodorder.core.data.model.User
+import androidx.core.content.ContextCompat
+import androidx.core.widget.addTextChangedListener
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.admin.R
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -22,6 +26,9 @@ class EditUserDialogFragment(
 
     private var _binding: DialogEditUserBinding? = null
     private val binding get() = _binding!!
+
+    private var currentAvatar: String = ""
+    private var isAvatarResetToDefault = false
 
     private val roleOptions = listOf(
         User.Role.CUSTOMER,
@@ -99,13 +106,61 @@ class EditUserDialogFragment(
         binding.spnUserStatus.adapter = statusAdapter
     }
 
+    private fun updateAvatarPreview(avatar: String) {
+        val context = context ?: return
+        if (avatar.isNotBlank()) {
+            binding.ivDialogUserAvatar.clearColorFilter()
+            binding.ivUserAvatarPreview.clearColorFilter()
+            Glide.with(this)
+                .load(avatar)
+                .circleCrop()
+                .placeholder(R.drawable.ic_user)
+                .error(R.drawable.ic_user)
+                .into(binding.ivDialogUserAvatar)
+
+            Glide.with(this)
+                .load(avatar)
+                .circleCrop()
+                .placeholder(R.drawable.ic_user)
+                .error(R.drawable.ic_user)
+                .into(binding.ivUserAvatarPreview)
+
+            if (avatar.startsWith("data:image")) {
+                binding.tvAvatarStatusHint.text = "Ảnh thư viện tải lên (Base64)"
+            } else if (avatar.startsWith("http://") || avatar.startsWith("https://")) {
+                binding.tvAvatarStatusHint.text = "Ảnh trực tuyến (URL)"
+            } else {
+                binding.tvAvatarStatusHint.text = "Đang áp dụng biểu tượng riêng"
+            }
+        } else {
+            Glide.with(this).clear(binding.ivDialogUserAvatar)
+            Glide.with(this).clear(binding.ivUserAvatarPreview)
+            binding.ivDialogUserAvatar.setImageResource(R.drawable.ic_user)
+            binding.ivDialogUserAvatar.setColorFilter(ContextCompat.getColor(context, R.color.secondary))
+            binding.ivUserAvatarPreview.setImageResource(R.drawable.ic_user)
+            binding.ivUserAvatarPreview.setColorFilter(ContextCompat.getColor(context, R.color.secondary))
+            binding.tvAvatarStatusHint.text = "Chưa có ảnh (Đang dùng icon mặc định)"
+        }
+    }
+
     private fun populateCurrentData() {
+        currentAvatar = user.avatarUrl.ifBlank { customer?.avatarUrl.orEmpty() }
+        isAvatarResetToDefault = false
+
         binding.tvUserUidSubtitle.text = "UID: ${user.uid}"
         binding.etUserName.setText(user.name)
         binding.etUserEmail.setText(user.email)
         binding.etUserPhone.setText(user.phone)
         binding.etUserStoreId.setText(user.storeId)
-        binding.etUserAvatarUrl.setText(user.avatarUrl)
+
+        // Nếu là URL trực tuyến thông thường thì hiển thị trong ô nhập liệu
+        if (currentAvatar.startsWith("http://") || currentAvatar.startsWith("https://")) {
+            binding.etUserAvatarUrl.setText(currentAvatar)
+        } else if (currentAvatar.startsWith("data:image")) {
+            binding.etUserAvatarUrl.hint = "[Đang sử dụng ảnh tải lên từ thiết bị]"
+        }
+
+        updateAvatarPreview(currentAvatar)
 
         val currentScore = customer?.trustScore ?: 100
         val currentCompleted = customer?.completedOrders ?: 0
@@ -143,6 +198,24 @@ class EditUserDialogFragment(
     private fun setupListeners() {
         binding.btnCloseUserDialog.setOnClickListener { dismiss() }
         binding.btnCancelEditUser.setOnClickListener { dismiss() }
+
+        binding.btnResetAvatarDefault.setOnClickListener {
+            isAvatarResetToDefault = true
+            currentAvatar = ""
+            binding.etUserAvatarUrl.setText("")
+            binding.etUserAvatarUrl.hint = "URL Ảnh đại diện mới (Tùy chọn)"
+            updateAvatarPreview("")
+        }
+
+        binding.etUserAvatarUrl.addTextChangedListener { text ->
+            val url = text?.toString().orEmpty().trim()
+            if (url.isNotBlank()) {
+                isAvatarResetToDefault = false
+                updateAvatarPreview(url)
+            } else if (!isAvatarResetToDefault && currentAvatar.isNotBlank()) {
+                updateAvatarPreview(currentAvatar)
+            }
+        }
 
         // Đồng bộ giữa Switch Kích hoạt và Spinner Trạng thái
         binding.switchUserActive.setOnCheckedChangeListener { _, isChecked ->
@@ -202,7 +275,14 @@ class EditUserDialogFragment(
             val email = binding.etUserEmail.text?.toString().orEmpty().trim()
             val phone = binding.etUserPhone.text?.toString().orEmpty().trim()
             val storeId = binding.etUserStoreId.text?.toString().orEmpty().trim()
-            val avatarUrl = binding.etUserAvatarUrl.text?.toString().orEmpty().trim()
+
+            // Bảo toàn avatar: nếu ô nhập URL trống và chưa bấm xóa thì giữ nguyên ảnh hiện tại
+            val inputAvatarUrl = binding.etUserAvatarUrl.text?.toString().orEmpty().trim()
+            val finalAvatar = when {
+                inputAvatarUrl.isNotBlank() -> inputAvatarUrl
+                isAvatarResetToDefault -> ""
+                else -> currentAvatar
+            }
 
             val trustScore = (binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100).coerceIn(0, 100)
             val completedOrders = (binding.etUserCompletedOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)
@@ -230,7 +310,7 @@ class EditUserDialogFragment(
                 role = selectedRole,
                 roleId = roleId,
                 storeId = storeId,
-                avatarUrl = avatarUrl,
+                avatarUrl = finalAvatar,
                 status = finalStatus,
                 isActive = isUnlocked
             )

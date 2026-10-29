@@ -92,12 +92,14 @@
                     <com.google.android.material.tabs.TabItem
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="📦 Đơn hàng toàn sàn" />
+                        android:icon="@drawable/ic_package"
+                        android:text="Đơn hàng toàn sàn" />
 
                     <com.google.android.material.tabs.TabItem
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="👥 Tài khoản người dùng" />
+                        android:icon="@drawable/ic_users"
+                        android:text="Tài khoản người dùng" />
                 </com.google.android.material.tabs.TabLayout>
 
                 <!-- Unified Instant Search Bar -->
@@ -141,7 +143,10 @@
             android:layout_marginTop="56dp"
             android:gravity="center"
             android:paddingHorizontal="32dp"
-            android:text="🔍 Không tìm thấy dữ liệu khớp với từ khóa tìm kiếm"
+            android:drawableTop="@drawable/ic_search"
+            android:drawablePadding="12dp"
+            android:drawableTint="@color/text_muted"
+            android:text="Không tìm thấy dữ liệu khớp với từ khóa tìm kiếm"
             android:textColor="@color/text_muted"
             android:textSize="14sp"
             android:visibility="gone" />

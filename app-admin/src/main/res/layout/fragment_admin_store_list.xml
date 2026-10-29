@@ -172,7 +172,10 @@
             android:layout_marginTop="56dp"
             android:gravity="center"
             android:paddingHorizontal="32dp"
-            android:text="🏪 Không tìm thấy cửa hàng nào khớp với bộ lọc hiện tại"
+            android:drawableTop="@drawable/ic_store"
+            android:drawablePadding="12dp"
+            android:drawableTint="@color/text_muted"
+            android:text="Không tìm thấy cửa hàng nào khớp với bộ lọc hiện tại"
             android:textColor="@color/text_muted"
             android:textSize="14sp"
             android:visibility="gone" />

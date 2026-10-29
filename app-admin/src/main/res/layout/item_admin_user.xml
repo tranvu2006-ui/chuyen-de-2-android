@@ -22,19 +22,25 @@
         android:orientation="horizontal"
         android:padding="15dp">
 
-        <!-- User Identity Squircle -->
-        <FrameLayout
+        <!-- User Identity Squircle / Avatar -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:background="@drawable/bg_circle_icon_indigo">
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
 
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
+                android:id="@+id/ivUserAvatar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="Avatar người dùng"
+                android:scaleType="centerCrop"
                 android:src="@drawable/ic_user"
                 app:tint="@color/secondary" />
-        </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <LinearLayout
             android:layout_width="0dp"

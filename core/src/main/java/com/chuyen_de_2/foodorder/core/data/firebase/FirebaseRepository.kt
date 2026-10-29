@@ -2145,6 +2145,20 @@ class FirebaseRepository @Inject constructor(
                 ?: custSnap.child("trustScore").getValue(Long::class.java)?.toInt()
                 ?: 100
 
+            val userSnap = database.getReference("users").child(uid).get().await()
+            val driverSnap = try { database.getReference("drivers").child(uid).get().await() } catch (_: Exception) { null }
+
+            // BẢO TOÀN AVATAR: Tránh mất avatar khi Admin cập nhật thông tin người dùng
+            val existingAvatar = userSnap.child("avatarUrl").getValue(String::class.java).orEmpty()
+                .ifBlank { custSnap.child("avatarUrl").getValue(String::class.java).orEmpty() }
+                .ifBlank { driverSnap?.child("avatarUrl")?.getValue(String::class.java).orEmpty() }
+
+            val effectiveAvatar = if (user.avatarUrl.isNotBlank()) {
+                user.avatarUrl.trim()
+            } else {
+                existingAvatar
+            }
+
             val isUnlocked = user.isActive && (user.status.equals(User.Status.ACTIVE, ignoreCase = true) || user.status.equals(User.Status.OFFLINE, ignoreCase = true))
             val finalStatus = if (isUnlocked) user.status else "LOCKED"
 
@@ -2158,7 +2172,7 @@ class FirebaseRepository @Inject constructor(
                 "isActive" to isUnlocked,
                 "active" to isUnlocked,
                 "status" to finalStatus,
-                "avatarUrl" to user.avatarUrl,
+                "avatarUrl" to effectiveAvatar,
                 "storeId" to user.storeId,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
@@ -2182,6 +2196,7 @@ class FirebaseRepository @Inject constructor(
                 "status" to finalStatus,
                 "isActive" to isUnlocked,
                 "active" to isUnlocked,
+                "avatarUrl" to effectiveAvatar,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
                 "boomOrders" to boomOrders,
@@ -2196,11 +2211,13 @@ class FirebaseRepository @Inject constructor(
             database.getReference("customers").child(uid).updateChildren(custUpdates).await()
 
             try {
-                val driverSnap = database.getReference("drivers").child(uid).get().await()
-                if (driverSnap.exists()) {
-                    val driverUpdates = mapOf<String, Any?>(
+                if (driverSnap != null && driverSnap.exists()) {
+                    val driverUpdates = mutableMapOf<String, Any?>(
                         "isActive" to isUnlocked,
-                        "dutyStatus" to if (isUnlocked) "OFFLINE" else "LOCKED"
+                        "dutyStatus" to if (isUnlocked) "OFFLINE" else "LOCKED",
+                        "avatarUrl" to effectiveAvatar,
+                        "name" to user.name,
+                        "phone" to user.phone
                     )
                     database.getReference("drivers").child(uid).updateChildren(driverUpdates).await()
                 }

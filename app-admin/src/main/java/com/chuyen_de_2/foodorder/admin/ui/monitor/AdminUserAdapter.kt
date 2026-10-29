@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
+import com.bumptech.glide.Glide
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.chuyen_de_2.foodorder.admin.R
@@ -35,8 +36,23 @@ class AdminUserAdapter(
             val user = item.user
             val context = itemView.context
 
-            binding.tvUserName.text = user.name.ifBlank { "Tài khoản #${user.uid.takeLast(6)}" }
+                        binding.tvUserName.text = user.name.ifBlank { "Tài khoản #${user.uid.takeLast(6)}" }
             binding.tvUserEmail.text = "${user.email.ifBlank { "Không có email" }} • ${user.phone.ifBlank { "Chưa có SĐT" }}"
+
+            val avatar = user.avatarUrl.ifBlank { item.customer?.avatarUrl.orEmpty() }
+            if (avatar.isNotBlank()) {
+                binding.ivUserAvatar.clearColorFilter()
+                Glide.with(context)
+                    .load(avatar)
+                    .circleCrop()
+                    .placeholder(R.drawable.ic_user)
+                    .error(R.drawable.ic_user)
+                    .into(binding.ivUserAvatar)
+            } else {
+                Glide.with(context).clear(binding.ivUserAvatar)
+                binding.ivUserAvatar.setImageResource(R.drawable.ic_user)
+                binding.ivUserAvatar.setColorFilter(ContextCompat.getColor(context, R.color.secondary))
+            }
 
             val roleUpper = user.role.uppercase(Locale.getDefault())
             binding.tvUserRoleBadge.text = roleUpper

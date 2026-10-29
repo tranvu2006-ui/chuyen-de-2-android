@@ -101,12 +101,12 @@
                     android:layout_height="44dp"
                     android:background="@drawable/bg_badge_orange">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
                         android:layout_gravity="center"
-                        android:text="🛵"
-                        android:textSize="22sp" />
+                        android:src="@drawable/ic_truck"
+                        app:tint="@color/brand_orange" />
                 </FrameLayout>
 
                 <LinearLayout

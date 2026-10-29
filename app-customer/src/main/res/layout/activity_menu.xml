@@ -297,6 +297,26 @@
                         android:textColor="@color/white"
                         android:textSize="10sp"
                         android:textStyle="bold" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <!-- Nút xem đánh giá ở Header theo chuẩn b5.html -->
+                    <TextView
+                        android:id="@+id/btnHeaderDishReviews"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_btn_reviews"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingHorizontal="9dp"
+                        android:paddingVertical="4dp"
+                        android:text="💬 Đánh giá món ➔"
+                        android:textColor="@color/primary"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
 
                 <!-- Thanh Chips lọc danh mục cuộn ngang (b5.html: category-tabs-scroll) -->

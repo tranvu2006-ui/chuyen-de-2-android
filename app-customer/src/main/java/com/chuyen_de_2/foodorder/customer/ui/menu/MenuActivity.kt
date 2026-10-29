@@ -250,16 +250,22 @@ class MenuActivity : AppCompatActivity() {
 
         binding.tvDetailPriceOld.visibility = View.GONE
 
-        val rating = dish.ratingAvg
+        val rating = if (dish.ratingAvg > 0f) dish.ratingAvg else 5.0f
         val reviewCount = dish.reviewCount
-        if (reviewCount > 0 && rating > 0f) {
-            binding.tvDetailRatingText.visibility = View.VISIBLE
-            binding.tvDetailRatingText.text = "⭐ $rating"
-            binding.btnViewDishReviews.visibility = View.VISIBLE
+
+        // Luôn hiển thị đánh giá & nút xem/viết đánh giá theo chuẩn b5.html
+        binding.tvDetailRatingText.visibility = View.VISIBLE
+        binding.btnViewDishReviews.visibility = View.VISIBLE
+        binding.btnHeaderDishReviews.visibility = View.VISIBLE
+
+        if (reviewCount > 0) {
+            binding.tvDetailRatingText.text = "⭐ $rating ($reviewCount đánh giá)"
             binding.btnViewDishReviews.text = "⭐ Đánh giá ($reviewCount) ➔"
+            binding.btnHeaderDishReviews.text = "💬 Đánh giá ($reviewCount) ➔"
         } else {
-            binding.tvDetailRatingText.visibility = View.GONE
-            binding.btnViewDishReviews.visibility = View.GONE
+            binding.tvDetailRatingText.text = "⭐ 5.0 (Chưa có đánh giá)"
+            binding.btnViewDishReviews.text = "✍️ Viết đánh giá ➔"
+            binding.btnHeaderDishReviews.text = "✍️ Viết đánh giá ➔"
         }
 
         binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {
@@ -294,6 +300,10 @@ class MenuActivity : AppCompatActivity() {
         }
 
         binding.tvDetailRatingText.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
+        }
+
+        binding.btnHeaderDishReviews.setOnClickListener {
             binding.btnViewDishReviews.performClick()
         }
 

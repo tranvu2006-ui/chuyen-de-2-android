@@ -3,10 +3,14 @@ package com.chuyen_de_2.foodorder.customer
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Intent
 import com.chuyen_de_2.foodorder.core.util.AccountLockWatcher
 import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.customer.service.OrderTrackingForegroundService
 import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.HiltAndroidApp
 
 /**
@@ -30,6 +34,16 @@ class FoodOrderCustomerApp : Application() {
 
         // Giám sát trạng thái khóa tài khoản thời gian thực qua WebSocket Firebase
         AccountLockWatcher.init(this, LoginActivity::class.java)
+
+        // Ghim Notification bar cố định & giám sát trạng thái đơn hàng thời gian thực
+        FirebaseAuth.getInstance().addAuthStateListener { auth ->
+            val serviceIntent = Intent(this, OrderTrackingForegroundService::class.java)
+            if (auth.currentUser != null) {
+                ContextCompat.startForegroundService(this, serviceIntent)
+            } else {
+                stopService(serviceIntent)
+            }
+        }
     }
 
     private fun createNotificationChannels() {

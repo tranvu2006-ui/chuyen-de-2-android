@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Cho phép chạy Foreground Service theo dõi đơn hàng liên tục kể cả khi app bị đóng -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- Cho phép kiểm tra và mở ứng dụng Quán & Shipper (Oishi Internal) -->
     <queries>
@@ -114,6 +117,12 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Foreground Service theo dõi đơn hàng nền — chạy liên tục kể cả khi app bị đóng -->
+        <service
+            android:name=".service.OrderTrackingForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
 
         <!-- Tự động đọc thông báo chuyển khoản Ví MoMo / Ngân hàng -->
         <service

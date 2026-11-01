@@ -241,6 +241,21 @@
                                 android:textColor="#64748B"
                                 android:textSize="11sp" />
                         </LinearLayout>
+
+                        <!-- Nút Loa Đọc Giọng Nói Trạng Thái Đơn -->
+                        <ImageView
+                            android:id="@+id/btnSpeakStatus"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_btn_nearby_header"
+                            android:backgroundTint="#FFF3E0"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:padding="8dp"
+                            android:contentDescription="Đọc trạng thái đơn hàng"
+                            app:srcCompat="@drawable/ic_volume_up"
+                            app:tint="@color/primary" />
                     </LinearLayout>
 
                     <!-- Timeline Stepper 4 Bước (b9.html) -->
@@ -959,6 +974,32 @@
                             android:layout_height="wrap_content"
                             android:text="15.000 đ"
                             android:textColor="#2563EB"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Giảm giá voucher (ẩn khi không có) -->
+                    <LinearLayout
+                        android:id="@+id/layoutB9Discount"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🎟️ Giảm giá voucher:"
+                            android:textColor="#10B981"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/txtB9Discount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#10B981"
                             android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>

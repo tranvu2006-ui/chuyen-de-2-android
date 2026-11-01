@@ -726,8 +726,10 @@ class AuthRepository @Inject constructor(
                     ) {
                         val updates = mapOf<String, Any?>(
                             "shipperId" to null,
+                            "driverId" to null,
                             "shipperName" to "",
-                            "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY
+                            "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY,
+                            "orderStatus" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY
                         )
                         database.getReference("orders").child(order.orderId).updateChildren(updates).await()
                         database.getReference("tracking").child(order.orderId).removeValue().await()

@@ -18,6 +18,7 @@ data class DishReviewItem(
     val customerName: String = "",
     val avatarLetter: String = "",
     val avatarColorHex: String = "#EE4D2D",
+    val customerAvatarUrl: String = "",
     val rating: Int = 5,
     val dateText: String = "",
     val specText: String = "",
@@ -56,12 +57,39 @@ class DishReviewsAdapter(
                 binding.tvSpecTag.visibility = View.GONE
             }
 
-            // Avatar tròn
-            val bg = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(try { Color.parseColor(item.avatarColorHex) } catch (_: Exception) { Color.parseColor("#EE4D2D") })
+            // Avatar tròn: Ưu tiên load ảnh đại diện của khách nếu có, ngược lại fallback về chữ cái đầu
+            if (item.customerAvatarUrl.isNotBlank()) {
+                binding.ivCustomerAvatar.visibility = View.VISIBLE
+                binding.tvAvatarCircle.visibility = View.GONE
+                if (item.customerAvatarUrl.startsWith("data:image")) {
+                    try {
+                        val base64Data = item.customerAvatarUrl.substringAfter(",")
+                        val decodedBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                        val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                        Glide.with(context)
+                            .load(bitmap)
+                            .circleCrop()
+                            .into(binding.ivCustomerAvatar)
+                    } catch (_: Exception) {
+                        Glide.with(context).load(item.customerAvatarUrl).circleCrop().into(binding.ivCustomerAvatar)
+                    }
+                } else {
+                    Glide.with(context)
+                        .load(item.customerAvatarUrl)
+                        .circleCrop()
+                        .placeholder(R.drawable.bg_btn_circle_nav)
+                        .error(R.drawable.bg_btn_circle_nav)
+                        .into(binding.ivCustomerAvatar)
+                }
+            } else {
+                binding.ivCustomerAvatar.visibility = View.GONE
+                binding.tvAvatarCircle.visibility = View.VISIBLE
+                val bg = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(try { Color.parseColor(item.avatarColorHex) } catch (_: Exception) { Color.parseColor("#EE4D2D") })
+                }
+                binding.tvAvatarCircle.background = bg
             }
-            binding.tvAvatarCircle.background = bg
 
             // Số sao
             val starString = buildString {

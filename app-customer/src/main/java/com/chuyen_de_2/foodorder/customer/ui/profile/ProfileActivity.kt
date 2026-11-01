@@ -132,6 +132,12 @@ class ProfileActivity : AppCompatActivity() {
         setupToolbar()
         loadUserProfile()
         setupListeners()
+        updateFavoriteBadge()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateFavoriteBadge()
     }
 
     private fun setupToolbar() {
@@ -236,6 +242,11 @@ class ProfileActivity : AppCompatActivity() {
         // Lịch sử đơn hàng
         binding.btnOrderHistory.setOnClickListener {
             startActivity(Intent(this, OrderHistoryActivity::class.java))
+        }
+
+        // Quán ăn yêu thích của tôi
+        binding.btnFavoriteStores.setOnClickListener {
+            showFavoriteStoresBottomSheet()
         }
 
         // Gửi khiếu nại
@@ -582,5 +593,57 @@ class ProfileActivity : AppCompatActivity() {
             }
             .setNegativeButton("Hủy", null)
             .show()
+    }
+
+    // =========================================================================
+    // CHỨC NĂNG: QUẢN LÝ DANH SÁCH QUÁN ĂN YÊU THÍCH (FAVORITE STORES)
+    // Mục đích: Khách hàng xem lại các quán đã bấm thích, bấm Đặt món để chuyển thẳng vào thực đơn
+    // =========================================================================
+    private fun updateFavoriteBadge() {
+        val favorites = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.getFavorites(this)
+        binding.tvFavoriteCountBadge.text = "${favorites.size} quán"
+    }
+
+    private fun showFavoriteStoresBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetView = layoutInflater.inflate(R.layout.bottom_sheet_favorite_stores, null)
+        dialog.setContentView(sheetView)
+
+        val btnClose = sheetView.findViewById<View>(R.id.btnCloseFavModal)
+        val tvEmpty = sheetView.findViewById<View>(R.id.tvEmptyFavorites)
+        val rvFavorites = sheetView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvFavoriteStores)
+
+        btnClose?.setOnClickListener { dialog.dismiss() }
+
+        var adapter: FavoriteStoresAdapter? = null
+        adapter = FavoriteStoresAdapter(
+            onOrderClick = { store ->
+                dialog.dismiss()
+                val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity::class.java).apply {
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_ID, store.storeId)
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_NAME, store.storeName)
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_ADDRESS, store.storeAddress)
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_PHONE, store.storePhone)
+                }
+                startActivity(intent)
+            },
+            onRemoveClick = { store ->
+                com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.removeFavorite(this, store.storeId)
+                val updated = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.getFavorites(this)
+                adapter?.submitList(updated)
+                updateFavoriteBadge()
+                tvEmpty?.visibility = if (updated.isEmpty()) View.VISIBLE else View.GONE
+                Toast.makeText(this, "Đã bỏ ${store.storeName} khỏi Quán yêu thích", Toast.LENGTH_SHORT).show()
+            }
+        )
+
+        rvFavorites?.layoutManager = LinearLayoutManager(this)
+        rvFavorites?.adapter = adapter
+
+        val list = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.getFavorites(this)
+        adapter.submitList(list)
+        tvEmpty?.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+
+        dialog.show()
     }
 }

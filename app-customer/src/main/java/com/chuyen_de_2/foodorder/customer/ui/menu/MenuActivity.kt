@@ -111,12 +111,68 @@ class MenuActivity : AppCompatActivity() {
             )
         }
 
+        // =========================================================================
+        // CHỨC NĂNG 1: NÚT CHIA SẺ MÓN ĂN & QUÁN ĂN (IMPLICIT SHARE INTENT)
+        // Mục đích: Marketing lan truyền (Viral), chia sẻ qua Zalo, Messenger, SMS để bạn bè đặt chung
+        // =========================================================================
         binding.btnShare.setOnClickListener {
-            Toast.makeText(this, "Chia sẻ liên kết quán $shopName", Toast.LENGTH_SHORT).show()
+            // Tạo nội dung tin nhắn chia sẻ chứa thông tin quán và món
+            val dishName = viewModel.selectedDish.value?.name 
+                ?: intent.getStringExtra(Constants.EXTRA_DISH_NAME)?.takeIf { it.isNotBlank() } 
+                ?: "Thực đơn món ngon"
+            val shareContent = """
+                🍽️ Rủ bạn cùng đặt món trên Oishi Food nhé!
+                🏪 Quán: $shopName
+                🍲 Món gợi ý: $dishName
+                👉 Mở app Oishi Food để nhận ưu đãi và đặt giao tận nơi ngay!
+            """.trimIndent()
+
+            // Tạo Implicit Intent với hành động ACTION_SEND của Android
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                // Xác định định dạng dữ liệu là văn bản thuần túy (plain text)
+                type = "text/plain"
+                // Tiêu đề tin nhắn
+                putExtra(Intent.EXTRA_SUBJECT, "Món ngon tại quán $shopName - Oishi Food")
+                // Nội dung tin nhắn chi tiết được gửi đi
+                putExtra(Intent.EXTRA_TEXT, shareContent)
+            }
+
+            // Mở bảng chọn ứng dụng (Zalo, Messenger, SMS, Gmail...) để người dùng chia sẻ
+            val chooserIntent = Intent.createChooser(shareIntent, "Chia sẻ món ăn qua:")
+            startActivity(chooserIntent)
         }
 
+        // =========================================================================
+        // CHỨC NĂNG: LƯU QUÁN ĂN VÀO DANH SÁCH YÊU THÍCH (FAVORITE STORES)
+        // Mục đích: Khách lưu quán quen để mở lại nhanh từ trang Tài khoản cá nhân
+        // =========================================================================
+        fun updateFavoriteIcon(isFav: Boolean) {
+            if (isFav) {
+                binding.btnFavorite.setColorFilter(android.graphics.Color.parseColor("#EF4444")) // Đỏ tim
+            } else {
+                binding.btnFavorite.setColorFilter(android.graphics.Color.parseColor("#94A3B8")) // Xám nhạt
+            }
+        }
+
+        // Kiểm tra trạng thái đã yêu thích quán này từ trước hay chưa
+        val initialIsFav = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.isFavorite(this, currentShopId)
+        updateFavoriteIcon(initialIsFav)
+
         binding.btnFavorite.setOnClickListener {
-            Toast.makeText(this, "Đã thêm $shopName vào danh sách yêu thích!", Toast.LENGTH_SHORT).show()
+            val storeObj = com.chuyen_de_2.foodorder.customer.util.FavoriteStore(
+                storeId = currentShopId,
+                storeName = shopName,
+                storeAddress = intent.getStringExtra(Constants.EXTRA_SHOP_ADDRESS).orEmpty(),
+                storePhone = intent.getStringExtra(Constants.EXTRA_SHOP_PHONE).orEmpty()
+            )
+            val nowFav = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.toggleFavorite(this, storeObj)
+            updateFavoriteIcon(nowFav)
+
+            if (nowFav) {
+                Toast.makeText(this, "❤️ Đã thêm $shopName vào Quán yêu thích!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Đã bỏ $shopName khỏi Quán yêu thích", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

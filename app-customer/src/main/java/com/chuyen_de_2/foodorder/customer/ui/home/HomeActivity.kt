@@ -2,6 +2,7 @@ package com.chuyen_de_2.foodorder.customer.ui.home
 
 import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -30,6 +31,7 @@ import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
@@ -87,6 +89,31 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {}
+
+    // =========================================================================
+    // CHỨC NĂNG 2: TÌM KIẾM BẰNG GIỌNG NÓI (VOICE SEARCH LAUNCHER)
+    // Mục đích: Nhận diện giọng nói Tiếng Việt chuyển thành văn bản và tự động lọc món
+    // =========================================================================
+    private val voiceSearchLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            // Lấy danh sách kết quả giọng nói mà Google Speech nhận diện được
+            val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!spokenText.isNullOrBlank()) {
+                // Gán từ khóa tìm kiếm vào ô nhập liệu
+                binding.etSearch.setText(spokenText)
+                binding.etSearch.setSelection(spokenText.length)
+                // Lưu từ khóa vào lịch sử tìm kiếm gần đây
+                saveRecentSearchQuery(spokenText)
+                Toast.makeText(this, "Đã nhận diện: \"$spokenText\"", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     @Inject
     lateinit var authRepository: AuthRepository
 
@@ -109,6 +136,8 @@ class HomeActivity : AppCompatActivity() {
         setupAdvancedFilterBar()
         setupHotDishes()
         setupSearch()
+        setupVoiceSearch()
+        setupRecentSearches()
         setupDishRecyclerView()
         setupSwipeRefresh()
         setupFloatingCart()
@@ -116,6 +145,11 @@ class HomeActivity : AppCompatActivity() {
         observeViewModel()
         checkUserRoleForBanner()
         detectUserLocation()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     override fun onResume() {
@@ -796,10 +830,129 @@ class HomeActivity : AppCompatActivity() {
 
         binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                val q = binding.etSearch.text.toString().trim()
+                if (q.isNotEmpty()) {
+                    saveRecentSearchQuery(q)
+                }
                 val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
                 imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
                 true
             } else false
+        }
+    }
+
+    // =========================================================================
+    // CHỨC NĂNG 2: TÌM KIẾM BẰNG GIỌNG NÓI (VOICE SEARCH)
+    // Mục đích: Khách nói tiếng Việt vào micro -> Google nhận diện chuyển thành chữ và lọc món ăn
+    // =========================================================================
+    private fun setupVoiceSearch() {
+        binding.btnVoiceSearch.setOnClickListener {
+            startVoiceSearch()
+        }
+    }
+
+    private fun startVoiceSearch() {
+        // Tạo Intent gọi màn hình nhận diện giọng nói hệ thống Google của Android
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            // Sử dụng mô hình ngôn ngữ tự do đa dạng
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            // Thiết lập ngôn ngữ nhận diện tiếng Việt chuẩn
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+            // Dòng chữ hướng dẫn hiện trên popup ghi âm
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói tên món ăn bạn muốn tìm (vd: Cơm sườn, Trà sữa)...")
+        }
+        try {
+            // Bật popup nhận diện giọng nói và chờ kết quả trả về trong voiceSearchLauncher
+            voiceSearchLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Thiết bị không hỗ trợ nhận diện giọng nói", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // =========================================================================
+    // CHỨC NĂNG 5: LỊCH SỬ TÌM KIẾM GẦN ĐÂY (RECENT SEARCHES VỚI SHAREDPREFERENCES)
+    // Mục đích: Lưu 3-5 từ khóa vừa tìm vào bộ nhớ máy, bấm 1 chạm tìm lại ngay không cần gõ lại
+    // =========================================================================
+    private val PREFS_RECENT_SEARCH = "oishi_recent_search_prefs"
+    private val KEY_RECENT_QUERIES = "recent_queries_key"
+
+    private fun setupRecentSearches() {
+        // Nút xóa toàn bộ lịch sử tìm kiếm
+        binding.btnClearRecentSearches.setOnClickListener {
+            getSharedPreferences(PREFS_RECENT_SEARCH, MODE_PRIVATE)
+                .edit()
+                .remove(KEY_RECENT_QUERIES)
+                .apply()
+            renderRecentSearchChips()
+            Toast.makeText(this, "Đã xóa lịch sử tìm kiếm", Toast.LENGTH_SHORT).show()
+        }
+        // Hiển thị các từ khóa đã lưu từ trước ra màn hình
+        renderRecentSearchChips()
+    }
+
+    private fun saveRecentSearchQuery(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return // Bỏ qua nếu từ khóa quá ngắn
+
+        val prefs = getSharedPreferences(PREFS_RECENT_SEARCH, MODE_PRIVATE)
+        val raw = prefs.getString(KEY_RECENT_QUERIES, "") ?: ""
+        // Phân tách chuỗi lưu trữ thành danh sách các từ khóa
+        val list = raw.split("|").filter { it.isNotBlank() }.toMutableList()
+
+        // Xóa từ khóa trùng lặp nếu có để đưa nó lên đầu danh sách
+        list.remove(trimmed)
+        list.add(0, trimmed)
+
+        // Giới hạn tối đa lưu 5 từ khóa gần nhất để giao diện gọn gàng
+        val finalList = list.take(5)
+        prefs.edit().putString(KEY_RECENT_QUERIES, finalList.joinToString("|")).apply()
+
+        // Cập nhật lại giao diện danh sách chip
+        renderRecentSearchChips()
+    }
+
+    private fun renderRecentSearchChips() {
+        val prefs = getSharedPreferences(PREFS_RECENT_SEARCH, MODE_PRIVATE)
+        val raw = prefs.getString(KEY_RECENT_QUERIES, "") ?: ""
+        val queries = raw.split("|").filter { it.isNotBlank() }
+
+        if (queries.isEmpty()) {
+            // Nếu chưa có lịch sử tìm kiếm thì ẩn thanh HorizontalScrollView đi
+            binding.layoutRecentSearches.visibility = View.GONE
+            return
+        }
+
+        binding.layoutRecentSearches.visibility = View.VISIBLE
+        // Xóa các chip cũ (giữ lại 2 view cố định là tiêu đề 'Gần đây:' và nút 'Xóa')
+        val container = binding.layoutRecentSearchChips
+        while (container.childCount > 2) {
+            container.removeViewAt(1)
+        }
+
+        // Tạo động các Chip từ khóa và gắn sự kiện click
+        for (q in queries) {
+            val chipTv = TextView(this).apply {
+                text = q
+                textSize = 11f
+                setTextColor(ContextCompat.getColor(context, R.color.primary))
+                setBackgroundResource(R.drawable.bg_quick_chip)
+                setPadding(dpToPx(8), dpToPx(3), dpToPx(8), dpToPx(3))
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(dpToPx(6), 0, 0, 0)
+                }
+                layoutParams = lp
+
+                // Khi bấm vào chip từ khóa: điền vào ô tìm kiếm và lọc ngay
+                setOnClickListener {
+                    binding.etSearch.setText(q)
+                    binding.etSearch.setSelection(q.length)
+                }
+            }
+            // Chèn chip vào giữa tiêu đề và nút Xóa
+            container.addView(chipTv, container.childCount - 1)
         }
     }
 

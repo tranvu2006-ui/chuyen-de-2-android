@@ -28,6 +28,12 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
     @Inject
     lateinit var firebaseRepository: FirebaseRepository
 
+    @Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
+    private var myLatestAvatar: String = ""
+    private var myUid: String = ""
+
     private var dishId: String = ""
     private var dishName: String = ""
     private var storeId: String = ""
@@ -86,6 +92,16 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // Lấy thông tin user hiện tại để đồng bộ avatar mới nhất lên đánh giá của chính mình
+        myUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val userResult = authRepository.getCurrentUserData()
+            myLatestAvatar = userResult.getOrNull()?.avatarUrl.orEmpty()
+            if (allReviewsList.isNotEmpty()) {
+                filterAndDisplayReviews()
+            }
+        }
 
         binding.tvSheetDishSubtitle.text = dishName
 
@@ -194,11 +210,19 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
         val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
         val items = filtered.map { rev ->
             val firstLetter = rev.customerName.trim().take(1).uppercase().ifBlank { "K" }
+            // Đồng bộ ảnh đại diện: Nếu là đánh giá của chính mình, luôn ưu tiên hiển thị avatar mới nhất vừa đổi trong Profile
+            val effectiveAvatar = if (myUid.isNotBlank() && rev.customerId == myUid && myLatestAvatar.isNotBlank()) {
+                myLatestAvatar
+            } else {
+                rev.customerAvatarUrl
+            }
+
             DishReviewItem(
                 id = rev.reviewId,
                 customerName = rev.customerName,
                 avatarLetter = firstLetter,
                 avatarColorHex = rev.avatarColorHex,
+                customerAvatarUrl = effectiveAvatar,
                 rating = rev.rating,
                 dateText = sdf.format(Date(rev.createdAt)),
                 specText = rev.specText,

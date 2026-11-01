@@ -142,7 +142,57 @@
                 android:visibility="gone"
                 app:srcCompat="@drawable/ic_close"
                 app:tint="@color/text_muted" />
+
+            <ImageView
+                android:id="@+id/btnVoiceSearch"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="4dp"
+                android:padding="2dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:srcCompat="@drawable/ic_mic"
+                app:tint="@color/primary" />
         </LinearLayout>
+
+        <!-- Lịch sử tìm kiếm gần đây (Recent Searches) -->
+        <HorizontalScrollView
+            android:id="@+id/layoutRecentSearches"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/layoutRecentSearchChips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🕒 Gần đây:"
+                    android:textColor="#E0E0E0"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnClearRecentSearches"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="#33FFFFFF"
+                    android:paddingHorizontal="6dp"
+                    android:paddingVertical="2dp"
+                    android:text="✕ Xóa"
+                    android:textColor="#FFCDD2"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </HorizontalScrollView>
     </LinearLayout>
 
     <!-- Banner thông báo khi đăng nhập bằng tài khoản Cửa hàng / Shipper -->

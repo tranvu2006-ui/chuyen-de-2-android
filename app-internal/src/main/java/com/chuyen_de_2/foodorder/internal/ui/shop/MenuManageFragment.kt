@@ -193,6 +193,25 @@ class MenuManageFragment : Fragment() {
             showDishDialog(null)
         }
 
+        // Nút Quản Lý Mã Giảm Giá / Voucher Của Quán
+        binding.btnManageVouchers.setOnClickListener {
+            if (currentStoreId.isNotBlank()) {
+                val dialog = ManageVouchersBottomSheetDialogFragment.newInstance(currentStoreId)
+                dialog.show(childFragmentManager, "ManageVouchersBottomSheet")
+            } else {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val uid = auth.currentUser?.uid.orEmpty()
+                    currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+                    if (currentStoreId.isNotBlank()) {
+                        val dialog = ManageVouchersBottomSheetDialogFragment.newInstance(currentStoreId)
+                        dialog.show(childFragmentManager, "ManageVouchersBottomSheet")
+                    } else {
+                        Toast.makeText(requireContext(), "Đang tải dữ liệu quán, vui lòng thử lại sau", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
         updateDishCountText()
     }
 

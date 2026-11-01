@@ -3,6 +3,8 @@ package com.chuyen_de_2.foodorder.customer.ui.tracking
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
@@ -79,6 +81,9 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     @Inject
     lateinit var firebaseRepository: FirebaseRepository
 
+    @Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
     private var googleMap: GoogleMap? = null
     private var shipperMarker: Marker? = null
     private var storeMarker: Marker? = null
@@ -94,6 +99,19 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentShipperName: String = "Tài xế giao hàng"
     private var currentShipperPhone: String = ""
     private var currentOrder: Order? = null
+    private var lastObservedStatus: String? = null
+
+    // ETA mặc định khi không có GPS (phút) — dùng cho cả UI label và TTS
+    private val DEFAULT_DELIVERY_MINUTES = 20
+    private val DEFAULT_TO_STORE_MINUTES = 7
+
+    // =========================================================================
+    // CHỨC NĂNG 4: ĐỌC TO THÔNG BÁO TỰ ĐỘNG BẰNG GIỌNG NÓI (TEXT-TO-SPEECH)
+    // Mục đích: Tự động phát âm thanh thông báo khi tài xế bắt đầu giao món hoặc đã tới nơi
+    // =========================================================================
+    private var trackingTts: TextToSpeech? = null
+    private var isTtsReady = false
+    private var pendingTextToSpeak: String? = null
 
     // Quản lý trạng thái đánh giá riêng cho từng món trong đơn (Cách 2)
     private data class DishRatingState(
@@ -139,6 +157,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         setupMap()
         setupListeners()
         setupRatingComponent()
+        initTrackingTextToSpeech()
 
         viewModel.startTracking(currentOrderId)
         observeViewModel()
@@ -186,6 +205,24 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Gọi cho shipper
         binding.btnCallShipper.setOnClickListener {
             dialPhone(currentShipperPhone)
+        }
+
+        // =========================================================================
+        // Nút Loa: Bấm để nghe đọc to thông báo trạng thái đơn hàng bất cứ lúc nào
+        // =========================================================================
+        binding.btnSpeakStatus.setOnClickListener {
+            speakCurrentStatus()
+
+            // Kiểm tra cập nhật mới nhất từ Firebase trong trường hợp vừa thao tác bên app khác chuyển qua
+            if (currentOrderId.isNotBlank()) {
+                lifecycleScope.launch {
+                    val latest = firebaseRepository.getOrder(currentOrderId)
+                    if (latest != null && latest.status != currentOrder?.status) {
+                        updateOrderUI(latest)
+                        speakCurrentStatus()
+                    }
+                }
+            }
         }
 
         // Cuộn xuống mã QR
@@ -395,6 +432,10 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             binding.btnSubmitReview.isEnabled = false
             binding.btnSubmitReview.text = "Đang gửi đánh giá..."
 
+            // Lấy ảnh đại diện mới nhất của khách hàng từ trang cá nhân để đồng bộ vào đánh giá
+            val userResult = authRepository.getCurrentUserData()
+            val customerAvatar = userResult.getOrNull()?.avatarUrl.orEmpty()
+
             for (state in dishRatingStates) {
                 val comment = state.commentEt?.text?.toString()?.trim().orEmpty().ifBlank {
                     state.starLabelTv?.text?.toString() ?: "Món ăn ngon, rất hài lòng!"
@@ -413,6 +454,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                     imageUrl = dishImage,
                     specText = state.specText,
                     avatarColorHex = avatarColor,
+                    customerAvatarUrl = customerAvatar,
                     createdAt = System.currentTimeMillis()
                 )
                 firebaseRepository.submitDishReview(review)
@@ -475,6 +517,10 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var lastGeocodedAddress: String = ""
 
     private fun updateOrderUI(order: Order) {
+        val previousStatus = lastObservedStatus
+        val newStatus = order.effectiveStatus.uppercase()
+        lastObservedStatus = newStatus
+
         currentOrder = order
         // Cập nhật tên quán & số điện thoại
         if (order.shopName.isNotBlank()) {
@@ -510,7 +556,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         // Cập nhật Stepper 4 bước
-        updateStatusStep(order.status)
+        updateStatusStep(order.effectiveStatus.uppercase())
         setupDishRatingList(order)
 
         // Cập nhật chi tiết các món ăn & thanh toán
@@ -565,6 +611,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 updateRouteAndCamera()
             }
         }
+
+        // Tự động phát âm thanh thông báo trạng thái đơn hàng khi quán/tài xế cập nhật
+        if (previousStatus != null && previousStatus != newStatus) {
+            speakCurrentStatus()
+        }
     }
 
     private fun updateStatusStep(status: String) {
@@ -592,16 +643,36 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tokenPill.isVisible = true
             }
 
-            Order.Status.PREPARING, Order.Status.READY -> {
-                setTimelineProgress(33)
+            Order.Status.PREPARING -> {
+                setTimelineProgress(25)
                 setNodeDone(1)
                 setNodeActive(2)
                 binding.lblStatusIcon.text = "🍳"
-                binding.lblStatusHeadline.text = "Quán đang chuẩn bị món ăn"
+                binding.lblStatusHeadline.text = "Quán đã nhận đơn & đang nấu"
                 binding.lblStatusSub.text = "Món ăn đang được chuẩn bị nóng hổi"
                 binding.lblDetailIcon.text = "🍳"
                 binding.lblDetailDesc.text =
-                    "$currentStoreName đang chế biến món ăn tươi ngon. Tài xế sẽ tới lấy món ngay khi sẵn sàng."
+                    "$currentStoreName đã nhận đơn và đang chế biến món ăn tươi ngon cho bạn."
+                binding.boxCustomerCancelledNotice.isVisible = false
+                binding.boxWarningActiveOnOrder.isVisible = false
+                binding.btnHeaderWarn.isVisible = false
+                binding.ratingCard.isVisible = false
+                binding.qrCompletedBox.isVisible = false
+                binding.qrCodeWrapper.isVisible = true
+                binding.tokenPill.isVisible = true
+            }
+
+            Order.Status.READY -> {
+                setTimelineProgress(40)
+                setNodeDone(1)
+                setNodeDone(2)
+                setNodeActive(3)
+                binding.lblStatusIcon.text = "🍱"
+                binding.lblStatusHeadline.text = "Quán đã nấu xong, chờ tài xế"
+                binding.lblStatusSub.text = "Món ăn đã sẵn sàng, đang chờ tài xế đến lấy"
+                binding.lblDetailIcon.text = "🍱"
+                binding.lblDetailDesc.text =
+                    "$currentStoreName đã nấu xong món ăn. Đang chờ tài xế nhận đơn và di chuyển đến lấy món."
                 binding.boxCustomerCancelledNotice.isVisible = false
                 binding.boxWarningActiveOnOrder.isVisible = false
                 binding.btnHeaderWarn.isVisible = false
@@ -652,16 +723,24 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             Order.Status.DELIVERING -> {
+                val shipPos = shipperMarker?.position ?: storeLatLng
+                val custPos = customerLatLng
+                val estMinutes = getEstimatedDeliveryMinutes(shipPos, custPos) ?: DEFAULT_DELIVERY_MINUTES
+                val distanceKm = if (shipPos != null && custPos != null) GoogleMapUtils.calculateDistanceKm(shipPos, custPos) else 0f
+                val distanceStr = if (distanceKm > 0f) String.format(Locale.US, "%.1f", distanceKm) else "vài"
+                val shipperText = if (currentShipperName.isNotBlank() && currentShipperName != "Đang chỉ định tài xế...") "Tài xế $currentShipperName" else "Tài xế"
+                val etaText = "dự kiến khoảng $estMinutes phút nữa"
+
                 setTimelineProgress(75)
                 setNodeDone(1)
                 setNodeDone(2)
                 setNodeActive(3)
                 binding.lblStatusIcon.text = "🛵"
                 binding.lblStatusHeadline.text = "Tài xế đã lấy hàng, đang giao tới bạn"
-                binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Vui lòng để ý điện thoại"
+                binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Dự kiến khoảng $estMinutes phút nữa (~$distanceStr km)"
                 binding.lblDetailIcon.text = "🛵"
                 binding.lblDetailDesc.text =
-                    "Tài xế $currentShipperName đã lấy món và đang di chuyển trên lộ trình tới nhà bạn. Bạn có thể xem vị trí trên bản đồ."
+                    "$shipperText đã lấy món và đang trên đường di chuyển giao tới nhà bạn (cách khoảng $distanceStr km, $etaText). Thời gian có thể thay đổi theo tình hình giao thông; bạn vui lòng chú ý điện thoại nhé!"
                 binding.boxCustomerCancelledNotice.isVisible = false
                 binding.boxWarningActiveOnOrder.isVisible = false
                 binding.btnHeaderWarn.isVisible = false
@@ -862,9 +941,25 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val shippingFee = if (order.shippingFee > 0) order.shippingFee else 15000L
         binding.txtShippingFee.text = shippingFee.toVndCurrency()
 
-        // Tổng tiền
-        val totalAmount = if (order.totalPayment > 0) order.totalPayment else if (order.total > 0) order.total else 50000L
-        binding.txtB9Total.text = totalAmount.toVndCurrency()
+        // Giảm giá voucher
+        val subtotal = if (order.subtotalAmount > 0) order.subtotalAmount else order.totalPayment
+        val discountAmount = subtotal + shippingFee - order.totalPayment
+        if (discountAmount > 0) {
+            binding.layoutB9Discount.visibility = View.VISIBLE
+            binding.txtB9Discount.text = "-${discountAmount.toVndCurrency()}"
+        } else {
+            binding.layoutB9Discount.visibility = View.GONE
+        }
+
+        // Tổng tiền — dùng totalPayment (có thể = 0 nếu voucher giảm 100%)
+        val totalAmount = if (order.totalPayment >= 0 && (order.totalPayment > 0 || order.subtotalAmount > 0)) {
+            order.totalPayment
+        } else if (order.total > 0) {
+            order.total
+        } else {
+            0L
+        }
+        binding.txtB9Total.text = if (totalAmount == 0L) "0 đ (Miễn phí)" else totalAmount.toVndCurrency()
 
         // Hình thức thanh toán
         val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
@@ -917,6 +1012,26 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             boundsBuilder.include(shipLatLng)
             map.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 120))
         } catch (_: Exception) {}
+
+        // Cập nhật lại khoảng cách và thời gian dự kiến theo thời gian thực khi tài xế đang di chuyển
+        if (currentOrder?.status == Order.Status.DELIVERING) {
+            val distKm = GoogleMapUtils.calculateDistanceKm(shipLatLng, cLatLng)
+            val mins = getEstimatedDeliveryMinutes(shipLatLng, cLatLng)
+            val distStr = String.format(Locale.US, "%.1f", distKm)
+            val shortCode = currentOrderId.takeLast(6).uppercase()
+            val etaText = mins?.let { "Dự kiến khoảng $it phút" } ?: "Đang cập nhật thời gian đến"
+            binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • $etaText (~$distStr km)"
+        }
+    }
+
+    /**
+     * Tính thời gian giao hàng dự kiến (phút) dựa trên khoảng cách GPS thực tế giữa tài xế và khách hàng
+     */
+    private fun getEstimatedDeliveryMinutes(driverLatLng: LatLng?, customerLatLng: LatLng?): Int? {
+        if (driverLatLng == null || customerLatLng == null) return null
+        val distanceKm = GoogleMapUtils.calculateDistanceKm(driverLatLng, customerLatLng)
+        val minutes = Math.ceil(distanceKm * 2.5 + 3.0).toInt()
+        return minutes.coerceIn(3, 45)
     }
 
     private fun showFullscreenQrDialog(qrPayload: String, tokenLabel: String) {
@@ -953,5 +1068,76 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             .setView(container)
             .setPositiveButton("Đóng", null)
             .show()
+    }
+
+    // =========================================================================
+    // CHỨC NĂNG 4: ĐỌC TO THÔNG BÁO TỰ ĐỘNG BẰNG GIỌNG NÓI (TEXT-TO-SPEECH)
+    // Mục đích: Khởi tạo bộ máy TTS tiếng Việt và phát loa khi shipper đến nơi
+    // =========================================================================
+    private fun initTrackingTextToSpeech() {
+        trackingTts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                // Thiết lập ngôn ngữ đọc là tiếng Việt
+                val localeVi = Locale("vi", "VN")
+                val result = trackingTts?.setLanguage(localeVi)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    trackingTts?.language = Locale.getDefault()
+                }
+                isTtsReady = true
+                pendingTextToSpeak?.let { text ->
+                    trackingTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TRACKING_PENDING_TTS")
+                    pendingTextToSpeak = null
+                }
+            }
+        }
+    }
+
+    private fun speakCurrentStatus() {
+        val headline = binding.lblStatusHeadline.text.toString()
+        val sub = binding.lblStatusSub.text.toString()
+        val status = currentOrder?.effectiveStatus?.uppercase().orEmpty()
+
+        val rawStore = currentStoreName.ifBlank { currentOrder?.shopName.orEmpty() }.trim()
+        val store = if (rawStore.isNotBlank()) {
+            if (rawStore.startsWith("Quán", ignoreCase = true)) rawStore else "Quán $rawStore"
+        } else "Quán ăn"
+
+        val textToSpeak = when (status) {
+            Order.Status.PENDING -> "Đơn hàng đã được gửi và đang chờ quán xác nhận."
+            Order.Status.PREPARING -> "$store đã nhận đơn và đang chuẩn bị món ăn."
+            Order.Status.READY -> "$store đã nấu xong món ăn, đang chờ tài xế đến nhận đơn."
+            Order.Status.ASSIGNED -> "Shipper đã nhận đơn và đang đến quán lấy món."
+            Order.Status.ARRIVED_AT_SHOP -> "Shipper đã đến $store và đang kiểm tra nhận món."
+            Order.Status.DELIVERING -> {
+                val shipPos = shipperMarker?.position ?: storeLatLng
+                val estMinutes = getEstimatedDeliveryMinutes(shipPos, customerLatLng) ?: DEFAULT_DELIVERY_MINUTES
+                "Shipper đã lấy món thành công và đang trên đường giao cho bạn. Dự kiến còn khoảng $estMinutes phút nữa là đến nhà bạn. Thời gian có thể thay đổi theo tình hình giao thông. Bạn vui lòng để ý điện thoại nhé!"
+            }
+            Order.Status.ARRIVED_AT_CUSTOMER -> "Shipper đã đến trước cửa nhà bạn rồi! Bạn ra nhận món ăn ngay nhé!"
+            Order.Status.COMPLETED -> "Đơn hàng đã giao thành công, chúc bạn ngon miệng!"
+            Order.Status.CANCELLED -> "Đơn hàng của bạn tại $store đã bị huỷ."
+            else -> "$headline. $sub"
+        }
+        if (isTtsReady) {
+            trackingTts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "TRACKING_MANUAL_SPEAK")
+        } else {
+            pendingTextToSpeak = textToSpeak
+        }
+        Toast.makeText(this, "🔊 Đang đọc trạng thái đơn hàng", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Kích hoạt Firebase kết nối lại ngay lập tức khi người dùng chuyển app quay về màn hình này
+        try {
+            com.google.firebase.database.FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).goOnline()
+        } catch (_: Exception) {}
+    }
+
+    override fun onDestroy() {
+        // Giải phóng TextToSpeech khi rời màn hình theo dõi đơn
+        trackingTts?.stop()
+        trackingTts?.shutdown()
+        super.onDestroy()
     }
 }

@@ -2,8 +2,10 @@ package com.chuyen_de_2.foodorder.customer.ui.order
 
 import android.content.Intent
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import java.util.Locale
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
@@ -15,6 +17,12 @@ import com.chuyen_de_2.foodorder.customer.ui.tracking.TrackingActivity
 class OrderSuccessActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityOrderSuccessBinding
+
+    // =========================================================================
+    // CHỨC NĂNG 4: ĐỌC TO THÔNG BÁO TỰ ĐỘNG BẰNG GIỌNG NÓI (TEXT-TO-SPEECH)
+    // Mục đích: Tự động phát âm thanh ra loa thông báo cho khách khi vừa đặt hàng thành công
+    // =========================================================================
+    private var textToSpeech: TextToSpeech? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +49,34 @@ class OrderSuccessActivity : AppCompatActivity() {
         setupToolbar()
         bindOrderData(orderId, shopName, address, subtotal, shippingFee, discount, totalAmount, paymentMethod, paymentMode, deposit, remain, totalOrder)
         setupActions(orderId, shopName)
+
+        // Khởi tạo công cụ đọc giọng nói Text-To-Speech
+        initTextToSpeech(shopName)
+    }
+
+    private fun initTextToSpeech(shopName: String) {
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                // Thiết lập ngôn ngữ đọc là tiếng Việt
+                val localeVi = Locale("vi", "VN")
+                val result = textToSpeech?.setLanguage(localeVi)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    // Nếu máy thiếu gói tiếng Việt, fallback về ngôn ngữ mặc định của máy
+                    textToSpeech?.language = Locale.getDefault()
+                }
+                // Câu thông báo đọc ra loa
+                val message = "Đặt hàng thành công! Quán $shopName đang chuẩn bị món ăn cho bạn."
+                // Phát âm thanh ra loa điện thoại
+                textToSpeech?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "ORDER_SUCCESS_TTS")
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        // Dọn dẹp và giải phóng tài nguyên âm thanh khi thoát màn hình
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        super.onDestroy()
     }
 
     private fun setupToolbar() {

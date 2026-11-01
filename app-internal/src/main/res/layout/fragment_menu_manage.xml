@@ -271,6 +271,24 @@
                 android:textSize="11.5sp" />
         </LinearLayout>
 
+        <!-- Nút Quản Lý Voucher Của Quán -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnManageVouchers"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginEnd="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingHorizontal="10dp"
+            android:text="Voucher 🎟️"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            app:cornerRadius="10dp"
+            app:strokeColor="@color/primary"
+            app:strokeWidth="1.2dp" />
+
         <!-- Nút Thêm Món Nổi Bật -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddFood"

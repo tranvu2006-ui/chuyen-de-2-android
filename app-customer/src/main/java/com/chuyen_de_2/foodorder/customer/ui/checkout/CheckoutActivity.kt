@@ -35,6 +35,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.chip.Chip
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -156,6 +157,7 @@ class CheckoutActivity : AppCompatActivity() {
 
         setupToolbar()
         setupUI()
+        setupVoucherComponent()
         observeViewModel()
     }
 
@@ -188,6 +190,15 @@ class CheckoutActivity : AppCompatActivity() {
 
         binding.spDistrict.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val chosenDistrict = districts.getOrNull(position).orEmpty()
+                val normChosen = GoogleMapUtils.normalizeDistrictName(chosenDistrict)
+                if (selectedCustomerLat != 0.0 && selectedCustomerLng != 0.0) {
+                    val currentPinDistrict = GoogleMapUtils.findNearestDistrict(selectedCustomerLat, selectedCustomerLng)
+                    if (!currentPinDistrict.equals(normChosen, ignoreCase = true)) {
+                        selectedCustomerLat = 0.0
+                        selectedCustomerLng = 0.0
+                    }
+                }
                 updateLocationAndFee()
             }
 
@@ -366,6 +377,10 @@ class CheckoutActivity : AppCompatActivity() {
                 currentCustomerTrustScore = cust.trustScore
                 if (cust.trustScore >= 95 && currentDiscount < 5000L) {
                     currentDiscount = 5000L
+                    binding.layoutVoucherDiscount.visibility = View.VISIBLE
+                    binding.tvDiscount.text = "-${currentDiscount.toVndCurrency()}"
+                    binding.tvVoucherAppliedMsg.visibility = View.VISIBLE
+                    binding.tvVoucherAppliedMsg.text = "⭐ Điểm Uy Tín ${cust.trustScore}/100: Ưu đãi giảm 5.000 đ"
                     recalculateTotal()
                 }
 
@@ -531,32 +546,21 @@ class CheckoutActivity : AppCompatActivity() {
             fusedClient.lastLocation.addOnSuccessListener { location ->
                 if (location != null) {
                     lifecycleScope.launch {
+                        selectedCustomerLat = location.latitude
+                        selectedCustomerLng = location.longitude
+
                         val fullAddr = GoogleMapUtils.reverseGeocode(
                             this@CheckoutActivity,
                             location.latitude,
                             location.longitude
                         )
 
-                        // Trích xuất quận
-                        val knownDistricts = listOf(
-                            "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
-                            "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
-                            "Bình Thạnh", "Phú Nhuận", "Tân Bình", "Tân Phú",
-                            "Gò Vấp", "Bình Tân", "Thủ Đức", "Bình Chánh",
-                            "Hóc Môn", "Nhà Bè"
-                        )
-                        var matchedDistrict = "Quận 1"
-                        for (d in knownDistricts) {
-                            if (fullAddr.contains(d, ignoreCase = true)) {
-                                matchedDistrict = d
-                                break
-                            }
-                        }
+                        val matchedDistrict = GoogleMapUtils.normalizeDistrictName(fullAddr)
 
                         val street = fullAddr
                             .replace(", TP. Hồ Chí Minh", "")
                             .replace(", TP.HCM", "")
-                            .replace(", $matchedDistrict", "")
+                            .replace(Regex(",\\s*$matchedDistrict.*", RegexOption.IGNORE_CASE), "")
                             .trim()
 
                         binding.etAddress.setText(street)
@@ -579,7 +583,9 @@ class CheckoutActivity : AppCompatActivity() {
     private fun updateLocationAndFee() {
         val streetAddress = binding.etAddress.text.toString().trim()
         val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: "Quận 1 (Nội thành)"
-        val fullAddress = if (streetAddress.isNotBlank()) "$streetAddress, $selectedDistrict, TP.HCM" else "$selectedDistrict, TP.HCM"
+        // Làm sạch "(Nội thành)", "(Ngoại thành)" khỏi tên quận trước khi geocode và tính phí
+        val cleanDistrict = selectedDistrict.replace(Regex("\\s*\\(.*?\\)"), "").trim()
+        val fullAddress = if (streetAddress.isNotBlank()) "$streetAddress, $cleanDistrict, TP.HCM" else "$cleanDistrict, TP.HCM"
 
         lifecycleScope.launch {
             val storeId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: currentTargetShopId
@@ -588,6 +594,10 @@ class CheckoutActivity : AppCompatActivity() {
                 com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
             } else if (store != null && store.address.isNotBlank()) {
                 GoogleMapUtils.geocodeAddress(this@CheckoutActivity, "${store.address}, TP.HCM")
+            } else if (store != null && store.district.isNotBlank()) {
+                // Fallback: dùng toạ độ chuẩn của quận store thay vì DEFAULT (Q.1)
+                GoogleMapUtils.DISTRICT_COORDINATES[GoogleMapUtils.normalizeDistrictName(store.district)]
+                    ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
             } else {
                 GoogleMapUtils.DEFAULT_HCMC_LATLNG
             }
@@ -596,17 +606,43 @@ class CheckoutActivity : AppCompatActivity() {
             } else {
                 GoogleMapUtils.geocodeAddress(this@CheckoutActivity, fullAddress)
             }
-            val distanceKm = GoogleMapUtils.calculateDistanceKm(storeLatLng, customerLatLng)
+            var distanceKm = GoogleMapUtils.calculateDistanceKm(storeLatLng, customerLatLng)
+            val storeDistrict = store?.district?.takeIf { it.isNotBlank() }
+                ?: GoogleMapUtils.normalizeDistrictName(store?.address.orEmpty()).takeIf { it != store?.address.orEmpty() }
+                ?: GoogleMapUtils.findNearestDistrict(storeLatLng.latitude, storeLatLng.longitude)
 
-            currentShippingFee = GoogleMapUtils.calculateShippingFeeByDistance(distanceKm)
+            val normStoreDistrict = GoogleMapUtils.normalizeDistrictName(storeDistrict)
+            val normCustomerDistrict = GoogleMapUtils.normalizeDistrictName(cleanDistrict)
+            val isSame = normStoreDistrict.isNotBlank() && normCustomerDistrict.isNotBlank() && normStoreDistrict.equals(normCustomerDistrict, ignoreCase = true)
+
+            // Nếu cùng quận mà khách chỉ chọn quận trên spinner (chưa ghim toạ độ cụ thể ngoài đời) hoặc toạ độ geocode bị lệch tâm quận
+            if (isSame && (selectedCustomerLat == 0.0 || distanceKm > 3.0f)) {
+                distanceKm = minOf(distanceKm, 1.2f)
+            }
+
+            currentShippingFee = GoogleMapUtils.calculateShippingFee(distanceKm, normStoreDistrict, normCustomerDistrict)
             val distanceStr = String.format(Locale.US, "%.1f", distanceKm)
-            binding.tvShipRule.text = "🛵 Google Maps: Khoảng cách ~$distanceStr km • Cước phí: ${currentShippingFee.toVndCurrency()}"
+
+            // DỰ ĐOÁN THỜI GIAN GIAO HÀNG (ESTIMATED DELIVERY TIME)
+            // Công thức: 15 phút quán chuẩn bị + 3.5 phút/km shipper di chuyển
+            val estMinutes = (15 + (distanceKm * 3.5).toInt()).coerceIn(20, 50)
+            val cal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MINUTE, estMinutes) }
+            val etaTimeStr = java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(cal.time)
+
+            val feeDesc = when {
+                currentShippingFee == 0L -> "0 đ (Miễn phí ship)"
+                currentShippingFee <= 10000L -> "${currentShippingFee.toVndCurrency()} (Rẻ - Cùng quận / Kế bên)"
+                currentShippingFee <= 14000L -> "${currentShippingFee.toVndCurrency()} (Quận lân cận)"
+                else -> "${currentShippingFee.toVndCurrency()} (Cự ly xa)"
+            }
+
+            binding.tvShipRule.text = "🛵 Khoảng cách: ~$distanceStr km • Cước phí: $feeDesc\n⏱️ Dự kiến giao lúc: $etaTimeStr (khoảng $estMinutes phút)"
             recalculateTotal()
         }
     }
 
     private fun recalculateTotal() {
-        binding.tvShippingFee.text = currentShippingFee.toVndCurrency()
+        binding.tvShippingFee.text = if (currentShippingFee == 0L) "Miễn phí" else currentShippingFee.toVndCurrency()
         val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
         val depositAmount = ((finalTotal * 0.2) / 1000).toLong() * 1000
         val remainAmount = finalTotal - depositAmount
@@ -680,6 +716,7 @@ class CheckoutActivity : AppCompatActivity() {
             if (currentTargetShopId.isBlank() && carts.isNotEmpty()) {
                 currentTargetShopId = carts[0].shopId
                 observeShopInfo(currentTargetShopId)
+                listenStoreVouchers(currentTargetShopId)
             }
 
             currentSubtotal = carts.sumOf { it.totalAmount }
@@ -803,6 +840,7 @@ class CheckoutActivity : AppCompatActivity() {
                 if (store != null) {
                     currentStore = store
                     updatePaymentPreviewBox(isMomo = binding.rbMomo.isChecked)
+                    updateLocationAndFee()
                 }
             }
         }
@@ -838,6 +876,155 @@ class CheckoutActivity : AppCompatActivity() {
         updatePaymentPreviewBox(isMomo)
     }
 
+    // =========================================================================
+    // CHỨC NĂNG: ÁP DỤNG MÃ GIẢM GIÁ / VOUCHER (ĐỒNG BỘ TỪ QUÁN ĂN VÀ HỆ THỐNG)
+    // Mục đích: Khách hàng áp dụng mã giảm giá do chính Quán ăn tạo trên app-internal
+    // hoặc các mã toàn sàn (OISHI10, FREESHIP, OISHI20, GIAM50K)
+    // =========================================================================
+    private val storeVouchers = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Voucher>()
+    private var vouchersListener: com.google.firebase.database.ValueEventListener? = null
+    private var listeningShopId: String = ""
 
+    private fun listenStoreVouchers(shopId: String) {
+        if (shopId.isBlank() || shopId == listeningShopId) return
+        listeningShopId = shopId
+        vouchersListener?.let {
+            FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL)
+                .getReference("vouchers")
+                .removeEventListener(it)
+        }
+        val ref = FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL)
+            .getReference("vouchers")
+            .child(shopId)
+        val listener = object : com.google.firebase.database.ValueEventListener {
+            override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                storeVouchers.clear()
+                for (child in snapshot.children) {
+                    val v = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Voucher::class.java)
+                    if (v != null && v.isActive) {
+                        storeVouchers.add(v)
+                    }
+                }
+            }
 
+            override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+        }
+        vouchersListener = listener
+        ref.addValueEventListener(listener)
+    }
+
+    private fun setupVoucherComponent() {
+        // Lắng nghe danh sách mã giảm giá do Quán này tạo trên Firebase Realtime Database
+        if (currentTargetShopId.isNotBlank()) {
+            listenStoreVouchers(currentTargetShopId)
+        }
+
+        fun applyCode(rawCode: String) {
+            val code = rawCode.trim().uppercase()
+            if (code.isBlank()) {
+                Toast.makeText(this, "Vui lòng nhập mã giảm giá", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            var discountAmt = 0L
+            var msg = ""
+
+            // 1. ƯU TIÊN KIỂM TRA MÃ CỦA QUÁN ĂN NÀY ĐÃ TẠO TRÊN APP-INTERNAL
+            val matchedStoreVoucher = storeVouchers.firstOrNull { it.code.equals(code, ignoreCase = true) }
+            if (matchedStoreVoucher != null) {
+                if (currentSubtotal < matchedStoreVoucher.minOrderAmount) {
+                    Toast.makeText(
+                        this,
+                        "Mã ${matchedStoreVoucher.code} của Quán chỉ áp dụng cho đơn từ ${matchedStoreVoucher.minOrderAmount.toVndCurrency()}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+                discountAmt = matchedStoreVoucher.discountAmount
+                msg = "Áp dụng mã Quán [${matchedStoreVoucher.code}]: Giảm ${discountAmt.toVndCurrency()}"
+            } else {
+                // 2. NẾU KHÔNG CÓ TRÊN QUÁN, KIỂM TRA MÃ TOÀN SÀN HỆ THỐNG
+                when (code) {
+                    "OISHI10" -> {
+                        discountAmt = 10000L
+                        msg = "Áp dụng mã OISHI10: Giảm 10.000 đ"
+                    }
+                    "FREESHIP" -> {
+                        discountAmt = if (currentShippingFee > 0) currentShippingFee else 15000L
+                        msg = "Áp dụng mã FREESHIP: Miễn phí vận chuyển"
+                    }
+                    "OISHI20" -> {
+                        if (currentSubtotal < 50000L) {
+                            Toast.makeText(this, "Mã OISHI20 chỉ áp dụng cho đơn từ 50.000 đ", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+                        discountAmt = 20000L
+                        msg = "Áp dụng mã OISHI20: Giảm 20.000 đ"
+                    }
+                    "GIAM50K" -> {
+                        if (currentSubtotal < 100000L) {
+                            Toast.makeText(this, "Mã GIAM50K chỉ áp dụng cho đơn từ 100.000 đ", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+                        discountAmt = 50000L
+                        msg = "Áp dụng mã VIP GIAM50K: Giảm 50.000 đ"
+                    }
+                    else -> {
+                        Toast.makeText(this, "Mã \"$code\" không hợp lệ hoặc quán chưa áp dụng mã này", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                }
+            }
+
+            // Cập nhật số tiền giảm
+            currentDiscount = discountAmt
+            binding.etVoucherCode.setText(code)
+
+            // Hiển thị dòng giảm giá trong bảng kê tóm tắt tiền
+            binding.layoutVoucherDiscount.visibility = View.VISIBLE
+            binding.tvDiscount.text = "-${currentDiscount.toVndCurrency()}"
+
+            // Hiển thị thông báo xanh xác nhận
+            binding.tvVoucherAppliedMsg.visibility = View.VISIBLE
+            binding.tvVoucherAppliedMsg.text = "✓ $msg (-${currentDiscount.toVndCurrency()})"
+
+            // Tính toán lại toàn bộ đơn hàng
+            recalculateTotal()
+
+            Toast.makeText(this, "🎉 $msg!", Toast.LENGTH_SHORT).show()
+        }
+
+        // Bấm nút Áp dụng
+        binding.btnApplyVoucher.setOnClickListener {
+            val code = binding.etVoucherCode.text.toString()
+            applyCode(code)
+        }
+
+        // Bấm chọn nhanh chip OISHI10
+        binding.chipVoucherOishi10.setOnClickListener {
+            applyCode("OISHI10")
+        }
+
+        // Bấm chọn nhanh chip FREESHIP
+        binding.chipVoucherFreeShip.setOnClickListener {
+            applyCode("FREESHIP")
+        }
+
+        // Bấm chọn nhanh chip OISHI20
+        binding.chipVoucherOishi20.setOnClickListener {
+            applyCode("OISHI20")
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        vouchersListener?.let {
+            if (listeningShopId.isNotBlank()) {
+                FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL)
+                    .getReference("vouchers")
+                    .child(listeningShopId)
+                    .removeEventListener(it)
+            }
+        }
+    }
 }

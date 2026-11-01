@@ -135,12 +135,8 @@ object GoogleMapUtils {
      * Tìm toạ độ gần đúng theo tên Quận / Huyện nếu Geocoder không tìm thấy
      */
     fun findFallbackDistrict(addressText: String): LatLng {
-        for ((district, latLng) in DISTRICT_COORDINATES) {
-            if (addressText.contains(district, ignoreCase = true)) {
-                return latLng
-            }
-        }
-        return DEFAULT_HCMC_LATLNG
+        val norm = normalizeDistrictName(addressText)
+        return DISTRICT_COORDINATES[norm] ?: DEFAULT_HCMC_LATLNG
     }
 
     /**
@@ -152,16 +148,135 @@ object GoogleMapUtils {
         return results[0] / 1000f
     }
 
+    // Bản đồ các quận huyện lân cận (kế bên nhau) tại TP.HCM
+    private val ADJACENT_DISTRICTS: Map<String, Set<String>> = mapOf(
+        "Quận 1" to setOf("Quận 3", "Quận 4", "Quận 5", "Bình Thạnh", "Phú Nhuận"),
+        "Quận 3" to setOf("Quận 1", "Quận 10", "Phú Nhuận", "Tân Bình"),
+        "Quận 4" to setOf("Quận 1", "Quận 7", "Quận 8"),
+        "Quận 5" to setOf("Quận 1", "Quận 6", "Quận 8", "Quận 10", "Quận 11"),
+        "Quận 6" to setOf("Quận 5", "Quận 8", "Quận 11", "Bình Tân"),
+        "Quận 7" to setOf("Quận 4", "Quận 8", "Nhà Bè", "Bình Chánh", "Thủ Đức"),
+        "Quận 8" to setOf("Quận 4", "Quận 5", "Quận 6", "Quận 7", "Bình Chánh"),
+        "Quận 10" to setOf("Quận 3", "Quận 5", "Quận 11", "Tân Bình"),
+        "Quận 11" to setOf("Quận 5", "Quận 6", "Quận 10", "Tân Bình", "Tân Phú"),
+        "Quận 12" to setOf("Gò Vấp", "Tân Bình", "Tân Phú", "Hóc Môn", "Thủ Đức"),
+        "Bình Thạnh" to setOf("Quận 1", "Phú Nhuận", "Gò Vấp", "Thủ Đức"),
+        "Phú Nhuận" to setOf("Quận 1", "Quận 3", "Bình Thạnh", "Gò Vấp", "Tân Bình"),
+        "Tân Bình" to setOf("Quận 3", "Quận 10", "Quận 11", "Phú Nhuận", "Gò Vấp", "Tân Phú", "Quận 12"),
+        "Tân Phú" to setOf("Tân Bình", "Quận 11", "Quận 6", "Bình Tân", "Quận 12"),
+        "Gò Vấp" to setOf("Bình Thạnh", "Phú Nhuận", "Tân Bình", "Quận 12"),
+        "Bình Tân" to setOf("Quận 6", "Tân Phú", "Bình Chánh", "Quận 8"),
+        "Thủ Đức" to setOf("Quận 1", "Quận 7", "Bình Thạnh", "Quận 12"),
+        "Nhà Bè" to setOf("Quận 7", "Bình Chánh"),
+        "Bình Chánh" to setOf("Quận 7", "Quận 8", "Bình Tân", "Hóc Môn", "Nhà Bè"),
+        "Hóc Môn" to setOf("Quận 12", "Bình Chánh")
+    )
+
+    fun normalizeDistrictName(district: String): String {
+        val lower = district.lowercase(Locale.ROOT)
+        return when {
+            ("quận 1" in lower || "q.1" in lower || "q1" in lower) && "10" !in lower && "11" !in lower && "12" !in lower -> "Quận 1"
+            "quận 3" in lower || "q.3" in lower || "q3" in lower -> "Quận 3"
+            "quận 4" in lower || "q.4" in lower || "q4" in lower -> "Quận 4"
+            "quận 5" in lower || "q.5" in lower || "q5" in lower -> "Quận 5"
+            "quận 6" in lower || "q.6" in lower || "q6" in lower -> "Quận 6"
+            "quận 7" in lower || "q.7" in lower || "q7" in lower -> "Quận 7"
+            "quận 8" in lower || "q.8" in lower || "q8" in lower -> "Quận 8"
+            "quận 10" in lower || "q.10" in lower || "q10" in lower || lower.trim() == "10" -> "Quận 10"
+            "quận 11" in lower || "q.11" in lower || "q11" in lower || lower.trim() == "11" -> "Quận 11"
+            "quận 12" in lower || "q.12" in lower || "q12" in lower || lower.trim() == "12" -> "Quận 12"
+            "bình thạnh" in lower -> "Bình Thạnh"
+            "phú nhuận" in lower -> "Phú Nhuận"
+            "tân bình" in lower -> "Tân Bình"
+            "tân phú" in lower -> "Tân Phú"
+            "gò vấp" in lower -> "Gò Vấp"
+            "bình tân" in lower -> "Bình Tân"
+            "thủ đức" in lower -> "Thủ Đức"
+            "bình chánh" in lower -> "Bình Chánh"
+            "hóc môn" in lower -> "Hóc Môn"
+            "nhà bè" in lower -> "Nhà Bè"
+            else -> district.trim()
+        }
+    }
+
+    fun isAdjacentDistrict(districtA: String, districtB: String): Boolean {
+        val a = normalizeDistrictName(districtA)
+        val b = normalizeDistrictName(districtB)
+        if (a.isBlank() || b.isBlank()) return false
+        if (a.equals(b, ignoreCase = true)) return true
+        val neighborsA = ADJACENT_DISTRICTS[a] ?: emptySet()
+        val neighborsB = ADJACENT_DISTRICTS[b] ?: emptySet()
+        return neighborsA.contains(b) || neighborsB.contains(a)
+    }
+
     /**
-     * Tính cước phí giao hàng động theo khoảng cách Km thực tế
-     * - Dưới hoặc bằng 3km: 15.000 đ
-     * - Mỗi km tiếp theo: +5.000 đ/km
+     * Tính cước phí giao hàng động:
+     * - Dưới 1km (sát quán): Miễn phí ship (0 đ)
+     * - Cùng quận hoặc cự ly gần (<= 2.5km): Cực rẻ (0 đ - 8.000 đ)
+     * - Quận kế bên shop (<= 4km): Rẻ (10.000 đ - 12.000 đ)
+     * - Càng xa ra ngoài thì tính cước lũy tiến cao dần theo km
      */
     fun calculateShippingFeeByDistance(distanceKm: Float): Long {
-        if (distanceKm <= 3f) return 15000L
-        val extraKm = (distanceKm - 3f).coerceAtLeast(0f)
-        val extraFee = Math.ceil(extraKm.toDouble()).toLong() * 5000L
-        return 15000L + extraFee
+        return calculateShippingFee(distanceKm, "", "")
+    }
+
+    fun calculateShippingFee(
+        distanceKm: Float,
+        shopDistrict: String = "",
+        customerDistrict: String = ""
+    ): Long {
+        val sDist = normalizeDistrictName(shopDistrict)
+        val cDist = normalizeDistrictName(customerDistrict)
+        val isSameDistrict = sDist.isNotBlank() && cDist.isNotBlank() && sDist.equals(cDist, ignoreCase = true)
+
+        // 1. Cự ly cực gần (< 0.3km) hoặc cùng quận mà geocode trả về sai → dùng logic quận
+        if (distanceKm < 0.3f) {
+            return if (isSameDistrict || isAdjacentDistrict(sDist, cDist)) 0L else 8000L
+        }
+
+        // 2. Cự ly gần sát quán: Miễn phí
+        if (distanceKm <= 1.0f) {
+            return 0L
+        }
+
+        // 3. Nếu cùng quận với quán
+        if (isSameDistrict) {
+            return when {
+                distanceKm <= 3.0f -> 0L       // Cùng quận <= 3km: Miễn phí ship (0 đ)
+                distanceKm <= 6.0f -> 5000L    // Cùng quận 3-6km: 5.000 đ (siêu rẻ)
+                else -> 8000L                 // Cùng quận > 6km: 8.000 đ
+            }
+        }
+
+        // 4. Nếu là quận kế bên shop
+        val isAdjacent = isAdjacentDistrict(sDist, cDist)
+        if (isAdjacent) {
+            return when {
+                distanceKm <= 3.0f -> 5000L    // Quận kế bên cự ly gần: 5.000 đ
+                distanceKm <= 5.0f -> 8000L    // Quận kế bên cự ly vừa: 8.000 đ
+                else -> 12000L                 // Quận kế bên cự ly xa: 12.000 đ
+            }
+        }
+
+        // 5. Nếu không rõ quận hoặc ở xa: Tính bậc thang lũy tiến (càng xa cước càng cao)
+        return when {
+            distanceKm <= 2.5f -> 8000L
+            distanceKm <= 4.5f -> 12000L
+            distanceKm <= 8.0f -> {
+                val extraKm = Math.ceil((distanceKm - 4.5f).toDouble()).toLong()
+                12000L + extraKm * 5000L
+            }
+            distanceKm <= 12.0f -> {
+                // 8km đầu = ~30.000đ; từ 8km đến 12km tăng 6.000đ/km
+                val extraKm = Math.ceil((distanceKm - 8.0f).toDouble()).toLong()
+                30000L + extraKm * 6000L
+            }
+            else -> {
+                // Trên 12km (ngoại thành): từ 12km trở đi tăng 8.000đ/km (càng xa càng cao)
+                val extraKm = Math.ceil((distanceKm - 12.0f).toDouble()).toLong()
+                54000L + extraKm * 8000L
+            }
+        }
     }
 
     /**

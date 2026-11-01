@@ -166,7 +166,7 @@ class FirebaseRepository @Inject constructor(
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val orders = snapshot.children.mapNotNull {
-                    it.getValue(Order::class.java)
+                    it.toOrder()
                 }.sortedByDescending { it.timestamp }
                 trySend(orders)
             }
@@ -189,7 +189,7 @@ class FirebaseRepository @Inject constructor(
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val orders = snapshot.children.mapNotNull {
-                    it.getValue(Order::class.java)
+                    it.toOrder()
                 }.sortedByDescending { it.timestamp }
                 trySend(orders)
             }
@@ -212,7 +212,7 @@ class FirebaseRepository @Inject constructor(
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val orders = snapshot.children.mapNotNull {
-                    it.getValue(Order::class.java)
+                    it.toOrder()
                 }.sortedByDescending { it.timestamp }
                 trySend(orders)
             }
@@ -230,7 +230,7 @@ class FirebaseRepository @Inject constructor(
     suspend fun getOrder(orderId: String): Order? {
         return try {
             val snap = database.getReference("orders").child(orderId).get().await()
-            snap.getValue(Order::class.java)
+            snap.toOrder()
         } catch (_: Exception) {
             null
         }
@@ -242,7 +242,7 @@ class FirebaseRepository @Inject constructor(
 
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                trySend(snapshot.getValue(Order::class.java))
+                trySend(snapshot.toOrder())
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -252,6 +252,21 @@ class FirebaseRepository @Inject constructor(
 
         ref.addValueEventListener(listener)
         awaitClose { ref.removeEventListener(listener) }
+    }
+
+    private fun DataSnapshot.toOrder(): Order? {
+        val order = getValue(Order::class.java) ?: return null
+        val status = child("status").getValue(String::class.java)
+            ?.takeIf { it.isNotBlank() }
+            ?: child("orderStatus").getValue(String::class.java)
+                ?.takeIf { it.isNotBlank() }
+            ?: order.status
+        val normalizedStatus = status.trim().uppercase()
+        return order.copy(
+            orderId = order.orderId.ifBlank { key.orEmpty() },
+            status = normalizedStatus,
+            orderStatus = normalizedStatus
+        )
     }
 
     /**
@@ -342,14 +357,16 @@ class FirebaseRepository @Inject constructor(
 
     /** Cập nhật trạng thái đơn hàng và đồng bộ hai chiều status/orderStatus */
     suspend fun updateOrderStatus(orderId: String, status: String, reason: String = "") {
-        val prevOrderSnap = try { database.getReference("orders").child(orderId).get().await() } catch (_: Exception) { null }
-        val prevStatus = prevOrderSnap?.child("status")?.getValue(String::class.java)?.uppercase().orEmpty()
         val updates = mutableMapOf<String, Any>("status" to status, "orderStatus" to status, "updatedAt" to System.currentTimeMillis())
         if (reason.isNotBlank()) updates["cancelReason"] = reason
         if (status.uppercase() == Order.Status.COMPLETED || status.uppercase() == Order.Status.BOOM || status.uppercase() == Order.Status.CANCELLED) {
             try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
         }
+        // Ghi lên Firebase orders NGAY LẬP TỨC để realtime socket phát tín hiệu sang app khách không bị trễ
         database.getReference("orders").child(orderId).updateChildren(updates).await()
+
+        val prevOrderSnap = try { database.getReference("orders").child(orderId).get().await() } catch (_: Exception) { null }
+        val prevStatus = prevOrderSnap?.child("status")?.getValue(String::class.java)?.uppercase().orEmpty()
         if (prevStatus == status.uppercase()) return
         try {
             val customerId = prevOrderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
@@ -1386,8 +1403,10 @@ class FirebaseRepository @Inject constructor(
                 ) {
                     val updates = mapOf<String, Any?>(
                         "shipperId" to null,
+                        "driverId" to null,
                         "shipperName" to "",
-                        "status" to Order.Status.READY
+                        "status" to Order.Status.READY,
+                        "orderStatus" to Order.Status.READY
                     )
                     database.getReference("orders").child(order.orderId).updateChildren(updates).await()
                     database.getReference("tracking").child(order.orderId).removeValue().await()
@@ -1573,8 +1592,10 @@ class FirebaseRepository @Inject constructor(
                         ) {
                             val updates = mapOf<String, Any?>(
                                 "shipperId" to null,
+                                "driverId" to null,
                                 "shipperName" to "",
-                                "status" to Order.Status.READY
+                                "status" to Order.Status.READY,
+                                "orderStatus" to Order.Status.READY
                             )
                             database.getReference("orders").child(orderId).updateChildren(updates).await()
                             database.getReference("tracking").child(orderId).removeValue().await()

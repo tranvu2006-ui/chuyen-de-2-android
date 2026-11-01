@@ -360,6 +360,49 @@
                         android:layout_height="1dp"
                         android:background="#F1F5F9" />
 
+                    <!-- Quán Ăn Yêu Thích Của Tôi -->
+                    <LinearLayout
+                        android:id="@+id/btnFavoriteStores"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="16dp">
+
+                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_star" app:tint="#EF4444" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:text="Quán ăn yêu thích của tôi"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvFavoriteCountBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:background="@drawable/bg_badge_orange"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="2dp"
+                            android:text="0 quán"
+                            android:textColor="@color/primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#F1F5F9" />
+
                     <!-- Gửi Khiếu Nại Đơn Hàng -->
                     <LinearLayout
                         android:id="@+id/btnComplaint"

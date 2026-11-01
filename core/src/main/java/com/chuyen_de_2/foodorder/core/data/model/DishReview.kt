@@ -46,6 +46,9 @@ data class DishReview(
     @SerializedName("avatarColorHex")
     val avatarColorHex: String = "#EE4D2D",
 
+    @SerializedName("customerAvatarUrl")
+    val customerAvatarUrl: String = "",
+
     @SerializedName("likes")
     val likes: Int = 0,
 

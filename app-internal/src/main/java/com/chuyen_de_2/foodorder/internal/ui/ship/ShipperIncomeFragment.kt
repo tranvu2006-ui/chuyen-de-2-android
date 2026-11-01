@@ -68,59 +68,95 @@ class ShipperIncomeFragment : Fragment() {
      * Cách hoạt động: Chuyển đổi giữa Hôm nay, Tuần này, Tháng này để lọc danh sách các chuyến tương ứng.
      * Luồng hướng tới: Gọi [filterTrips].
      */
+    private var currentFilterPeriod = "TODAY"
+
     private fun setupFilterTabs() {
         binding.toggleGroupTimeFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
-                when (checkedId) {
-                    binding.btnFilterToday.id -> filterTrips("TODAY")
-                    binding.btnFilterWeek.id -> filterTrips("WEEK")
-                    binding.btnFilterMonth.id -> filterTrips("MONTH")
+                currentFilterPeriod = when (checkedId) {
+                    binding.btnFilterToday.id -> "TODAY"
+                    binding.btnFilterWeek.id -> "WEEK"
+                    binding.btnFilterMonth.id -> "MONTH"
+                    else -> "TODAY"
                 }
+                filterTrips(currentFilterPeriod)
             }
         }
     }
 
-    /**
-     * Tên chức năng: Lắng nghe danh sách đơn hàng đã gán cho tài xế
-     * Cách hoạt động: Lọc các đơn có trạng thái COMPLETED và gọi cập nhật giao diện thu nhập.
-     * Luồng hướng tới: Gọi [updateIncomeUI].
-     */
     private fun observeData() {
-        viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
-            val completed = orders.filter { it.status == Order.Status.COMPLETED }
-            updateIncomeUI(completed)
+        viewModel.assignedOrders.observe(viewLifecycleOwner) {
+            filterTrips(currentFilterPeriod)
         }
     }
 
     private fun filterTrips(period: String) {
-        val completed = viewModel.assignedOrders.value?.filter { it.status == Order.Status.COMPLETED } ?: emptyList()
-        updateIncomeUI(completed)
-    }
+        val allCompleted = viewModel.assignedOrders.value?.filter { it.status == Order.Status.COMPLETED } ?: emptyList()
 
-    /**
-     * Tên chức năng: Cập nhật giao diện số dư và danh sách cuốc xe
-     * Cách hoạt động: Tính tổng tiền cước `shippingFee` từ danh sách đơn hoàn tất, định dạng tiền tệ VNĐ và nạp dữ liệu vào adapter.
-     * Luồng hướng tới: Hiển thị số liệu thu nhập trên giao diện.
-     */
-    private fun updateIncomeUI(completedOrders: List<Order>) {
-        if (completedOrders.isNotEmpty()) {
+        val startOfToday = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val startOfWeek = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_WEEK, firstDayOfWeek)
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val startOfMonth = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_MONTH, 1)
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val todayEarn = allCompleted.filter {
+            val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+            t >= startOfToday || t == 0L
+        }.sumOf { it.shippingFee }
+
+        val weekEarn = allCompleted.filter {
+            val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+            t >= startOfWeek || t == 0L
+        }.sumOf { it.shippingFee }
+
+        val totalEarn = allCompleted.sumOf { it.shippingFee }
+
+        val filteredList = when (period) {
+            "TODAY" -> allCompleted.filter {
+                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+                t >= startOfToday || t == 0L
+            }
+            "WEEK" -> allCompleted.filter {
+                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+                t >= startOfWeek || t == 0L
+            }
+            "MONTH" -> allCompleted.filter {
+                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+                t >= startOfMonth || t == 0L
+            }
+            else -> allCompleted
+        }
+
+        binding.tvTotalBalance.text = "+${totalEarn.toVndCurrency()}"
+        binding.tvTodayIncome.text = "+${todayEarn.toVndCurrency()}"
+        binding.tvWeekIncome.text = "+${weekEarn.toVndCurrency()}"
+
+        if (filteredList.isNotEmpty()) {
             binding.tvEmptyIncome.visibility = View.GONE
             binding.rvCompletedTrips.visibility = View.VISIBLE
-            incomeAdapter.submitList(completedOrders)
-
-            val totalEarn = completedOrders.sumOf { it.shippingFee }
-            binding.tvTotalBalance.text = "+${totalEarn.toVndCurrency()}"
-            binding.tvTodayIncome.text = "+${totalEarn.toVndCurrency()}"
-            binding.tvWeekIncome.text = "+${totalEarn.toVndCurrency()}"
-            binding.tvCompletedTripsCount.text = "${completedOrders.size} cuốc"
+            incomeAdapter.submitList(filteredList)
+            binding.tvCompletedTripsCount.text = "${filteredList.size} cuốc"
         } else {
             binding.tvEmptyIncome.visibility = View.VISIBLE
             binding.rvCompletedTrips.visibility = View.GONE
             incomeAdapter.submitList(emptyList())
-
-            binding.tvTotalBalance.text = "0 đ"
-            binding.tvTodayIncome.text = "0 đ"
-            binding.tvWeekIncome.text = "0 đ"
             binding.tvCompletedTripsCount.text = "0 cuốc"
         }
     }

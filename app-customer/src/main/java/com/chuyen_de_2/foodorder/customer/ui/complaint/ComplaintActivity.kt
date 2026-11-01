@@ -1,14 +1,24 @@
 package com.chuyen_de_2.foodorder.customer.ui.complaint
 
 import android.os.Bundle
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
+import java.io.ByteArrayOutputStream
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Complaint
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityComplaintBinding
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
@@ -31,6 +41,24 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class ComplaintActivity : AppCompatActivity() {
+    private var selectedEvidenceBase64: String = ""
+
+    private val pickEvidenceLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri ?: return@registerForActivityResult
+        val base64 = uriToBase64(uri)
+        if (!base64.isNullOrBlank()) {
+            selectedEvidenceBase64 = base64
+            binding.ivEvidencePreview.clearColorFilter()
+            Glide.with(this).load(base64).into(binding.ivEvidencePreview)
+            binding.tvEvidenceStatus.text = "✓ Đã chọn ảnh bằng chứng từ thiết bị"
+            binding.tvEvidenceStatus.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+        }
+    }
+
+    private fun uriToBase64(uri: Uri): String? {
+        return ImagePickerUtils.compressUriToBase64(this, uri, maxDimension = 800, quality = 85)
+    }
+
 
     private lateinit var binding: ActivityComplaintBinding
 
@@ -82,10 +110,22 @@ class ComplaintActivity : AppCompatActivity() {
     }
 
     private fun setupSubmitButton() {
+        binding.btnPickEvidenceImage.setOnClickListener {
+            pickEvidenceLauncher.launch("image/*")
+        }
+        binding.btnClearEvidenceImage.setOnClickListener {
+            selectedEvidenceBase64 = ""
+            Glide.with(this).clear(binding.ivEvidencePreview)
+            binding.ivEvidencePreview.setImageResource(R.drawable.ic_camera)
+            binding.ivEvidencePreview.setColorFilter(ContextCompat.getColor(this, R.color.text_muted))
+            binding.tvEvidenceStatus.text = "Chỉ chọn ảnh trực tiếp từ thư viện điện thoại"
+            binding.tvEvidenceStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        }
+
         binding.btnSubmitComplaint.setOnClickListener {
             val orderId = binding.etOrderId.text.toString().trim()
             val description = binding.etDescription.text.toString().trim()
-            val evidenceUrl = binding.etEvidenceUrl.text.toString().trim()
+            val evidenceUrl = selectedEvidenceBase64
             val selectedReason = binding.spinnerReason.selectedItem.toString()
 
             if (orderId.isBlank()) {

@@ -8,15 +8,18 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.content.Intent
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentStoreProfileBinding
+import com.chuyen_de_2.foodorder.internal.ui.auth.SelectLocationActivity
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,10 +27,20 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import java.io.ByteArrayOutputStream
+
 /**
  * Tên chức năng: Quản Lý Hồ Sơ & Cài Đặt Quán Ăn (Merchant Profile & Store Settings)
  * Cách hoạt động:
- *  - Hiển thị đầy đủ thông tin pháp lý và nhận diện của quán: Tên, địa chỉ, số điện thoại, chủ hộ kinh doanh, CCCD.
+ *  - Hiển thị đầy đủ thông tin pháp lý và nhận diện của quán: Tên, địa chỉ, số điện thoại, chủ hộ kinh doanh, CCCD, ảnh đại diện.
  *  - Cung cấp cấu hình vận hành: Giờ mở cửa, thời gian chuẩn bị món ăn trung bình.
  *  - Quản lý thông tin tài khoản ngân hàng thụ hưởng (VietQR / Napas) để hệ thống đối soát doanh thu.
  *  - Cho phép chủ quán mở hộp thoại chỉnh sửa trực tiếp và đồng bộ lên Firebase.
@@ -50,8 +63,53 @@ class StoreProfileFragment : Fragment() {
     @Inject
     lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
     private var currentStore: Store? = null
+
+    private var editingLat: Double? = null
+    private var editingLng: Double? = null
+    private var currentDialogEtAddress: EditText? = null
+    private var currentDialogEtDistrict: EditText? = null
+
+    private var pendingAvatarBase64: String? = null
+    private var currentDialogAvatarPreview: ImageView? = null
+    private var currentDialogAvatarPlaceholder: View? = null
+
+    private val pickAvatarLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processAndPreviewAvatar(uri)
+        }
+    }
+
+    private val selectLocationLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == AppCompatActivity.RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            if (!streetAddress.isNullOrBlank()) {
+                currentDialogEtAddress?.setText(streetAddress)
+            } else if (!fullAddress.isNullOrBlank()) {
+                currentDialogEtAddress?.setText(fullAddress)
+            }
+
+            if (!district.isNullOrBlank()) {
+                currentDialogEtDistrict?.setText(district)
+            }
+
+            if (lat != 0.0 && lng != 0.0) {
+                editingLat = lat
+                editingLng = lng
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -124,6 +182,12 @@ class StoreProfileFragment : Fragment() {
      */
     private fun observeStoreProfile() {
         viewLifecycleOwner.lifecycleScope.launch {
+            if (currentStoreId.isBlank()) {
+                val activeStore = getDefaultStore()
+                currentStore = activeStore
+                bindStoreData(activeStore)
+                return@launch
+            }
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
                 val activeStore = store ?: getDefaultStore()
                 currentStore = activeStore
@@ -148,12 +212,66 @@ class StoreProfileFragment : Fragment() {
         SupportedBank("OCB (Phương Đông)", "970448")
     )
 
+    private fun processAndPreviewAvatar(uri: Uri) {
+        try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap != null) {
+                val maxDim = 300
+                val width = originalBitmap.width
+                val height = originalBitmap.height
+                val ratio = width.toFloat() / height.toFloat()
+                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
+                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
+
+                val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, maxOf(1, targetWidth), maxOf(1, targetHeight), true)
+                val outputStream = ByteArrayOutputStream()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                val byteArray = outputStream.toByteArray()
+
+                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                pendingAvatarBase64 = base64String
+
+                currentDialogAvatarPreview?.let { iv ->
+                    iv.visibility = View.VISIBLE
+                    currentDialogAvatarPlaceholder?.visibility = View.GONE
+                    Glide.with(this)
+                        .load(scaledBitmap)
+                        .transform(CenterCrop(), RoundedCorners(24))
+                        .into(iv)
+                }
+                Toast.makeText(requireContext(), "📷 Đã chọn ảnh đại diện quán!", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun displayStoreAvatar(avatarUrl: String) {
+        if (avatarUrl.isNotBlank()) {
+            binding.ivProfileStoreAvatar.visibility = View.VISIBLE
+            binding.tvProfileStoreEmoji.visibility = View.GONE
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivProfileStoreAvatar,
+                imageUrl = avatarUrl,
+                placeholderResId = R.drawable.bg_badge_orange,
+                cornerDp = 24
+            )
+        } else {
+            binding.ivProfileStoreAvatar.visibility = View.GONE
+            binding.tvProfileStoreEmoji.visibility = View.VISIBLE
+        }
+    }
+
     /**
      * Tên chức năng: Đổ dữ liệu thông tin quán lên giao diện
      * Cách hoạt động: Render tên quán, địa chỉ, chủ sở hữu, CCCD, thông tin ngân hàng thụ hưởng và badge trạng thái xác minh hồ sơ.
      * Luồng hướng tới: Hiển thị trực quan cho chủ quán.
      */
     private fun bindStoreData(store: Store) {
+        displayStoreAvatar(store.effectiveImageUrl)
         binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
         binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
         binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
@@ -162,10 +280,12 @@ class StoreProfileFragment : Fragment() {
         binding.tvProfileOpenHours.text = store.openHours.ifBlank { "08:00 - 22:00" }
         binding.tvProfilePrepTime.text = store.prepTime.ifBlank { "15 phút" }
 
-        // Tài khoản ngân hàng
+        // Tài khoản ngân hàng & Ví MoMo
         binding.tvProfileBankName.text = store.bankName.ifBlank { "Chưa cập nhật" }
         binding.tvProfileBankAccountNumber.text = store.bankAccountNumber.ifBlank { "Chưa cập nhật" }
         binding.tvProfileBankAccountName.text = store.bankAccountName.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileMomoPhone.text = store.momoPhone.ifBlank { store.phone.ifBlank { "Chưa cập nhật" } }
+        binding.tvProfileMomoAccountName.text = store.momoAccountName.ifBlank { store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa cập nhật" } } }
 
         if (store.isOpen) {
             binding.tvProfileStatus.text = "🟢 ĐANG HOẠT ĐỘNG (OPEN)"
@@ -226,6 +346,41 @@ class StoreProfileFragment : Fragment() {
         )
 
         val store = currentStore ?: getDefaultStore()
+        editingLat = store.latitude.takeIf { it != 0.0 }
+        editingLng = store.longitude.takeIf { it != 0.0 }
+
+        pendingAvatarBase64 = null
+
+        val ivAvatarPreview = dialog.findViewById<ImageView>(R.id.ivEditStoreAvatarPreview)
+        val tvAvatarPlaceholder = dialog.findViewById<View>(R.id.tvEditStoreAvatarPlaceholder)
+        val cardAvatar = dialog.findViewById<View>(R.id.cardEditStoreAvatar)
+        val btnPickAvatar = dialog.findViewById<View>(R.id.btnPickStoreAvatar)
+
+        currentDialogAvatarPreview = ivAvatarPreview
+        currentDialogAvatarPlaceholder = tvAvatarPlaceholder
+
+        val currentAvatarUrl = store.effectiveImageUrl
+        if (currentAvatarUrl.isNotBlank()) {
+            ivAvatarPreview?.visibility = View.VISIBLE
+            tvAvatarPlaceholder?.visibility = View.GONE
+            ivAvatarPreview?.let {
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = it,
+                    imageUrl = currentAvatarUrl,
+                    placeholderResId = R.drawable.bg_badge_orange,
+                    cornerDp = 24
+                )
+            }
+        } else {
+            ivAvatarPreview?.visibility = View.GONE
+            tvAvatarPlaceholder?.visibility = View.VISIBLE
+        }
+
+        val openImagePickerAction = {
+            pickAvatarLauncher.launch("image/*")
+        }
+        btnPickAvatar?.setOnClickListener { openImagePickerAction() }
+        cardAvatar?.setOnClickListener { openImagePickerAction() }
 
         val etName = dialog.findViewById<EditText>(R.id.etStoreName)
         val etPhone = dialog.findViewById<EditText>(R.id.etStorePhone)
@@ -235,10 +390,32 @@ class StoreProfileFragment : Fragment() {
         val etOpenHours = dialog.findViewById<EditText>(R.id.etOpenHours)
         val etPrepTime = dialog.findViewById<EditText>(R.id.etPrepTime)
 
-        // Các view tài khoản ngân hàng
+        currentDialogEtAddress = etAddress
+        currentDialogEtDistrict = etDistrict
+
+        val openMapAction = {
+            val intent = Intent(requireContext(), SelectLocationActivity::class.java).apply {
+                val addr = etAddress.text.toString().trim()
+                if (addr.isNotBlank()) putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, addr)
+                val dist = etDistrict.text.toString().trim()
+                if (dist.isNotBlank()) putExtra(SelectLocationActivity.EXTRA_DISTRICT, dist)
+                editingLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                editingLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectLocationLauncher.launch(intent)
+        }
+
+        val btnPickLocation = dialog.findViewById<MaterialButton>(R.id.btnPickStoreLocationMap)
+        btnPickLocation?.setOnClickListener { openMapAction() }
+        etAddress.setOnClickListener { openMapAction() }
+        dialog.findViewById<View>(R.id.tilStoreAddress)?.setOnClickListener { openMapAction() }
+
+        // Các view tài khoản ngân hàng & Ví MoMo
         val spBank = dialog.findViewById<android.widget.Spinner>(R.id.spBankName)
         val etBankNo = dialog.findViewById<EditText>(R.id.etBankAccountNumber)
         val etBankOwner = dialog.findViewById<EditText>(R.id.etBankAccountName)
+        val etMomoPhone = dialog.findViewById<EditText>(R.id.etMomoPhone)
+        val etMomoOwner = dialog.findViewById<EditText>(R.id.etMomoAccountName)
 
         val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
@@ -270,6 +447,8 @@ class StoreProfileFragment : Fragment() {
         etPrepTime.setText(store.prepTime.ifBlank { "15 phút" })
         etBankNo.setText(store.bankAccountNumber)
         etBankOwner.setText(store.bankAccountName)
+        etMomoPhone.setText(store.momoPhone.ifBlank { store.phone })
+        etMomoOwner.setText(store.momoAccountName.ifBlank { store.bankAccountName.ifBlank { store.ownerName } })
 
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
@@ -288,6 +467,8 @@ class StoreProfileFragment : Fragment() {
             val newBankBin = selectedBank.bin
             val newBankNo = etBankNo.text.toString().trim()
             val newBankOwnerName = etBankOwner.text.toString().trim().uppercase()
+            val newMomoPhone = etMomoPhone.text.toString().trim().ifBlank { newPhone }
+            val newMomoOwnerName = etMomoOwner.text.toString().trim().uppercase().ifBlank { newBankOwnerName.ifBlank { newOwner.uppercase() } }
 
             if (newName.isBlank()) {
                 etName.error = "Vui lòng nhập tên quán"
@@ -301,6 +482,22 @@ class StoreProfileFragment : Fragment() {
             btnSave.isEnabled = false
 
             viewLifecycleOwner.lifecycleScope.launch {
+                val (resolvedLat, resolvedLng) = if (editingLat != null && editingLng != null && editingLat != 0.0 && editingLng != 0.0) {
+                    editingLat!! to editingLng!!
+                } else {
+                    val fullAddress = if (newAddress.isNotBlank()) "$newAddress, $newDistrict, TP.HCM" else "$newDistrict, TP.HCM"
+                    val coords = try {
+                        val resolved = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.geocodeAddress(requireContext(), fullAddress)
+                        if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                        else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                    } catch (_: Exception) {
+                        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                    }
+                    coords.latitude to coords.longitude
+                }
+
+                val avatarToSave = pendingAvatarBase64 ?: store.effectiveImageUrl
+
                 val result = firebaseRepository.updateStoreProfile(
                     storeId = currentStoreId,
                     name = newName,
@@ -310,14 +507,19 @@ class StoreProfileFragment : Fragment() {
                     ownerName = newOwner,
                     openHours = newOpenHours,
                     prepTime = newPrepTime,
+                    imageUrl = avatarToSave,
                     bankName = newBankName,
                     bankAccountNumber = newBankNo,
                     bankAccountName = newBankOwnerName,
-                    bankBin = newBankBin
+                    bankBin = newBankBin,
+                    momoPhone = newMomoPhone,
+                    momoAccountName = newMomoOwnerName,
+                    latitude = resolvedLat,
+                    longitude = resolvedLng
                 )
 
                 if (result.isSuccess) {
-                    Toast.makeText(requireContext(), "✅ Đã cập nhật thông tin quán & tài khoản ngân hàng!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "✅ Đã cập nhật thông tin & ảnh quán thành công!", Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 } else {
                     Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
@@ -326,6 +528,13 @@ class StoreProfileFragment : Fragment() {
             }
         }
 
+        dialog.setOnDismissListener {
+            currentDialogEtAddress = null
+            currentDialogEtDistrict = null
+            currentDialogAvatarPreview = null
+            currentDialogAvatarPlaceholder = null
+            pendingAvatarBase64 = null
+        }
         dialog.show()
     }
 

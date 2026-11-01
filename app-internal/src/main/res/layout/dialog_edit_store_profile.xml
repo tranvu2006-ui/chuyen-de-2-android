@@ -44,6 +44,92 @@
             android:textColor="#64748B"
             android:textSize="12sp" />
 
+        <!-- Ảnh đại diện quán ăn -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="4dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardEditStoreAvatar"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#FFDDD4"
+                app:strokeWidth="1dp">
+
+                <FrameLayout
+                    android:id="@+id/flEditStoreAvatar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_badge_orange">
+
+                    <ImageView
+                        android:id="@+id/ivEditStoreAvatarPreview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop"
+                        android:visibility="gone" />
+
+                    <ImageView
+                        android:id="@+id/tvEditStoreAvatarPlaceholder"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_store"
+                        app:tint="@color/brand_orange" />
+                </FrameLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Ảnh đại diện quán ăn"
+                    android:textColor="#1E293B"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Logo hoặc biển hiệu nhận diện quán"
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnPickStoreAvatar"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginTop="6dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="0dp"
+                    android:text="Đổi ảnh đại diện"
+                    app:icon="@drawable/ic_image"
+                    app:iconSize="14dp"
+                    app:iconTint="#EE4D2D"
+                    android:textColor="#EE4D2D"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    app:backgroundTint="#FFF1EE"
+                    app:cornerRadius="6dp" />
+            </LinearLayout>
+        </LinearLayout>
+
         <!-- Tên quán -->
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -82,24 +168,47 @@
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Địa chỉ quán -->
+        <!-- Địa chỉ quán (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS chính xác) -->
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilStoreAddress"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:hint="Địa chỉ cụ thể *"
+            android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
             app:boxStrokeColor="#EE4D2D"
+            app:endIconDrawable="@drawable/ic_map_pin"
+            app:endIconMode="custom"
+            app:endIconTint="#EE4D2D"
             app:hintTextColor="#EE4D2D">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etStoreAddress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPostalAddress"
+                android:clickable="true"
+                android:cursorVisible="false"
+                android:focusable="false"
+                android:inputType="none"
                 android:textColor="#1E293B"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Nút chọn vị trí trên bản đồ -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnPickStoreLocationMap"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="📍 Chọn / Ghim vị trí quán trên bản đồ"
+            android:textAllCaps="false"
+            android:textColor="#EE4D2D"
+            android:textSize="13.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="10dp"
+            app:strokeColor="#EE4D2D"
+            app:strokeWidth="1.2dp" />
 
         <!-- Quận / Huyện & Chủ quán -->
         <LinearLayout
@@ -114,7 +223,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="6dp"
                 android:layout_weight="1"
-                android:hint="Quận / Khu vực"
+                android:hint="Quận (Tự động từ Map)"
                 app:boxStrokeColor="#EE4D2D"
                 app:hintTextColor="#EE4D2D">
 
@@ -122,7 +231,10 @@
                     android:id="@+id/etStoreDistrict"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text"
+                    android:clickable="false"
+                    android:cursorVisible="false"
+                    android:focusable="false"
+                    android:inputType="none"
                     android:textColor="#1E293B"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
@@ -267,6 +379,67 @@
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etBankAccountName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapCharacters"
+                android:textColor="#1E293B"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Section: Tài khoản Ví điện tử MoMo nhận tiền -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="14dp"
+            android:background="#E2E8F0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tài Khoản Ví Điện Tử MoMo Nhận Tiền"
+            android:textColor="#A50064"
+            android:textSize="13.5sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Số điện thoại Ví MoMo có thể thay đổi linh hoạt để sinh mã QR MoMo cho khách quét"
+            android:textColor="#64748B"
+            android:textSize="11.5sp" />
+
+        <!-- Số điện thoại Ví MoMo -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Số điện thoại Ví MoMo nhận tiền *"
+            app:boxStrokeColor="#A50064"
+            app:hintTextColor="#A50064">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etMomoPhone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:textColor="#1E293B"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Tên chủ Ví MoMo -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="Tên chủ Ví MoMo (Viết hoa không dấu) *"
+            app:boxStrokeColor="#A50064"
+            app:hintTextColor="#A50064">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etMomoAccountName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textCapCharacters"

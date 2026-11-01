@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Nội bộ - Đặt Đồ Ăn</string>
+    <string name="app_name">Oshi Merchant</string>
     <string name="login_title">Đăng nhập nội bộ</string>
     <string name="email_hint">Email nhân viên</string>
     <string name="password_hint">Mật khẩu</string>

@@ -1,5 +1,7 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -9,6 +11,7 @@ import com.google.gson.annotations.SerializedName
  * Vòng đời: PENDING → PREPARING → ASSIGNED → DELIVERING → COMPLETED / BOOM / CANCELLED
  * Mapping: Bảng 12 - orders (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class Order(
     @SerializedName("orderId")
     val orderId: String = "",
@@ -33,6 +36,9 @@ data class Order(
 
     @SerializedName("shopPhone")
     val shopPhone: String = "",
+
+    @SerializedName("shopImageUrl", alternate = ["shopImage", "storeImageUrl", "storeImage"])
+    val shopImageUrl: String = "",
 
     @SerializedName("driverId")
     var driverId: String? = null,
@@ -67,6 +73,33 @@ data class Order(
     @SerializedName("paymentMethod")
     val paymentMethod: String = PaymentMethod.COD,
 
+    @SerializedName("paymentMode")
+    val paymentMode: String = PaymentMode.FULL,
+
+    @SerializedName("depositAmount")
+    val depositAmount: Long = 0,
+
+    @SerializedName("remainAmount")
+    val remainAmount: Long = 0,
+
+    @SerializedName("isDepositPaid")
+    val isDepositPaid: Boolean = false,
+
+    @SerializedName("isPaid")
+    val isPaid: Boolean = false,
+
+    @SerializedName("paymentStatus")
+    var paymentStatus: String = PaymentStatus.UNPAID,
+
+    @SerializedName("paidAt")
+    var paidAt: Long? = null,
+
+    @SerializedName("momoOrderId")
+    var momoOrderId: String = "",
+
+    @SerializedName("momoRequestId")
+    var momoRequestId: String = "",
+
     @SerializedName("status")
     var status: String = Status.PENDING,
 
@@ -88,11 +121,55 @@ data class Order(
     @SerializedName("createdAt")
     val createdAt: Long = 0,
 
+    @SerializedName("updatedAt")
+    val updatedAt: Long? = null,
+
     @SerializedName("completedAt")
     val completedAt: Long? = null
 ) {
+    @get:Exclude
+    val effectiveStoreId: String
+        get() = storeId.ifBlank { shopId }
+
+    @get:Exclude
+    val effectiveShopName: String
+        get() = shopName.ifBlank { storeId }
+
+    @get:Exclude
+    val effectiveDriverId: String
+        get() = driverId ?: shipperId ?: ""
+
+    @get:Exclude
+    val effectiveDriverName: String
+        get() = shipperName
+
+    @get:Exclude
+    val effectiveStatus: String
+        get() = status.ifBlank { orderStatus }
+
+    @get:Exclude
+    val effectiveAddress: String
+        get() = deliveryAddress.ifBlank { address }
+
+    @get:Exclude
+    val effectiveTotal: Long
+        get() = if (totalPayment > 0) totalPayment else total
+
+    @get:Exclude
+    val totalPrice: Long
+        get() = effectiveTotal
+
+    @get:Exclude
+    val effectiveTimestamp: Long
+        get() = if (createdAt > 0) createdAt else timestamp
+
+    @get:Exclude
+    val orderCode: String
+        get() = if (orderId.isNotBlank()) "#ORD_OISHI_${orderId.takeLast(6).uppercase()}" else ""
+
     /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
     object Status {
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PENDING = "PENDING"
         const val PREPARING = "PREPARING"
         const val READY = "READY"
@@ -102,10 +179,13 @@ data class Order(
         const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
         const val COMPLETED = "COMPLETED"
         const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
         const val CANCELLED = "CANCELLED"
     }
 
     object OrderStatus {
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PENDING = "PENDING"
         const val PREPARING = "PREPARING"
         const val READY = "READY"
@@ -115,13 +195,30 @@ data class Order(
         const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
         const val COMPLETED = "COMPLETED"
         const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
         const val CANCELLED = "CANCELLED"
+    }
+
+    /** Chế độ thanh toán: Trả thẳng 100%, Cọc 20%, hoặc COD (chuẩn b8.html) */
+    object PaymentMode {
+        const val FULL = "FULL"
+        const val DEPOSIT = "DEPOSIT"
+        const val COD = "COD"
     }
 
     /** Phương thức thanh toán */
     object PaymentMethod {
         const val COD = "COD"
         const val BANKING = "BANKING"
+        const val DEPOSIT = "DEPOSIT"
+        const val MOMO = "MOMO"
+    }
+
+    /** Trạng thái thanh toán chuyển khoản / ví MoMo */
+    object PaymentStatus {
+        const val UNPAID = "UNPAID"
+        const val PAID = "PAID"
     }
 }
 
@@ -130,6 +227,7 @@ data class Order(
  * Giao diện: khách/b7.html — Giỏ hàng
  * Mapping: Bảng 13 - order_items (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class OrderItem(
     @SerializedName("itemId")
     val itemId: String = "",
@@ -155,11 +253,19 @@ data class OrderItem(
     @SerializedName("selectedOptions")
     val selectedOptions: Map<String, Any>? = null,
 
-    @SerializedName("imageUrl")
+    @SerializedName("imageUrl", alternate = ["image", "photoUrl", "dishImage"])
     val imageUrl: String = "",
+
+    @SerializedName("image")
+    val image: String = "",
 
     @SerializedName("itemSubtotal")
     val itemSubtotal: Long = 0
 ) {
+    @get:Exclude
+    val effectiveImageUrl: String
+        get() = imageUrl.ifBlank { image }
+
+    @get:Exclude
     val dishName: String get() = name
 }

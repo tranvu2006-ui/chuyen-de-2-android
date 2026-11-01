@@ -103,20 +103,35 @@ class ShopViewModel @Inject constructor(
         _countDelivering.value = orders.count {
             it.status == Order.Status.READY ||
                     it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
                     it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.RETURNING_TO_STORE ||
                     it.status == "WARNING"
         }
 
-        // Kiểm tra xem có đơn nào đang bị cảnh báo không
+        // Kiểm tra xem có đơn nào đang bị cảnh báo hoặc shipper đang trả hàng về quán không
         _hasDeliveringWarning.value = orders.any {
-            (it.status == Order.Status.DELIVERING || it.status == Order.Status.READY) &&
-                    (it.note.contains("cảnh báo", ignoreCase = true) || it.status == "WARNING")
+            it.status == Order.Status.RETURNING_TO_STORE ||
+                    it.status == Order.Status.BOOM ||
+                    ((it.status == Order.Status.DELIVERING || it.status == Order.Status.READY || it.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
+                    (it.note.contains("cảnh báo", ignoreCase = true) || it.status == "WARNING"))
         }
 
         // Tính doanh thu và đơn hoàn tất hôm nay
-        val completedOrders = orders.filter { it.status == Order.Status.COMPLETED }
-        _todayCompletedCount.value = completedOrders.size
-        val calculatedRevenue = completedOrders.sumOf {
+        val startOfToday = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val todayCompletedOrders = orders.filter {
+            it.status == Order.Status.COMPLETED &&
+            ((it.createdAt > 0 && it.createdAt >= startOfToday) || (it.timestamp > 0 && it.timestamp >= startOfToday))
+        }
+        _todayCompletedCount.value = todayCompletedOrders.size
+        val calculatedRevenue = todayCompletedOrders.sumOf {
             if (it.totalPayment > 0) it.totalPayment else if (it.total > 0) it.total else 0L
         }
         _todayRevenue.value = calculatedRevenue
@@ -128,13 +143,17 @@ class ShopViewModel @Inject constructor(
             TabType.DELIVERING -> orders.filter {
                 it.status == Order.Status.READY ||
                         it.status == Order.Status.ASSIGNED ||
+                        it.status == Order.Status.ARRIVED_AT_SHOP ||
                         it.status == Order.Status.DELIVERING ||
+                        it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        it.status == Order.Status.RETURNING_TO_STORE ||
                         it.status == "WARNING"
             }
             TabType.HISTORY -> orders.filter {
                 it.status == Order.Status.COMPLETED ||
                         it.status == Order.Status.CANCELLED ||
-                        it.status == Order.Status.BOOM
+                        it.status == Order.Status.BOOM ||
+                        it.status == Order.Status.RETURNED_TO_STORE
             }
         }
     }

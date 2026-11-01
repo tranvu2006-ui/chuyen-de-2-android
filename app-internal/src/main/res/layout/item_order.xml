@@ -87,12 +87,25 @@
                         app:tint="#475569" />
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
+                        android:layout_weight="1"
                         android:text="Chi tiết món &amp; thanh toán"
                         android:textColor="#475569"
                         android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvPaymentStatusBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_badge_orange"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="3dp"
+                        android:text="💵 Tiền mặt (COD)"
+                        android:textColor="#475569"
+                        android:textSize="10.5sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 

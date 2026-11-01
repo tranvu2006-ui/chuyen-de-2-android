@@ -10,6 +10,7 @@ import com.chuyen_de_2.foodorder.core.data.model.CartItem
 import com.chuyen_de_2.foodorder.core.data.model.CartPayload
 import com.chuyen_de_2.foodorder.core.data.model.Dish
 import com.chuyen_de_2.foodorder.core.data.model.MenuItem
+import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.data.remote.RestBackendApi
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.google.firebase.auth.FirebaseAuth
@@ -58,6 +59,12 @@ class MenuViewModel @Inject constructor(
     private val _cartTotalPrice = MutableLiveData(0L)
     val cartTotalPrice: LiveData<Long> = _cartTotalPrice
 
+    private val _categories = MutableLiveData<List<String>>(emptyList())
+    val categories: LiveData<List<String>> = _categories
+
+    val currentCategoryName: String
+        get() = currentCategory
+
     private var currentShopId: String = ""
     private var currentShopName: String = ""
     private var currentCategory: String = "ALL"
@@ -82,21 +89,33 @@ class MenuViewModel @Inject constructor(
     private var currentShopDistrict: String = ""
     private var currentShopAddress: String = ""
 
-    fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null) {
+    fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null, initialDish: Dish? = null) {
         currentShopId = shopId
         currentShopName = shopName
+
+        // Optimistic UI: Nếu có món truyền từ trang chủ, lập tức chọn và cộng giỏ hàng tức thì (0ms)
+        if (initialDish != null) {
+            _selectedDish.value = initialDish
+            addToCart(initialDish)
+        }
+
         loadMenu(shopId, initialDishId)
         observeShopCart(shopId)
         loadShopDetails(shopId)
     }
 
+    private val _store = MutableLiveData<Store?>()
+    val store: LiveData<Store?> = _store
+
     private fun loadShopDetails(shopId: String) {
         viewModelScope.launch {
             try {
-                val store = firebaseRepository.getStoreOnce(shopId)
-                if (store != null) {
-                    currentShopDistrict = store.district.ifBlank { "Quận 1" }
-                    currentShopAddress = store.address
+                firebaseRepository.observeStore(shopId).collectLatest { store ->
+                    if (store != null) {
+                        currentShopDistrict = store.district
+                        currentShopAddress = store.address
+                        _store.postValue(store)
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -106,11 +125,20 @@ class MenuViewModel @Inject constructor(
         val userId = auth.currentUser?.uid ?: return
         viewModelScope.launch {
             firebaseRepository.observeCart(userId, shopId).collectLatest { cart ->
+                val currentLocal = _cartItems.value ?: emptyMap()
                 if (cart != null && cart.items.isNotEmpty()) {
-                    _cartItems.value = cart.items.toMutableMap()
+                    val merged = cart.items.toMutableMap()
+                    // Giữ lại các món local nếu người dùng đã cộng dồn (tránh bị Firebase snapshot cũ ghi đè)
+                    for ((k, v) in currentLocal) {
+                        val remote = merged[k]
+                        if (remote == null || remote.quantity < v.quantity) {
+                            merged[k] = v
+                        }
+                    }
+                    _cartItems.value = merged
                     updateCartTotals()
-                } else if (cart == null && !_cartItems.value.isNullOrEmpty()) {
-                    _cartItems.value = mutableMapOf()
+                } else if (currentLocal.isNotEmpty()) {
+                    // Nếu Firebase trả về null nhưng local đã thêm món, giữ nguyên giỏ hàng hiện tại
                     updateCartTotals()
                 }
             }
@@ -126,6 +154,12 @@ class MenuViewModel @Inject constructor(
                 if (visibleDishes.isNotEmpty()) {
                     allDishes.clear()
                     allDishes.addAll(visibleDishes)
+
+                    val uniqueCats = visibleDishes.map { it.category.ifBlank { it.platformCategory } }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    _categories.value = uniqueCats
+
                     applyFilter()
 
                     // Chọn món theo initialDishId hoặc mặc định món đầu tiên
@@ -133,7 +167,10 @@ class MenuViewModel @Inject constructor(
                         val targetDish = visibleDishes.find { it.id == initialDishId }
                         if (targetDish != null) {
                             _selectedDish.value = targetDish
-                            addToCart(targetDish)
+                            // Chỉ cộng nếu chưa được cộng lúc khởi tạo setShopInfo
+                            if (getItemQuantity(targetDish.id) == 0) {
+                                addToCart(targetDish)
+                            }
                         }
                     } else if (_selectedDish.value == null && visibleDishes.isNotEmpty()) {
                         val firstDish = visibleDishes.first()
@@ -142,6 +179,7 @@ class MenuViewModel @Inject constructor(
                     _isLoading.value = false
                 } else {
                     allDishes.clear()
+                    _categories.value = emptyList()
                     applyFilter()
                     _selectedDish.value = null
                     _isLoading.value = false
@@ -163,8 +201,11 @@ class MenuViewModel @Inject constructor(
         if (currentCategory.equals("ALL", ignoreCase = true) || currentCategory.isEmpty()) {
             _dishes.value = allDishes
         } else {
-            _dishes.value = allDishes.filter {
-                it.category.contains(currentCategory, ignoreCase = true)
+            _dishes.value = allDishes.filter { dish ->
+                dish.category.equals(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.equals(currentCategory, ignoreCase = true) ||
+                dish.category.contains(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.contains(currentCategory, ignoreCase = true)
             }
         }
     }

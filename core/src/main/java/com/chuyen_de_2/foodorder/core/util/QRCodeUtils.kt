@@ -153,10 +153,40 @@ object QRCodeUtils {
     }
 
     /**
+     * Tạo chuỗi dữ liệu QR chuyển tiền nội bộ Ví MoMo chuẩn (2|99|phone|name||0|0|amount|note|transfer_myqr).
+     * Khi quét bằng App MoMo thật sẽ mở đúng màn hình "Chuyển tiền đến Ví MoMo" (không bị nhảy sang "Đến ngân hàng" báo lỗi tài khoản không hợp lệ).
+     */
+    fun buildMomoQrPayload(
+        phone: String,
+        receiverName: String,
+        amount: Long,
+        transferSyntax: String
+    ): String {
+        val cleanPhone = phone.replace(Regex("[^0-9]"), "").ifBlank { "0988888888" }
+        val cleanName = removeAccents(receiverName).replace(Regex("[^A-Za-z0-9 ]"), " ").trim().uppercase().ifBlank { "OISHI FOOD" }
+        val cleanNote = removeAccents(transferSyntax).replace(Regex("[^A-Za-z0-9 ]"), " ").trim().uppercase().ifBlank { "OISHI" }
+        val safeAmount = amount.coerceAtLeast(0L)
+        return "2|99|$cleanPhone|$cleanName||0|0|$safeAmount|$cleanNote|transfer_myqr"
+    }
+
+    private fun removeAccents(input: String): String {
+        val normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+        return normalized
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .replace('đ', 'd')
+            .replace('Đ', 'D')
+    }
+
+    /**
      * Tạo Bitmap QR Code thực tế theo chuẩn quốc tế ISO/IEC 18004 bằng ZXing QRCodeWriter.
      * Đảm bảo mọi camera điện thoại / máy quét QR đều nhận diện được ngay lập tức.
      */
-    fun generateQRCodeBitmap(text: String, width: Int = 512, height: Int = 512): Bitmap {
+    fun generateQRCodeBitmap(
+        text: String,
+        width: Int = 512,
+        height: Int = 512,
+        darkColorHex: String = "#0F172A"
+    ): Bitmap {
         val content = text.ifBlank { "OISHI_DELIVERY_EMPTY" }
         val safeWidth = width.coerceAtLeast(200)
         val safeHeight = height.coerceAtLeast(200)
@@ -175,7 +205,11 @@ object QRCodeUtils {
                 hints
             )
             val pixels = IntArray(safeWidth * safeHeight)
-            val darkColor = Color.parseColor("#0F172A")
+            val darkColor = try {
+                Color.parseColor(darkColorHex)
+            } catch (_: Exception) {
+                Color.parseColor("#0F172A")
+            }
             for (y in 0 until safeHeight) {
                 val offset = y * safeWidth
                 for (x in 0 until safeWidth) {

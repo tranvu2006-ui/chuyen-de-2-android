@@ -1,5 +1,7 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -8,6 +10,7 @@ import com.google.gson.annotations.SerializedName
  * 4 trạng thái: PENDING → OPEN / LOCKED / CLOSED
  * Mapping: Bảng 5 - stores (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class Store(
     @SerializedName("id")
     val id: String = "",
@@ -33,8 +36,30 @@ data class Store(
     @SerializedName("longitude")
     val longitude: Double = 0.0,
 
-    @SerializedName("imageUrl")
-    val imageUrl: String = "",
+    @get:com.google.firebase.database.PropertyName("imageUrl")
+    @set:com.google.firebase.database.PropertyName("imageUrl")
+    @SerializedName("imageUrl", alternate = ["avatarUrl", "logoUrl", "avatar", "image"])
+    var imageUrl: String = "",
+
+    @get:com.google.firebase.database.PropertyName("avatarUrl")
+    @set:com.google.firebase.database.PropertyName("avatarUrl")
+    @SerializedName("avatarUrl")
+    var avatarUrl: String = "",
+
+    @get:com.google.firebase.database.PropertyName("avatar")
+    @set:com.google.firebase.database.PropertyName("avatar")
+    @SerializedName("avatar")
+    var avatar: String = "",
+
+    @get:com.google.firebase.database.PropertyName("logoUrl")
+    @set:com.google.firebase.database.PropertyName("logoUrl")
+    @SerializedName("logoUrl")
+    var logoUrl: String = "",
+
+    @get:com.google.firebase.database.PropertyName("image")
+    @set:com.google.firebase.database.PropertyName("image")
+    @SerializedName("image")
+    var image: String = "",
 
     @SerializedName("storeStatus")
     val storeStatus: String = StoreStatus.PENDING,
@@ -83,6 +108,9 @@ data class Store(
     @SerializedName("ratingAvg", alternate = ["rating"])
     val ratingAvg: Float = 5.0f,
 
+    @SerializedName("reviewCount", alternate = ["ratingCount"])
+    val reviewCount: Int = 0,
+
     @SerializedName("deliveryTimeFrameId")
     val deliveryTimeFrameId: Int = 2,
 
@@ -104,15 +132,32 @@ data class Store(
     @SerializedName("bankBin")
     val bankBin: String = "970422",
 
+    @SerializedName("storeCategories")
+    val storeCategories: List<String> = emptyList(),
+
+    @SerializedName("momoPhone")
+    val momoPhone: String = "",
+
+    @SerializedName("momoAccountName")
+    val momoAccountName: String = "",
+
     @SerializedName("dishes")
     val dishes: Map<String, Dish> = emptyMap()
 ) {
     /** Thuộc tính phụ trợ tương thích UI */
+    @get:Exclude
     val isOpen: Boolean
         get() = storeStatus.equals(StoreStatus.OPEN, ignoreCase = true)
 
+    @get:Exclude
     val rating: Float
         get() = ratingAvg
+
+    /** Trả về URL hoặc Base64 ảnh đại diện quán từ bất kỳ trường nào có dữ liệu */
+    @get:Exclude
+    val effectiveImageUrl: String
+        get() = imageUrl.ifBlank { avatarUrl.ifBlank { avatar.ifBlank { logoUrl.ifBlank { image } } } }
+
     /** Trạng thái quán ăn — Admin duyệt */
     object StoreStatus {
         const val PENDING = "PENDING"

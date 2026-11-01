@@ -30,17 +30,36 @@ class AuthRepository @Inject constructor(
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng nhập thất bại"))
 
             val userRef = database.getReference("users").child(firebaseUser.uid)
-            val userSnap = userRef.get().await()
-            if (userSnap.exists()) {
+            try { userRef.keepSynced(true) } catch (_: Exception) {}
+
+            // Ưu tiên đọc trực tiếp từ Firebase Server qua REST API với idToken mới để vượt qua SQLite Persistence Cache cũ
+            val freshJson = fetchFreshUserJsonFromServer(firebaseUser.uid)
+            val userSnap = try { userRef.get().await() } catch (_: Exception) { null }
+
+            if (freshJson != null) {
+                val status = freshJson.optString("status", "ACTIVE").uppercase()
+                val isActive = when {
+                    freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
+                    freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
+                    else -> true
+                }
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = freshJson.optString("lockReason", "").ifBlank {
+                        freshJson.optString("suspendedReason", "").ifBlank { "Vi phạm quy định nền tảng" }
+                    }
+                    try { auth.signOut() } catch (_: Exception) {}
+                    return Result.failure(Exception("Tài khoản đã bị khóa bởi Admin: $reason"))
+                }
+            } else if (userSnap != null && userSnap.exists()) {
                 val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
                 val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
                     ?: userSnap.child("active").getValue(Boolean::class.java)
                     ?: true
-                if (status == "LOCKED" || status == "SUSPENDED" || !isActive) {
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
                     val reason = userSnap.child("lockReason").getValue(String::class.java)
                         ?: userSnap.child("suspendedReason").getValue(String::class.java)
                         ?: "Vi phạm quy định nền tảng"
-                    auth.signOut()
+                    try { auth.signOut() } catch (_: Exception) {}
                     return Result.failure(Exception("Tài khoản đã bị khóa bởi Admin: $reason"))
                 }
             }
@@ -48,18 +67,23 @@ class AuthRepository @Inject constructor(
             // Đồng bộ Gmail & thông tin định danh từ Firebase Auth vào users/{uid} để Admin Dashboard nhận diện chính xác
             try {
                 val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
-                val dbEmail = userSnap.child("email").getValue(String::class.java).orEmpty()
-                val dbName = userSnap.child("name").getValue(String::class.java).orEmpty()
-                val dbPhone = userSnap.child("phone").getValue(String::class.java).orEmpty()
-                val dbRole = userSnap.child("role").getValue(String::class.java).orEmpty()
-                val dbStoreId = userSnap.child("storeId").getValue(String::class.java).orEmpty()
+                val dbEmail = freshJson?.optString("email", "")?.takeIf { it.isNotBlank() }
+                    ?: userSnap?.child("email")?.getValue(String::class.java).orEmpty()
+                val dbName = freshJson?.optString("name", "")?.takeIf { it.isNotBlank() }
+                    ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+                val dbPhone = freshJson?.optString("phone", "")?.takeIf { it.isNotBlank() }
+                    ?: userSnap?.child("phone")?.getValue(String::class.java).orEmpty()
+                val dbRole = freshJson?.optString("role", "")?.takeIf { it.isNotBlank() }
+                    ?: userSnap?.child("role")?.getValue(String::class.java).orEmpty()
+                val dbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
+                    ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
 
                 val wasCorruptedMock = dbEmail == "mai.tran@oishifood.vn" && !actualEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
                 val resolvedRole = when {
                     dbRole.isNotBlank() -> dbRole.uppercase()
                     actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                     actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                    actualEmail.contains("admin", ignoreCase = true) -> User.Role.ADMIN
+                    actualEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
                     else -> User.Role.CUSTOMER
                 }
                 val resolvedRoleId = when (resolvedRole) {
@@ -79,21 +103,18 @@ class AuthRepository @Inject constructor(
                     firebaseUser.phoneNumber.orEmpty()
                 }
 
-                val existingStatus = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: User.Status.ACTIVE
-                val existingIsActive = userSnap.child("isActive").getValue(Boolean::class.java)
-                    ?: userSnap.child("active").getValue(Boolean::class.java)
-                    ?: true
-
-                val syncUpdates = mutableMapOf<String, Any>(
+                val syncUpdates = mutableMapOf<String, Any?>(
                     "uid" to firebaseUser.uid,
                     "email" to actualEmail,
                     "name" to resolvedName,
                     "phone" to resolvedPhone,
                     "role" to resolvedRole,
                     "roleId" to resolvedRoleId,
-                    "status" to existingStatus,
-                    "isActive" to existingIsActive,
-                    "active" to existingIsActive
+                    "status" to User.Status.ACTIVE,
+                    "isActive" to true,
+                    "active" to true,
+                    "lockReason" to null,
+                    "suspendedReason" to null
                 )
                 userRef.updateChildren(syncUpdates).await()
 
@@ -201,7 +222,7 @@ class AuthRepository @Inject constructor(
                     val randomCode = "TX-" + (10..99).random()
                     val driver = Driver(
                         driverId = firebaseUser.uid,
-                        storeId = assignedStoreId.ifBlank { "shop_01" },
+                        storeId = assignedStoreId,
                         driverCode = randomCode,
                         name = name.trim(),
                         phone = phone.trim(),
@@ -286,7 +307,7 @@ class AuthRepository @Inject constructor(
             val fallbackRole = when {
                 currentEmail.contains("manager", ignoreCase = true) || currentEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 currentEmail.contains("shipper", ignoreCase = true) || currentEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                currentEmail.contains("admin", ignoreCase = true) -> User.Role.ADMIN
+                currentEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
             val fallbackRoleId = when (fallbackRole) {
@@ -450,7 +471,16 @@ class AuthRepository @Inject constructor(
             }
 
             try {
-                val storesSnap = database.getReference("stores").get().await()
+                val byMerchant = database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+                val matchedKey = byMerchant.children.firstOrNull()?.key
+                    ?: database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await().children.firstOrNull()?.key
+                if (!matchedKey.isNullOrBlank()) {
+                    database.getReference("users").child(uid).updateChildren(
+                        mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to matchedKey)
+                    ).await()
+                    return User.Role.MERCHANT
+                }
+                val storesSnap = byMerchant
                 for (child in storesSnap.children) {
                     val merchantId = child.child("merchantId").getValue(String::class.java)
                         ?: child.child("ownerId").getValue(String::class.java)
@@ -481,7 +511,7 @@ class AuthRepository @Inject constructor(
                 when {
                     email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> return User.Role.MERCHANT
                     email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> return User.Role.DRIVER
-                    email.contains("admin", ignoreCase = true) -> return User.Role.ADMIN
+                    email.equals("admin@gmail.com", ignoreCase = true) -> return User.Role.ADMIN
                 }
             }
 
@@ -491,7 +521,7 @@ class AuthRepository @Inject constructor(
             when {
                 email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                email.contains("admin", ignoreCase = true) -> User.Role.ADMIN
+                email.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
         }
@@ -520,7 +550,8 @@ class AuthRepository @Inject constructor(
             )
 
             if (normalizedRole == User.Role.MERCHANT) {
-                val storeSnap = database.getReference("stores").get().await()
+                val byMerchantSnap = database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+                val storeSnap = if (byMerchantSnap.hasChildren()) byMerchantSnap else database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await()
                 var foundStoreId: String? = null
                 for (child in storeSnap.children) {
                     val mId = child.child("merchantId").getValue(String::class.java)
@@ -573,21 +604,77 @@ class AuthRepository @Inject constructor(
             .await()
     }
 
+    /** Đọc trực tiếp trạng thái user từ Firebase RTDB REST API để bỏ qua SQLite Persistence Cache cũ */
+    suspend fun fetchFreshUserJsonFromServer(uid: String): org.json.JSONObject? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val token = auth.currentUser?.getIdToken(false)?.await()?.token ?: return@withContext null
+                val urlStr = "${com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL}/users/$uid.json?auth=$token"
+                val conn = (java.net.URL(urlStr).openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                    useCaches = false
+                    setRequestProperty("Cache-Control", "no-cache")
+                }
+                if (conn.responseCode in 200..299) {
+                    val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }.trim()
+                    if (body.isNotEmpty() && body != "null") {
+                        return@withContext org.json.JSONObject(body)
+                    }
+                }
+                null
+            } catch (_: Exception) {
+                null
+            }
+        }
+
     /** Kiểm tra xem tài khoản có đang bị khóa (LOCKED / SUSPENDED) trên Firebase Realtime DB không */
     suspend fun checkAccountActiveStatus(uid: String? = currentUser?.uid): Result<Boolean> {
         val targetUid = uid ?: return Result.failure(Exception("Chưa đăng nhập"))
         return try {
+            val freshJson = fetchFreshUserJsonFromServer(targetUid)
+            if (freshJson != null) {
+                val status = freshJson.optString("status", "ACTIVE").uppercase()
+                val isActive = when {
+                    freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
+                    freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
+                    else -> true
+                }
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = freshJson.optString("lockReason", "").ifBlank {
+                        freshJson.optString("suspendedReason", "").ifBlank { "Tài khoản của bạn đã bị khóa bởi Quản trị viên" }
+                    }
+                    try { auth.signOut() } catch (_: Exception) {}
+                    return Result.failure(Exception(reason))
+                } else {
+                    // Đồng bộ trạng thái đã mở khóa xuống local cache
+                    try {
+                        database.getReference("users").child(targetUid).updateChildren(
+                            mapOf(
+                                "status" to User.Status.ACTIVE,
+                                "isActive" to true,
+                                "active" to true,
+                                "lockReason" to null,
+                                "suspendedReason" to null
+                            )
+                        )
+                    } catch (_: Exception) {}
+                    return Result.success(true)
+                }
+            }
+
             val userSnap = database.getReference("users").child(targetUid).get().await()
             if (userSnap.exists()) {
                 val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
                 val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
                     ?: userSnap.child("active").getValue(Boolean::class.java)
                     ?: true
-                if (status == "LOCKED" || status == "SUSPENDED" || !isActive) {
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
                     val reason = userSnap.child("lockReason").getValue(String::class.java)
                         ?: userSnap.child("suspendedReason").getValue(String::class.java)
                         ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên"
-                    logout()
+                    try { auth.signOut() } catch (_: Exception) {}
                     return Result.failure(Exception(reason))
                 }
             }
@@ -597,16 +684,8 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    /** Đăng xuất an toàn tuyệt đối, tránh crash do Firebase permission */
+    /** Đăng xuất an toàn tuyệt đối, không ghi đè trạng thái LOCKED trên Firebase */
     fun logout() {
-        try {
-            auth.currentUser?.uid?.let { uid ->
-                database.getReference("users")
-                    .child(uid)
-                    .child("status")
-                    .setValue(User.Status.OFFLINE)
-            }
-        } catch (_: Exception) {}
         try {
             auth.signOut()
         } catch (_: Exception) {}
@@ -647,8 +726,10 @@ class AuthRepository @Inject constructor(
                     ) {
                         val updates = mapOf<String, Any?>(
                             "shipperId" to null,
+                            "driverId" to null,
                             "shipperName" to "",
-                            "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY
+                            "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY,
+                            "orderStatus" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY
                         )
                         database.getReference("orders").child(order.orderId).updateChildren(updates).await()
                         database.getReference("tracking").child(order.orderId).removeValue().await()

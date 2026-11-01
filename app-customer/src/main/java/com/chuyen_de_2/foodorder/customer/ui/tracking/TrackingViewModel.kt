@@ -43,4 +43,16 @@ class TrackingViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Kéo trực tiếp dữ liệu đơn hàng mới nhất từ Firebase ngay lập tức khi app quay lại Foreground
+     */
+    fun refresh(orderId: String) {
+        viewModelScope.launch {
+            val latest = firebaseRepository.getOrder(orderId)
+            if (latest != null) {
+                _order.value = latest
+            }
+        }
+    }
 }

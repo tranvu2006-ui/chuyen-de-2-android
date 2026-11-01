@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Oishi Admin</string>
+    <string name="admin_portal_title">Hệ Thống Quản Trị Oishi Food</string>
+    <string name="nav_dashboard">Tổng quan</string>
+    <string name="nav_stores">Quán ăn</string>
+    <string name="nav_categories">Danh mục</string>
+    <string name="nav_complaints">Khiếu nại</string>
+    <string name="nav_monitor">Đơn &amp; Khách</string>
+</resources>

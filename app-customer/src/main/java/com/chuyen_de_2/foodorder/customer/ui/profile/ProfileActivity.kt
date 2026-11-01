@@ -36,6 +36,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
@@ -131,6 +132,12 @@ class ProfileActivity : AppCompatActivity() {
         setupToolbar()
         loadUserProfile()
         setupListeners()
+        updateFavoriteBadge()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateFavoriteBadge()
     }
 
     private fun setupToolbar() {
@@ -142,7 +149,7 @@ class ProfileActivity : AppCompatActivity() {
     private fun loadUserProfile() {
         val currentUser = firebaseAuth.currentUser
         if (currentUser != null) {
-            binding.tvUserEmail.text = currentUser.email ?: "customer@oishifood.vn"
+            binding.tvUserEmail.text = currentUser.email ?: ""
 
             lifecycleScope.launch {
                 val userResult = authRepository.getCurrentUserData()
@@ -170,6 +177,28 @@ class ProfileActivity : AppCompatActivity() {
                     }
                 }
 
+                launch {
+                    firebaseRepository.observeCustomerProfile(currentUser.uid).collectLatest { customer ->
+                        binding.tvTrustScoreNumber.text = customer.trustScore.toString()
+                        binding.progressTrustScore.progress = customer.trustScore
+                        binding.tvTrustBadge.text = customer.tierBadge
+                        binding.tvTrustTotalOrders.text = "Tổng đơn: ${customer.totalOrders}"
+                        binding.tvTrustCompletedOrders.text = "✓ Nhận: ${customer.completedOrders}"
+                        binding.tvTrustBoomOrders.text = "⚠️ Bom: ${customer.boomOrders}"
+                        binding.tvTrustRuleDesc.text = customer.privilegeDescription
+                        val scoreColor = when {
+                            customer.trustScore >= 95 -> android.graphics.Color.parseColor("#059669")
+                            customer.trustScore >= 80 -> android.graphics.Color.parseColor("#D97706")
+                            customer.trustScore >= 50 -> android.graphics.Color.parseColor("#EA580C")
+                            else -> android.graphics.Color.parseColor("#DC2626")
+                        }
+                        binding.tvTrustScoreNumber.setTextColor(scoreColor)
+                        binding.progressTrustScore.progressTintList = android.content.res.ColorStateList.valueOf(scoreColor)
+                        if (customer.avatarUrl.isNotBlank() && (currentUserData?.avatarUrl.isNullOrBlank())) {
+                            displayAvatar(customer.avatarUrl)
+                        }
+                    }
+                }
                 val customerResult = authRepository.getCurrentCustomerData()
                 customerResult.onSuccess { customer ->
                     binding.tvTrustScoreNumber.text = customer.trustScore.toString()
@@ -207,10 +236,17 @@ class ProfileActivity : AppCompatActivity() {
         // Nút hoặc Avatar để chỉnh sửa thông tin cá nhân
         binding.btnEditProfile.setOnClickListener { showEditProfileDialog() }
         binding.flAvatar.setOnClickListener { showEditProfileDialog() }
+        binding.btnViewTrustHistory.setOnClickListener { showTrustScoreHistoryDialog() }
+        binding.cardTrustScore.setOnClickListener { showTrustScoreHistoryDialog() }
 
         // Lịch sử đơn hàng
         binding.btnOrderHistory.setOnClickListener {
             startActivity(Intent(this, OrderHistoryActivity::class.java))
+        }
+
+        // Quán ăn yêu thích của tôi
+        binding.btnFavoriteStores.setOnClickListener {
+            showFavoriteStoresBottomSheet()
         }
 
         // Gửi khiếu nại
@@ -247,6 +283,45 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     /** Mở Dialog chỉnh sửa thông tin cá nhân: Upload ảnh / Chọn Emoji, Tên, Số điện thoại */
+    private fun showTrustScoreHistoryDialog() {
+        val uid = firebaseAuth.currentUser?.uid ?: return
+        lifecycleScope.launch {
+            val cust = authRepository.getCurrentCustomerData().getOrNull() ?: com.chuyen_de_2.foodorder.core.data.model.Customer(customerId = uid, trustScore = 100)
+            val logs = try { firebaseRepository.observeTrustScoreLogs(uid).first() } catch (_: Exception) { emptyList() }
+
+            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+            val sb = StringBuilder()
+            sb.append("🛡️ ĐIỂM HIỆN TẠI: ${cust.trustScore}/100 (${cust.tierBadge})\n")
+            sb.append("• Tổng đơn: ${cust.totalOrders} | Thành công: ${cust.completedOrders} | Bom/Vi phạm: ${cust.boomOrders}\n\n")
+            sb.append("📌 QUY TẮC HẠNG & QUYỀN LỢI:\n")
+            sb.append("• 💎 Kim Cương (95-100đ): Mở khóa COD không giới hạn & Giảm 5.000đ phí ship mọi đơn\n")
+            sb.append("• 🥇 Hạng Vàng (80-94đ): Thanh toán tiền mặt COD tối đa 500.000đ/đơn\n")
+            sb.append("• 🥈 Hạng Bạc (50-79đ): Giới hạn COD tối đa 150.000đ/đơn\n")
+            sb.append("• ⚠️ Hạn Chế (<50đ): Khóa thanh toán tiền mặt COD (Chỉ nhận VietQR)\n")
+            sb.append("• 🚫 Đình Chỉ (<20đ): Tự động khóa tài khoản do bom hàng\n\n")
+            sb.append("⚡ CÁCH TÍNH ĐIỂM TỰ ĐỘNG:\n")
+            sb.append("• Nhận đơn & thanh toán thành công: +2 điểm\n")
+            sb.append("• Hủy đơn muộn sau khi quán đã chế biến: -10 điểm\n")
+            sb.append("• Không nhận hàng / Bom đơn: -30 điểm\n\n")
+            sb.append("📜 LỊCH SỬ BIẾN ĐỘNG GẦN ĐÂY:\n")
+            if (logs.isEmpty()) {
+                sb.append("• Chưa có biến động điểm nào được ghi nhận (Mặc định: 100/100 điểm).")
+            } else {
+                logs.take(15).forEach { log ->
+                    val sign = if (log.changeAmount >= 0) "+${log.changeAmount}" else "${log.changeAmount}"
+                    val dateStr = sdf.format(java.util.Date(log.createdAt))
+                    sb.append("• [$dateStr] $sign điểm (${log.oldScore} ➔ ${log.newScore}): ${log.reason}\n")
+                }
+            }
+
+            AlertDialog.Builder(this@ProfileActivity)
+                .setTitle("🛡️ Hồ Sơ & Lịch Sử Điểm Uy Tín")
+                .setMessage(sb.toString().trim())
+                .setPositiveButton("Đã Hiểu", null)
+                .show()
+        }
+    }
+
     private fun showEditProfileDialog() {
         val dialogBinding = DialogEditProfileBinding.inflate(LayoutInflater.from(this))
         currentEditDialogBinding = dialogBinding
@@ -518,5 +593,57 @@ class ProfileActivity : AppCompatActivity() {
             }
             .setNegativeButton("Hủy", null)
             .show()
+    }
+
+    // =========================================================================
+    // CHỨC NĂNG: QUẢN LÝ DANH SÁCH QUÁN ĂN YÊU THÍCH (FAVORITE STORES)
+    // Mục đích: Khách hàng xem lại các quán đã bấm thích, bấm Đặt món để chuyển thẳng vào thực đơn
+    // =========================================================================
+    private fun updateFavoriteBadge() {
+        val favorites = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.getFavorites(this)
+        binding.tvFavoriteCountBadge.text = "${favorites.size} quán"
+    }
+
+    private fun showFavoriteStoresBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetView = layoutInflater.inflate(R.layout.bottom_sheet_favorite_stores, null)
+        dialog.setContentView(sheetView)
+
+        val btnClose = sheetView.findViewById<View>(R.id.btnCloseFavModal)
+        val tvEmpty = sheetView.findViewById<View>(R.id.tvEmptyFavorites)
+        val rvFavorites = sheetView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvFavoriteStores)
+
+        btnClose?.setOnClickListener { dialog.dismiss() }
+
+        var adapter: FavoriteStoresAdapter? = null
+        adapter = FavoriteStoresAdapter(
+            onOrderClick = { store ->
+                dialog.dismiss()
+                val intent = Intent(this, com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity::class.java).apply {
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_ID, store.storeId)
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_NAME, store.storeName)
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_ADDRESS, store.storeAddress)
+                    putExtra(com.chuyen_de_2.foodorder.core.util.Constants.EXTRA_SHOP_PHONE, store.storePhone)
+                }
+                startActivity(intent)
+            },
+            onRemoveClick = { store ->
+                com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.removeFavorite(this, store.storeId)
+                val updated = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.getFavorites(this)
+                adapter?.submitList(updated)
+                updateFavoriteBadge()
+                tvEmpty?.visibility = if (updated.isEmpty()) View.VISIBLE else View.GONE
+                Toast.makeText(this, "Đã bỏ ${store.storeName} khỏi Quán yêu thích", Toast.LENGTH_SHORT).show()
+            }
+        )
+
+        rvFavorites?.layoutManager = LinearLayoutManager(this)
+        rvFavorites?.adapter = adapter
+
+        val list = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.getFavorites(this)
+        adapter.submitList(list)
+        tvEmpty?.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+
+        dialog.show()
     }
 }

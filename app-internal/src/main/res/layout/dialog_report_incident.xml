@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_dialog_rounded"
@@ -54,6 +55,57 @@
             app:tint="@color/text_secondary" />
     </LinearLayout>
 
+    <!-- Khung đếm ngược hiển thị thời gian trong dialog -->
+    <LinearLayout
+        android:id="@+id/layoutIncidentCountdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_warning_inline"
+        android:backgroundTint="#FFF7ED"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvIncidentCountdownDigits"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                tools:text="15:00"
+                android:textColor="#DC2626"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvIncidentCountdownSubtext"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="LẦN 1/2 • phút còn lại"
+                android:textColor="#9A3412"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvIncidentCountdownDesc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:text="Hệ thống đang đếm ngược thời gian chờ khách nhận hàng..."
+            android:textColor="#78350F"
+            android:textSize="11sp" />
+    </LinearLayout>
+
     <!-- Policy note -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -63,11 +115,12 @@
         android:orientation="horizontal"
         android:padding="10dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="ℹ️"
-            android:textSize="14sp" />
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginTop="2dp"
+            android:src="@drawable/ic_info"
+            app:tint="#92400E" />
 
         <TextView
             android:layout_width="match_parent"
@@ -119,12 +172,12 @@
         android:clickable="true"
         android:focusable="true">
 
-        <TextView
-            android:id="@+id/tvProofIcon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📸"
-            android:textSize="26sp" />
+        <ImageView
+            android:id="@+id/ivProofIcon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_camera"
+            app:tint="@color/text_secondary" />
 
         <TextView
             android:id="@+id/tvProofText"
@@ -166,9 +219,12 @@
         android:layout_height="48dp"
         android:layout_marginTop="16dp"
         android:backgroundTint="@color/danger"
-        android:text="XÁC NHẬN BÁO CÁO &amp; HỦY ĐƠN NÀY"
+        tools:text="XÁC NHẬN BÁO CÁO CẢNH BÁO MẤT ĐƠN"
+        app:icon="@drawable/ic_clock"
+        app:iconSize="16dp"
+        app:iconTint="#FFFFFF"
         android:textColor="#FFFFFF"
-        android:textSize="12.5sp"
+        android:textSize="12sp"
         android:textStyle="bold"
         app:cornerRadius="10dp" />
 

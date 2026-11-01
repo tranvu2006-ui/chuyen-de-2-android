@@ -61,6 +61,13 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
 
+        <!-- Màn hình ghim vị trí quán trên bản đồ -->
+        <activity
+            android:name=".ui.auth.SelectLocationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
         <!-- Dashboard (RBAC routing) -->
         <activity
             android:name=".ui.dashboard.DashboardActivity"
@@ -83,6 +90,16 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Tự động đọc thông báo chuyển khoản Ví MoMo / Ngân hàng -->
+        <service
+            android:name=".service.MomoPaymentNotificationListenerService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
 

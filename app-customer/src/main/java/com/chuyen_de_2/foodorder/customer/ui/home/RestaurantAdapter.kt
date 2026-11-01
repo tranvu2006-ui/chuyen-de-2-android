@@ -27,8 +27,10 @@ class RestaurantAdapter(
             binding.tvName.text = store.name
             binding.tvAddress.text = store.address
             binding.tvCategory.text = if (store.category.isNotBlank()) store.category else "Ẩm thực"
-            binding.tvDeliveryTime.text = if (store.deliveryTime.isNotBlank()) "⏱ ${store.deliveryTime}" else "⏱ 25-35 phút"
-            binding.tvRating.text = "⭐ ${store.rating}"
+            binding.tvDeliveryTime.text = if (store.deliveryTime.isNotBlank()) "⏱ ${store.deliveryTime}" else ""
+            binding.tvDeliveryTime.visibility = if (store.deliveryTime.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
+            binding.tvRating.text = if (store.rating > 0f) "⭐ ${store.rating}" else ""
+            binding.tvRating.visibility = if (store.rating > 0f) android.view.View.VISIBLE else android.view.View.GONE
 
             // Status badge (ShopeeFood / Oishi style)
             if (store.isOpen) {
@@ -41,13 +43,13 @@ class RestaurantAdapter(
                 binding.tvStatus.setTextColor(ContextCompat.getColor(context, R.color.status_closed))
             }
 
-            // Load ảnh với Glide + bo góc
-            Glide.with(context)
-                .load(store.imageUrl)
-                .transform(CenterCrop(), RoundedCorners(16))
-                .placeholder(R.drawable.placeholder_restaurant)
-                .error(R.drawable.placeholder_restaurant)
-                .into(binding.ivRestaurant)
+            // Load ảnh quán đồng bộ URL / Base64 qua ImageLoadUtils
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivRestaurant,
+                imageUrl = store.effectiveImageUrl,
+                placeholderResId = R.drawable.placeholder_restaurant,
+                cornerDp = 16
+            )
 
             // Click animation
             binding.root.setOnClickListener {

@@ -104,6 +104,9 @@
     let routeLine = null;
 
     async function fetchRealRoute(dLat, dLng, cLat, cLng) {
+      if (!dLat || !dLng || !cLat || !cLng || (dLat === 0 && dLng === 0) || (cLat === 0 && cLng === 0)) {
+        return;
+      }
       try {
         const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${cLng},${cLat}?overview=full&geometries=geojson`;
         const res = await fetch(url);

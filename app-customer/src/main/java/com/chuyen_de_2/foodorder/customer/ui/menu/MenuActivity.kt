@@ -12,12 +12,14 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.chuyen_de_2.foodorder.core.data.model.Dish
+import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityMenuBinding
 import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
+import com.google.android.material.chip.Chip
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -39,6 +41,7 @@ class MenuActivity : AppCompatActivity() {
     private val viewModel: MenuViewModel by viewModels()
     private lateinit var adapter: MenuAdapter
     private var shopName: String = "Nhà hàng"
+    private var currentShopId: String = ""
 
     /**
      * Tên chức năng: Khởi tạo màn hình thực đơn quán
@@ -59,10 +62,26 @@ class MenuActivity : AppCompatActivity() {
             finish()
             return
         }
+        currentShopId = shopId
         shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Nhà hàng"
         val initialDishId = intent.getStringExtra(Constants.EXTRA_DISH_ID)
+        val initialDishName = intent.getStringExtra(Constants.EXTRA_DISH_NAME)
+        val initialDishPrice = intent.getLongExtra(Constants.EXTRA_DISH_PRICE, 0L)
+        val initialDishImage = intent.getStringExtra(Constants.EXTRA_DISH_IMAGE) ?: ""
+        val initialDishCategory = intent.getStringExtra(Constants.EXTRA_DISH_CATEGORY) ?: ""
 
-        viewModel.setShopInfo(shopId, shopName, initialDishId)
+        val initialDish = if (!initialDishId.isNullOrEmpty() && !initialDishName.isNullOrEmpty()) {
+            Dish(
+                id = initialDishId,
+                storeId = shopId,
+                name = initialDishName,
+                basePrice = initialDishPrice,
+                imageUrl = initialDishImage,
+                category = initialDishCategory
+            )
+        } else null
+
+        viewModel.setShopInfo(shopId, shopName, initialDishId, initialDish)
 
         setupTopNav()
         setupCategoryChips()
@@ -82,12 +101,78 @@ class MenuActivity : AppCompatActivity() {
         }
         binding.tvShopNavTitle.text = shopName
 
-        binding.btnShare.setOnClickListener {
-            Toast.makeText(this, "Chia sẻ liên kết quán $shopName", Toast.LENGTH_SHORT).show()
+        val initialShopImage = intent.getStringExtra(Constants.EXTRA_SHOP_IMAGE).orEmpty()
+        if (initialShopImage.isNotBlank()) {
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivShopNavAvatar,
+                imageUrl = initialShopImage,
+                placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+                cornerDp = 14
+            )
         }
 
+        // =========================================================================
+        // CHỨC NĂNG 1: NÚT CHIA SẺ MÓN ĂN & QUÁN ĂN (IMPLICIT SHARE INTENT)
+        // Mục đích: Marketing lan truyền (Viral), chia sẻ qua Zalo, Messenger, SMS để bạn bè đặt chung
+        // =========================================================================
+        binding.btnShare.setOnClickListener {
+            // Tạo nội dung tin nhắn chia sẻ chứa thông tin quán và món
+            val dishName = viewModel.selectedDish.value?.name 
+                ?: intent.getStringExtra(Constants.EXTRA_DISH_NAME)?.takeIf { it.isNotBlank() } 
+                ?: "Thực đơn món ngon"
+            val shareContent = """
+                🍽️ Rủ bạn cùng đặt món trên Oishi Food nhé!
+                🏪 Quán: $shopName
+                🍲 Món gợi ý: $dishName
+                👉 Mở app Oishi Food để nhận ưu đãi và đặt giao tận nơi ngay!
+            """.trimIndent()
+
+            // Tạo Implicit Intent với hành động ACTION_SEND của Android
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                // Xác định định dạng dữ liệu là văn bản thuần túy (plain text)
+                type = "text/plain"
+                // Tiêu đề tin nhắn
+                putExtra(Intent.EXTRA_SUBJECT, "Món ngon tại quán $shopName - Oishi Food")
+                // Nội dung tin nhắn chi tiết được gửi đi
+                putExtra(Intent.EXTRA_TEXT, shareContent)
+            }
+
+            // Mở bảng chọn ứng dụng (Zalo, Messenger, SMS, Gmail...) để người dùng chia sẻ
+            val chooserIntent = Intent.createChooser(shareIntent, "Chia sẻ món ăn qua:")
+            startActivity(chooserIntent)
+        }
+
+        // =========================================================================
+        // CHỨC NĂNG: LƯU QUÁN ĂN VÀO DANH SÁCH YÊU THÍCH (FAVORITE STORES)
+        // Mục đích: Khách lưu quán quen để mở lại nhanh từ trang Tài khoản cá nhân
+        // =========================================================================
+        fun updateFavoriteIcon(isFav: Boolean) {
+            if (isFav) {
+                binding.btnFavorite.setColorFilter(android.graphics.Color.parseColor("#EF4444")) // Đỏ tim
+            } else {
+                binding.btnFavorite.setColorFilter(android.graphics.Color.parseColor("#94A3B8")) // Xám nhạt
+            }
+        }
+
+        // Kiểm tra trạng thái đã yêu thích quán này từ trước hay chưa
+        val initialIsFav = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.isFavorite(this, currentShopId)
+        updateFavoriteIcon(initialIsFav)
+
         binding.btnFavorite.setOnClickListener {
-            Toast.makeText(this, "Đã thêm $shopName vào danh sách yêu thích!", Toast.LENGTH_SHORT).show()
+            val storeObj = com.chuyen_de_2.foodorder.customer.util.FavoriteStore(
+                storeId = currentShopId,
+                storeName = shopName,
+                storeAddress = intent.getStringExtra(Constants.EXTRA_SHOP_ADDRESS).orEmpty(),
+                storePhone = intent.getStringExtra(Constants.EXTRA_SHOP_PHONE).orEmpty()
+            )
+            val nowFav = com.chuyen_de_2.foodorder.customer.util.FavoriteStoreManager.toggleFavorite(this, storeObj)
+            updateFavoriteIcon(nowFav)
+
+            if (nowFav) {
+                Toast.makeText(this, "❤️ Đã thêm $shopName vào Quán yêu thích!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Đã bỏ $shopName khỏi Quán yêu thích", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -165,6 +250,32 @@ class MenuActivity : AppCompatActivity() {
             binding.tvDishesCountBadge.text = "${items.size} MÓN"
         }
 
+        viewModel.categories.observe(this) { cats ->
+            if (cats.isNotEmpty()) {
+                binding.chipGroupCategory.removeAllViews()
+
+                val allChip = Chip(this).apply {
+                    id = View.generateViewId()
+                    text = "Tất cả"
+                    isCheckable = true
+                    isChecked = (viewModel.currentCategoryName == "ALL" || viewModel.currentCategoryName.isEmpty())
+                    setOnClickListener { viewModel.filterByCategory("ALL") }
+                }
+                binding.chipGroupCategory.addView(allChip)
+
+                cats.forEach { catName ->
+                    val chip = Chip(this).apply {
+                        id = View.generateViewId()
+                        text = catName
+                        isCheckable = true
+                        isChecked = (viewModel.currentCategoryName == catName)
+                        setOnClickListener { viewModel.filterByCategory(catName) }
+                    }
+                    binding.chipGroupCategory.addView(chip)
+                }
+            }
+        }
+
         viewModel.selectedDish.observe(this) { dish ->
             if (dish != null) {
                 bindTopDetailSection(dish)
@@ -192,6 +303,17 @@ class MenuActivity : AppCompatActivity() {
         viewModel.cartItems.observe(this) {
             adapter.notifyDataSetChanged()
         }
+
+        viewModel.store.observe(this) { store ->
+            if (store != null) {
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = binding.ivShopNavAvatar,
+                    imageUrl = store.effectiveImageUrl,
+                    placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+                    cornerDp = 14
+                )
+            }
+        }
     }
 
     /**
@@ -204,14 +326,25 @@ class MenuActivity : AppCompatActivity() {
         binding.tvDetailDishStore.text = "Quán $shopName"
         binding.tvDetailPriceMain.text = dish.price.toVndCurrency()
 
-        val originalPrice = (dish.price * 1.3).toLong()
-        binding.tvDetailPriceOld.paintFlags = binding.tvDetailPriceOld.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
-        binding.tvDetailPriceOld.text = originalPrice.toVndCurrency()
+        binding.tvDetailPriceOld.visibility = View.GONE
 
-        val rating = if (dish.ratingAvg > 0) dish.ratingAvg else 4.8f
-        val reviewCount = if (dish.reviewCount > 0) dish.reviewCount else 128
-        binding.tvDetailRatingText.text = "⭐ $rating"
-        binding.btnViewDishReviews.text = "⭐ Đánh giá ($reviewCount) ➔"
+        val rating = if (dish.ratingAvg > 0f) dish.ratingAvg else 5.0f
+        val reviewCount = dish.reviewCount
+
+        // Luôn hiển thị đánh giá & nút xem/viết đánh giá theo chuẩn b5.html
+        binding.tvDetailRatingText.visibility = View.VISIBLE
+        binding.btnViewDishReviews.visibility = View.VISIBLE
+        binding.btnHeaderDishReviews.visibility = View.VISIBLE
+
+        if (reviewCount > 0) {
+            binding.tvDetailRatingText.text = "⭐ $rating ($reviewCount đánh giá)"
+            binding.btnViewDishReviews.text = "⭐ Xem đánh giá ($reviewCount) ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ($reviewCount) ➔"
+        } else {
+            binding.tvDetailRatingText.text = "⭐ 5.0 (Chưa có đánh giá)"
+            binding.btnViewDishReviews.text = "💬 Xem đánh giá ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ➔"
+        }
 
         binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {
             dish.description
@@ -219,9 +352,9 @@ class MenuActivity : AppCompatActivity() {
             "Món ngon thơm lừng chế biến từ nguyên liệu tươi sạch, giữ trọn hương vị đặc trưng truyền thống."
         }
 
-        if (dish.category.contains("mới", ignoreCase = true) || dish.soldCount > 500) {
+        if (dish.soldCount > 500) {
             binding.tvDetailPromoBadge.visibility = View.VISIBLE
-            binding.tvDetailPromoBadge.text = if (dish.soldCount > 1000) "HOT" else "-25%"
+            binding.tvDetailPromoBadge.text = "HOT"
         } else {
             binding.tvDetailPromoBadge.visibility = View.GONE
         }
@@ -235,11 +368,21 @@ class MenuActivity : AppCompatActivity() {
 
         binding.btnViewDishReviews.setOnClickListener {
             val sheet = DishReviewsBottomSheetDialogFragment.newInstance(
+                dishId = dish.id,
                 dishName = dish.name,
                 dishRating = rating,
-                reviewCount = reviewCount
+                reviewCount = reviewCount,
+                storeId = dish.storeId.ifBlank { currentShopId }
             )
             sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
+        }
+
+        binding.tvDetailRatingText.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
+        }
+
+        binding.btnHeaderDishReviews.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
         }
 
         binding.cardTopDetail.setOnClickListener {

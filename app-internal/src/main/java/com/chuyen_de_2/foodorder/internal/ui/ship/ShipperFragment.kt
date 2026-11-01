@@ -171,7 +171,8 @@ class ShipperFragment : Fragment() {
                 (it.status == Order.Status.DELIVERING ||
                  it.status == Order.Status.ASSIGNED ||
                  it.status == Order.Status.ARRIVED_AT_SHOP ||
-                 it.status == Order.Status.ARRIVED_AT_CUSTOMER) &&
+                 it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                 it.status == Order.Status.RETURNING_TO_STORE) &&
                         it.shipperId == currentUid
             }
 
@@ -183,12 +184,24 @@ class ShipperFragment : Fragment() {
             binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
 
             viewModel.storePendingOrders.value?.let { pendingOrders ->
-                pendingAdapter.submitList(pendingOrders, hasActive)
+                pendingAdapter.submitList(pendingOrders, activeOrders.size)
             }
 
-            val completed = orders.filter { it.status == Order.Status.COMPLETED && it.shipperId == currentUid }
-            val completedCount = completed.size
-            val earnings = completed.sumOf { if (it.shippingFee > 0) it.shippingFee else 25000L }
+            val calendar = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val startOfToday = calendar.timeInMillis
+
+            val todayCompleted = orders.filter {
+                it.status == Order.Status.COMPLETED &&
+                it.shipperId == currentUid &&
+                (it.createdAt >= startOfToday || it.timestamp >= startOfToday)
+            }
+            val completedCount = todayCompleted.size
+            val earnings = todayCompleted.sumOf { if (it.shippingFee > 0) it.shippingFee else 0L }
 
             binding.tvStatCompletedCount.text = "$completedCount cuốc"
             binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
@@ -206,7 +219,7 @@ class ShipperFragment : Fragment() {
 
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
             val hasActive = activeAdapter.itemCount > 0
-            pendingAdapter.submitList(pendingOrders, hasActive)
+            pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)
             binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
             binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
 

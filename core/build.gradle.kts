@@ -59,6 +59,9 @@ dependencies {
     implementation(libs.firebase.database)
     implementation(libs.firebase.messaging)
 
+    // Glide
+    api(libs.glide)
+
     // Google Play Services
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)

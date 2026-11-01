@@ -1,5 +1,7 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.google.firebase.database.IgnoreExtraProperties
+import com.google.firebase.database.PropertyName
 import com.google.gson.annotations.SerializedName
 
 /**
@@ -7,6 +9,7 @@ import com.google.gson.annotations.SerializedName
  * 4 Roles: ADMIN, CUSTOMER, MERCHANT, DRIVER
  * Mapping: Bảng 1 - users (database_schema.sql)
  */
+@IgnoreExtraProperties
 data class User(
     @SerializedName("uid")
     val uid: String = "",
@@ -32,6 +35,7 @@ data class User(
     @SerializedName("status")
     val status: String = Status.ACTIVE,
 
+    @get:PropertyName("isActive")
     @SerializedName("isActive")
     val isActive: Boolean = true,
 
@@ -57,6 +61,7 @@ data class User(
     /** Trạng thái tài khoản */
     object Status {
         const val ACTIVE = "ACTIVE"
+        const val LOCKED = "LOCKED"
         const val INACTIVE = "INACTIVE"
         const val OFFLINE = "OFFLINE"
     }

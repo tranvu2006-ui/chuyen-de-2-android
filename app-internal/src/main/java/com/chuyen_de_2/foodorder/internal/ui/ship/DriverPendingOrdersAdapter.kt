@@ -12,12 +12,12 @@ class DriverPendingOrdersAdapter(
 ) : RecyclerView.Adapter<DriverPendingOrdersAdapter.PendingOrderViewHolder>() {
 
     private val orders = mutableListOf<Order>()
-    private var hasActiveOrders: Boolean = false
+    private var activeCount: Int = 0
 
-    fun submitList(list: List<Order>, hasActive: Boolean = false) {
+    fun submitList(list: List<Order>, activeCount: Int = 0) {
         orders.clear()
         orders.addAll(list)
-        this.hasActiveOrders = hasActive
+        this.activeCount = activeCount
         notifyDataSetChanged()
     }
 
@@ -56,15 +56,34 @@ class DriverPendingOrdersAdapter(
             }
             binding.tvPendingOrderDishes.text = dishSummary
 
-            // Khi chưa có đơn nào đang giao thì chỉ hiện "NHẬN ĐƠN NÀY", chỉ khi đã có đơn mới hiện "(GHÉP CHẠY CÙNG)"
-            if (hasActiveOrders) {
-                binding.btnAcceptOrder.text = "🛵 NHẬN ĐƠN NÀY (GHÉP CHẠY CÙNG)"
-            } else {
-                binding.btnAcceptOrder.text = "🛵 NHẬN ĐƠN NÀY"
+            // Quản lý ghép tối đa 3 đơn theo yêu cầu
+            when {
+                activeCount >= 3 -> {
+                    binding.btnAcceptOrder.text = "🛵 ĐÃ ĐẠT TỐI ĐA 3 ĐƠN (ĐANG GIAO)"
+                    binding.btnAcceptOrder.isEnabled = false
+                    binding.btnAcceptOrder.alpha = 0.5f
+                }
+                activeCount == 2 -> {
+                    binding.btnAcceptOrder.text = "🛵 NHẬN ĐƠN NÀY (GHÉP ĐƠN 3/3)"
+                    binding.btnAcceptOrder.isEnabled = true
+                    binding.btnAcceptOrder.alpha = 1.0f
+                }
+                activeCount == 1 -> {
+                    binding.btnAcceptOrder.text = "🛵 NHẬN ĐƠN NÀY (GHÉP ĐƠN 2/3)"
+                    binding.btnAcceptOrder.isEnabled = true
+                    binding.btnAcceptOrder.alpha = 1.0f
+                }
+                else -> {
+                    binding.btnAcceptOrder.text = "🛵 NHẬN ĐƠN NÀY"
+                    binding.btnAcceptOrder.isEnabled = true
+                    binding.btnAcceptOrder.alpha = 1.0f
+                }
             }
 
             binding.btnAcceptOrder.setOnClickListener {
-                onAcceptOrder(order)
+                if (activeCount < 3) {
+                    onAcceptOrder(order)
+                }
             }
         }
     }

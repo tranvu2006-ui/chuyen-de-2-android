@@ -19,11 +19,18 @@ object Constants {
     // Intent Extras
     const val EXTRA_SHOP_ID = "extra_shop_id"
     const val EXTRA_SHOP_NAME = "extra_shop_name"
+    const val EXTRA_SHOP_IMAGE = "extra_shop_image"
+    const val EXTRA_SHOP_ADDRESS = "extra_shop_address"
+    const val EXTRA_SHOP_PHONE = "extra_shop_phone"
     const val EXTRA_ORDER_ID = "extra_order_id"
     const val EXTRA_DISH_ID = "extra_dish_id"
+    const val EXTRA_DISH_NAME = "extra_dish_name"
+    const val EXTRA_DISH_PRICE = "extra_dish_price"
+    const val EXTRA_DISH_IMAGE = "extra_dish_image"
+    const val EXTRA_DISH_CATEGORY = "extra_dish_category"
 
     // Debounce timeout (Section 6 - doc-adr)
-    const val DEBOUNCE_TIMEOUT_MS = 1500L
+    const val DEBOUNCE_TIMEOUT_MS = 300L
 
     // GPS update interval (Foreground Service)
     const val GPS_UPDATE_INTERVAL_MS = 5000L

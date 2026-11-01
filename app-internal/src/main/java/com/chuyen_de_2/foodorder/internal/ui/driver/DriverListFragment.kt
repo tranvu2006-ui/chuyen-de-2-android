@@ -20,10 +20,13 @@ import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Driver
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentDriverListBinding
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -50,7 +53,9 @@ class DriverListFragment : Fragment() {
     lateinit var auth: FirebaseAuth
 
     private lateinit var adapter: DriverAdapter
-    private var currentStoreId = "shop_01"
+    private var currentStoreId = ""
+    private var allDriversList: List<Driver> = emptyList()
+    private var currentFilter: String = "ALL"
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -113,39 +118,113 @@ class DriverListFragment : Fragment() {
         binding.btnAddDriver.setOnClickListener {
             showAddDriverDialog()
         }
+        binding.layoutStatTotal.setOnClickListener {
+            currentFilter = "ALL"
+            applyFilter()
+            Toast.makeText(requireContext(), "Hiển thị: Tất cả tài xế", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatAvailable.setOnClickListener {
+            currentFilter = Driver.DutyStatus.AVAILABLE
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Đang trực (Sẵn sàng)", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatDelivering.setOnClickListener {
+            currentFilter = Driver.DutyStatus.DELIVERING
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Đang đi giao đơn", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatOffDuty.setOnClickListener {
+            currentFilter = Driver.DutyStatus.OFF_DUTY
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Nghỉ ca (OFF)", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
      * Tên chức năng: Giám sát danh sách tài xế của quán theo thời gian thực (Realtime Drivers Observer)
-     * Cách hoạt động: Lắng nghe collection drivers của quán trên Firestore, đếm số lượng theo trạng thái trực và cập nhật KPI.
+     * Cách hoạt động: Kết hợp collection drivers và orders để phản ánh chuẩn xác 100% thời gian thực khi tài xế OFF hoặc ĐANG GIAO.
      * Luồng hướng tới: Cập nhật giao diện tức thời.
      */
     private fun observeDrivers() {
         binding.progressBar.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
-            firebaseRepository.observeStoreDrivers(currentStoreId).collectLatest { drivers ->
-                binding.progressBar.visibility = View.GONE
+            combine(
+                firebaseRepository.observeStoreDrivers(currentStoreId),
+                firebaseRepository.observeAllOrders()
+            ) { drivers, orders ->
+                // Tìm tất cả các đơn hàng đang trên đường đi giao (realtime)
+                val activeOrders = orders.filter { order ->
+                    !order.shipperId.isNullOrBlank() && (
+                        order.status == Order.Status.ASSIGNED ||
+                        order.status == Order.Status.ARRIVED_AT_SHOP ||
+                        order.status == Order.Status.DELIVERING ||
+                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        order.status == Order.Status.RETURNING_TO_STORE
+                    )
+                }
+                val activeOrdersByDriver = activeOrders.groupBy { it.shipperId }
 
-                val total = drivers.size
-                val available = drivers.count { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
-                val delivering = drivers.count { it.dutyStatus == Driver.DutyStatus.DELIVERING }
-                val offDuty = drivers.count { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
+                // Đồng bộ chính xác trạng thái thực tế từng tài xế (Đang giao / Đang trực / Nghỉ ca)
+                drivers.map { driver ->
+                    val deliveringOrders = activeOrdersByDriver[driver.driverId].orEmpty()
+                    if (deliveringOrders.isNotEmpty()) {
+                        val primaryOrder = deliveringOrders.first()
+                        val shortCode = QRCodeUtils.getShortOrderCode(primaryOrder.orderId)
+                        val info = if (primaryOrder.status == Order.Status.RETURNING_TO_STORE) {
+                            "#ORD-$shortCode • Trả hàng về quán"
+                        } else if (deliveringOrders.size > 1) {
+                            "#ORD-$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
+                        } else {
+                            "#ORD-$shortCode • ${primaryOrder.customerName}"
+                        }
+                        driver.copy(
+                            dutyStatus = Driver.DutyStatus.DELIVERING,
+                            currentOrderCode = info
+                        )
+                    } else if (driver.dutyStatus == Driver.DutyStatus.OFF_DUTY ||
+                        driver.dutyStatus?.equals("OFFLINE", ignoreCase = true) == true ||
+                        driver.dutyStatus.isNullOrBlank()
+                    ) {
+                        driver.copy(dutyStatus = Driver.DutyStatus.OFF_DUTY)
+                    } else {
+                        driver.copy(dutyStatus = Driver.DutyStatus.AVAILABLE)
+                    }
+                }
+            }.collectLatest { syncedDrivers ->
+                binding.progressBar.visibility = View.GONE
+                allDriversList = syncedDrivers
+
+                val total = syncedDrivers.size
+                val available = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
+                val delivering = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.DELIVERING }
+                val offDuty = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
 
                 binding.tvTotalDrivers.text = total.toString()
                 binding.tvAvailableDrivers.text = available.toString()
                 binding.tvDeliveringDrivers.text = delivering.toString()
                 binding.tvOffDutyDrivers.text = offDuty.toString()
 
-                if (drivers.isEmpty()) {
-                    binding.layoutEmpty.visibility = View.VISIBLE
-                    binding.rvDrivers.visibility = View.GONE
-                } else {
-                    binding.layoutEmpty.visibility = View.GONE
-                    binding.rvDrivers.visibility = View.VISIBLE
-                    adapter.submitList(drivers)
-                }
+                applyFilter()
             }
+        }
+    }
+
+    private fun applyFilter() {
+        val filtered = when (currentFilter) {
+            Driver.DutyStatus.AVAILABLE -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
+            Driver.DutyStatus.DELIVERING -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.DELIVERING }
+            Driver.DutyStatus.OFF_DUTY -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
+            else -> allDriversList
+        }
+
+        if (filtered.isEmpty()) {
+            binding.layoutEmpty.visibility = View.VISIBLE
+            binding.rvDrivers.visibility = View.GONE
+        } else {
+            binding.layoutEmpty.visibility = View.GONE
+            binding.rvDrivers.visibility = View.VISIBLE
+            adapter.submitList(filtered)
         }
     }
 
@@ -177,21 +256,15 @@ class DriverListFragment : Fragment() {
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
         val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitDriver)
 
-        // Tự động tạo mã tài xế và gợi ý email
-        val randomNum = (10..99).random()
-        etCode.setText("TX-$randomNum")
-        etEmail.setText("driver$randomNum@oishi.vn")
-        etPassword.setText("123456")
-
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
 
         btnSubmit.setOnClickListener {
             val name = etName.text.toString().trim()
             val phone = etPhone.text.toString().trim()
-            val code = etCode.text.toString().trim().ifBlank { "TX-$randomNum" }
+            val code = etCode.text.toString().trim()
             val plate = etPlate.text.toString().trim()
-            val model = etModel.text.toString().trim().ifBlank { "Honda Wave Alpha" }
+            val model = etModel.text.toString().trim()
             val email = etEmail.text.toString().trim()
             val pass = etPassword.text.toString().trim()
 

@@ -79,6 +79,9 @@ class CheckoutActivity : AppCompatActivity() {
     private var currentSubtotal = 0L
     private var currentShippingFee = 15000L
     private var currentDiscount = 0L
+    private var trustDiscount = 0L
+    private var voucherDiscount = 0L
+    private var appliedVoucherMsg: String = ""
     private var selectedCustomerLat = 0.0
     private var selectedCustomerLng = 0.0
     private var selectedPaymentMode: String = Order.PaymentMode.FULL
@@ -375,14 +378,8 @@ class CheckoutActivity : AppCompatActivity() {
         lifecycleScope.launch {
             firebaseRepository.observeCustomerProfile(uid).collectLatest { cust ->
                 currentCustomerTrustScore = cust.trustScore
-                if (cust.trustScore >= 95 && currentDiscount < 5000L) {
-                    currentDiscount = 5000L
-                    binding.layoutVoucherDiscount.visibility = View.VISIBLE
-                    binding.tvDiscount.text = "-${currentDiscount.toVndCurrency()}"
-                    binding.tvVoucherAppliedMsg.visibility = View.VISIBLE
-                    binding.tvVoucherAppliedMsg.text = "⭐ Điểm Uy Tín ${cust.trustScore}/100: Ưu đãi giảm 5.000 đ"
-                    recalculateTotal()
-                }
+                trustDiscount = if (cust.trustScore >= 95) 5000L else 0L
+                updateDiscountAndUI()
 
                 val orderTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
                 binding.tvTrustScoreTitle.text = "Điểm Uy Tín: ${cust.trustScore}/100 (${cust.tierBadge})"
@@ -913,16 +910,74 @@ class CheckoutActivity : AppCompatActivity() {
         ref.addValueEventListener(listener)
     }
 
+    /**
+     * Cập nhật số tiền giảm giá tổng hợp:
+     * currentDiscount = trustDiscount (Ưu đãi Uy Tín 5k) + voucherDiscount (Mã Voucher)
+     */
+    private fun updateDiscountAndUI(voucherMsg: String? = null) {
+        if (voucherMsg != null) {
+            appliedVoucherMsg = voucherMsg
+        }
+        currentDiscount = trustDiscount + voucherDiscount
+
+        if (currentDiscount > 0L) {
+            binding.layoutVoucherDiscount.visibility = View.VISIBLE
+            binding.tvDiscount.text = "-${currentDiscount.toVndCurrency()}"
+            binding.tvVoucherAppliedMsg.visibility = View.VISIBLE
+
+            binding.tvVoucherAppliedMsg.text = when {
+                voucherDiscount > 0L && trustDiscount > 0L -> {
+                    val vText = appliedVoucherMsg.ifBlank { "Voucher (-${voucherDiscount.toVndCurrency()})" }
+                    "✓ $vText + ⭐ Điểm Uy Tín (-${trustDiscount.toVndCurrency()})"
+                }
+                voucherDiscount > 0L -> {
+                    appliedVoucherMsg.ifBlank { "✓ Đã áp dụng mã giảm giá (-${voucherDiscount.toVndCurrency()})" }
+                }
+                else -> {
+                    "⭐ Điểm Uy Tín $currentCustomerTrustScore/100: Ưu đãi giảm ${trustDiscount.toVndCurrency()}"
+                }
+            }
+        } else {
+            binding.layoutVoucherDiscount.visibility = View.GONE
+            binding.tvVoucherAppliedMsg.visibility = View.GONE
+        }
+
+        recalculateTotal()
+    }
+
     private fun setupVoucherComponent() {
         // Lắng nghe danh sách mã giảm giá do Quán này tạo trên Firebase Realtime Database
         if (currentTargetShopId.isNotBlank()) {
             listenStoreVouchers(currentTargetShopId)
         }
 
+        // Hàm hủy áp dụng voucher (vẫn giữ lại ưu đãi điểm uy tín nếu có)
+        fun removeVoucher(showMessage: Boolean = false) {
+            if (voucherDiscount > 0L) {
+                voucherDiscount = 0L
+                appliedVoucherMsg = ""
+                updateDiscountAndUI()
+                if (showMessage) {
+                    Toast.makeText(this, "Đã hủy áp dụng mã voucher", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // Tự động hủy voucher khi người dùng xóa trắng ô nhập mã
+        binding.etVoucherCode.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                if (s.isNullOrBlank()) {
+                    removeVoucher(false)
+                }
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+
         fun applyCode(rawCode: String) {
             val code = rawCode.trim().uppercase()
             if (code.isBlank()) {
-                Toast.makeText(this, "Vui lòng nhập mã giảm giá", Toast.LENGTH_SHORT).show()
+                removeVoucher(true)
                 return
             }
 
@@ -976,27 +1031,25 @@ class CheckoutActivity : AppCompatActivity() {
                 }
             }
 
-            // Cập nhật số tiền giảm
-            currentDiscount = discountAmt
+            // Cập nhật số tiền giảm của voucher
+            voucherDiscount = discountAmt
             binding.etVoucherCode.setText(code)
-
-            // Hiển thị dòng giảm giá trong bảng kê tóm tắt tiền
-            binding.layoutVoucherDiscount.visibility = View.VISIBLE
-            binding.tvDiscount.text = "-${currentDiscount.toVndCurrency()}"
-
-            // Hiển thị thông báo xanh xác nhận
-            binding.tvVoucherAppliedMsg.visibility = View.VISIBLE
-            binding.tvVoucherAppliedMsg.text = "✓ $msg (-${currentDiscount.toVndCurrency()})"
-
-            // Tính toán lại toàn bộ đơn hàng
-            recalculateTotal()
+            updateDiscountAndUI(msg)
 
             Toast.makeText(this, "🎉 $msg!", Toast.LENGTH_SHORT).show()
         }
 
         // Bấm nút Áp dụng
         binding.btnApplyVoucher.setOnClickListener {
-            val code = binding.etVoucherCode.text.toString()
+            val code = binding.etVoucherCode.text.toString().trim()
+            if (code.isBlank()) {
+                if (voucherDiscount > 0L) {
+                    removeVoucher(true)
+                } else {
+                    Toast.makeText(this, "Vui lòng nhập mã giảm giá", Toast.LENGTH_SHORT).show()
+                }
+                return@setOnClickListener
+            }
             applyCode(code)
         }
 

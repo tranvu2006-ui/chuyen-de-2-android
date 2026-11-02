@@ -261,7 +261,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Hạng Vàng (80 - 94 điểm)"
+                    android:text="Hạng Vàng (90 - 94 điểm)"
                     android:textColor="#D97706"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -270,7 +270,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Thanh toán tiền mặt COD cho đơn lên đến 500.000đ • Tùy chọn đặt cọc 20%"
+                    android:text="Đủ điều kiện thanh toán tiền mặt COD (từ 90 điểm trở lên) • Tùy chọn đặt cọc 20%"
                     android:textColor="#475569"
                     android:textSize="11.5sp" />
             </LinearLayout>
@@ -302,7 +302,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Hạng Bạc (50 - 79 điểm)"
+                    android:text="Hạng Bạc (50 - 89 điểm)"
                     android:textColor="#EA580C"
                     android:textSize="13sp"
                     android:textStyle="bold" />
@@ -311,7 +311,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Chỉ hỗ trợ COD tối đa 150.000đ/đơn • Đơn lớn vui lòng chọn Đặt cọc 20% hoặc Trả thẳng"
+                    android:text="Dưới 90 điểm: CẤM COD • Vui lòng chọn Đặt cọc 20% hoặc Trả thẳng (+2đ/đơn để nâng hạng)"
                     android:textColor="#475569"
                     android:textSize="11.5sp" />
             </LinearLayout>

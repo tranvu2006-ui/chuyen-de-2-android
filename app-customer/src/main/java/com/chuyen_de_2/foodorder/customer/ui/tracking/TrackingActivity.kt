@@ -335,42 +335,27 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun processAndPreviewImage(uri: Uri) {
         try {
-            val inputStream = contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
+            val base64String = com.chuyen_de_2.foodorder.core.util.ImagePickerUtils.compressUriToBase64(
+                this,
+                uri,
+                maxDimension = 480,
+                quality = 75
+            )
 
-            if (originalBitmap != null) {
-                val maxDim = 480
-                val width = originalBitmap.width
-                val height = originalBitmap.height
-                val ratio = width.toFloat() / height.toFloat()
-                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
-                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
-
-                val scaledBitmap = Bitmap.createScaledBitmap(
-                    originalBitmap,
-                    maxOf(1, targetWidth),
-                    maxOf(1, targetHeight),
-                    true
-                )
-
-                val outputStream = ByteArrayOutputStream()
-                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
-                val byteArray = outputStream.toByteArray()
-
-                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-
+            if (!base64String.isNullOrBlank()) {
                 val targetState = currentPickingDishState
                 if (targetState != null) {
                     targetState.imageBase64 = base64String
                     targetState.layoutPreview?.visibility = View.VISIBLE
                     targetState.ivPreview?.let { iv ->
                         Glide.with(this)
-                            .load(scaledBitmap)
+                            .load(base64String)
                             .into(iv)
                     }
                     Toast.makeText(this, "📷 Đã thêm ảnh cho món ${targetState.dishName}!", Toast.LENGTH_SHORT).show()
                 }
+            } else {
+                Toast.makeText(this, "Không thể đọc ảnh, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Toast.makeText(this, "Không thể tải ảnh: ${e.message}", Toast.LENGTH_SHORT).show()

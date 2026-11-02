@@ -1621,7 +1621,7 @@ class FirebaseRepository @Inject constructor(
                             cSnap?.child("totalOrders")?.getValue(Int::class.java) ?: 0,
                             finalCompleted + finalBoom
                         )
-                        if (uScore != finalScore || cScore != finalScore || cSnap == null) {
+                        if (cSnap == null || uScore != finalScore || cScore != finalScore) {
                             val syncMap = mapOf(
                                 "trustScore" to finalScore,
                                 "completedOrders" to finalCompleted,

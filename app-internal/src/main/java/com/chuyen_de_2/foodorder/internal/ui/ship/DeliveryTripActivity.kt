@@ -2034,7 +2034,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         fun renderCallProofState(base64: String) {
             if (base64.isNotBlank()) {
                 repBinding.cardCallProofPreview.visibility = View.VISIBLE
-                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadDishImage(
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
                     repBinding.ivCallProofPreview,
                     base64,
                     R.drawable.ic_camera
@@ -2049,7 +2049,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         fun renderMsgProofState(base64: String) {
             if (base64.isNotBlank()) {
                 repBinding.cardMsgProofPreview.visibility = View.VISIBLE
-                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadDishImage(
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
                     repBinding.ivMsgProofPreview,
                     base64,
                     R.drawable.ic_camera

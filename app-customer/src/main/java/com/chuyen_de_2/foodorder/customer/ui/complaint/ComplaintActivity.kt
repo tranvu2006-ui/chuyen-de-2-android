@@ -48,6 +48,7 @@ class ComplaintActivity : AppCompatActivity() {
         val base64 = uriToBase64(uri)
         if (!base64.isNullOrBlank()) {
             selectedEvidenceBase64 = base64
+            binding.ivEvidencePreview.imageTintList = null
             binding.ivEvidencePreview.clearColorFilter()
             Glide.with(this).load(base64).into(binding.ivEvidencePreview)
             binding.tvEvidenceStatus.text = "✓ Đã chọn ảnh bằng chứng từ thiết bị"
@@ -145,20 +146,47 @@ class ComplaintActivity : AppCompatActivity() {
             binding.btnSubmitComplaint.text = "Đang gửi khiếu nại..."
 
             lifecycleScope.launch {
-                var resolvedStoreId = storeId
-                if (resolvedStoreId.isBlank()) {
-                    val order = firebaseRepository.getOrder(orderId)
-                    if (order != null) {
-                        resolvedStoreId = order.shopId.ifBlank { order.storeId }
-                    }
+                val order = firebaseRepository.getOrder(orderId)
+                val resolvedStoreId = storeId.ifBlank { order?.shopId?.ifBlank { order?.storeId }.orEmpty() }
+
+                val isDriverFault = selectedReason.contains("Tài xế", ignoreCase = true)
+                val targetType = if (isDriverFault) {
+                    Complaint.TargetType.DRIVER
+                } else {
+                    Complaint.TargetType.STORE
                 }
+                val targetId = if (isDriverFault) order?.effectiveDriverId.orEmpty() else resolvedStoreId
+                val targetName = if (isDriverFault) order?.effectiveDriverName.orEmpty() else order?.shopName.orEmpty()
+                val targetPhone = if (isDriverFault) order?.shipperPhone.orEmpty() else order?.shopPhone.orEmpty()
+
+                val complaintType = when {
+                    selectedReason.contains("vệ sinh", ignoreCase = true) || selectedReason.contains("nguội", ignoreCase = true) -> Complaint.ComplaintType.ATTP
+                    selectedReason.contains("sai món", ignoreCase = true) || selectedReason.contains("thiếu", ignoreCase = true) -> Complaint.ComplaintType.WRONG_ITEM
+                    selectedReason.contains("thái độ", ignoreCase = true) -> Complaint.ComplaintType.ATTITUDE
+                    selectedReason.contains("trễ", ignoreCase = true) -> Complaint.ComplaintType.DELIVERY_DELAY
+                    selectedReason.contains("sai tiền", ignoreCase = true) || selectedReason.contains("ưu đãi", ignoreCase = true) -> Complaint.ComplaintType.FRAUD
+                    else -> Complaint.ComplaintType.OTHER
+                }
+
+                val priority = if (complaintType == Complaint.ComplaintType.ATTP) Complaint.Priority.HIGH else Complaint.Priority.MEDIUM
 
                 val complaint = Complaint(
                     orderId = orderId,
+                    senderType = Complaint.SenderType.CUSTOMER,
                     customerId = customerId,
+                    senderName = order?.customerName.orEmpty(),
+                    senderPhone = order?.customerPhone.orEmpty(),
+                    targetType = targetType,
+                    targetId = targetId,
+                    targetName = targetName,
+                    targetPhone = targetPhone,
                     storeId = resolvedStoreId,
-                    reason = "[$selectedReason] $description",
+                    driverId = order?.effectiveDriverId.orEmpty(),
+                    complaintType = complaintType,
+                    title = selectedReason,
+                    reason = description,
                     evidenceImage = evidenceUrl,
+                    priority = priority,
                     status = Complaint.ComplaintStatus.PENDING,
                     createdAt = System.currentTimeMillis()
                 )

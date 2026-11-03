@@ -103,6 +103,7 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var pendingIncidentReason = "Khách không nghe máy (Đã gọi 3 cuộc không liên lạc được)"
     private var countdownRound = 1
     private var isRiskReported = false
+    private var activeIncidentDialog: AlertDialog? = null
 
     // Tọa độ GPS thực tế của Shipper và Điểm đến
     private var driverLat: Double = 0.0
@@ -1625,7 +1626,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.btnCountdownExpiredAction.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#EA580C"))
 
             targetOrder?.let {
-                showIncidentReportDialog(it, isExpiredRoundOne = true)
+                if (activeIncidentDialog?.isShowing != true) showIncidentReportDialog(it, isExpiredRoundOne = true)
             }
         } else {
             // HẾT LẦN 2: Chính thức hủy đơn bom và quay về Quán trả hàng
@@ -1877,6 +1878,7 @@ class DeliveryTripActivity : AppCompatActivity() {
      * Modal Báo Cáo Sự Cố & Bom Hàng (Có đếm ngược thời gian thực bên trong)
      */
     private fun showIncidentReportDialog(order: Order, isExpiredRoundOne: Boolean = false) {
+        activeIncidentDialog?.dismiss()
         if (!isCountdownActive && !isExpiredRoundOne) {
             start15MinCountdown(order, "Đang đếm ngược $round1Minutes phút thời gian chờ nhận hàng")
         }
@@ -1884,6 +1886,52 @@ class DeliveryTripActivity : AppCompatActivity() {
         val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
 
         var dialogCountdownTimer: android.os.CountDownTimer? = null
+        var isTimerFinished = isExpiredRoundOne || countdownSecondsRemaining <= 0
+
+        val reasons = arrayOf(
+            "📵 Khách không nghe máy (Đã gọi 3 cuộc)",
+            "🚫 Khách từ chối nhận món (Bom hàng)",
+            "📍 Sai địa chỉ giao hàng / Không liên hệ được",
+            "💥 Món ăn đổ vỡ do sự cố giao thông",
+            "💸 Khách không đủ tiền mặt thanh toán COD"
+        )
+
+        fun updateConfirmButtonLockState(remainingSec: Int) {
+            if (!isTimerFinished && remainingSec > 0) {
+                val timeStr = String.format(java.util.Locale.getDefault(), "%02d:%02d", remainingSec / 60, remainingSec % 60)
+                repBinding.btnConfirmIncidentCancel.isEnabled = false
+                repBinding.btnConfirmIncidentCancel.alpha = 0.55f
+                repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#94A3B8"))
+                repBinding.btnConfirmIncidentCancel.text = if (countdownRound >= 2) {
+                    "⏳ CHỜ HẾT GIỜ LẦN 2 ($timeStr) ĐỂ XÁC NHẬN BOM"
+                } else {
+                    "⏳ CHỜ HẾT GIỜ LẦN 1 ($timeStr) ĐỂ BÁO CÁO"
+                }
+            } else {
+                repBinding.btnConfirmIncidentCancel.isEnabled = true
+                repBinding.btnConfirmIncidentCancel.alpha = 1.0f
+                val selectedReason = repBinding.spinnerIncidentReason.selectedItem?.toString().orEmpty()
+                if (countdownRound >= 2 || selectedReason.contains("Bom hàng", ignoreCase = true)) {
+                    repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
+                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+                } else {
+                    repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
+                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+                }
+            }
+        }
+
+        repBinding.spinnerIncidentReason.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, reasons
+        )
+
+        repBinding.spinnerIncidentReason.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                updateConfirmButtonLockState(if (isTimerFinished) 0 else countdownSecondsRemaining)
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
 
         if (isExpiredRoundOne) {
             repBinding.tvIncidentOrderSub.text = "Đơn #ORD-$shortCode • ĐÃ HẾT ${round1Minutes}P LẦN 1 • Báo cáo đơn rủi ro"
@@ -1895,8 +1943,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             repBinding.layoutIncidentCountdownNotice.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFF7ED"))
             repBinding.ivIncidentCountdownNoticeIcon.setColorFilter(Color.parseColor("#EA580C"))
             repBinding.tvIncidentCountdownDesc.setTextColor(Color.parseColor("#C2410C"))
-            repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
-            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+            updateConfirmButtonLockState(0)
         } else if (countdownRound == 2) {
             repBinding.tvIncidentOrderSub.text = "Đơn #ORD-$shortCode • ĐANG ĐẾM NGƯỢC LẦN 2 (Đơn rủi ro)"
             repBinding.tvIncidentCountdownBadge.text = "Gia hạn $round2Minutes phút"
@@ -1906,24 +1953,29 @@ class DeliveryTripActivity : AppCompatActivity() {
             repBinding.layoutIncidentCountdownNotice.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
             repBinding.ivIncidentCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
             repBinding.tvIncidentCountdownDesc.setTextColor(Color.parseColor("#DC2626"))
-            repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
-            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+            updateConfirmButtonLockState(countdownSecondsRemaining)
 
             if (countdownSecondsRemaining > 0) {
                 dialogCountdownTimer = object : android.os.CountDownTimer((countdownSecondsRemaining * 1000).toLong(), 1000) {
                     override fun onTick(millisUntilFinished: Long) {
                         val sec = (millisUntilFinished / 1000).toInt()
                         repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", sec / 60, sec % 60)
+                        updateConfirmButtonLockState(sec)
                     }
 
                     override fun onFinish() {
+                        isTimerFinished = true
+                        countdownSecondsRemaining = 0
                         repBinding.tvIncidentCountdownDigits.text = "00:00"
                         repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round2Minutes}P LẦN 2"
-                        repBinding.tvIncidentCountdownDesc.text = "ĐÃ HẾT $round2Minutes PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng)."
+                        repBinding.tvIncidentCountdownDesc.text = "ĐÃ HẾT $round2Minutes PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng). Bạn có thể xác nhận hủy đơn bom ngay."
+                        updateConfirmButtonLockState(0)
                     }
                 }.start()
             } else {
+                isTimerFinished = true
                 repBinding.tvIncidentCountdownDigits.text = "00:00"
+                updateConfirmButtonLockState(0)
             }
         } else {
             repBinding.tvIncidentOrderSub.text = "Đơn hàng: #ORD-$shortCode • Khách: ${order.customerName}"
@@ -1934,52 +1986,34 @@ class DeliveryTripActivity : AppCompatActivity() {
             repBinding.layoutIncidentCountdownNotice.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
             repBinding.ivIncidentCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
             repBinding.tvIncidentCountdownDesc.setTextColor(Color.parseColor("#78350F"))
-            repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
-            repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+            updateConfirmButtonLockState(countdownSecondsRemaining)
 
             if (countdownSecondsRemaining > 0) {
                 dialogCountdownTimer = object : android.os.CountDownTimer((countdownSecondsRemaining * 1000).toLong(), 1000) {
                     override fun onTick(millisUntilFinished: Long) {
                         val sec = (millisUntilFinished / 1000).toInt()
                         repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", sec / 60, sec % 60)
+                        updateConfirmButtonLockState(sec)
                     }
 
                     override fun onFinish() {
+                        isTimerFinished = true
+                        countdownSecondsRemaining = 0
                         repBinding.tvIncidentCountdownDigits.text = "00:00"
                         repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round1Minutes}P LẦN 1"
                         repBinding.tvIncidentCountdownSubtext.setTextColor(Color.parseColor("#EA580C"))
                         repBinding.tvIncidentCountdownDesc.text = "ĐÃ HẾT $round1Minutes PHÚT LẦN 1! Khách hàng chưa nhận món. Bạn được quyền Báo Cáo Sự Cố để chuyển trạng thái sang ĐƠN RỦI RO và kích hoạt $round2Minutes phút gia hạn Lần 2!"
+                        repBinding.layoutIncidentCountdownNotice.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFF7ED"))
+                        repBinding.ivIncidentCountdownNoticeIcon.setColorFilter(Color.parseColor("#EA580C"))
+                        repBinding.tvIncidentCountdownDesc.setTextColor(Color.parseColor("#C2410C"))
+                        updateConfirmButtonLockState(0)
                     }
                 }.start()
             } else {
-                repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:00", round1Minutes)
+                isTimerFinished = true
+                repBinding.tvIncidentCountdownDigits.text = "00:00"
+                updateConfirmButtonLockState(0)
             }
-        }
-
-        val reasons = arrayOf(
-            "📵 Khách không nghe máy (Đã gọi 3 cuộc)",
-            "🚫 Khách từ chối nhận món (Bom hàng)",
-            "📍 Sai địa chỉ giao hàng / Không liên hệ được",
-            "💥 Món ăn đổ vỡ do sự cố giao thông",
-            "💸 Khách không đủ tiền mặt thanh toán COD"
-        )
-        repBinding.spinnerIncidentReason.adapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item, reasons
-        )
-
-        repBinding.spinnerIncidentReason.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val selectedReason = reasons[position]
-                if (selectedReason.contains("Bom hàng", ignoreCase = true) || countdownRound >= 2) {
-                    repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
-                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
-                } else if (isExpiredRoundOne || countdownRound == 1) {
-                    repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
-                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
-                }
-            }
-
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
         }
 
         var hasProof = false
@@ -1995,6 +2029,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this)
             .setView(repBinding.root)
             .create()
+        activeIncidentDialog = dialog
 
         repBinding.btnCloseIncidentDialog.setOnClickListener {
             dialogCountdownTimer?.cancel()
@@ -2011,9 +2046,14 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
         dialog.setOnDismissListener {
             dialogCountdownTimer?.cancel()
+            if (activeIncidentDialog === dialog) activeIncidentDialog = null
         }
 
         repBinding.btnConfirmIncidentCancel.setOnClickListener {
+            if (!isTimerFinished && countdownSecondsRemaining > 0) {
+                Toast.makeText(this, "⏳ Vui lòng chờ hết thời gian đếm ngược mới được xác nhận báo cáo!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
             val note = repBinding.etIncidentNote.text.toString().trim()
             val fullReason = if (note.isNotBlank()) "$reason ($note)" else reason
@@ -2641,6 +2681,8 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         countdownTimer?.cancel()
+        activeIncidentDialog?.dismiss()
+        activeIncidentDialog = null
         countdownTimer = null
         super.onDestroy()
     }

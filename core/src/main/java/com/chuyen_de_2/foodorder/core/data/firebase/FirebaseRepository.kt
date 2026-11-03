@@ -2387,6 +2387,8 @@ class FirebaseRepository @Inject constructor(
                 "status" to finalStatus,
                 "avatarUrl" to effectiveAvatar,
                 "photoUrl" to effectiveAvatar,
+                "avatar" to effectiveAvatar,
+                "profileImage" to effectiveAvatar,
                 "storeId" to user.storeId,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
@@ -2412,6 +2414,8 @@ class FirebaseRepository @Inject constructor(
                 "active" to isUnlocked,
                 "avatarUrl" to effectiveAvatar,
                 "photoUrl" to effectiveAvatar,
+                "avatar" to effectiveAvatar,
+                "profileImage" to effectiveAvatar,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
                 "boomOrders" to boomOrders,
@@ -2432,6 +2436,8 @@ class FirebaseRepository @Inject constructor(
                         "dutyStatus" to if (isUnlocked) "OFFLINE" else "LOCKED",
                         "avatarUrl" to effectiveAvatar,
                         "photoUrl" to effectiveAvatar,
+                        "avatar" to effectiveAvatar,
+                        "profileImage" to effectiveAvatar,
                         "name" to user.name,
                         "phone" to user.phone
                     )

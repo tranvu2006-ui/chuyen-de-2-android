@@ -48,18 +48,23 @@ class EditStoreDialogFragment(
     private var currentStoreImageUrl: String = ""
 
     private val pickStoreImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        val ctx = context ?: return@registerForActivityResult
         uri ?: return@registerForActivityResult
         val base64 = uriToBase64(uri)
         if (!base64.isNullOrBlank()) {
             currentStoreImageUrl = base64
             updateStoreImagePreview(currentStoreImageUrl)
             binding.tvStoreImageStatus.text = "✓ Đã chọn ảnh mới từ thư viện"
-            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
+            Toast.makeText(ctx, "📷 Đã chọn ảnh quán thành công!", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun uriToBase64(uri: Uri): String? {
-        return ImagePickerUtils.compressUriToBase64(requireContext(), uri, maxDimension = 600, quality = 85)
+        val ctx = context ?: return null
+        return ImagePickerUtils.compressUriToBase64(ctx, uri, maxDimension = 400, quality = 80)
     }
 
     private fun updateStoreImagePreview(imageSource: String) {
@@ -178,6 +183,7 @@ class EditStoreDialogFragment(
     private fun setupListeners() {
         binding.btnCloseDialog.setOnClickListener { dismiss() }
         binding.btnPickStoreImage.setOnClickListener { pickStoreImageLauncher.launch("image/*") }
+        binding.ivStoreImagePreview.setOnClickListener { pickStoreImageLauncher.launch("image/*") }
         binding.btnClearStoreImage.setOnClickListener {
             currentStoreImageUrl = ""
             updateStoreImagePreview("")

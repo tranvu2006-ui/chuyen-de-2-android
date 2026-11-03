@@ -13,6 +13,11 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.admin.R
 import com.chuyen_de_2.foodorder.admin.databinding.ActivityAdminComplaintDetailBinding
@@ -21,6 +26,7 @@ import com.chuyen_de_2.foodorder.core.data.model.Complaint
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.util.ImageLoadUtils
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -56,8 +62,28 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
             return
         }
 
+        setupWindowInsets()
         setupViews()
         observeComplaintData()
+    }
+
+    private fun setupWindowInsets() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        InsetUtils.setLightStatusBar(this, false)
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val navInsets = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            val topInset = if (insets.top > 0) insets.top else InsetUtils.getFallbackStatusBarHeight(this)
+
+            binding.viewStatusBar.updateLayoutParams {
+                height = topInset
+            }
+            binding.root.updatePadding(bottom = navInsets.bottom)
+            windowInsets
+        }
     }
 
     private fun setupViews() {

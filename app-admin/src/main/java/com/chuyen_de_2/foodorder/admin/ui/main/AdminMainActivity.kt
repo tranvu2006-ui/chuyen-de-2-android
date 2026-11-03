@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
@@ -25,6 +26,7 @@ import com.chuyen_de_2.foodorder.admin.ui.complaint.AdminComplaintListFragment
 import com.chuyen_de_2.foodorder.admin.ui.dashboard.AdminDashboardFragment
 import com.chuyen_de_2.foodorder.admin.ui.monitor.AdminMonitorFragment
 import com.chuyen_de_2.foodorder.admin.ui.store.AdminStoreListFragment
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -51,17 +53,24 @@ class AdminMainActivity : AppCompatActivity() {
     }
 
     private fun setupWindowInsets() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        InsetUtils.setLightStatusBar(this, false)
+
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val navInsets = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            val topInset = if (insets.top > 0) insets.top else InsetUtils.getFallbackStatusBarHeight(this)
 
             // Đặt chiều cao spacer chính xác theo thanh trạng thái
             binding.viewStatusBar.updateLayoutParams {
-                height = insets.top
+                height = topInset
             }
 
             // Đặt padding dưới cho Bottom Navigation
             binding.bottomNavAdmin.updatePadding(
-                bottom = insets.bottom
+                bottom = navInsets.bottom
             )
 
             windowInsets

@@ -12,6 +12,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
@@ -92,13 +96,29 @@ class ComplaintActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyToolbarInsets(binding.toolbar)
+        setupWindowInsets()
 
         setupToolbar()
         setupReasonSpinner()
         setupOrderSelection()
         setupUploadBox()
         setupSubmitButton()
+    }
+
+    private fun setupWindowInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val navInsets = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            val topInset = if (insets.top > 0) insets.top else InsetUtils.getFallbackStatusBarHeight(this)
+
+            binding.viewStatusBar.updateLayoutParams {
+                height = topInset
+            }
+            binding.root.updatePadding(bottom = navInsets.bottom)
+            windowInsets
+        }
     }
 
     private fun setupToolbar() {

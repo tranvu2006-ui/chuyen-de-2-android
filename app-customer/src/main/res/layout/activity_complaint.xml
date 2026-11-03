@@ -14,6 +14,13 @@
         android:background="@color/white"
         app:elevation="1dp">
 
+        <!-- System Status Bar Spacer -->
+        <View
+            android:id="@+id/viewStatusBar"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:background="@color/white" />
+
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"

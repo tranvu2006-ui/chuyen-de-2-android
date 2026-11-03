@@ -8,10 +8,18 @@
 
     <!-- Top AppBar -->
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/admin_navy"
         app:elevation="4dp">
+
+        <!-- System Status Bar Spacer -->
+        <View
+            android:id="@+id/viewStatusBar"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:background="@color/admin_navy" />
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbarComplaintDetail"

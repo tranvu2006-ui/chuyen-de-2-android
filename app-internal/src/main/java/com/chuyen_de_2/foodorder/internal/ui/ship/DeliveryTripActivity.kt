@@ -1943,19 +1943,27 @@ class DeliveryTripActivity : AppCompatActivity() {
             this, android.R.layout.simple_spinner_dropdown_item, reasons
         )
 
+        fun updateDialogButtonUI() {
+            val position = repBinding.spinnerIncidentReason.selectedItemPosition
+            val selectedReason = reasons.getOrElse(position) { "" }
+            val isForceImmediate = repBinding.cbCancelImmediately.isChecked
+            if (isForceImmediate || selectedReason.contains("Bom hàng", ignoreCase = true) || countdownRound >= 2) {
+                repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
+                repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+            } else if (isExpiredRoundOne || countdownRound == 1) {
+                repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
+                repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+            }
+        }
+
         repBinding.spinnerIncidentReason.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val selectedReason = reasons[position]
-                if (selectedReason.contains("Bom hàng", ignoreCase = true) || countdownRound >= 2) {
-                    repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
-                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
-                } else if (isExpiredRoundOne || countdownRound == 1) {
-                    repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
-                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
-                }
+                updateDialogButtonUI()
             }
-
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        repBinding.cbCancelImmediately.setOnCheckedChangeListener { _, _ ->
+            updateDialogButtonUI()
         }
 
         var hasProof = false
@@ -1987,11 +1995,12 @@ class DeliveryTripActivity : AppCompatActivity() {
         repBinding.btnConfirmIncidentCancel.setOnClickListener {
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
             val note = repBinding.etIncidentNote.text.toString().trim()
+            val isForceImmediate = repBinding.cbCancelImmediately.isChecked
             val fullReason = if (note.isNotBlank()) "$reason ($note)" else reason
             dialogCountdownTimer?.cancel()
             dialog.dismiss()
 
-            val isDirectBom = reason.contains("Bom hàng", ignoreCase = true) || (!isExpiredRoundOne && countdownRound >= 2)
+            val isDirectBom = isForceImmediate || reason.contains("Bom hàng", ignoreCase = true) || (!isExpiredRoundOne && countdownRound >= 2)
 
             if (!isDirectBom && (isExpiredRoundOne || countdownRound == 1)) {
                 // Báo cáo sự cố lần 1: Đánh dấu ĐƠN RỦI RO trên Firebase & Kích hoạt đếm ngược Lần 2
@@ -2009,10 +2018,10 @@ class DeliveryTripActivity : AppCompatActivity() {
                 }
                 start15MinCountdown(order, fullReason, round = 2)
             } else {
-                // Lần 2 (hoặc khách từ chối nhận - Bom hàng): Xác nhận hủy đơn bom và quay về quán trả món
+                // Hủy đơn bom hàng và quay về quán trả món (trừ -30 điểm uy tín)
                 lifecycleScope.launch {
                     try {
-                        val riskReason = "Đơn bom hàng: $fullReason (Sau 2 lần đếm ngược: $round1Minutes phút + $round2Minutes phút)"
+                        val riskReason = "Đơn bom hàng: $fullReason"
                         val updates = mapOf<String, Any>(
                             "isRiskOrder" to true,
                             "riskStatus" to "RISK_CONFIRMED",
@@ -2035,7 +2044,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val isCustomerFault = !reason.contains("giao thông", ignoreCase = true)
             val finalIncidentStatus = if (isCustomerFault) Order.Status.RETURNING_TO_STORE else Order.Status.CANCELLED
-            firebaseRepository.updateOrderStatus(order.orderId, finalIncidentStatus, reason)
+            firebaseRepository.updateOrderStatus(order.orderId, finalIncidentStatus, reason, targetCustomerId = order.customerId)
             completedBundleOrderIds.add(order.orderId)
             if (isCustomerFault) {
                 bomReturnOrders.add(order)

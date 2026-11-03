@@ -341,10 +341,19 @@ class FirebaseRepository @Inject constructor(
     }
 
     /** Cập nhật trạng thái đơn hàng và đồng bộ hai chiều status/orderStatus */
-    suspend fun updateOrderStatus(orderId: String, status: String, reason: String = "") {
+    suspend fun updateOrderStatus(
+        orderId: String,
+        status: String,
+        reason: String = "",
+        targetCustomerId: String = ""
+    ) {
         val prevOrderSnap = try { database.getReference("orders").child(orderId).get().await() } catch (_: Exception) { null }
         val prevStatus = prevOrderSnap?.child("status")?.getValue(String::class.java)?.uppercase().orEmpty()
-        val updates = mutableMapOf<String, Any>("status" to status, "orderStatus" to status, "updatedAt" to System.currentTimeMillis())
+        val updates = mutableMapOf<String, Any>(
+            "status" to status,
+            "orderStatus" to status,
+            "updatedAt" to System.currentTimeMillis()
+        )
         if (reason.isNotBlank()) updates["cancelReason"] = reason
         if (status.uppercase() == Order.Status.COMPLETED || status.uppercase() == Order.Status.BOOM || status.uppercase() == Order.Status.CANCELLED) {
             try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
@@ -352,16 +361,43 @@ class FirebaseRepository @Inject constructor(
         database.getReference("orders").child(orderId).updateChildren(updates).await()
         if (prevStatus == status.uppercase()) return
         try {
-            val customerId = prevOrderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
+            val customerId = targetCustomerId.ifBlank {
+                prevOrderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
+                    .ifBlank { prevOrderSnap?.child("userId")?.getValue(String::class.java).orEmpty() }
+            }
             if (customerId.isNotBlank()) {
                 val userRef = database.getReference("users").child(customerId)
                 val custNodeRef = database.getReference("customers").child(customerId)
-                val userSnap = userRef.get().await()
-                val custNodeSnap = custNodeRef.get().await()
-                val currentCompleted = maxOf(userSnap.child("completedOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("completedOrders").getValue(Long::class.java) ?: 0L)
-                val currentTotal = maxOf(userSnap.child("totalOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("totalOrders").getValue(Long::class.java) ?: 0L)
-                val currentBoom = maxOf(userSnap.child("boomOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("boomOrders").getValue(Long::class.java) ?: 0L)
-                val currentScore = custNodeSnap.child("trustScore").getValue(Long::class.java) ?: userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
+                val userSnap = try { userRef.get().await() } catch (_: Exception) { null }
+                val custNodeSnap = try { custNodeRef.get().await() } catch (_: Exception) { null }
+
+                val currentCompleted = maxOf(
+                    custNodeSnap?.child("completedOrders")?.getValue(Int::class.java)?.toLong()
+                        ?: custNodeSnap?.child("completedOrders")?.getValue(Long::class.java)
+                        ?: userSnap?.child("completedOrders")?.getValue(Int::class.java)?.toLong()
+                        ?: userSnap?.child("completedOrders")?.getValue(Long::class.java)
+                        ?: 0L
+                )
+                val currentTotal = maxOf(
+                    custNodeSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                        ?: custNodeSnap?.child("totalOrders")?.getValue(Long::class.java)
+                        ?: userSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                        ?: userSnap?.child("totalOrders")?.getValue(Long::class.java)
+                        ?: 0L
+                )
+                val currentBoom = maxOf(
+                    custNodeSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                        ?: custNodeSnap?.child("boomOrders")?.getValue(Long::class.java)
+                        ?: userSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                        ?: userSnap?.child("boomOrders")?.getValue(Long::class.java)
+                        ?: 0L
+                )
+                val currentScore = custNodeSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                    ?: custNodeSnap?.child("trustScore")?.getValue(Long::class.java)
+                    ?: userSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                    ?: userSnap?.child("trustScore")?.getValue(Long::class.java)
+                    ?: 100L
+
                 val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
                 val statsUpdates = mutableMapOf<String, Any>()
                 var scoreChange = 0
@@ -409,7 +445,7 @@ class FirebaseRepository @Inject constructor(
                         }
                     }
                     Order.Status.CANCELLED -> {
-                        if (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING) {
+                        if (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING || prevStatus == Order.Status.ARRIVED_AT_CUSTOMER) {
                             newScore = maxOf(0L, currentScore - 10L)
                             scoreChange = (newScore - currentScore).toInt()
                             logReason = if (reason.isNotBlank()) "Hủy đơn muộn #ORD-$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #ORD-$shortCode sau khi quán đã chế biến (-10 điểm)"
@@ -420,8 +456,19 @@ class FirebaseRepository @Inject constructor(
                     }
                 }
                 if (statsUpdates.isNotEmpty()) {
-                    userRef.updateChildren(statsUpdates)
-                    custNodeRef.updateChildren(statsUpdates)
+                    try { userRef.updateChildren(statsUpdates).await() } catch (e: Exception) { android.util.Log.e("FirebaseRepo", "userRef update failed: ${e.message}") }
+                    try { custNodeRef.updateChildren(statsUpdates).await() } catch (e: Exception) { android.util.Log.e("FirebaseRepo", "custNodeRef update failed: ${e.message}") }
+
+                    // Đồng bộ điểm trực tiếp vào node orders/{orderId} để dễ kiểm tra
+                    try {
+                        database.getReference("orders").child(orderId).updateChildren(
+                            mapOf(
+                                "customerTrustScore" to newScore,
+                                "trustScoreChange" to scoreChange
+                            )
+                        ).await()
+                    } catch (_: Exception) {}
+
                     if (logReason.isNotBlank()) {
                         val logRef = database.getReference("trust_score_logs").push()
                         val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
@@ -435,12 +482,13 @@ class FirebaseRepository @Inject constructor(
                             reason = logReason,
                             createdAt = System.currentTimeMillis()
                         )
-                        logRef.setValue(logEntry)
+                        try { logRef.setValue(logEntry).await() } catch (e: Exception) { android.util.Log.e("FirebaseRepo", "logRef write failed: ${e.message}") }
                     }
                 }
             }
-        } catch (_: Exception) {}
-        return
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseRepo", "updateOrderStatus error: ${e.message}")
+        }
     }
     private suspend fun legacyUpdateOrderStatusUnused(orderId: String, status: String) {
         val updates = mutableMapOf<String, Any>(

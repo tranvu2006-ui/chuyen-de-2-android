@@ -498,6 +498,21 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         updateStatusStep(order.status)
         setupDishRatingList(order)
 
+        // Hiển thị cảnh báo mất đơn theo thời gian thực nếu shipper kích hoạt đếm ngược
+        if (order.hasIncidentWarning && order.status != Order.Status.COMPLETED &&
+            order.status != Order.Status.CANCELLED && order.status != Order.Status.BOOM &&
+            order.status != Order.Status.RETURNING_TO_STORE && order.status != Order.Status.RETURNED_TO_STORE) {
+            binding.boxWarningActiveOnOrder.isVisible = true
+            binding.btnHeaderWarn.isVisible = true
+            val warnMsg = order.incidentWarningText.ifBlank {
+                "Tài xế đã có mặt tại địa chỉ và đang chờ bạn nhận món. Vui lòng chuẩn bị mã QR bên dưới để đối soát ngay!"
+            }
+            binding.lblWarningInlineDesc.text = warnMsg
+            binding.btnScrollToQr.setOnClickListener {
+                binding.scrollViewContent.smoothScrollTo(0, binding.qrCodeWrapper.top)
+            }
+        }
+
         // Cập nhật chi tiết các món ăn & thanh toán
         bindOrderItems(order)
 
@@ -702,18 +717,49 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.ratingCard.isVisible = true
             }
 
+            Order.Status.RETURNING_TO_STORE, Order.Status.RETURNED_TO_STORE -> {
+                binding.lblStatusIcon.text = "🚨"
+                binding.lblStatusHeadline.text = if (status == Order.Status.RETURNED_TO_STORE) {
+                    "Đơn hàng đã được trả về quán"
+                } else {
+                    "Đang chuyển trả món về quán"
+                }
+                binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
+                binding.lblStatusSub.text = "Đơn hàng bị hủy do không liên lạc được sau thời gian chờ"
+                binding.lblDetailIcon.text = "⚠️"
+                val reasonText = currentOrder?.cancelReason?.ifBlank { null }
+                    ?: currentOrder?.riskReason?.ifBlank { null }
+                    ?: "Khách không nhận món sau các lần đếm ngược chờ nhận hàng (Bom hàng)."
+                binding.lblDetailDesc.text =
+                    "Đơn hàng đã bị hủy và tài xế đang hoàn trả món về quán. Lý do: $reasonText"
+                binding.boxCustomerCancelledNotice.isVisible = true
+                binding.lblCancelReason.text = "Lý do: $reasonText\nTài xế đang hoàn trả lại đồ ăn cho $currentStoreName."
+                binding.boxWarningActiveOnOrder.isVisible = false
+                binding.btnHeaderWarn.isVisible = true
+                binding.ratingCard.isVisible = false
+                binding.qrCodeWrapper.isVisible = false
+                binding.tokenPill.isVisible = false
+                binding.qrCompletedBox.isVisible = false
+            }
+
             Order.Status.CANCELLED, Order.Status.BOOM -> {
                 binding.lblStatusIcon.text = "🚫"
                 binding.lblStatusHeadline.text = "Đơn hàng đã bị hủy"
                 binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
                 binding.lblStatusSub.text = "Đơn hàng gặp sự cố giao hàng hoặc bom hàng"
                 binding.lblDetailIcon.text = "⚠️"
-                binding.lblDetailDesc.text =
-                    "Đơn hàng đã chính thức bị hủy. Tiền món đang được xử lý hoàn trả theo chính sách Oishi Food."
+                val reasonText = currentOrder?.cancelReason?.ifBlank { null }
+                    ?: currentOrder?.riskReason?.ifBlank { null }
+                    ?: "Đơn hàng đã chính thức bị hủy. Tiền món đang được xử lý hoàn trả theo chính sách Oishi Food."
+                binding.lblDetailDesc.text = reasonText
                 binding.boxCustomerCancelledNotice.isVisible = true
+                binding.lblCancelReason.text = "Lý do: $reasonText"
                 binding.boxWarningActiveOnOrder.isVisible = false
                 binding.btnHeaderWarn.isVisible = true
                 binding.ratingCard.isVisible = false
+                binding.qrCodeWrapper.isVisible = false
+                binding.tokenPill.isVisible = false
+                binding.qrCompletedBox.isVisible = false
             }
         }
     }

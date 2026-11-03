@@ -376,17 +376,36 @@ class FirebaseRepository @Inject constructor(
                         statsUpdates["totalOrders"] = currentTotal + 1
                         statsUpdates["trustScore"] = newScore
                     }
-                    Order.Status.BOOM -> {
-                        newScore = maxOf(0L, currentScore - 30L)
-                        scoreChange = (newScore - currentScore).toInt()
-                        logReason = if (reason.isNotBlank()) "Bom hàng đơn #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
-                        statsUpdates["boomOrders"] = currentBoom + 1
-                        statsUpdates["totalOrders"] = currentTotal + 1
-                        statsUpdates["trustScore"] = newScore
-                        if (newScore < 20L) {
-                            statsUpdates["status"] = "LOCKED"
-                            statsUpdates["isActive"] = false
-                            statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                    Order.Status.BOOM, Order.Status.RETURNING_TO_STORE -> {
+                        // Trừ điểm uy tín -30 điểm khi đơn bị bom hoặc quay về quán trả hàng (chống trừ lặp)
+                        if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
+                            newScore = maxOf(0L, currentScore - 30L)
+                            scoreChange = (newScore - currentScore).toInt()
+                            logReason = if (reason.isNotBlank()) "Bom hàng đơn #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
+                            statsUpdates["boomOrders"] = currentBoom + 1
+                            statsUpdates["totalOrders"] = currentTotal + 1
+                            statsUpdates["trustScore"] = newScore
+                            if (newScore < 20L) {
+                                statsUpdates["status"] = "LOCKED"
+                                statsUpdates["isActive"] = false
+                                statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                            }
+                        }
+                    }
+                    Order.Status.RETURNED_TO_STORE -> {
+                        // Trường hợp chuyển thẳng sang RETURNED_TO_STORE mà chưa qua RETURNING_TO_STORE
+                        if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
+                            newScore = maxOf(0L, currentScore - 30L)
+                            scoreChange = (newScore - currentScore).toInt()
+                            logReason = if (reason.isNotBlank()) "Bom hàng trả về quán #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
+                            statsUpdates["boomOrders"] = currentBoom + 1
+                            statsUpdates["totalOrders"] = currentTotal + 1
+                            statsUpdates["trustScore"] = newScore
+                            if (newScore < 20L) {
+                                statsUpdates["status"] = "LOCKED"
+                                statsUpdates["isActive"] = false
+                                statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                            }
                         }
                     }
                     Order.Status.CANCELLED -> {

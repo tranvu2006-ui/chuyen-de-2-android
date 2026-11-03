@@ -140,7 +140,13 @@ data class Order(
     val riskReason: String = "",
 
     @SerializedName("isRiskOrder")
-    val isRiskOrder: Boolean = false
+    val isRiskOrder: Boolean = false,
+
+    @SerializedName("incidentCallProofImage")
+    val incidentCallProofImage: String = "",
+
+    @SerializedName("incidentMessageProofImage")
+    val incidentMessageProofImage: String = ""
 ) {
     @get:Exclude
     val effectiveStoreId: String

@@ -217,7 +217,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
-            android:text="Chính sách Oishi Food: Tài xế cung cấp bằng chứng sự cố (ảnh hiện trường / lịch sử 3 cuộc gọi) sẽ không bị phạt và được hỗ trợ quyền lợi đầy đủ."
+            android:text="Chính sách Oishi Food: Tài xế cung cấp đủ 2 ảnh bằng chứng sự cố (ảnh gọi khách 3 cuộc &amp; ảnh nhắn tin cho khách) sẽ không bị phạt và được hỗ trợ quyền lợi đầy đủ."
             android:textColor="#92400E"
             android:textSize="11sp"
             android:lineSpacingExtra="2dp" />
@@ -241,43 +241,142 @@
         android:background="@drawable/bg_rounded_spinner_border"
         android:paddingHorizontal="10dp" />
 
-    <!-- Chụp ảnh bằng chứng -->
+    <!-- Chụp / Tải lên 2 ảnh bằng chứng -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:layout_marginBottom="4dp"
-        android:text="Ảnh bằng chứng sự cố:"
+        android:layout_marginBottom="6dp"
+        android:text="Ảnh bằng chứng sự cố (Tải lên 2 ảnh): *"
         android:textColor="@color/text_primary"
         android:textSize="12sp"
         android:textStyle="bold" />
 
     <LinearLayout
-        android:id="@+id/btnAttachProof"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_badge_duty_off"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="14dp"
-        android:clickable="true"
-        android:focusable="true">
+        android:orientation="horizontal"
+        android:baselineAligned="false">
 
-        <ImageView
-            android:id="@+id/ivProofIcon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@drawable/ic_camera"
-            app:tint="@color/text_secondary" />
-
-        <TextView
-            android:id="@+id/tvProofText"
-            android:layout_width="wrap_content"
+        <!-- Ô 1: Ảnh gọi khách 3 cuộc -->
+        <LinearLayout
+            android:id="@+id/btnAttachCallProof"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Chạm vào đây để đính kèm ảnh hiện trường / lịch sử cuộc gọi"
-            android:textColor="@color/text_secondary"
-            android:textSize="11.5sp" />
+            android:layout_weight="1"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_badge_duty_off"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="10dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardCallProofPreview"
+                android:layout_width="match_parent"
+                android:layout_height="96dp"
+                android:layout_marginBottom="6dp"
+                android:visibility="gone"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#22C55E"
+                app:strokeWidth="1dp">
+
+                <ImageView
+                    android:id="@+id/ivCallProofPreview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <ImageView
+                android:id="@+id/ivCallProofIcon"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_camera"
+                app:tint="@color/text_secondary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:text="1. Ảnh gọi khách 3 cuộc"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvCallProofText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center"
+                android:text="Chạm để tải ảnh lên"
+                android:textColor="@color/text_secondary"
+                android:textSize="10.5sp" />
+        </LinearLayout>
+
+        <!-- Ô 2: Ảnh nhắn tin cho khách -->
+        <LinearLayout
+            android:id="@+id/btnAttachMsgProof"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_badge_duty_off"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="10dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardMsgProofPreview"
+                android:layout_width="match_parent"
+                android:layout_height="96dp"
+                android:layout_marginBottom="6dp"
+                android:visibility="gone"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#22C55E"
+                app:strokeWidth="1dp">
+
+                <ImageView
+                    android:id="@+id/ivMsgProofPreview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <ImageView
+                android:id="@+id/ivMsgProofIcon"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/ic_camera"
+                app:tint="@color/text_secondary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:text="2. Ảnh nhắn tin cho khách"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvMsgProofText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center"
+                android:text="Chạm để tải ảnh lên"
+                android:textColor="@color/text_secondary"
+                android:textSize="10.5sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Ghi chú -->

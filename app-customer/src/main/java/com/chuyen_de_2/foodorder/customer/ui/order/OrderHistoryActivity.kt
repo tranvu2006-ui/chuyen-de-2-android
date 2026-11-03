@@ -121,15 +121,35 @@ class OrderHistoryActivity : AppCompatActivity() {
                 }
             },
             onViewProofClick = { order ->
+                val isBombed = isBombedOrCancelledOrder(order) && (
+                        order.effectiveStatus.uppercase() == Order.Status.BOOM ||
+                        order.effectiveStatus.uppercase() == Order.Status.RETURNING_TO_STORE ||
+                        order.effectiveStatus.uppercase() == Order.Status.RETURNED_TO_STORE ||
+                        order.isRiskOrder ||
+                        order.cancelReason.contains("bom", ignoreCase = true) ||
+                        order.riskReason.contains("bom", ignoreCase = true)
+                )
                 val modal = IncidentProofBottomSheetDialogFragment.newInstance(
                     orderId = order.orderId,
                     driverName = order.shipperName.ifBlank { "Tài xế giao hàng" },
-                    reason = if (order.status == Order.Status.BOOM) {
-                        "Khách không nghe máy sau 15 phút đếm ngược (Bom hàng)"
+                    reason = if (isBombed) {
+                        order.cancelReason.ifBlank {
+                            order.riskReason.ifBlank {
+                                "Khách không nghe máy / từ chối nhận món sau thời gian chờ (Bom hàng)"
+                            }
+                        }
+                    } else if (isActiveWarningOrder(order)) {
+                        "Tài xế cảnh báo đếm ngược tại điểm giao"
                     } else {
-                        "Tài xế cảnh báo đếm ngược 15 phút tại điểm giao"
+                        order.cancelReason.ifBlank { "Đơn hàng đã bị hủy" }
                     },
-                    notes = order.note.ifBlank { "Tài xế đã có mặt tại điểm giao nhưng không liên lạc được." }
+                    notes = order.note.ifBlank {
+                        order.cancelReason.ifBlank {
+                            order.incidentWarningText.ifBlank {
+                                "Tài xế đã có mặt tại điểm giao nhưng không liên lạc được."
+                            }
+                        }
+                    }
                 )
                 modal.show(supportFragmentManager, "IncidentProofModal")
             },
@@ -190,30 +210,51 @@ class OrderHistoryActivity : AppCompatActivity() {
         }
     }
 
+    private fun isBombedOrCancelledOrder(order: Order): Boolean {
+        val st = order.effectiveStatus.uppercase()
+        return st == Order.Status.CANCELLED ||
+                st == Order.Status.BOOM ||
+                st == Order.Status.RETURNING_TO_STORE ||
+                st == Order.Status.RETURNED_TO_STORE
+    }
+
+    private fun isActiveWarningOrder(order: Order): Boolean {
+        val st = order.effectiveStatus.uppercase()
+        if (st == Order.Status.COMPLETED || isBombedOrCancelledOrder(order)) return false
+        return order.hasIncidentWarning ||
+                order.note.contains("cảnh báo", ignoreCase = true) ||
+                order.note.contains("gọi", ignoreCase = true)
+    }
+
     /**
      * Cập nhật số đếm badge trên các tab và kiểm tra banner khẩn cấp
      */
     private fun updateTabBadgeCounts(orders: List<Order>) {
         val now = System.currentTimeMillis()
-        val countWarning = orders.count { it.note.contains("cảnh báo", ignoreCase = true) || it.note.contains("gọi", ignoreCase = true) }
+        val countWarning = orders.count { isActiveWarningOrder(it) }
         val countActive = orders.count {
-            it.status == Order.Status.DELIVERING ||
-            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-            it.status == Order.Status.ARRIVED_AT_SHOP ||
-            it.status == Order.Status.ASSIGNED
+            val st = it.effectiveStatus.uppercase()
+            st == Order.Status.DELIVERING ||
+            st == Order.Status.ARRIVED_AT_CUSTOMER ||
+            st == Order.Status.ARRIVED_AT_SHOP ||
+            st == Order.Status.ASSIGNED
         }
-        val countCancelled = orders.count { it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM }
+        val countCancelled = orders.count { isBombedOrCancelledOrder(it) }
         val countUnpaid = orders.count {
-            val isAwaiting = it.status == Order.Status.AWAITING_PAYMENT ||
-                    (it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
+            val st = it.effectiveStatus.uppercase()
+            val isAwaiting = st == Order.Status.AWAITING_PAYMENT ||
+                    (st == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
             val isNotExpired = (now - it.createdAt) <= 30 * 60 * 1000L
             isAwaiting && isNotExpired
         }
-        val countConfirming = orders.count { (it.status == Order.Status.PENDING || it.status == Order.Status.PREPARING || it.status == Order.Status.READY) && !it.note.contains("cảnh báo", ignoreCase = true) }
+        val countConfirming = orders.count {
+            val st = it.effectiveStatus.uppercase()
+            (st == Order.Status.PENDING || st == Order.Status.PREPARING || st == Order.Status.READY) && !isActiveWarningOrder(it)
+        }
 
         // Tự động hủy trên database các đơn chờ thanh toán đã quá 30 phút
         orders.forEach { o ->
-            if (o.status == Order.Status.AWAITING_PAYMENT && (now - o.createdAt) > 30 * 60 * 1000L) {
+            if (o.effectiveStatus.uppercase() == Order.Status.AWAITING_PAYMENT && (now - o.createdAt) > 30 * 60 * 1000L) {
                 com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(o.orderId).updateChildren(
                     mapOf(
                         "status" to Order.Status.CANCELLED,
@@ -227,14 +268,14 @@ class OrderHistoryActivity : AppCompatActivity() {
 
         binding.tabWarning.text = "🚨 Bị cảnh báo ($countWarning)"
         binding.tabActive.text = "Đang đến ($countActive)"
-        binding.tabCancelled.text = "🚫 Đã hủy ($countCancelled)"
+        binding.tabCancelled.text = "🚫 Đã hủy / Bom ($countCancelled)"
         binding.tabUnpaid.text = "Chờ thanh toán ($countUnpaid)"
         binding.tabConfirming.text = "Chờ xác nhận ($countConfirming)"
 
         // Điều khiển Emergency Warning Banner
         if (countWarning > 0) {
             binding.layoutEmergencyWarningBanner.visibility = View.VISIBLE
-            val warnOrder = orders.firstOrNull { it.note.contains("cảnh báo", ignoreCase = true) }
+            val warnOrder = orders.firstOrNull { isActiveWarningOrder(it) }
             val code = warnOrder?.orderId?.takeLast(6)?.uppercase() ?: ""
             binding.tvEmergencyWarningTitle.text = if (code.isNotBlank()) "Đơn #$code đang bị tài xế cảnh báo mất đơn!" else "Đơn hàng của bạn đang bị tài xế cảnh báo mất đơn!"
         } else {
@@ -245,22 +286,27 @@ class OrderHistoryActivity : AppCompatActivity() {
     private fun applyFilter() {
         val now = System.currentTimeMillis()
         val filtered = when (currentFilterTab) {
-            "WARNING" -> allOrders.filter { it.note.contains("cảnh báo", ignoreCase = true) || it.note.contains("gọi", ignoreCase = true) }
+            "WARNING" -> allOrders.filter { isActiveWarningOrder(it) }
             "ACTIVE" -> allOrders.filter {
-                it.status == Order.Status.DELIVERING ||
-                it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                it.status == Order.Status.ARRIVED_AT_SHOP ||
-                it.status == Order.Status.ASSIGNED
+                val st = it.effectiveStatus.uppercase()
+                st == Order.Status.DELIVERING ||
+                st == Order.Status.ARRIVED_AT_CUSTOMER ||
+                st == Order.Status.ARRIVED_AT_SHOP ||
+                st == Order.Status.ASSIGNED
             }
-            "CANCELLED" -> allOrders.filter { it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM }
+            "CANCELLED" -> allOrders.filter { isBombedOrCancelledOrder(it) }
             "UNPAID" -> allOrders.filter {
-                val isAwaiting = it.status == Order.Status.AWAITING_PAYMENT ||
-                        (it.status == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
+                val st = it.effectiveStatus.uppercase()
+                val isAwaiting = st == Order.Status.AWAITING_PAYMENT ||
+                        (st == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
                 val isNotExpired = (now - it.createdAt) <= 30 * 60 * 1000L
                 isAwaiting && isNotExpired
             }
-            "CONFIRMING" -> allOrders.filter { it.status == Order.Status.PENDING || it.status == Order.Status.PREPARING || it.status == Order.Status.READY }
-            "COMPLETED" -> allOrders.filter { it.status == Order.Status.COMPLETED }
+            "CONFIRMING" -> allOrders.filter {
+                val st = it.effectiveStatus.uppercase()
+                st == Order.Status.PENDING || st == Order.Status.PREPARING || st == Order.Status.READY
+            }
+            "COMPLETED" -> allOrders.filter { it.effectiveStatus.uppercase() == Order.Status.COMPLETED }
             else -> allOrders
         }
 

@@ -41,3 +41,9 @@
 
 ## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
 - Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và `git push origin giau-3-11`.
+
+---
+
+## 6. BẢN ĐỒ MÃ NGUỒN SỐNG (REPOMIX CODE MAP)
+- Khi cần nắm tổng quan cấu trúc dự án hoặc sau khi sửa đổi hàng loạt file, chạy lệnh `npx --yes repomix` trong terminal để cập nhật bản đồ mã nguồn nén AST tại `.antigravity/CODE_MAP.md`.
+- Ưu tiên đọc `.antigravity/CODE_MAP.md` để tra cứu nhanh Class, Interface, Method Signatures trước khi đọc chi tiết từng file.

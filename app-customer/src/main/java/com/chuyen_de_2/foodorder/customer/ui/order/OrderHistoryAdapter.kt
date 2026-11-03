@@ -198,7 +198,20 @@ class OrderHistoryAdapter(
             binding.tvOrderSubStatus.text = dateStr
 
             // Phân loại trạng thái chi tiết theo b3.html
-            val isWarningOrder = (order.note.contains("cảnh báo", ignoreCase = true) || order.note.contains("gọi", ignoreCase = true))
+            val effectiveStatus = order.effectiveStatus.uppercase()
+            val isTerminalOrBombed = effectiveStatus == Order.Status.COMPLETED ||
+                    effectiveStatus == Order.Status.CANCELLED ||
+                    effectiveStatus == Order.Status.BOOM ||
+                    effectiveStatus == Order.Status.RETURNING_TO_STORE ||
+                    effectiveStatus == Order.Status.RETURNED_TO_STORE
+
+            val isWarningOrder = !isTerminalOrBombed && (
+                    order.hasIncidentWarning ||
+                    order.note.contains("cảnh báo", ignoreCase = true) ||
+                    order.note.contains("gọi", ignoreCase = true)
+            )
+
+            binding.cardOrder.setOnClickListener { onTrackClick(order) }
 
             if (isWarningOrder) {
                 // 1. ĐƠN BỊ CẢNH BÁO MẤT ĐƠN (15 PHÚT)
@@ -216,10 +229,11 @@ class OrderHistoryAdapter(
 
                 binding.layoutAlertBox.visibility = View.VISIBLE
                 binding.tvAlertIcon.text = "📢"
-                binding.tvAlertTitle.text = "Tài xế cảnh báo đếm ngược 15 phút!"
-                binding.tvAlertCountdown.visibility = View.VISIBLE
-                binding.tvAlertCountdown.text = "14:45"
-                binding.tvAlertMessage.text = "Tài xế đã có mặt tại điểm giao và gọi nhiều cuộc nhưng chưa nghe máy. Vui lòng nhận đơn kẻo bị hủy do bom hàng!"
+                binding.tvAlertTitle.text = "Tài xế cảnh báo đếm ngược chờ nhận món!"
+                binding.tvAlertCountdown.visibility = View.GONE
+                binding.tvAlertMessage.text = order.incidentWarningText.ifBlank {
+                    "Tài xế đã có mặt tại điểm giao và gọi nhiều cuộc nhưng chưa nghe máy. Vui lòng nhận đơn kẻo bị hủy do bom hàng!"
+                }
 
                 binding.btnActionSecondary.visibility = View.VISIBLE
                 binding.btnActionSecondary.text = "📋 Xem Chi Tiết"
@@ -229,7 +243,7 @@ class OrderHistoryAdapter(
                 binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.error)
                 binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
 
-            } else when (order.status) {
+            } else when (effectiveStatus) {
                 Order.Status.AWAITING_PAYMENT, Order.Status.PENDING -> {
                     // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
                     val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||
@@ -398,25 +412,56 @@ class OrderHistoryAdapter(
                     binding.btnActionPrimary.setOnClickListener { onReorderClick(order) }
                 }
 
-                Order.Status.CANCELLED, Order.Status.BOOM -> {
-                    // ĐƠN ĐÃ BỊ HỦY
+                Order.Status.BOOM, Order.Status.RETURNING_TO_STORE, Order.Status.RETURNED_TO_STORE, Order.Status.CANCELLED -> {
+                    val isBombed = effectiveStatus == Order.Status.BOOM ||
+                            effectiveStatus == Order.Status.RETURNING_TO_STORE ||
+                            effectiveStatus == Order.Status.RETURNED_TO_STORE ||
+                            order.isRiskOrder ||
+                            order.cancelReason.contains("bom", ignoreCase = true) ||
+                            order.riskReason.contains("bom", ignoreCase = true)
+
                     binding.cardOrder.strokeColor = Color.parseColor("#FECACA")
                     binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFDFD"))
 
-                    binding.tvOrderStatusBadge.text = "✕ Đã bị hủy"
                     binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#DC2626"))
                     binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_red)
 
-                    binding.tvShipperInfo.visibility = View.GONE
+                    if (isBombed) {
+                        // ĐƠN KHÁCH ĐÃ BOM
+                        binding.tvOrderStatusBadge.text = "🚫 Đã bom hàng"
 
-                    binding.layoutAlertBox.visibility = View.VISIBLE
-                    binding.tvAlertIcon.text = "🚫"
-                    binding.tvAlertTitle.text = "LÝ DO HỦY ĐƠN HÀNG:"
-                    binding.tvAlertCountdown.visibility = View.GONE
-                    binding.tvAlertMessage.text = if (order.status == Order.Status.BOOM) {
-                        "Tài xế báo sự cố: Khách không nghe máy sau 15 phút đếm ngược (Bom hàng)"
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#DC2626"))
+                        val shipper = order.shipperName.ifBlank { "Tài xế" }
+                        binding.tvShipperInfo.text = when (effectiveStatus) {
+                            Order.Status.RETURNING_TO_STORE -> "🛵 Shipper: $shipper đang hoàn trả món về quán"
+                            Order.Status.RETURNED_TO_STORE -> "🏪 Shipper: $shipper đã hoàn trả món về quán"
+                            else -> "🚫 Không nhận hàng • Trừ 30 điểm uy tín"
+                        }
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "🚫"
+                        binding.tvAlertTitle.text = "ĐƠN HÀNG ĐÃ BỊ BOM (-30 ĐIỂM UY TÍN):"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            order.riskReason.ifBlank {
+                                "Tài xế báo sự cố: Khách không nghe máy / từ chối nhận món sau thời gian chờ (Bom hàng)."
+                            }
+                        }
                     } else {
-                        "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
+                        // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG
+                        binding.tvOrderStatusBadge.text = "✕ Đã bị hủy"
+                        binding.tvShipperInfo.visibility = View.GONE
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "🚫"
+                        binding.tvAlertTitle.text = "LÝ DO HỦY ĐƠN HÀNG:"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            order.note.ifBlank {
+                                "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
+                            }
+                        }
                     }
 
                     binding.btnActionSecondary.visibility = View.VISIBLE

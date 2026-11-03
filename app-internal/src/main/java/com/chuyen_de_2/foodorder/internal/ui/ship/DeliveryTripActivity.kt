@@ -105,6 +105,18 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var isRiskReported = false
     private var activeIncidentDialog: AlertDialog? = null
 
+    private val incidentCallProofByOrder = mutableMapOf<String, String>()
+    private val incidentMsgProofByOrder = mutableMapOf<String, String>()
+    private var onIncidentProofPicked: ((Uri) -> Unit)? = null
+
+    private val pickIncidentProofLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onIncidentProofPicked?.invoke(uri)
+        }
+    }
+
     // Tọa độ GPS thực tế của Shipper và Điểm đến
     private var driverLat: Double = 0.0
     private var driverLng: Double = 0.0
@@ -2016,14 +2028,74 @@ class DeliveryTripActivity : AppCompatActivity() {
             }
         }
 
-        var hasProof = false
-        repBinding.btnAttachProof.setOnClickListener {
-            hasProof = true
-            repBinding.ivProofIcon.setImageResource(R.drawable.ic_check_circle)
-            repBinding.ivProofIcon.setColorFilter(ContextCompat.getColor(this, R.color.brand_green))
-            repBinding.tvProofText.text = "✓ Đã đính kèm ảnh bằng chứng hiện trường"
-            repBinding.tvProofText.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
-            Toast.makeText(this, "Đã chụp và đính kèm bằng chứng sự cố thành công!", Toast.LENGTH_SHORT).show()
+        var callProofBase64 = incidentCallProofByOrder[order.orderId].orEmpty()
+        var msgProofBase64 = incidentMsgProofByOrder[order.orderId].orEmpty()
+
+        fun renderCallProofState(base64: String) {
+            if (base64.isNotBlank()) {
+                repBinding.cardCallProofPreview.visibility = View.VISIBLE
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadDishImage(
+                    repBinding.ivCallProofPreview,
+                    base64,
+                    R.drawable.ic_camera
+                )
+                repBinding.ivCallProofIcon.setImageResource(R.drawable.ic_check_circle)
+                repBinding.ivCallProofIcon.setColorFilter(ContextCompat.getColor(this, R.color.brand_green))
+                repBinding.tvCallProofText.text = "✓ Đã tải ảnh gọi 3 cuộc"
+                repBinding.tvCallProofText.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            }
+        }
+
+        fun renderMsgProofState(base64: String) {
+            if (base64.isNotBlank()) {
+                repBinding.cardMsgProofPreview.visibility = View.VISIBLE
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadDishImage(
+                    repBinding.ivMsgProofPreview,
+                    base64,
+                    R.drawable.ic_camera
+                )
+                repBinding.ivMsgProofIcon.setImageResource(R.drawable.ic_check_circle)
+                repBinding.ivMsgProofIcon.setColorFilter(ContextCompat.getColor(this, R.color.brand_green))
+                repBinding.tvMsgProofText.text = "✓ Đã tải ảnh nhắn tin"
+                repBinding.tvMsgProofText.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            }
+        }
+
+        renderCallProofState(callProofBase64)
+        renderMsgProofState(msgProofBase64)
+
+        repBinding.btnAttachCallProof.setOnClickListener {
+            onIncidentProofPicked = { uri ->
+                val compressed = com.chuyen_de_2.foodorder.core.util.ImagePickerUtils.compressUriToBase64(
+                    this, uri, maxDimension = 720, quality = 75
+                )
+                if (!compressed.isNullOrBlank()) {
+                    callProofBase64 = compressed
+                    incidentCallProofByOrder[order.orderId] = compressed
+                    renderCallProofState(compressed)
+                    Toast.makeText(this, "Đã tải lên ảnh gọi khách 3 cuộc!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Không thể đọc ảnh, vui lòng chọn ảnh khác!", Toast.LENGTH_SHORT).show()
+                }
+            }
+            pickIncidentProofLauncher.launch("image/*")
+        }
+
+        repBinding.btnAttachMsgProof.setOnClickListener {
+            onIncidentProofPicked = { uri ->
+                val compressed = com.chuyen_de_2.foodorder.core.util.ImagePickerUtils.compressUriToBase64(
+                    this, uri, maxDimension = 720, quality = 75
+                )
+                if (!compressed.isNullOrBlank()) {
+                    msgProofBase64 = compressed
+                    incidentMsgProofByOrder[order.orderId] = compressed
+                    renderMsgProofState(compressed)
+                    Toast.makeText(this, "Đã tải lên ảnh nhắn tin cho khách!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Không thể đọc ảnh, vui lòng chọn ảnh khác!", Toast.LENGTH_SHORT).show()
+                }
+            }
+            pickIncidentProofLauncher.launch("image/*")
         }
 
         val dialog = AlertDialog.Builder(this)
@@ -2054,6 +2126,14 @@ class DeliveryTripActivity : AppCompatActivity() {
                 Toast.makeText(this, "⏳ Vui lòng chờ hết thời gian đếm ngược mới được xác nhận báo cáo!", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+            if (callProofBase64.isBlank() || msgProofBase64.isBlank()) {
+                Toast.makeText(
+                    this,
+                    "📸 Vui lòng tải đủ 2 ảnh bằng chứng: Ảnh gọi khách 3 cuộc & Ảnh nhắn tin cho khách!",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
             val note = repBinding.etIncidentNote.text.toString().trim()
             val fullReason = if (note.isNotBlank()) "$reason ($note)" else reason
@@ -2071,7 +2151,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                             "isRiskOrder" to true,
                             "riskStatus" to "RISK_REPORTED",
                             "riskReason" to riskReason,
-                            "riskReportedAt" to System.currentTimeMillis()
+                            "riskReportedAt" to System.currentTimeMillis(),
+                            "incidentCallProofImage" to callProofBase64,
+                            "incidentMessageProofImage" to msgProofBase64
                         )
                         com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
                     } catch (_: Exception) {}
@@ -2088,7 +2170,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                             "riskStatus" to "RISK_CONFIRMED",
                             "riskReason" to riskReason,
                             "bomStatus" to "RETURNING_TO_STORE",
-                            "riskReportedAt" to System.currentTimeMillis()
+                            "riskReportedAt" to System.currentTimeMillis(),
+                            "incidentCallProofImage" to callProofBase64,
+                            "incidentMessageProofImage" to msgProofBase64
                         )
                         com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
                     } catch (_: Exception) {}

@@ -1,6 +1,8 @@
 package com.chuyen_de_2.foodorder.admin.ui.complaint
 
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -58,6 +60,21 @@ class AdminComplaintListFragment : Fragment() {
             binding.swipeRefreshComplaint.isRefreshing = false
         }
 
+        // Sub KPI Cards click to filter
+        binding.cardKpiPending.setOnClickListener {
+            binding.chipPendingComplaints.isChecked = true
+        }
+        binding.cardKpiProgress.setOnClickListener {
+            binding.chipPendingComplaints.isChecked = true
+        }
+        binding.cardKpiResolved.setOnClickListener {
+            binding.chipResolvedComplaints.isChecked = true
+        }
+        binding.cardKpiRejected.setOnClickListener {
+            binding.chipRejectedComplaints.isChecked = true
+        }
+
+        // Chip filter
         binding.chipGroupComplaintFilter.setOnCheckedStateChangeListener { _, checkedIds ->
             when (checkedIds.firstOrNull()) {
                 R.id.chipPendingComplaints -> viewModel.setFilter(ComplaintFilter.PENDING)
@@ -66,6 +83,15 @@ class AdminComplaintListFragment : Fragment() {
                 else -> viewModel.setFilter(ComplaintFilter.ALL)
             }
         }
+
+        // Search text watcher
+        binding.etSearchComplaint.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                viewModel.setSearchQuery(s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
     }
 
     private fun observeViewModel() {
@@ -80,6 +106,13 @@ class AdminComplaintListFragment : Fragment() {
 
                 launch {
                     viewModel.counts.collect { c ->
+                        // Sub KPIs
+                        binding.tvKpiPendingCount.text = c.pending.toString()
+                        binding.tvKpiProgressCount.text = "0"
+                        binding.tvKpiResolvedCount.text = c.resolved.toString()
+                        binding.tvKpiRejectedCount.text = c.rejected.toString()
+
+                        // Filter Chips
                         binding.chipAllComplaints.text = "Tất cả (${c.total})"
                         binding.chipPendingComplaints.text = "Chờ xử lý (${c.pending})"
                         binding.chipResolvedComplaints.text = "Đã giải quyết (${c.resolved})"

@@ -29,6 +29,7 @@ class AdminComplaintViewModel @Inject constructor(
 
     private val _rawComplaints = MutableStateFlow<List<Complaint>>(emptyList())
     private val _filter = MutableStateFlow(ComplaintFilter.ALL)
+    private val _searchQuery = MutableStateFlow("")
 
     private val _filteredComplaints = MutableStateFlow<List<Complaint>>(emptyList())
     val filteredComplaints: StateFlow<List<Complaint>> = _filteredComplaints.asStateFlow()
@@ -66,17 +67,36 @@ class AdminComplaintViewModel @Inject constructor(
         applyFilter()
     }
 
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        applyFilter()
+    }
+
     private fun applyFilter() {
         val list = _rawComplaints.value
         val filter = _filter.value
+        val q = _searchQuery.value.trim().lowercase()
 
         _filteredComplaints.value = list.filter { complaint ->
-            when (filter) {
+            val matchesFilter = when (filter) {
                 ComplaintFilter.ALL -> true
                 ComplaintFilter.PENDING -> complaint.status.equals(Complaint.ComplaintStatus.PENDING, ignoreCase = true)
                 ComplaintFilter.RESOLVED -> complaint.status.equals(Complaint.ComplaintStatus.RESOLVED, ignoreCase = true)
                 ComplaintFilter.REJECTED -> complaint.status.equals(Complaint.ComplaintStatus.REJECTED, ignoreCase = true)
             }
+
+            val matchesQuery = if (q.isBlank()) true else {
+                complaint.complaintId.lowercase().contains(q) ||
+                complaint.orderId.lowercase().contains(q) ||
+                complaint.senderName.lowercase().contains(q) ||
+                complaint.senderPhone.lowercase().contains(q) ||
+                complaint.targetName.lowercase().contains(q) ||
+                complaint.targetPhone.lowercase().contains(q) ||
+                complaint.title.lowercase().contains(q) ||
+                complaint.reason.lowercase().contains(q)
+            }
+
+            matchesFilter && matchesQuery
         }
     }
 
@@ -101,29 +121,6 @@ class AdminComplaintViewModel @Inject constructor(
             )
             if (result.isSuccess) {
                 _message.value = "Đã ban hành phán quyết & xử lý vi phạm thành công!"
-            } else {
-                _message.value = "Xử lý thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun resolveComplaint(
-        complaintId: String,
-        status: String,
-        penaltyTier: String,
-        adminNote: String,
-        storeId: String
-    ) {
-        viewModelScope.launch {
-            val result = firebaseRepo.resolveComplaint(
-                complaintId = complaintId,
-                status = status,
-                penaltyApplied = penaltyTier,
-                adminNote = adminNote,
-                storeId = storeId
-            )
-            if (result.isSuccess) {
-                _message.value = "Đã cập nhật quyết định xử lý khiếu nại thành công!"
             } else {
                 _message.value = "Xử lý thất bại: ${result.exceptionOrNull()?.localizedMessage}"
             }

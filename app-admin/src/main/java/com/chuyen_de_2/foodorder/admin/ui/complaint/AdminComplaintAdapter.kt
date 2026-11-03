@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.admin.ui.complaint
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -41,10 +42,9 @@ class AdminComplaintAdapter(
             binding.tvComplaintId.text = "Khiếu nại #${complaint.complaintId.takeLast(8).uppercase()}"
             val timeStr = if (complaint.createdAt > 0) dateFormat.format(Date(complaint.createdAt)) else "Vừa xong"
             binding.tvComplaintTime.text = "Thời gian gửi: $timeStr"
-            binding.tvOrderRef.text = "Đơn: #${complaint.orderId.takeLast(6).uppercase()}"
-            binding.tvStoreRef.text = "Quán: ${complaint.targetName.ifBlank { complaint.storeId.ifBlank { "N/A" } }}"
+            binding.tvOrderRef.text = "📦 Đơn: #${complaint.orderId.takeLast(6).uppercase()}"
 
-            // Phân loại khiếu nại (Complaint Type Badge)
+            // 1. Phân loại sự cố (Complaint Type Badge)
             val typeTitle = when (complaint.complaintType) {
                 Complaint.ComplaintType.ATTP -> "⚠️ Vệ sinh ATTP"
                 Complaint.ComplaintType.WRONG_ITEM -> "📦 Sai / thiếu món"
@@ -56,22 +56,51 @@ class AdminComplaintAdapter(
             }
             binding.tvComplaintTypeBadge.text = typeTitle
 
-            // Tóm tắt các bên
-            val senderLabel = when (complaint.senderType) {
-                Complaint.SenderType.DRIVER -> "Tài xế (${complaint.senderName.ifBlank { "Shipper" }})"
-                Complaint.SenderType.STORE -> "Quán ăn (${complaint.senderName.ifBlank { complaint.storeId }})"
-                else -> "Khách (${complaint.senderName.ifBlank { "Khách hàng" }})"
+            // 2. Mức độ ưu tiên (Priority Badge)
+            when (complaint.priority.uppercase(Locale.getDefault())) {
+                Complaint.Priority.HIGH -> {
+                    binding.tvPriorityBadge.text = "🔴 ƯU TIÊN CAO"
+                    binding.tvPriorityBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvPriorityBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                }
+                Complaint.Priority.LOW -> {
+                    binding.tvPriorityBadge.text = "⚪ THẤP"
+                    binding.tvPriorityBadge.setBackgroundResource(R.drawable.bg_badge_blue)
+                    binding.tvPriorityBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                }
+                else -> {
+                    binding.tvPriorityBadge.text = "🟠 TRUNG BÌNH"
+                    binding.tvPriorityBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvPriorityBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
             }
-            val targetLabel = when (complaint.targetType) {
-                Complaint.TargetType.CUSTOMER -> "Khách (${complaint.targetName.ifBlank { complaint.customerId }})"
-                Complaint.TargetType.DRIVER -> "Tài xế (${complaint.targetName.ifBlank { complaint.driverId }})"
-                else -> "Quán (${complaint.targetName.ifBlank { complaint.storeId }})"
+
+            // 3. Thông tin 2 bên liên quan (Nguồn khiếu nại vs Đối tượng vi phạm)
+            val senderRoleStr = when (complaint.senderType) {
+                Complaint.SenderType.DRIVER -> "Tài xế"
+                Complaint.SenderType.STORE -> "Quán ăn"
+                else -> "Khách hàng"
             }
-            binding.tvPartiesSummary.text = "Nguồn: $senderLabel ➔ Đối tượng: $targetLabel"
+            val senderName = complaint.senderName.ifBlank { "Người dùng #${complaint.customerId.takeLast(5)}" }
+            binding.tvSenderInfo.text = "$senderRoleStr: $senderName"
+            binding.tvSenderContact.text = "SĐT: ${complaint.senderPhone.ifBlank { "Không có SĐT" }}"
 
-            binding.tvReason.text = "Nội dung: ${complaint.reason.ifBlank { "Không có mô tả chi tiết" }}"
+            val targetRoleStr = when (complaint.targetType) {
+                Complaint.TargetType.CUSTOMER -> "Khách hàng"
+                Complaint.TargetType.DRIVER -> "Tài xế"
+                else -> "Quán ăn"
+            }
+            val targetName = complaint.targetName.ifBlank {
+                if (complaint.targetType == Complaint.TargetType.STORE) complaint.storeId.ifBlank { "Quán ăn" }
+                else "Tài khoản #${complaint.targetId.takeLast(5)}"
+            }
+            binding.tvTargetInfo.text = "$targetRoleStr: $targetName"
+            binding.tvTargetContact.text = "SĐT: ${complaint.targetPhone.ifBlank { "Chưa cập nhật" }}"
 
-            // Ảnh bằng chứng (Evidence Image Thumbnail)
+            // 4. Nội dung chi tiết
+            binding.tvReason.text = "Nội dung phản ánh: ${complaint.reason.ifBlank { "Không có mô tả chi tiết" }}"
+
+            // 5. Ảnh bằng chứng hiện trường
             if (complaint.evidenceImage.isNotBlank()) {
                 binding.llEvidenceThumbnail.visibility = View.VISIBLE
                 ImageLoadUtils.loadStoreImage(
@@ -83,29 +112,41 @@ class AdminComplaintAdapter(
                 binding.llEvidenceThumbnail.visibility = View.GONE
             }
 
-            // Status Badge
-            when (complaint.status.uppercase(Locale.getDefault())) {
-                Complaint.ComplaintStatus.RESOLVED -> {
+            // 6. Trạng thái hồ sơ
+            val isResolved = complaint.status.equals(Complaint.ComplaintStatus.RESOLVED, ignoreCase = true)
+            val isRejected = complaint.status.equals(Complaint.ComplaintStatus.REJECTED, ignoreCase = true)
+
+            when {
+                isResolved -> {
                     binding.tvComplaintStatusBadge.text = "ĐÃ GIẢI QUYẾT"
                     binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
                     binding.tvComplaintStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                    binding.btnResolveAction.text = "🔍 Xem Biên Bản Phán Quyết"
+                    binding.btnResolveAction.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                    binding.btnResolveAction.setBackgroundColor(ContextCompat.getColor(context, R.color.brand_green_bg))
                 }
-                Complaint.ComplaintStatus.REJECTED -> {
+                isRejected -> {
                     binding.tvComplaintStatusBadge.text = "ĐÃ BÁC BỎ"
                     binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
                     binding.tvComplaintStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                    binding.btnResolveAction.text = "🔍 Xem Lý Do Bác Bỏ"
+                    binding.btnResolveAction.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+                    binding.btnResolveAction.setBackgroundColor(ContextCompat.getColor(context, R.color.background))
                 }
                 else -> {
                     binding.tvComplaintStatusBadge.text = "CHỜ XỬ LÝ"
                     binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvComplaintStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                    binding.btnResolveAction.text = "⚖️ Thẩm Định & Phán Quyết Hồ Sơ"
+                    binding.btnResolveAction.setTextColor(ContextCompat.getColor(context, R.color.primary))
+                    binding.btnResolveAction.setBackgroundColor(ContextCompat.getColor(context, R.color.primary_light))
                 }
             }
 
-            // Resolution info
+            // 7. Thông tin chế tài đã thi hành
             val hasPenalty = complaint.penaltyApplied.isNotBlank() && complaint.penaltyApplied != "NONE"
             val hasNote = complaint.adminNote.isNotBlank()
-            if (hasPenalty || hasNote) {
+            if (isResolved || isRejected || hasPenalty || hasNote) {
                 binding.llResolutionResult.visibility = View.VISIBLE
                 val penaltyLabel = when (complaint.penaltyApplied) {
                     "WARN" -> "🟡 Mức 1: CẢNH CÁO VI PHẠM (WARN)"
@@ -114,14 +155,15 @@ class AdminComplaintAdapter(
                     else -> "⚪ Không áp dụng chế tài"
                 }
                 binding.tvAppliedPenalty.text = "Phán quyết: $penaltyLabel"
-                binding.tvAdminNote.text = "Phản hồi admin: ${complaint.adminNote.ifBlank { "Không có ghi chú" }}"
+                binding.tvAdminNote.text = "Biên bản Admin: ${complaint.adminNote.ifBlank { "Đã thụ lý theo quy chế sàn" }}"
             } else {
                 binding.llResolutionResult.visibility = View.GONE
             }
 
-            binding.root.setOnClickListener {
-                onComplaintClick(complaint)
-            }
+            // Click listener
+            binding.root.setOnClickListener { onComplaintClick(complaint) }
+            binding.btnResolveAction.setOnClickListener { onComplaintClick(complaint) }
+            binding.llEvidenceThumbnail.setOnClickListener { onComplaintClick(complaint) }
         }
     }
 

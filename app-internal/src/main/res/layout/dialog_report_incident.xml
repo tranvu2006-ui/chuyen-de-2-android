@@ -212,15 +212,6 @@
         android:textColorHint="@color/text_secondary"
         android:textSize="12sp" />
 
-    <CheckBox
-        android:id="@+id/cbCancelImmediately"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Xác nhận bom hàng ngay (Hủy đơn &amp; trừ 30 điểm uy tín)"
-        android:textColor="#DC2626"
-        android:textSize="11.5sp"
-        android:textStyle="bold" />
 
     <!-- Action buttons -->
     <com.google.android.material.button.MaterialButton

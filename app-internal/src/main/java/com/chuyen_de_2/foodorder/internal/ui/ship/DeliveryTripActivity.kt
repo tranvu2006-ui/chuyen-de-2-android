@@ -1943,27 +1943,19 @@ class DeliveryTripActivity : AppCompatActivity() {
             this, android.R.layout.simple_spinner_dropdown_item, reasons
         )
 
-        fun updateDialogButtonUI() {
-            val position = repBinding.spinnerIncidentReason.selectedItemPosition
-            val selectedReason = reasons.getOrElse(position) { "" }
-            val isForceImmediate = repBinding.cbCancelImmediately.isChecked
-            if (isForceImmediate || selectedReason.contains("Bom hàng", ignoreCase = true) || countdownRound >= 2) {
-                repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
-                repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
-            } else if (isExpiredRoundOne || countdownRound == 1) {
-                repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
-                repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
-            }
-        }
-
         repBinding.spinnerIncidentReason.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                updateDialogButtonUI()
+                val selectedReason = reasons[position]
+                if (selectedReason.contains("Bom hàng", ignoreCase = true) || countdownRound >= 2) {
+                    repBinding.btnConfirmIncidentCancel.text = "🚫 XÁC NHẬN ĐƠN BỊ BOM & QUAY VỀ QUÁN ➔"
+                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+                } else if (isExpiredRoundOne || countdownRound == 1) {
+                    repBinding.btnConfirmIncidentCancel.text = "⏱️ XÁC NHẬN BÁO CÁO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
+                    repBinding.btnConfirmIncidentCancel.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EA580C"))
+                }
             }
+
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-        }
-        repBinding.cbCancelImmediately.setOnCheckedChangeListener { _, _ ->
-            updateDialogButtonUI()
         }
 
         var hasProof = false
@@ -1995,12 +1987,11 @@ class DeliveryTripActivity : AppCompatActivity() {
         repBinding.btnConfirmIncidentCancel.setOnClickListener {
             val reason = repBinding.spinnerIncidentReason.selectedItem.toString()
             val note = repBinding.etIncidentNote.text.toString().trim()
-            val isForceImmediate = repBinding.cbCancelImmediately.isChecked
             val fullReason = if (note.isNotBlank()) "$reason ($note)" else reason
             dialogCountdownTimer?.cancel()
             dialog.dismiss()
 
-            val isDirectBom = isForceImmediate || reason.contains("Bom hàng", ignoreCase = true) || (!isExpiredRoundOne && countdownRound >= 2)
+            val isDirectBom = reason.contains("Bom hàng", ignoreCase = true) || (!isExpiredRoundOne && countdownRound >= 2)
 
             if (!isDirectBom && (isExpiredRoundOne || countdownRound == 1)) {
                 // Báo cáo sự cố lần 1: Đánh dấu ĐƠN RỦI RO trên Firebase & Kích hoạt đếm ngược Lần 2

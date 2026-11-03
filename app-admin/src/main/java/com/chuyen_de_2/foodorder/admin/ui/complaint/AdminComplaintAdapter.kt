@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.chuyen_de_2.foodorder.admin.R
 import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminComplaintBinding
 import com.chuyen_de_2.foodorder.core.data.model.Complaint
+import com.chuyen_de_2.foodorder.core.util.ImageLoadUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,12 +38,50 @@ class AdminComplaintAdapter(
         fun bind(complaint: Complaint) {
             val context = itemView.context
 
-            binding.tvComplaintId.text = "Khiếu nại #${complaint.complaintId.takeLast(8)}"
+            binding.tvComplaintId.text = "Khiếu nại #${complaint.complaintId.takeLast(8).uppercase()}"
             val timeStr = if (complaint.createdAt > 0) dateFormat.format(Date(complaint.createdAt)) else "Vừa xong"
             binding.tvComplaintTime.text = "Thời gian gửi: $timeStr"
-            binding.tvOrderRef.text = "Đơn: ${complaint.orderId.ifBlank { "N/A" }}"
-            binding.tvStoreRef.text = "Quán: ${complaint.storeId.ifBlank { "N/A" }}"
+            binding.tvOrderRef.text = "Đơn: #${complaint.orderId.takeLast(6).uppercase()}"
+            binding.tvStoreRef.text = "Quán: ${complaint.targetName.ifBlank { complaint.storeId.ifBlank { "N/A" } }}"
+
+            // Phân loại khiếu nại (Complaint Type Badge)
+            val typeTitle = when (complaint.complaintType) {
+                Complaint.ComplaintType.ATTP -> "⚠️ Vệ sinh ATTP"
+                Complaint.ComplaintType.WRONG_ITEM -> "📦 Sai / thiếu món"
+                Complaint.ComplaintType.ATTITUDE -> "👤 Thái độ phục vụ"
+                Complaint.ComplaintType.DELIVERY_DELAY -> "⏱️ Giao trễ"
+                Complaint.ComplaintType.BOM_ORDER -> "💣 Khách bom hàng"
+                Complaint.ComplaintType.FRAUD -> "💳 Sai tiền / Ưu đãi"
+                else -> if (complaint.title.isNotBlank()) complaint.title else "Vấn đề khác"
+            }
+            binding.tvComplaintTypeBadge.text = typeTitle
+
+            // Tóm tắt các bên
+            val senderLabel = when (complaint.senderType) {
+                Complaint.SenderType.DRIVER -> "Tài xế (${complaint.senderName.ifBlank { "Shipper" }})"
+                Complaint.SenderType.STORE -> "Quán ăn (${complaint.senderName.ifBlank { complaint.storeId }})"
+                else -> "Khách (${complaint.senderName.ifBlank { "Khách hàng" }})"
+            }
+            val targetLabel = when (complaint.targetType) {
+                Complaint.TargetType.CUSTOMER -> "Khách (${complaint.targetName.ifBlank { complaint.customerId }})"
+                Complaint.TargetType.DRIVER -> "Tài xế (${complaint.targetName.ifBlank { complaint.driverId }})"
+                else -> "Quán (${complaint.targetName.ifBlank { complaint.storeId }})"
+            }
+            binding.tvPartiesSummary.text = "Nguồn: $senderLabel ➔ Đối tượng: $targetLabel"
+
             binding.tvReason.text = "Nội dung: ${complaint.reason.ifBlank { "Không có mô tả chi tiết" }}"
+
+            // Ảnh bằng chứng (Evidence Image Thumbnail)
+            if (complaint.evidenceImage.isNotBlank()) {
+                binding.llEvidenceThumbnail.visibility = View.VISIBLE
+                ImageLoadUtils.loadStoreImage(
+                    imageView = binding.ivComplaintEvidenceThumb,
+                    imageUrl = complaint.evidenceImage,
+                    cornerDp = 8
+                )
+            } else {
+                binding.llEvidenceThumbnail.visibility = View.GONE
+            }
 
             // Status Badge
             when (complaint.status.uppercase(Locale.getDefault())) {
@@ -68,8 +107,14 @@ class AdminComplaintAdapter(
             val hasNote = complaint.adminNote.isNotBlank()
             if (hasPenalty || hasNote) {
                 binding.llResolutionResult.visibility = View.VISIBLE
-                binding.tvAppliedPenalty.text = "Mức phạt áp dụng: ${if (hasPenalty) complaint.penaltyApplied else "Không phạt"}"
-                binding.tvAdminNote.text = "Ghi chú admin: ${complaint.adminNote.ifBlank { "Không có" }}"
+                val penaltyLabel = when (complaint.penaltyApplied) {
+                    "WARN" -> "🟡 Mức 1: CẢNH CÁO VI PHẠM (WARN)"
+                    "HIDE" -> "🟠 Mức 2: ẨN TẠM THỜI / ĐÌNH CHỈ (HIDE)"
+                    "LOCK" -> "🔴 Mức 3: KHÓA TÀI KHOẢN VĨNH VIỄN (LOCK)"
+                    else -> "⚪ Không áp dụng chế tài"
+                }
+                binding.tvAppliedPenalty.text = "Phán quyết: $penaltyLabel"
+                binding.tvAdminNote.text = "Phản hồi admin: ${complaint.adminNote.ifBlank { "Không có ghi chú" }}"
             } else {
                 binding.llResolutionResult.visibility = View.GONE
             }

@@ -2060,6 +2060,34 @@ class DeliveryTripActivity : AppCompatActivity() {
                 com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
             } catch (_: Exception) {}
 
+            // Tự động ghi nhận vé Khiếu nại/Sự cố bom hàng lên hệ thống để Admin xử lý vi phạm
+            if (isCustomerFault) {
+                try {
+                    val complaintId = "CMP_BOM_${order.orderId.takeLast(6)}_${System.currentTimeMillis() % 10000}"
+                    val incidentComplaint = com.chuyen_de_2.foodorder.core.data.model.Complaint(
+                        complaintId = complaintId,
+                        orderId = order.orderId,
+                        senderType = com.chuyen_de_2.foodorder.core.data.model.Complaint.SenderType.DRIVER,
+                        senderName = order.effectiveDriverName.ifBlank { "Tài xế giao hàng" },
+                        senderPhone = order.shipperPhone,
+                        driverId = order.effectiveDriverId.ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() },
+                        targetType = com.chuyen_de_2.foodorder.core.data.model.Complaint.TargetType.CUSTOMER,
+                        targetId = order.customerId,
+                        targetName = order.customerName,
+                        targetPhone = order.customerPhone,
+                        customerId = order.customerId,
+                        storeId = order.shopId.ifBlank { order.storeId },
+                        complaintType = com.chuyen_de_2.foodorder.core.data.model.Complaint.ComplaintType.BOM_ORDER,
+                        title = "Sự cố giao hàng: Khách bom đơn / Không liên lạc được",
+                        reason = reason,
+                        priority = com.chuyen_de_2.foodorder.core.data.model.Complaint.Priority.HIGH,
+                        status = com.chuyen_de_2.foodorder.core.data.model.Complaint.ComplaintStatus.PENDING,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    firebaseRepository.submitComplaint(incidentComplaint)
+                } catch (_: Exception) {}
+            }
+
             // Quay ra màn hình chính có đầy đủ địa chỉ quán để tài xế chạy về trả hàng
             if (isCustomerFault) {
                 switchToReturningToStoreScreen(order)

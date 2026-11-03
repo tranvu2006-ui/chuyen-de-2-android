@@ -130,38 +130,37 @@ class EditUserDialogFragment(
 
     private fun updateAvatarPreview(avatar: String) {
         val context = context ?: return
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
+            binding.ivUserAvatarPreview,
+            avatar,
+            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
+            tintColorResId = R.color.secondary
+        )
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
+            binding.ivDialogUserAvatar,
+            avatar,
+            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
+            tintColorResId = R.color.secondary
+        )
+
         if (avatar.isNotBlank()) {
-            binding.ivDialogUserAvatar.clearColorFilter()
-            binding.ivUserAvatarPreview.clearColorFilter()
-            Glide.with(this)
-                .load(avatar)
-                .circleCrop()
-                .placeholder(R.drawable.ic_user)
-                .error(R.drawable.ic_user)
-                .into(binding.ivDialogUserAvatar)
-
-            Glide.with(this)
-                .load(avatar)
-                .circleCrop()
-                .placeholder(R.drawable.ic_user)
-                .error(R.drawable.ic_user)
-                .into(binding.ivUserAvatarPreview)
-
-            if (avatar.startsWith("data:image")) {
-                binding.tvAvatarStatusHint.text = "Ảnh thư viện tải lên (Base64)"
-            } else if (avatar.startsWith("http://") || avatar.startsWith("https://")) {
-                binding.tvAvatarStatusHint.text = "Ảnh trực tuyến (URL)"
-            } else {
-                binding.tvAvatarStatusHint.text = "Đang áp dụng biểu tượng riêng"
+            when {
+                avatar.startsWith("data:image") -> {
+                    binding.tvAvatarStatusHint.text = "✓ Ảnh tải lên từ máy (Base64)"
+                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                }
+                avatar.startsWith("http://") || avatar.startsWith("https://") -> {
+                    binding.tvAvatarStatusHint.text = "✓ Ảnh trực tuyến (URL)"
+                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                }
+                else -> {
+                    binding.tvAvatarStatusHint.text = "✓ Ảnh đại diện người dùng"
+                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+                }
             }
         } else {
-            Glide.with(this).clear(binding.ivDialogUserAvatar)
-            Glide.with(this).clear(binding.ivUserAvatarPreview)
-            binding.ivDialogUserAvatar.setImageResource(R.drawable.ic_user)
-            binding.ivDialogUserAvatar.setColorFilter(ContextCompat.getColor(context, R.color.secondary))
-            binding.ivUserAvatarPreview.setImageResource(R.drawable.ic_user)
-            binding.ivUserAvatarPreview.setColorFilter(ContextCompat.getColor(context, R.color.secondary))
             binding.tvAvatarStatusHint.text = "Chưa có ảnh (Đang dùng icon mặc định)"
+            binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
         }
     }
 
@@ -216,6 +215,12 @@ class EditUserDialogFragment(
         binding.btnCloseUserDialog.setOnClickListener { dismiss() }
         binding.btnCancelEditUser.setOnClickListener { dismiss() }
 
+        binding.cardUserAvatarContainer.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        binding.btnQuickPickAvatar.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
         binding.btnPickAvatarFromGallery.setOnClickListener {
             pickAvatarLauncher.launch("image/*")
         }

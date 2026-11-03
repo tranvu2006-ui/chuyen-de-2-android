@@ -81,6 +81,33 @@ class AdminComplaintViewModel @Inject constructor(
     }
 
     fun resolveComplaint(
+        complaint: Complaint,
+        status: String,
+        penaltyTier: String,
+        adminNote: String
+    ) {
+        viewModelScope.launch {
+            val result = firebaseRepo.resolveComplaint(
+                complaintId = complaint.complaintId,
+                status = status,
+                penaltyApplied = penaltyTier,
+                adminNote = adminNote,
+                storeId = complaint.storeId,
+                targetType = complaint.targetType,
+                targetId = complaint.targetId,
+                customerId = complaint.customerId,
+                driverId = complaint.driverId,
+                orderId = complaint.orderId
+            )
+            if (result.isSuccess) {
+                _message.value = "Đã ban hành phán quyết & xử lý vi phạm thành công!"
+            } else {
+                _message.value = "Xử lý thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun resolveComplaint(
         complaintId: String,
         status: String,
         penaltyTier: String,

@@ -27,7 +27,7 @@ data class Driver(
     @SerializedName("phone")
     val phone: String = "",
 
-    @SerializedName("avatarUrl")
+    @SerializedName("avatarUrl", alternate = ["photoUrl", "avatar", "profileImage"])
     val avatarUrl: String = "",
 
     @SerializedName("cccdNumber")

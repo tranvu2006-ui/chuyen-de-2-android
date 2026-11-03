@@ -29,13 +29,13 @@
             android:orientation="horizontal">
 
             <FrameLayout
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:background="@drawable/bg_circle_icon_red">
 
                 <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_alert_triangle"
                     app:tint="@color/danger" />
@@ -55,7 +55,7 @@
                     android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold"
-                    tools:text="Khiếu nại #cmp_01" />
+                    tools:text="Khiếu nại #CMP_01" />
 
                 <TextView
                     android:id="@+id/tvComplaintTime"
@@ -80,38 +80,68 @@
                 tools:text="CHỜ XỬ LÝ" />
         </LinearLayout>
 
-        <!-- Linked Order & Store Pills -->
+        <!-- Linked Parties, Order & Type Badges -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_marginTop="10dp"
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tvOrderRef"
-                android:layout_width="wrap_content"
+            <!-- Order & Type Badges -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_blue"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_blue"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                tools:text="Đơn: #ORD-1234" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
+                <TextView
+                    android:id="@+id/tvOrderRef"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_blue"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="3dp"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:text="Đơn: #ORD-1234" />
+
+                <TextView
+                    android:id="@+id/tvComplaintTypeBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_red"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="3dp"
+                    android:textColor="@color/danger"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:text="Vệ sinh ATTP" />
+
+                <TextView
+                    android:id="@+id/tvStoreRef"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_purple"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="3dp"
+                    android:textColor="@color/purple"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:text="Quán: store_01" />
+            </LinearLayout>
+
+            <!-- Sender vs Target summary -->
             <TextView
-                android:id="@+id/tvStoreRef"
-                android:layout_width="wrap_content"
+                android:id="@+id/tvPartiesSummary"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/bg_badge_purple"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/purple"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                tools:text="Quán: store_01" />
+                android:layout_marginTop="6dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                tools:text="Nguồn: Khách hàng (Minh Anh) ➔ Đối tượng: Quán Cơm Tấm" />
         </LinearLayout>
 
         <!-- Statement Quote Box -->
@@ -126,6 +156,43 @@
             android:textColor="@color/text_primary"
             android:textSize="13sp"
             tools:text="Nội dung: Món ăn giao thiếu phần canh sườn và bị nguội lạnh, shipper giao trễ 45 phút." />
+
+        <!-- Evidence Thumbnail (Visible if evidence image attached) -->
+        <LinearLayout
+            android:id="@+id/llEvidenceThumbnail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <ImageView
+                    android:id="@+id/ivComplaintEvidenceThumb"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:contentDescription="Ảnh bằng chứng sự cố" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="📷 Có đính kèm ảnh minh chứng thực tế"
+                android:textColor="@color/brand_blue"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <!-- Tribunal Verdict Box (Visible when Resolved/Rejected) -->
         <LinearLayout

@@ -45,10 +45,8 @@ class AdminComplaintListFragment : Fragment() {
 
     private fun setupRecyclerView() {
         adapter = AdminComplaintAdapter { complaint ->
-            val dialog = ResolveComplaintDialogFragment(complaint) { updatedComplaint, status, penalty, note ->
-                viewModel.resolveComplaint(updatedComplaint, status, penalty, note)
-            }
-            dialog.show(childFragmentManager, ResolveComplaintDialogFragment.TAG)
+            val intent = AdminComplaintDetailActivity.newIntent(requireContext(), complaint.complaintId)
+            startActivity(intent)
         }
 
         binding.rvComplaints.layoutManager = LinearLayoutManager(requireContext())

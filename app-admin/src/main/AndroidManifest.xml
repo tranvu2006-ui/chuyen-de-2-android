@@ -30,6 +30,12 @@
             android:exported="false"
             android:windowSoftInputMode="adjustPan" />
 
+        <!-- Chi tiết & Phán quyết Khiếu Nại -->
+        <activity
+            android:name=".ui.complaint.AdminComplaintDetailActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>

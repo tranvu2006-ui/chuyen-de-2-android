@@ -1829,6 +1829,43 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
+    /** Lấy chi tiết 1 khiếu nại theo ID */
+    suspend fun getComplaint(complaintId: String): com.chuyen_de_2.foodorder.core.data.model.Complaint? {
+        return try {
+            val snap = database.getReference("complaints").child(complaintId).get().await()
+            val c = snap.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+            if (c != null && c.complaintId.isBlank()) {
+                c.copy(complaintId = snap.key ?: complaintId)
+            } else {
+                c
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Lắng nghe 1 khiếu nại cụ thể theo thời gian thực */
+    fun observeComplaint(complaintId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Complaint?> = callbackFlow {
+        val ref = database.getReference("complaints").child(complaintId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val c = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+                val finalComplaint = if (c != null && c.complaintId.isBlank()) {
+                    c.copy(complaintId = snapshot.key ?: complaintId)
+                } else {
+                    c
+                }
+                trySend(finalComplaint)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
     /** Phán quyết xử lý khiếu nại và áp dụng 3 mức chế tài vi phạm (Cảnh báo, Ẩn tạm thời, Khóa tài khoản) */
     suspend fun resolveComplaint(
         complaintId: String,

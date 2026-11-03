@@ -37,6 +37,9 @@ class ShipperViewModel @Inject constructor(
     private val _messageEvent = MutableLiveData<String>()
     val messageEvent: LiveData<String> = _messageEvent
 
+    private var cachedShipperName: String = ""
+    private var cachedShipperPhone: String = ""
+
     init {
         loadShipperStoreAndOrders()
     }
@@ -49,6 +52,11 @@ class ShipperViewModel @Inject constructor(
                 val isCurrentlyOnline = _isOnline.value ?: true
                 val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
                 firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
+                try {
+                    val userSnap = firebaseRepository.readCacheFirst(firebaseRepository.database.getReference("users").child(shipperId))
+                    cachedShipperPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
+                    cachedShipperName = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
+                } catch (_: Exception) {}
             }
             val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
             _shipperStore.value = storeInfo
@@ -177,53 +185,41 @@ class ShipperViewModel @Inject constructor(
             return
         }
 
-        val baseShipperName = auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
-        val baseShipperPhone = auth.currentUser?.phoneNumber.orEmpty()
+        val resolvedShipperName = cachedShipperName.ifBlank {
+            auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
+        }
+        val resolvedShipperPhone = cachedShipperPhone.ifBlank {
+            auth.currentUser?.phoneNumber.orEmpty()
+        }
 
-        viewModelScope.launch {
-            var resolvedShipperName = baseShipperName
-            var resolvedShipperPhone = baseShipperPhone
-
-            if (resolvedShipperPhone.isBlank() || resolvedShipperName == "Tài xế") {
-                try {
-                    val userSnap = firebaseRepository.database.getReference("users").child(shipperId).get().await()
-                    val dbPhone = userSnap.child("phone").getValue(String::class.java).orEmpty().trim()
-                    val dbName = userSnap.child("name").getValue(String::class.java).orEmpty().trim()
-                    if (dbPhone.isNotBlank()) resolvedShipperPhone = dbPhone
-                    if (dbName.isNotBlank()) resolvedShipperName = dbName
-                } catch (_: Exception) {}
+        // Optimistic UI: Cập nhật ngay lập tức trên luồng chính (0ms) không chờ mạng
+        if (acceptedOrder != null) {
+            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
+            val updatedOrder = acceptedOrder.copy(
+                shipperId = shipperId,
+                driverId = shipperId,
+                shipperName = resolvedShipperName,
+                shipperPhone = resolvedShipperPhone,
+                status = Order.Status.ASSIGNED,
+                orderStatus = Order.Status.ASSIGNED
+            )
+            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
+            if (currentAssigned.none { it.orderId == orderId }) {
+                currentAssigned.add(0, updatedOrder)
+                _assignedOrders.value = currentAssigned
             }
+            _currentDeliveryOrderId.value = orderId
+        }
 
-            // Optimistic UI: Cập nhật ngay danh sách để giao diện phản hồi 0ms
-            if (acceptedOrder != null) {
-                _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
-                val updatedOrder = acceptedOrder.copy(
-                    shipperId = shipperId,
-                    driverId = shipperId,
-                    shipperName = resolvedShipperName,
-                    shipperPhone = resolvedShipperPhone,
-                    status = Order.Status.ASSIGNED,
-                    orderStatus = Order.Status.ASSIGNED
-                )
-                val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
-                if (currentAssigned.none { it.orderId == orderId }) {
-                    currentAssigned.add(0, updatedOrder)
-                    _assignedOrders.value = currentAssigned
-                }
+        firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
+            if (success) {
                 _currentDeliveryOrderId.value = orderId
-            }
-
-            firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
-                if (success) {
-                    _currentDeliveryOrderId.value = orderId
-                } else {
-                    // Nếu thất bại (xung đột tài xế khác), khôi phục lại danh sách
-                    if (acceptedOrder != null) {
-                        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
-                    }
+            } else {
+                if (acceptedOrder != null) {
+                    _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
                 }
-                onResult(success, msg)
             }
+            onResult(success, msg)
         }
     }
 

@@ -458,6 +458,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private var lastGeocodedAddress: String = ""
+    private var lastGeneratedQrPayload: String = ""
+    private var hasBoundOrderItems: Boolean = false
 
     private fun updateOrderUI(order: Order) {
         currentOrder = order
@@ -476,7 +478,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             binding.shipperName.text = currentShipperName
         }
 
-        // Cập nhật Delivery Token
+        // Cập nhật Delivery Token (chỉ tạo lại QR Bitmap khi payload thay đổi để tránh khựng UI khi đổi trạng thái)
         if (order.deliveryToken.isNotBlank()) {
             val resolvedOrderId = order.orderId.ifBlank { currentOrderId }
             val displayToken = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getDisplayToken(resolvedOrderId, order.deliveryToken)
@@ -486,17 +488,22 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             } else {
                 displayToken
             }
-            binding.ivQrCode.setImageBitmap(
-                com.chuyen_de_2.foodorder.core.util.QRCodeUtils.generateQRCodeBitmap(qrPayload, 600, 600)
-            )
-            binding.qrCodeWrapper.setOnClickListener {
-                showFullscreenQrDialog(qrPayload, binding.tokenPill.text.toString())
+            if (qrPayload != lastGeneratedQrPayload) {
+                lastGeneratedQrPayload = qrPayload
+                binding.ivQrCode.setImageBitmap(
+                    com.chuyen_de_2.foodorder.core.util.QRCodeUtils.generateQRCodeBitmap(qrPayload, 600, 600)
+                )
+                binding.qrCodeWrapper.setOnClickListener {
+                    showFullscreenQrDialog(qrPayload, binding.tokenPill.text.toString())
+                }
             }
         }
 
         // Cập nhật Stepper 4 bước
         updateStatusStep(order.status)
-        setupDishRatingList(order)
+        if (order.status == Order.Status.COMPLETED) {
+            setupDishRatingList(order)
+        }
 
         // Hiển thị cảnh báo mất đơn theo thời gian thực nếu shipper kích hoạt đếm ngược
         if (order.hasIncidentWarning && order.status != Order.Status.COMPLETED &&
@@ -513,8 +520,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
-        // Cập nhật chi tiết các món ăn & thanh toán
-        bindOrderItems(order)
+        // Cập nhật chi tiết các món ăn & thanh toán (chỉ render lần đầu để chuyển trạng thái mượt 0ms)
+        if (!hasBoundOrderItems && order.items.isNotEmpty()) {
+            hasBoundOrderItems = true
+            bindOrderItems(order)
+        }
 
         // Geocode địa chỉ khách hàng & quán ăn lên bản đồ Google Maps (chỉ chạy 1 lần khi địa chỉ mới)
         if (customerLatLng == null || lastGeocodedAddress != order.address) {

@@ -39,7 +39,7 @@ data class User(
     @SerializedName("isActive")
     val isActive: Boolean = true,
 
-    @SerializedName("avatarUrl")
+    @SerializedName("avatarUrl", alternate = ["photoUrl", "avatar", "profileImage"])
     val avatarUrl: String = "",
 
     @SerializedName("fcmToken")

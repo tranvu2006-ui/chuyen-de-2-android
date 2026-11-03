@@ -14,7 +14,7 @@ data class Customer(
     @SerializedName("customerId")
     val customerId: String = "",
 
-    @SerializedName("avatarUrl")
+    @SerializedName("avatarUrl", alternate = ["photoUrl", "avatar", "profileImage"])
     val avatarUrl: String = "",
 
     @SerializedName("trustScore")

@@ -1922,9 +1922,14 @@ class FirebaseRepository @Inject constructor(
                             ?: true
                         val hasLockReason = !child.child("lockReason").getValue(String::class.java).isNullOrBlank() ||
                             !child.child("suspendedReason").getValue(String::class.java).isNullOrBlank()
+                        val rawAvatar = child.child("avatarUrl").getValue(String::class.java)?.trim().orEmpty()
+                            .ifBlank { child.child("photoUrl").getValue(String::class.java)?.trim().orEmpty() }
+                            .ifBlank { child.child("avatar").getValue(String::class.java)?.trim().orEmpty() }
+                            .ifBlank { child.child("profileImage").getValue(String::class.java)?.trim().orEmpty() }
+                        val finalAvatar = u.avatarUrl.ifBlank { rawAvatar }
                         val isLocked = !rawIsActive || rawStatus == "LOCKED" || rawStatus == "SUSPENDED" || rawStatus == "INACTIVE" || hasLockReason
                         val finalStatus = if (isLocked) "LOCKED" else rawStatus.ifBlank { User.Status.ACTIVE }
-                        list.add(u.copy(uid = uid, isActive = !isLocked, status = finalStatus))
+                        list.add(u.copy(uid = uid, avatarUrl = finalAvatar, isActive = !isLocked, status = finalStatus))
                     }
                 }
                 trySend(list)
@@ -2120,7 +2125,12 @@ class FirebaseRepository @Inject constructor(
                     val c = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Customer::class.java)
                     if (c != null) {
                         val cId = if (c.customerId.isBlank()) child.key ?: "" else c.customerId
-                        list.add(c.copy(customerId = cId))
+                        val rawAvatar = child.child("avatarUrl").getValue(String::class.java)?.trim().orEmpty()
+                            .ifBlank { child.child("photoUrl").getValue(String::class.java)?.trim().orEmpty() }
+                            .ifBlank { child.child("avatar").getValue(String::class.java)?.trim().orEmpty() }
+                            .ifBlank { child.child("profileImage").getValue(String::class.java)?.trim().orEmpty() }
+                        val finalAvatar = c.avatarUrl.ifBlank { rawAvatar }
+                        list.add(c.copy(customerId = cId, avatarUrl = finalAvatar))
                     }
                 }
                 trySend(list)
@@ -2225,9 +2235,14 @@ class FirebaseRepository @Inject constructor(
             val driverSnap = try { database.getReference("drivers").child(uid).get().await() } catch (_: Exception) { null }
 
             // BẢO TOÀN AVATAR: Tránh mất avatar khi Admin cập nhật thông tin người dùng
-            val existingAvatar = userSnap.child("avatarUrl").getValue(String::class.java).orEmpty()
-                .ifBlank { custSnap.child("avatarUrl").getValue(String::class.java).orEmpty() }
-                .ifBlank { driverSnap?.child("avatarUrl")?.getValue(String::class.java).orEmpty() }
+            val existingAvatar = userSnap.child("avatarUrl").getValue(String::class.java)?.trim().orEmpty()
+                .ifBlank { userSnap.child("photoUrl").getValue(String::class.java)?.trim().orEmpty() }
+                .ifBlank { userSnap.child("avatar").getValue(String::class.java)?.trim().orEmpty() }
+                .ifBlank { custSnap.child("avatarUrl").getValue(String::class.java)?.trim().orEmpty() }
+                .ifBlank { custSnap.child("photoUrl").getValue(String::class.java)?.trim().orEmpty() }
+                .ifBlank { custSnap.child("avatar").getValue(String::class.java)?.trim().orEmpty() }
+                .ifBlank { driverSnap?.child("avatarUrl")?.getValue(String::class.java)?.trim().orEmpty() }
+                .ifBlank { driverSnap?.child("photoUrl")?.getValue(String::class.java)?.trim().orEmpty() }
 
             val effectiveAvatar = when {
                 user.avatarUrl == "RESET_DEFAULT_AVATAR" -> ""
@@ -2249,6 +2264,7 @@ class FirebaseRepository @Inject constructor(
                 "active" to isUnlocked,
                 "status" to finalStatus,
                 "avatarUrl" to effectiveAvatar,
+                "photoUrl" to effectiveAvatar,
                 "storeId" to user.storeId,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
@@ -2273,6 +2289,7 @@ class FirebaseRepository @Inject constructor(
                 "isActive" to isUnlocked,
                 "active" to isUnlocked,
                 "avatarUrl" to effectiveAvatar,
+                "photoUrl" to effectiveAvatar,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
                 "boomOrders" to boomOrders,
@@ -2292,10 +2309,24 @@ class FirebaseRepository @Inject constructor(
                         "isActive" to isUnlocked,
                         "dutyStatus" to if (isUnlocked) "OFFLINE" else "LOCKED",
                         "avatarUrl" to effectiveAvatar,
+                        "photoUrl" to effectiveAvatar,
                         "name" to user.name,
                         "phone" to user.phone
                     )
                     database.getReference("drivers").child(uid).updateChildren(driverUpdates).await()
+                }
+            } catch (_: Exception) {}
+
+            try {
+                if (user.storeId.isNotBlank()) {
+                    val storeSnap = database.getReference("stores").child(user.storeId).get().await()
+                    if (storeSnap.exists()) {
+                        val storeUpdates = mutableMapOf<String, Any?>(
+                            "ownerPhone" to user.phone,
+                            "ownerName" to user.name
+                        )
+                        database.getReference("stores").child(user.storeId).updateChildren(storeUpdates).await()
+                    }
                 }
             } catch (_: Exception) {}
 

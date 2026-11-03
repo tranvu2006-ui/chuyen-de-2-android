@@ -40,19 +40,12 @@ class AdminUserAdapter(
             binding.tvUserEmail.text = "${user.email.ifBlank { "Không có email" }} • ${user.phone.ifBlank { "Chưa có SĐT" }}"
 
             val avatar = user.avatarUrl.ifBlank { item.customer?.avatarUrl.orEmpty() }
-            if (avatar.isNotBlank()) {
-                binding.ivUserAvatar.clearColorFilter()
-                Glide.with(context)
-                    .load(avatar)
-                    .circleCrop()
-                    .placeholder(R.drawable.ic_user)
-                    .error(R.drawable.ic_user)
-                    .into(binding.ivUserAvatar)
-            } else {
-                Glide.with(context).clear(binding.ivUserAvatar)
-                binding.ivUserAvatar.setImageResource(R.drawable.ic_user)
-                binding.ivUserAvatar.setColorFilter(ContextCompat.getColor(context, R.color.secondary))
-            }
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
+                binding.ivUserAvatar,
+                avatar,
+                placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
+                tintColorResId = R.color.secondary
+            )
 
             val roleUpper = user.role.uppercase(Locale.getDefault())
             binding.tvUserRoleBadge.text = roleUpper

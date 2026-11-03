@@ -38,8 +38,7 @@
                 android:layout_height="match_parent"
                 android:contentDescription="Avatar người dùng"
                 android:scaleType="centerCrop"
-                android:src="@drawable/ic_user"
-                app:tint="@color/secondary" />
+                android:src="@drawable/ic_user" />
         </com.google.android.material.card.MaterialCardView>
 
         <LinearLayout

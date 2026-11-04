@@ -109,7 +109,8 @@ class AuthViewModel @Inject constructor(
         role: String = com.chuyen_de_2.foodorder.core.data.model.User.Role.CUSTOMER,
         phone: String = "",
         verifiedEmail: String,
-        verifiedPhone: String
+        verifiedPhone: String,
+        verificationMethod: String
     ) {
         when {
             name.isBlank() || email.isBlank() || password.isBlank() -> {
@@ -128,7 +129,9 @@ class AuthViewModel @Inject constructor(
 
         _isLoading.value = true
         viewModelScope.launch {
-            val result = authRepository.register(name, email, password, role, phone, verifiedEmail, verifiedPhone)
+            val result = authRepository.register(
+                name, email, password, role, phone, verifiedEmail, verifiedPhone, verificationMethod
+            )
             _registerResult.value = result.map { it.uid }
             _isLoading.value = false
         }

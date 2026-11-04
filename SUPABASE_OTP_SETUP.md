@@ -1,6 +1,6 @@
 # Supabase email and SMS OTP setup
 
-Customer and internal registration require both email OTP (`type=email`) and phone SMS OTP (`type=sms`). Phone numbers entered as Vietnamese local numbers are normalized to E.164 (`+84...`). After both codes are verified, the app creates the account in the existing Firebase Auth project and stores the verified phone in the user's Firebase profile. Firebase remains the app's sign-in and Realtime Database provider.
+Customer and internal registration let users choose one verification channel: email OTP (`type=email`) or phone SMS OTP (`type=sms`). Phone numbers entered as Vietnamese local numbers are normalized to E.164 (`+84...`). After the selected code is verified, the app creates the account in the existing Firebase Auth project. Phone-verified registrations keep `emailVerified=false` and use a separate `registrationVerified` flag so the user can still sign in with their email and password. Firebase remains the app's sign-in and Realtime Database provider.
 
 ## Create and configure a Supabase project
 
@@ -37,6 +37,6 @@ The publishable/anon key is designed for client use; access to Supabase Auth mus
 
 ## Registration behavior and security boundary
 
-OTP verification gates the normal in-app registration flow. A verified Supabase email is then registered in Firebase so existing Firebase login and Realtime Database code continue to work. The app does not use a Supabase session for Firebase Database access.
+The selected OTP verification gates the normal in-app registration flow. The resulting account is registered in Firebase so existing Firebase login and Realtime Database code continue to work. The app does not use a Supabase session for Firebase Database access.
 
 Because Firebase account creation is performed by the Android client, this integration is a client-side registration gate, not a server-enforced link between the two identity providers. A user who directly calls Firebase's public sign-up API outside the app may bypass the screen flow. Enforcing the OTP requirement against direct API calls requires trusted server-side verification or using Supabase as the application's primary identity provider with an appropriate Firebase access bridge.

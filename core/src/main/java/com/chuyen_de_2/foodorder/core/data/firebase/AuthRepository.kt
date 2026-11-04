@@ -31,18 +31,23 @@ class AuthRepository @Inject constructor(
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng nhập thất bại"))
             firebaseUser.reload().await()
             val userRef = database.getReference("users").child(firebaseUser.uid)
-            val verifiedByOtp = if (firebaseUser.isEmailVerified) {
-                false
+            val verificationState = if (firebaseUser.isEmailVerified) {
+                null
             } else {
                 try {
-                    userRef.get().await().child("emailVerified")
-                        .getValue(Boolean::class.java) == true
+                    userRef.get().await()
                 } catch (error: Exception) {
                     auth.signOut()
                     throw error
                 }
             }
-            if (!firebaseUser.isEmailVerified && !verifiedByOtp) {
+            val emailVerifiedByOtp = verificationState
+                ?.child("emailVerified")
+                ?.getValue(Boolean::class.java) == true
+            val registrationVerified = verificationState
+                ?.child("registrationVerified")
+                ?.getValue(Boolean::class.java) == true
+            if (!firebaseUser.isEmailVerified && !emailVerifiedByOtp && !registrationVerified) {
                 try {
                     firebaseUser.sendEmailVerification().await()
                 } catch (error: Exception) {
@@ -138,7 +143,8 @@ class AuthRepository @Inject constructor(
                     "role" to resolvedRole,
                     "roleId" to resolvedRoleId,
                     "status" to User.Status.ACTIVE,
-                    "emailVerified" to (firebaseUser.isEmailVerified || verifiedByOtp),
+                    "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp),
+                    "registrationVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp || registrationVerified),
                     "isActive" to true,
                     "active" to true,
                     "lockReason" to null,
@@ -209,15 +215,21 @@ class AuthRepository @Inject constructor(
         role: String = User.Role.CUSTOMER,
         phone: String = "",
         verifiedEmail: String,
-        verifiedPhone: String
+        verifiedPhone: String,
+        verificationMethod: String
     ): Result<FirebaseUser> {
         return try {
-            if (!verifiedEmail.equals(email.trim(), ignoreCase = true)) {
-                return Result.failure(Exception("Email chưa được xác minh bằng OTP."))
-            }
-            val normalizedPhone = com.chuyen_de_2.foodorder.core.util.PhoneNumberUtils.toE164Vietnam(phone)
-            if (normalizedPhone != verifiedPhone) {
-                return Result.failure(Exception("Số điện thoại chưa được xác minh bằng OTP."))
+            val normalizedPhone = if (verificationMethod == "phone") {
+                com.chuyen_de_2.foodorder.core.util.PhoneNumberUtils.toE164Vietnam(phone).also {
+                    if (it != verifiedPhone) {
+                        return Result.failure(Exception("Số điện thoại chưa được xác minh bằng OTP."))
+                    }
+                }
+            } else {
+                if (!verifiedEmail.equals(email.trim(), ignoreCase = true)) {
+                    return Result.failure(Exception("Email chưa được xác minh bằng OTP."))
+                }
+                phone.trim()
             }
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng ký thất bại"))
@@ -262,7 +274,8 @@ class AuthRepository @Inject constructor(
                 isActive = true,
                 storeId = assignedStoreId,
                 emailVerificationRequired = true,
-                emailVerified = true
+                emailVerified = verificationMethod == "email",
+                registrationVerified = true
             )
             database.getReference("users")
                 .child(firebaseUser.uid)

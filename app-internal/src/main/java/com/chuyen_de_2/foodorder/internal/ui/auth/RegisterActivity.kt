@@ -24,6 +24,7 @@ class RegisterActivity : AppCompatActivity() {
     private var pendingRegistration: ((String, String) -> Unit)? = null
     private var pendingEmail = ""
     private var pendingPhone = ""
+    private var pendingVerificationMethod = "email"
     private var emailOtpSent = false
     private var emailVerified = false
     private var phoneOtpSent = false
@@ -44,11 +45,20 @@ class RegisterActivity : AppCompatActivity() {
         binding.btnSubmitRegister.setOnClickListener {
             val name = binding.etRegisterName.text.toString().trim()
             val phone = binding.etRegisterPhone.text.toString().trim()
-            val normalizedPhone = try {
-                PhoneNumberUtils.toE164Vietnam(phone)
-            } catch (error: IllegalArgumentException) {
-                binding.tilRegisterPhone.error = error.message
-                return@setOnClickListener
+            val verificationMethod = if (binding.rgVerificationMethod.checkedRadioButtonId == binding.rbVerifyPhone.id) {
+                "phone"
+            } else {
+                "email"
+            }
+            val normalizedPhone = if (verificationMethod == "phone") {
+                try {
+                    PhoneNumberUtils.toE164Vietnam(phone)
+                } catch (error: IllegalArgumentException) {
+                    binding.tilRegisterPhone.error = error.message
+                    return@setOnClickListener
+                }
+            } else {
+                phone
             }
             binding.tilRegisterPhone.error = null
             val email = binding.etRegisterEmail.text.toString().trim()
@@ -69,15 +79,18 @@ class RegisterActivity : AppCompatActivity() {
             pendingRegistration = { verifiedEmail, verifiedPhone ->
                 viewModel.register(
                     name, email, password, confirmPassword, User.Role.MERCHANT,
-                    phone, verifiedEmail, verifiedPhone
+                    phone, verifiedEmail, verifiedPhone, pendingVerificationMethod
                 )
             }
-            if (pendingEmail.equals(email, ignoreCase = true) && pendingPhone == normalizedPhone) {
-                when {
-                    !emailOtpSent -> viewModel.requestEmailOtp(email)
-                    !emailVerified -> showOtpDialog()
-                    !phoneOtpSent -> viewModel.requestPhoneOtp(normalizedPhone)
-                    else -> showPhoneOtpDialog()
+            if (
+                pendingEmail.equals(email, ignoreCase = true) &&
+                pendingPhone == normalizedPhone &&
+                pendingVerificationMethod == verificationMethod
+            ) {
+                if (verificationMethod == "email") {
+                    if (emailOtpSent) showOtpDialog() else viewModel.requestEmailOtp(email)
+                } else {
+                    if (phoneOtpSent) showPhoneOtpDialog() else viewModel.requestPhoneOtp(normalizedPhone)
                 }
                 return@setOnClickListener
             }
@@ -86,7 +99,12 @@ class RegisterActivity : AppCompatActivity() {
             phoneOtpSent = false
             pendingEmail = email
             pendingPhone = normalizedPhone
-            viewModel.requestEmailOtp(email)
+            pendingVerificationMethod = verificationMethod
+            if (verificationMethod == "email") {
+                viewModel.requestEmailOtp(email)
+            } else {
+                viewModel.requestPhoneOtp(normalizedPhone)
+            }
         }
 
         binding.tvBackToLogin.setOnClickListener { finish() }
@@ -125,8 +143,8 @@ class RegisterActivity : AppCompatActivity() {
         viewModel.otpVerifyResult.observe(this) { result ->
             result.onSuccess { verifiedEmail ->
                 emailVerified = true
-                Toast.makeText(this, "Email đã xác minh. Đang gửi OTP qua SMS...", Toast.LENGTH_SHORT).show()
-                viewModel.requestPhoneOtp(pendingPhone)
+                pendingRegistration?.invoke(verifiedEmail, "")
+                    ?: Toast.makeText(this, "Vui lòng đăng ký lại để tiếp tục", Toast.LENGTH_LONG).show()
             }.onFailure { error ->
                 val message = error.message.orEmpty()
                 val userMessage = if (
@@ -139,7 +157,7 @@ class RegisterActivity : AppCompatActivity() {
                     message.ifBlank { "Không xác minh được mã OTP" }
                 }
                 Toast.makeText(this, userMessage, Toast.LENGTH_LONG).show()
-                if (pendingRegistration != null && !emailVerified) showOtpDialog()
+                if (pendingRegistration != null && pendingVerificationMethod == "email") showOtpDialog()
             }
         }
 
@@ -183,7 +201,7 @@ class RegisterActivity : AppCompatActivity() {
                 resetOtpState()
                 Toast.makeText(
                     this,
-                    "Email và số điện thoại đã xác nhận. Tài khoản đối tác đã tạo, bạn có thể đăng nhập.",
+                    "Đã xác minh. Tài khoản đối tác đã tạo, bạn có thể đăng nhập.",
                     Toast.LENGTH_LONG
                 ).show()
                 finish()
@@ -282,6 +300,7 @@ class RegisterActivity : AppCompatActivity() {
         pendingRegistration = null
         pendingEmail = ""
         pendingPhone = ""
+        pendingVerificationMethod = "email"
         emailOtpSent = false
         emailVerified = false
         phoneOtpSent = false

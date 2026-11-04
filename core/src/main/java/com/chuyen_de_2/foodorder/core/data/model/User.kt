@@ -52,7 +52,10 @@ data class User(
     val emailVerificationRequired: Boolean = false,
 
     @SerializedName("emailVerified")
-    val emailVerified: Boolean = false
+    val emailVerified: Boolean = false,
+
+    @SerializedName("registrationVerified")
+    val registrationVerified: Boolean = false
 ) {
     /** Role constants — RBAC phân quyền 4 Actors */
     object Role {

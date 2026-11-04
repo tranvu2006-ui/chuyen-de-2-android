@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food Driver - Tài Xế Quán Ngô Gia</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F4F6F8;
+      --card: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --amber: #F59E0B;
+      --danger: #EF4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 30px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F3F4F6;
+    }
+
+    /* Brand Header */
+    .brand-bar {
+      background: #FFF; padding: 10px 16px 6px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand-left { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    .brand-logo {
+      width: 30px; height: 30px; background: var(--primary); color: #FFF;
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 15px;
+    }
+    .brand-name { font-size: 16.5px; font-weight: 800; color: var(--primary); letter-spacing: -0.3px; }
+    .shop-badge {
+      font-size: 11px; font-weight: 700; background: #EFF6FF; color: var(--blue);
+      padding: 4px 10px; border-radius: 6px; border: 1px solid #BFDBFE;
+    }
+
+    /* Driver Profile Card */
+    .driver-card {
+      background: #FFF; padding: 10px 16px 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .driver-left { display: flex; align-items: center; gap: 10px; }
+    .driver-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: #FFEBE6; border: 2px solid #FFD2C8;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .driver-name { font-size: 15px; font-weight: 800; color: var(--text); }
+    .driver-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+    
+    /* Toggle Trực tuyến */
+    .duty-btn {
+      background: #ECFDF5; color: var(--green); border: 1.5px solid #A7F3D0;
+      padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;
+      cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+    }
+    .duty-btn.offline {
+      background: #F1F5F9; color: #64748B; border-color: #CBD5E1;
+    }
+    .dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .duty-btn.offline .dot-live { background: #94A3B8; }
+
+    /* Nội dung cuộn */
+    .content {
+      flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px;
+      padding-bottom: 80px;
+    }
+
+    /* Quick Stats */
+    .stats-row {
+      display: flex; gap: 10px;
+    }
+    .stat-box {
+      flex: 1; background: #FFF; border-radius: 12px; padding: 10px 12px;
+      border: 1px solid var(--border); box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .stat-title { font-size: 10.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+    .stat-val { font-size: 16px; font-weight: 800; color: var(--text); margin-top: 2px; }
+    .stat-val.green { color: var(--green); }
+
+    /* Section Header */
+    .sec-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sec-title {
+      font-size: 13.5px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px;
+    }
+    .badge-count {
+      background: var(--primary); color: #FFF; font-size: 10.5px; font-weight: 800;
+      padding: 2px 7px; border-radius: 10px;
+    }
+    .badge-count.blue { background: var(--blue); }
+
+    /* Thẻ Đơn Đang Chạy (Multi-Order Batch) */
+    .active-orders-wrap {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .active-order-card {
+      background: #FFF; border: 1.5px solid #BFDBFE; border-radius: 14px; padding: 14px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08); position: relative;
+    }
+    .active-order-card::before {
+      content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 4px;
+      background: var(--blue); border-radius: 0 4px 4px 0;
+    }
+    .card-top {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .order-code { font-size: 13.5px; font-weight: 800; color: var(--text); }
+    .tag-status-delivering {
+      font-size: 10.5px; font-weight: 700; color: #1D4ED8; background: #DBEAFE;
+      padding: 3px 8px; border-radius: 6px;
+    }
+    .order-route { font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 10px; }
+    .order-route b { color: var(--text); }
+    
+    .card-actions {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .btn-view-ongoing {
+      flex: 1; height: 38px; background: var(--primary); color: #FFF; border: none;
+      border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      text-decoration: none; box-shadow: 0 2px 8px rgba(238, 77, 45, 0.25);
+    }
+    .btn-cancel-quick {
+      height: 38px; background: #FFF1F2; color: var(--danger); border: 1px solid #FECDD3;
+      border-radius: 8px; padding: 0 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .btn-cancel-quick:hover { background: #FFE4E6; }
+
+    /* Thẻ Danh Sách Đơn Của Quán Chờ Nhận */
+    .pending-orders-wrap {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .pending-order-card {
+      background: #FFF; border: 1px solid var(--border); border-radius: 14px; padding: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .pending-top {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    .earning-pill {
+      font-size: 13px; font-weight: 800; color: var(--green);
+    }
+    .dish-brief { font-size: 11.5px; color: var(--text-muted); margin-bottom: 8px; }
+    .destination-row {
+      font-size: 12px; color: #1E293B; display: flex; align-items: flex-start; gap: 6px; margin-bottom: 10px;
+    }
+    
+    .btn-accept-order {
+      width: 100%; height: 38px; background: #059669; color: #FFF; border: none;
+      border-radius: 8px; font-size: 12.5px; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      box-shadow: 0 2px 8px rgba(5,150,105,0.25); transition: background 0.15s;
+    }
+    .btn-accept-order:hover { background: #047857; }
+
+    /* Modal Hủy Đơn Khi Chưa Lấy Hàng */
+    .modal-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.65);
+      z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #FFF; width: 100%; border-radius: 18px; padding: 18px;
+      display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .modal-title { font-size: 15px; font-weight: 800; color: var(--danger); display: flex; align-items: center; gap: 6px; }
+    .modal-desc { font-size: 12px; color: #64748B; line-height: 1.45; }
+    .select-reason {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 12.5px; outline: none; background: #FAFAFA;
+    }
+    .modal-btns { display: flex; gap: 8px; margin-top: 4px; }
+    .btn-modal-back {
+      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: #F1F5F9; color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .btn-modal-confirm-cancel {
+      flex: 1.2; padding: 10px; border-radius: 8px; border: none;
+      background: var(--danger); color: #FFF; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
+    /* Toast */
+    .toast-pill {
+      position: absolute; top: 40px; left: 16px; right: 16px; background: #0F172A;
+      color: #FFF; padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 600;
+      display: none; align-items: center; gap: 8px; z-index: 110; box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+    }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      height: 56px; background: #FFFFFF; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around; align-items: center;
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--text-muted); font-size: 10.5px; font-weight: 600;
+      gap: 3px; width: 33.3%;
+    }
+    .nav-item.active { color: var(--primary); font-weight: 700; }
+    .nav-icon { font-size: 18px; line-height: 1; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>10:20</span>
+      <span>📶 5G 🔋 95%</span>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-pill" id="toastPill">
+      <span id="toastIcon">✓</span>
+      <span id="toastMsg">Nội dung thông báo</span>
+    </div>
+
+    <!-- Brand Header -->
+    <div class="brand-bar">
+      <div class="brand-left">
+        <div class="brand-logo">🍲</div>
+        <span class="brand-name">Oishi Food Driver</span>
+      </div>
+      <div class="shop-badge">
+        🏪 Trà Sữa Ngô Gia (Q.Thủ Đức)
+      </div>
+    </div>
+
+    <!-- Driver Card -->
+    <div class="driver-card">
+      <div class="driver-left">
+        <div class="driver-avatar">🛵</div>
+        <div>
+          <div class="driver-name">Trần Văn Nam (TX-14)</div>
+          <div class="driver-sub">Tài xế chuyên quán • Sirius 59-T1 882.91</div>
+        </div>
+      </div>
+      <button class="duty-btn" id="btnDuty" onclick="toggleDuty()">
+        <span class="dot-live"></span>
+        <span id="txtDuty">ĐANG TRỰC</span>
+      </button>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Thống kê nhanh trong ca -->
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-title">Thu nhập hôm nay</div>
+          <div class="stat-val green">+385.000 đ</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-title">Đơn hoàn thành</div>
+          <div class="stat-val">12 cuốc</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-title">Đang chạy ghép</div>
+          <div class="stat-val" id="countActive" style="color:var(--blue);">1 đơn</div>
+        </div>
+      </div>
+
+      <!-- 1. CÁC ĐƠN ĐANG CHẠY (MULTI-ORDER: CÓ THỂ NHẬN NHIỀU ĐƠN CÙNG LÚC) -->
+      <div class="sec-header">
+        <div class="sec-title">
+          <span>🛵 Đơn Bạn Đang Nhận Giao</span>
+          <span class="badge-count blue" id="lblActiveBadge">1 đơn</span>
+        </div>
+        <span style="font-size:11px; color:#64748B;">Có thể ghép tối đa 3 đơn</span>
+      </div>
+
+      <div class="active-orders-wrap" id="activeOrdersWrap">
+        <!-- Đơn 1 đang chạy -->
+        <div class="active-order-card" id="cardOrder88291">
+          <div class="card-top">
+            <div>
+              <span class="order-code">#ORD_OISHI_88291</span>
+              <span style="font-size:11px; color:#059669; font-weight:700; margin-left:6px;">(+25.000 đ)</span>
+            </div>
+            <span class="tag-status-delivering">Đang lấy món</span>
+          </div>
+
+          <div class="order-route">
+            📍 Giao đến: <b>An Nguyễn</b> - 104 Hai Bà Trưng, P. Đa Kao, Q.1 (6.2 km)<br>
+            📦 Món: 1x Trà Ô Long, 1x Trà Ngô Gia (Size M)
+          </div>
+
+          <div class="card-actions">
+            <button class="btn-cancel-quick" onclick="openCancelModal('ORD_OISHI_88291', 'Trà Sữa Ngô Gia')">
+              ✕ Hủy đơn
+            </button>
+            <a href="4.html" class="btn-view-ongoing">
+              <span>Tiếp Tục Lộ Trình ➔</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. DANH SÁCH ĐƠN HÀNG CỦA QUÁN NGÔ GIA ĐANG CHỜ TÀI XẾ NHẬN -->
+      <div class="sec-header" style="margin-top:6px;">
+        <div class="sec-title">
+          <span>🔔 Đơn Chờ Giao Của Quán Ngô Gia</span>
+        </div>
+      </div>
+
+      <div class="pending-orders-wrap" id="pendingOrdersWrap">
+        <!-- Đơn chờ 1 -->
+        <div class="pending-order-card" id="pendingOrder88292">
+          <div class="pending-top">
+            <span style="font-weight:800; font-size:13px;">#ORD_OISHI_88292</span>
+            <span class="earning-pill">+20.000 đ</span>
+          </div>
+          <div class="dish-brief">2x Hồng Trà Sữa Trân Châu (Size L) • Đã đóng túi niêm phong</div>
+          <div class="destination-row">
+            <span>📍</span>
+            <div><b>Giao đến: Minh Khang</b> - 18 Lê Duẩn, Q.1 (5.4 km - Cùng hướng đơn #88291)</div>
+          </div>
+          <button class="btn-accept-order" onclick="acceptExtraOrder('88292', 'Minh Khang - 18 Lê Duẩn, Q.1', 20000)">
+            <span>🛵</span>
+            <span>NHẬN ĐƠN NÀY (GHÉP CHẠY CÙNG)</span>
+          </button>
+        </div>
+
+        <!-- Đơn chờ 2 -->
+        <div class="pending-order-card" id="pendingOrder88293">
+          <div class="pending-top">
+            <span style="font-weight:800; font-size:13px;">#ORD_OISHI_88293</span>
+            <span class="earning-pill">+22.000 đ</span>
+          </div>
+          <div class="dish-brief">1x Trà Đào Cam Sả, 1x Bánh Tráng • Đang chờ tại quầy số 2</div>
+          <div class="destination-row">
+            <span>📍</span>
+            <div><b>Giao đến: Hoàng Long</b> - 12 Nguyễn Thị Minh Khai, Q.3 (5.8 km)</div>
+          </div>
+          <button class="btn-accept-order" onclick="acceptExtraOrder('88293', 'Hoàng Long - 12 Nguyễn Thị Minh Khai, Q.3', 22000)">
+            <span>🛵</span>
+            <span>NHẬN ĐƠN NÀY (GHÉP CHẠY CÙNG)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Hủy Đơn Khi Chưa Lấy Hàng -->
+    <div class="modal-overlay" id="cancelModal">
+      <div class="modal-box">
+        <div class="modal-title">
+          <span>✕</span>
+          <span>HỦY NHẬN ĐƠN HÀNG</span>
+        </div>
+        <p class="modal-desc">
+          Bạn đang hủy nhận đơn <b id="lblCancelOrderCode">#ORD_OISHI_88291</b> khi <b>chưa lấy hàng</b>.<br>
+          Đơn này sẽ được <b>tự động trả về danh sách hàng của Quán Ngô Gia</b> để tài xế khác nhận.
+        </p>
+
+        <div style="font-size:11.5px; font-weight:700; color:var(--text);">Vui lòng chọn lý do hủy:</div>
+        <select class="select-reason" id="cancelReason">
+          <option value="Xe gặp sự cố kỹ thuật dọc đường">Xe gặp sự cố kỹ thuật dọc đường (Thủng lốp, hỏng xe)</option>
+          <option value="Quán chuẩn bị món quá lâu">Quán chuẩn bị món quá lâu</option>
+          <option value="Bị trùng tuyến hoặc quá tải đơn ghép">Bị trùng tuyến hoặc quá tải đơn ghép</option>
+          <option value="Tài xế có việc gia đình đột xuất">Tài xế có việc gia đình đột xuất</option>
+        </select>
+
+        <div class="modal-btns">
+          <button class="btn-modal-back" onclick="closeCancelModal()">Quay Lại</button>
+          <button class="btn-modal-confirm-cancel" onclick="executeCancelOrder()">Xác Nhận Hủy Đơn</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav Bar -->
+    <nav class="bottom-nav">
+      <a href="1.html" class="nav-item">
+        <span class="nav-icon">🧾</span>
+        <span>Thu nhập</span>
+      </a>
+      <a href="2.html" class="nav-item active">
+        <span class="nav-icon">🛵</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="7.html" class="nav-item">
+        <span class="nav-icon">👤</span>
+        <span>Hồ sơ</span>
+      </a>
+    </nav>
+  </div>
+
+  <script>
+    let isOnline = true;
+    let orderToCancel = null;
+    let activeOrderCount = 1;
+
+    function showToast(msg, icon = '✓') {
+      const pill = document.getElementById('toastPill');
+      document.getElementById('toastIcon').innerText = icon;
+      document.getElementById('toastMsg').innerText = msg;
+      pill.style.display = 'flex';
+      setTimeout(() => { pill.style.display = 'none'; }, 3200);
+    }
+
+    function toggleDuty() {
+      isOnline = !isOnline;
+      const btn = document.getElementById('btnDuty');
+      const txt = document.getElementById('txtDuty');
+      if (isOnline) {
+        btn.classList.remove('offline');
+        txt.innerText = 'ĐANG TRỰC';
+        showToast('Bạn đã BẬT trực tuyến, sẵn sàng nhận đơn của Quán Ngô Gia!', '🟢');
+      } else {
+        btn.classList.add('offline');
+        txt.innerText = 'TẠM NGHỈ';
+        showToast('Bạn đã chuyển sang chế độ TẠM NGHỈ.', '⏸️');
+      }
+    }
+
+    // Nhận thêm đơn ghép cùng lúc
+    function acceptExtraOrder(orderId, dest, fee) {
+      if (activeOrderCount >= 3) {
+        alert('Tài xế chỉ được nhận tối đa 3 đơn cùng lúc để đảm bảo thời gian giao!');
+        return;
+      }
+
+      // Xóa khỏi danh sách chờ
+      const pendingEl = document.getElementById(`pendingOrder${orderId}`);
+      if (pendingEl) pendingEl.remove();
+
+      // Thêm vào danh sách đang chạy
+      activeOrderCount++;
+      document.getElementById('countActive').innerText = `${activeOrderCount} đơn`;
+      document.getElementById('lblActiveBadge').innerText = `${activeOrderCount} đơn`;
+
+      const wrap = document.getElementById('activeOrdersWrap');
+      const newCard = document.createElement('div');
+      newCard.className = 'active-order-card';
+      newCard.id = `cardOrder${orderId}`;
+      newCard.innerHTML = `
+        <div class="card-top">
+          <div>
+            <span class="order-code">#ORD_OISHI_${orderId}</span>
+            <span style="font-size:11px; color:#059669; font-weight:700; margin-left:6px;">(+${fee.toLocaleString('vi-VN')} đ)</span>
+          </div>
+          <span class="tag-status-delivering">Đang lấy món</span>
+        </div>
+        <div class="order-route">
+          📍 Giao đến: <b>${dest}</b><br>
+          📦 Đơn ghép cùng quán Trà Sữa Ngô Gia
+        </div>
+        <div class="card-actions">
+          <button class="btn-cancel-quick" onclick="openCancelModal('ORD_OISHI_${orderId}', 'Trà Sữa Ngô Gia')">
+            ✕ Hủy đơn
+          </button>
+          <a href="4.html" class="btn-view-ongoing">
+            <span>Tiếp Tục Lộ Trình ➔</span>
+          </a>
+        </div>
+      `;
+      wrap.appendChild(newCard);
+      showToast(`✓ Đã nhận thêm đơn #ORD_OISHI_${orderId} ghép chạy cùng lúc!`, '🛵');
+    }
+
+    // Mở modal hủy đơn khi chưa lấy hàng
+    function openCancelModal(code) {
+      orderToCancel = code;
+      document.getElementById('lblCancelOrderCode').innerText = `#${code}`;
+      document.getElementById('cancelModal').classList.add('open');
+    }
+
+    function closeCancelModal() {
+      document.getElementById('cancelModal').classList.remove('open');
+    }
+
+    // Thực hiện hủy đơn và trả về danh sách hàng của quán
+    function executeCancelOrder() {
+      const reason = document.getElementById('cancelReason').value;
+      closeCancelModal();
+
+      // Xóa khỏi danh sách đang chạy
+      const cardEl = document.getElementById(`cardOrder${orderToCancel.replace('ORD_OISHI_', '')}`);
+      if (cardEl) cardEl.remove();
+
+      activeOrderCount = Math.max(0, activeOrderCount - 1);
+      document.getElementById('countActive').innerText = `${activeOrderCount} đơn`;
+      document.getElementById('lblActiveBadge').innerText = `${activeOrderCount} đơn`;
+
+      showToast(`Đã hủy nhận đơn #${orderToCancel}! Đơn đã được trả về danh sách của Quán Ngô Gia.`, '↩️');
+
+      // Thêm lại vào danh sách đơn chờ của quán
+      const pendingWrap = document.getElementById('pendingOrdersWrap');
+      const returnedCard = document.createElement('div');
+      returnedCard.className = 'pending-order-card';
+      returnedCard.id = `pendingOrder${orderToCancel.replace('ORD_OISHI_', '')}`;
+      returnedCard.innerHTML = `
+        <div class="pending-top">
+          <span style="font-weight:800; font-size:13px;">#${orderToCancel}</span>
+          <span class="earning-pill">+25.000 đ</span>
+        </div>
+        <div class="dish-brief">2 ly Trà Xí Muội (Size M) • Đơn vừa hoàn trả về quán</div>
+        <div class="destination-row">
+          <span>📍</span>
+          <div><b>Giao đến: Khách hàng An Nguyễn</b> - 104 Hai Bà Trưng, Q.1</div>
+        </div>
+        <button class="btn-accept-order" onclick="acceptExtraOrder('${orderToCancel.replace('ORD_OISHI_', '')}', 'An Nguyễn - 104 Hai Bà Trưng, Q.1', 25000)">
+          <span>🛵</span>
+          <span>NHẬN LẠI ĐƠN NÀY</span>
+        </button>
+      `;
+      pendingWrap.prepend(returnedCard);
+    }
+
+    // ĐỒNG BỘ THEO QUY TẮC: Nấu xong -> Đang giao thì Tài xế mới nhận đơn được!
+    function syncDriverOrderFlow() {
+      const orders = JSON.parse(localStorage.getItem('oishi_orders') || '[]');
+      const order88291 = orders.find(o => o.id === 'ORD_OISHI_88291');
+
+      const cardActive = document.getElementById('cardOrder88291');
+      const pendingWrap = document.getElementById('pendingOrdersWrap');
+
+      // Nếu quán chưa nấu xong (COOKING hoặc NEW):
+      if (!order88291 || order88291.status === 'COOKING' || order88291.status === 'NEW') {
+        // Tài xế CHƯA được nhận đơn này
+        if (cardActive) cardActive.style.display = 'none';
+
+        let pCard = document.getElementById('pendingOrder88291');
+        if (!pCard) {
+          pCard = document.createElement('div');
+          pCard.className = 'pending-order-card';
+          pCard.id = 'pendingOrder88291';
+          pCard.style.border = '1.5px solid #FDE68A';
+          pCard.style.background = '#FFFBEB';
+          pendingWrap.prepend(pCard);
+        }
+
+        pCard.innerHTML = `
+          <div class="pending-top">
+            <div>
+              <span style="font-weight:800; font-size:13.5px;">#ORD_OISHI_88291</span>
+              <span style="font-size:10.5px; font-weight:700; background:#FEF3C7; color:#B45309; padding:2px 7px; border-radius:4px; margin-left:6px;">🍳 Quán đang nấu</span>
+            </div>
+            <span class="earning-pill">+25.000 đ</span>
+          </div>
+          <div class="dish-brief">1x Trà Ô Long, 1x Trà Ngô Gia • Khách: An Nguyễn</div>
+          <div class="destination-row">
+            <span>📍</span>
+            <div><b>Giao đến: An Nguyễn</b> - 104 Hai Bà Trưng, P. Đa Kao, Q.1 (6.2 km)</div>
+          </div>
+          <button class="btn-accept-order" style="background:#CBD5E1; color:#64748B; cursor:not-allowed; box-shadow:none;" onclick="alert('Đơn này quán đang nấu món, chưa nấu xong nên tài xế chưa thể nhận đơn. Vui lòng chờ quán bấm Xác nhận đã nấu xong!')">
+            <span>⏳</span>
+            <span>CHỜ QUÁN NẤU XONG MỚI ĐƯỢC NHẬN</span>
+          </button>
+        `;
+
+        document.getElementById('countActive').innerText = '0 đơn';
+        document.getElementById('lblActiveBadge').innerText = '0 đơn';
+      } else if (order88291.status === 'DELIVERING' || order88291.status === 'COOKED') {
+        // Quán đã xác nhận ĐÃ NẤU XONG -> Chuyển sang Đang Giao -> Tài xế được nhận đơn / đang giao đơn!
+        let pCard = document.getElementById('pendingOrder88291');
+        if (pCard) pCard.remove();
+
+        if (cardActive) {
+          cardActive.style.display = 'block';
+          const tag = cardActive.querySelector('.tag-status-delivering');
+          if (tag) tag.innerText = 'Đã nấu xong • Đang giao';
+        }
+
+        document.getElementById('countActive').innerText = '1 đơn';
+        document.getElementById('lblActiveBadge').innerText = '1 đơn';
+      }
+    }
+
+    window.addEventListener('storage', syncDriverOrderFlow);
+    syncDriverOrderFlow();
+  </script>
+
+</body>
+</html>

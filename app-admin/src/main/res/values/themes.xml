@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.FoodOrder.Admin" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_variant</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorSecondary">@color/secondary</item>
+        <item name="colorOnSecondary">@color/on_secondary</item>
+        <item name="android:statusBarColor">@color/admin_navy</item>
+        <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">@color/background</item>
+
+        <!-- Độ tương phản cao chống trùng màu nền giao diện Admin -->
+        <item name="colorSurface">@color/white</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="editTextColor">@color/text_primary</item>
+        <item name="android:editTextColor">@color/text_primary</item>
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+
+        <!-- Kiểu dáng mặc định TextInputLayout trong Admin -->
+        <item name="textInputStyle">@style/Widget.FoodOrder.Admin.TextInputLayout</item>
+    </style>
+
+    <style name="Widget.FoodOrder.Admin.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/white</item>
+        <item name="boxStrokeColor">@color/primary</item>
+        <item name="hintTextColor">@color/primary</item>
+        <item name="android:textColorHint">@color/text_secondary</item>
+    </style>
+</resources>

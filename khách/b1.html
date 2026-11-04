@@ -1,0 +1,1817 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Trang Chủ Đặt Món</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --star: #FFB800;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    /* Khung giả lập Smartphone */
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: var(--primary); color: #FFF;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 20px; font-size: 11px; font-weight: 600;
+    }
+
+    /* Header Bar Oishi Food */
+    .header-bar {
+      background: var(--primary); padding: 10px 16px 14px 16px; color: #FFF;
+    }
+    .brand-row {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+    }
+    .brand-left {
+      display: flex; align-items: center; gap: 8px; text-decoration: none; color: #FFF;
+    }
+    .brand-logo {
+      width: 32px; height: 32px; background: #FFF; color: var(--primary);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    .location-badge {
+      display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
+      background: rgba(255, 255, 255, 0.18); padding: 4px 10px; border-radius: 99px;
+    }
+
+    .search-box {
+      background: #FFF; border-radius: 10px; display: flex; align-items: center;
+      padding: 9px 12px; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-top: 4px;
+    }
+    .search-box input {
+      border: none; outline: none; width: 100%; font-size: 13px; color: var(--text);
+    }
+
+    /* Nội dung cuộn chính */
+    .main-content {
+      flex: 1; overflow-y: auto; padding: 14px 14px 90px 14px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    /* Banner Carousel */
+    .banner {
+      background: linear-gradient(135deg, #FF6933, #EE4D2D);
+      border-radius: 14px; padding: 16px; color: #FFF;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 4px 12px rgba(238, 77, 45, 0.25);
+    }
+    .banner h2 { font-size: 16px; font-weight: 800; }
+    .banner p { font-size: 11px; opacity: 0.9; margin-top: 4px; }
+    .banner-badge { background: #FFD21E; color: #000; font-weight: 700; font-size: 10px; padding: 3px 8px; border-radius: 4px; }
+
+    /* Danh mục icon món ăn */
+    .categories {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      background: #FFF; padding: 14px 10px; border-radius: 14px; border: 1px solid var(--border);
+    }
+    .cat-item { text-align: center; cursor: pointer; text-decoration: none; }
+    .cat-icon {
+      width: 44px; height: 44px; background: #FFF5F1; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 6px auto; font-size: 20px;
+      transition: transform 0.15s;
+    }
+    .cat-item:hover .cat-icon { transform: scale(1.08); }
+    .cat-name { font-size: 11px; font-weight: 600; color: #333; }
+
+    /* Flash Deal Widget */
+    .deal-box {
+      background: #FFF; border-radius: 14px; padding: 12px 14px; border: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .deal-left h4 { font-size: 13px; font-weight: 800; color: #B91C1C; display: flex; align-items: center; gap: 6px; }
+    .deal-left p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .deal-timer {
+      background: #FEF2F2; color: #B91C1C; font-family: monospace; font-size: 12px;
+      font-weight: 800; padding: 4px 8px; border-radius: 6px; border: 1px solid #FECACA;
+    }
+
+    /* Danh sách quán ăn nổi bật */
+    .section-title {
+      font-size: 14.5px; font-weight: 800; display: flex; justify-content: space-between; align-items: center;
+    }
+    .shop-list { display: flex; flex-direction: column; gap: 10px; }
+    .shop-card {
+      background: #FFF; border-radius: 14px; padding: 12px; display: flex; gap: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04); border: 1px solid var(--border);
+      text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.15s;
+    }
+    .shop-card:active { transform: scale(0.98); }
+    .shop-img {
+      width: 76px; height: 76px; border-radius: 10px; background: #F1F5F9;
+      display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0;
+      position: relative;
+    }
+    .shop-badge-promo {
+      position: absolute; top: -4px; left: -4px; background: var(--primary); color: #FFF;
+      font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px;
+    }
+    .shop-info { flex: 1; }
+    .shop-name { font-size: 13.5px; font-weight: 800; color: var(--text); }
+    .shop-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .shop-tags { display: flex; gap: 6px; margin-top: 6px; }
+    .tag-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+    .tag-green { background: #ECFDF5; color: var(--green); border: 1px solid #A7F3D0; }
+    .tag-orange { background: #FFF0ED; color: var(--primary); }
+
+    /* Thanh Bottom Navigation chuẩn Mobile App */
+    .bottom-nav {
+      height: 58px; background: #FFFFFF; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around; align-items: center;
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600;
+      gap: 3px; position: relative; width: 25%;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 18px; line-height: 1; }
+    .nav-badge {
+      position: absolute; top: -2px; right: 26px; background: var(--primary); color: #FFF;
+      font-size: 9px; font-weight: 700; border-radius: 99px; padding: 1px 5px;
+    }
+  
+    
+    /* --- CARD MÓN ĂN TRỰC TIẾP TRÊN TRANG CHỦ --- */
+    .dish-food-card {
+      background: #FFF; border-radius: 14px; padding: 12px; display: flex; gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04); border: 1px solid var(--border);
+      text-decoration: none; color: inherit; cursor: pointer; transition: all 0.15s ease;
+      align-items: center; position: relative;
+    }
+    .dish-food-card:hover {
+      border-color: #CBD5E1; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .dish-food-card:active { transform: scale(0.99); }
+    
+    .dish-food-img {
+      width: 78px; height: 78px; border-radius: 12px; background: #FFF5F2;
+      display: flex; align-items: center; justify-content: center; font-size: 36px;
+      flex-shrink: 0; position: relative;
+    }
+    .dish-badge-promo {
+      position: absolute; top: -4px; left: -4px; background: var(--primary); color: #FFF;
+      font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 4px;
+    }
+
+    .dish-food-info { flex: 1; min-width: 0; }
+    .dish-food-name {
+      font-size: 13.5px; font-weight: 800; color: var(--text); line-height: 1.35;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dish-food-price-row {
+      display: flex; align-items: baseline; gap: 6px; margin-top: 3px;
+    }
+    .dish-food-price {
+      font-size: 14px; font-weight: 800; color: var(--primary);
+    }
+    .dish-food-old-price {
+      font-size: 11px; color: #94A3B8; text-decoration: line-through; font-weight: 600;
+    }
+
+    .dish-store-line {
+      font-size: 11px; color: #64748B; margin-top: 2px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px;
+    }
+    .dish-food-meta {
+      font-size: 10.5px; color: #64748B; margin-top: 3px; display: flex; align-items: center; gap: 4px;
+    }
+    .dish-rating { font-weight: 700; color: #D97706; }
+    
+    .dish-tags-row { display: flex; gap: 5px; margin-top: 4px; flex-wrap: wrap; }
+    
+    .btn-dish-add {
+      width: 32px; height: 32px; background: linear-gradient(135deg, #FF6933, #EE4D2D);
+      color: #FFF; border: none; border-radius: 8px; font-size: 18px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      flex-shrink: 0; box-shadow: 0 3px 8px rgba(238, 77, 45, 0.35); transition: transform 0.15s;
+    }
+    .btn-dish-add:hover { transform: scale(1.08); }
+    .btn-dish-add:active { transform: scale(0.92); }
+
+    
+    /* --- NÚT VÀ MODAL: CÁC QUÁN GẦN ĐÂY --- */
+    .brand-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px; gap: 6px;
+    }
+    .btn-nearby-header {
+      background: rgba(255, 255, 255, 0.22); color: #FFF; border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 99px; padding: 4px 10px; font-size: 11px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+      backdrop-filter: blur(6px); transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .btn-nearby-header:hover {
+      background: #FFF; color: var(--primary); transform: translateY(-1px);
+    }
+    .btn-nearby-header:active { transform: scale(0.96); }
+    
+    .nearby-pulse-dot {
+      width: 7px; height: 7px; background: #4ADE80; border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.4); animation: pulseGreen 1.5s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulseGreen {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.35); }
+    }
+
+    /* Modal hiển thị quán gần đây */
+    .nearby-modal-backdrop {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);
+      z-index: 100; display: none; justify-content: flex-end; flex-direction: column;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .nearby-modal-backdrop.open { display: flex; }
+
+    .nearby-bottom-sheet {
+      background: #FFF; border-radius: 24px 24px 0 0; max-height: 85%;
+      display: flex; flex-direction: column; box-shadow: 0 -10px 30px rgba(0,0,0,0.25);
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .current-loc-badge {
+      background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 10px;
+      padding: 8px 12px; margin: 4px 18px 8px 18px; display: flex;
+      justify-content: space-between; align-items: center; font-size: 11px;
+      color: #1E40AF;
+    }
+    .gps-active {
+      font-size: 10px; font-weight: 800; background: #DBEAFE; color: #1D4ED8;
+      padding: 2px 6px; border-radius: 4px;
+    }
+
+    .nearby-stores-scroll {
+      padding: 6px 18px 14px 18px; overflow-y: auto; display: flex;
+      flex-direction: column; gap: 8px; max-height: 480px;
+    }
+
+    .nearby-store-card {
+      background: #F8FAFC; border: 1.5px solid var(--border); border-radius: 12px;
+      padding: 10px 12px; display: flex; gap: 10px; align-items: center;
+      text-decoration: none; color: inherit; transition: all 0.18s; cursor: pointer;
+    }
+    .nearby-store-card:hover {
+      border-color: var(--primary); background: #FFF; transform: translateY(-1px);
+    }
+
+    .nearby-store-icon {
+      width: 46px; height: 46px; border-radius: 10px; background: #FFF;
+      border: 1px solid var(--border); display: flex; align-items: center;
+      justify-content: center; font-size: 24px; flex-shrink: 0;
+    }
+    .nearby-store-info { flex: 1; min-width: 0; }
+    .nearby-store-title {
+      font-size: 13px; font-weight: 800; color: #1E293B; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+    }
+    .nearby-store-sub {
+      font-size: 11px; color: #64748B; margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .nearby-store-tags {
+      display: flex; gap: 6px; margin-top: 4px; align-items: center;
+    }
+    .dist-badge {
+      font-size: 10px; font-weight: 800; color: #047857; background: #ECFDF5;
+      padding: 1px 6px; border-radius: 4px; border: 1px solid #A7F3D0;
+    }
+    .eta-badge {
+      font-size: 10px; font-weight: 700; color: #B45309; background: #FEF3C7;
+      padding: 1px 6px; border-radius: 4px;
+    }
+
+    .btn-enter-store {
+      width: 28px; height: 28px; border-radius: 50%; background: #F1F5F9;
+      color: var(--primary); display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 800; border: none; flex-shrink: 0;
+    }
+    .nearby-store-card:hover .btn-enter-store {
+      background: var(--primary); color: #FFF;
+    }
+
+    .nearby-sheet-footer {
+      padding: 10px 18px 14px 18px; border-top: 1px solid #F1F5F9; background: #FFF;
+    }
+    .btn-nearby-filter-apply {
+      width: 100%; background: linear-gradient(135deg, #10B981, #059669); color: #FFF;
+      border: none; padding: 11px; border-radius: 10px; font-size: 12.5px; font-weight: 800;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); transition: all 0.2s;
+    }
+    .btn-nearby-filter-apply:hover { opacity: 0.95; transform: translateY(-1px); }
+
+    /* --- BỘ LỌC NÂNG CAO (ADVANCED FILTER SYSTEM) --- */
+    .filter-header-bar {
+      margin: 2px 0 6px 0;
+    }
+    .filter-scroll-row {
+      display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 8px 2px;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .filter-scroll-row::-webkit-scrollbar { display: none; }
+
+    .btn-filter-toggle {
+      background: #FFF; color: var(--primary); border: 1.5px solid var(--primary);
+      border-radius: 20px; padding: 6px 12px; font-size: 11.5px; font-weight: 800;
+      display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      white-space: nowrap; flex-shrink: 0; box-shadow: 0 2px 6px rgba(238, 77, 45, 0.15);
+      transition: all 0.2s ease;
+    }
+    .btn-filter-toggle:hover {
+      background: var(--primary); color: #FFF;
+    }
+    .btn-filter-toggle.active {
+      background: linear-gradient(135deg, #EE4D2D, #D73211); color: #FFF;
+      box-shadow: 0 3px 10px rgba(238, 77, 45, 0.35);
+    }
+    .filter-badge {
+      background: var(--primary); color: #FFF; font-size: 10px; font-weight: 800;
+      width: 18px; height: 18px; border-radius: 50%; display: inline-flex;
+      align-items: center; justify-content: center;
+    }
+    .btn-filter-toggle.active .filter-badge {
+      background: #FFF; color: var(--primary);
+    }
+
+    .quick-chip {
+      background: #FFF; color: #475569; border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 12px; font-size: 11.5px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+      white-space: nowrap; flex-shrink: 0; transition: all 0.2s;
+    }
+    .quick-chip:hover { border-color: #CBD5E1; color: #1E293B; }
+    .quick-chip.active {
+      background: #FFF0ED; color: var(--primary); border-color: var(--primary);
+      font-weight: 800; box-shadow: 0 1px 4px rgba(238, 77, 45, 0.2);
+    }
+
+    /* Active filter display indicator */
+    .active-filter-indicator {
+      background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 10px;
+      padding: 8px 12px; display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 6px; animation: fadeIn 0.2s ease-in-out;
+    }
+    .indicator-text {
+      font-size: 11.5px; color: #1E40AF; font-weight: 600; display: flex; align-items: center; gap: 6px;
+    }
+    .btn-clear-filter {
+      background: none; border: none; color: #EF4444; font-size: 11px;
+      font-weight: 800; cursor: pointer; text-decoration: underline; padding: 2px 4px;
+    }
+
+    /* Modal Bottom Sheet */
+    .filter-modal-backdrop {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);
+      z-index: 99; display: none; justify-content: flex-end; flex-direction: column;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .filter-modal-backdrop.open { display: flex; }
+
+    .filter-bottom-sheet {
+      background: #FFF; border-radius: 24px 24px 0 0; max-height: 85%;
+      display: flex; flex-direction: column; box-shadow: 0 -10px 30px rgba(0,0,0,0.25);
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .sheet-handle-bar {
+      width: 42px; height: 4px; background: #CBD5E1; border-radius: 99px;
+      margin: 10px auto 4px auto;
+    }
+    .sheet-header {
+      padding: 10px 18px 14px 18px; display: flex; justify-content: space-between;
+      align-items: center; border-bottom: 1px solid #F1F5F9;
+    }
+    .sheet-title {
+      font-size: 16px; font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 8px;
+    }
+    .btn-close-sheet {
+      width: 30px; height: 30px; border-radius: 50%; border: none;
+      background: #F1F5F9; color: #64748B; font-size: 14px; font-weight: 800;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .btn-close-sheet:hover { background: #E2E8F0; color: #0F172A; }
+
+    .sheet-body {
+      padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px;
+    }
+    .filter-group-title {
+      font-size: 12px; font-weight: 800; color: #1E293B; margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.3px;
+    }
+    .filter-group-value {
+      font-size: 11px; font-weight: 700; color: var(--primary);
+    }
+
+    /* 2 Textbox Lọc Giá Chuyên Dụng */
+    .price-input-row {
+      display: flex; align-items: center; gap: 8px; margin-top: 6px;
+    }
+    .price-input-col {
+      flex: 1; display: flex; flex-direction: column; gap: 4px;
+    }
+    .price-input-title {
+      font-size: 11px; font-weight: 700; color: #64748B;
+    }
+    .price-input-wrapper {
+      background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 12px;
+      padding: 9px 12px; display: flex; align-items: center; gap: 6px;
+      transition: all 0.2s; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .price-input-wrapper:focus-within {
+      border-color: var(--primary); background: #FFF;
+      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.15);
+    }
+    .price-input-wrapper input {
+      border: none; outline: none; background: transparent; width: 100%;
+      font-size: 13.5px; font-weight: 800; color: #1E293B; font-family: inherit;
+    }
+    .price-input-wrapper input::placeholder {
+      color: #94A3B8; font-weight: 500; font-size: 12px;
+    }
+    .price-currency-unit {
+      font-size: 12px; font-weight: 800; color: var(--primary); flex-shrink: 0;
+    }
+    .price-range-hyphen {
+      font-size: 18px; font-weight: 800; color: #94A3B8; padding-top: 18px;
+    }
+    .price-guide-text {
+      font-size: 10.5px; color: #64748B; margin-top: 6px; display: flex; align-items: center; gap: 4px;
+    }
+
+    
+    /* Bộ lọc Rating: Thanh kéo 2 đầu có khoảng */
+    .rating-range-card {
+      background: #F8FAFC;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 14px;
+      padding: 12px 14px 12px 14px;
+      margin-top: 6px;
+    }
+    .rating-display-boxes {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .rating-value-chip {
+      flex: 1;
+      background: #FFFFFF;
+      border: 1.5px solid #CBD5E1;
+      border-radius: 10px;
+      padding: 7px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      transition: all 0.2s;
+    }
+    .rating-value-chip.min-chip {
+      border-left: 3.5px solid #F59E0B;
+    }
+    .rating-value-chip.max-chip {
+      border-left: 3.5px solid #EE4D2D;
+    }
+    .rating-chip-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #64748B;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .rating-chip-val {
+      font-size: 16px;
+      font-weight: 800;
+      color: #1E293B;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin-top: 2px;
+    }
+    .rating-chip-star {
+      color: #F59E0B;
+      font-size: 14px;
+    }
+    .rating-range-arrow {
+      font-size: 14px;
+      font-weight: 800;
+      color: #94A3B8;
+    }
+
+    /* Dual Range Slider Container */
+    .dual-slider-wrapper {
+      position: relative;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      margin: 6px 4px 2px 4px;
+    }
+    .slider-track {
+      position: absolute;
+      width: 100%;
+      height: 8px;
+      background: #E2E8F0;
+      border-radius: 99px;
+      pointer-events: none;
+    }
+    .slider-highlight {
+      position: absolute;
+      height: 8px;
+      background: linear-gradient(90deg, #F59E0B, #EE4D2D);
+      border-radius: 99px;
+      pointer-events: none;
+      z-index: 1;
+      box-shadow: 0 1px 4px rgba(238, 77, 45, 0.25);
+      transition: left 0.05s ease-out, width 0.05s ease-out;
+    }
+
+    /* Range inputs lồng nhau */
+    .dual-slider-wrapper input[type="range"] {
+      position: absolute;
+      width: 100%;
+      height: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      left: 0;
+      margin: 0;
+      pointer-events: none;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      outline: none;
+    }
+
+    /* WebKit Thumb */
+    .dual-slider-wrapper input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      pointer-events: auto;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      border: 3px solid #EE4D2D;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+      cursor: grab;
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .dual-slider-wrapper input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 3px 8px rgba(238, 77, 45, 0.35);
+    }
+    .dual-slider-wrapper input[type="range"]::-webkit-slider-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.22);
+      border-color: #D73211;
+      box-shadow: 0 0 0 6px rgba(238, 77, 45, 0.2);
+    }
+
+    /* Firefox Thumb */
+    .dual-slider-wrapper input[type="range"]::-moz-range-thumb {
+      pointer-events: auto;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      border: 3px solid #EE4D2D;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+      cursor: grab;
+    }
+    .dual-slider-wrapper input[type="range"]::-moz-range-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.22);
+      border-color: #D73211;
+      box-shadow: 0 0 0 6px rgba(238, 77, 45, 0.2);
+    }
+
+    /* Ticks & Labels */
+    .slider-ticks-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 2px;
+      margin-top: 2px;
+      user-select: none;
+    }
+    .tick-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748B;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .tick-label:hover {
+      color: #EE4D2D;
+      background: #FFF0ED;
+    }
+
+    /* Options grid for price & rating */
+    .filter-options-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+    }
+    .filter-pill-card {
+      background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px;
+      padding: 10px 12px; cursor: pointer; transition: all 0.18s; display: flex;
+      flex-direction: column; gap: 2px;
+    }
+    .filter-pill-card:hover { border-color: #94A3B8; background: #FFF; }
+    .filter-pill-card.active {
+      background: #FFF5F2; border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary);
+    }
+    .pill-card-title {
+      font-size: 12px; font-weight: 800; color: #1E293B; display: flex; align-items: center; gap: 4px;
+    }
+    .filter-pill-card.active .pill-card-title { color: var(--primary); }
+    .pill-card-desc {
+      font-size: 10px; color: #64748B; font-weight: 500;
+    }
+
+    /* Star pills */
+    .rating-row-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    }
+    .rating-pill-card {
+      background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 10px;
+      padding: 8px 4px; text-align: center; cursor: pointer; transition: all 0.18s;
+    }
+    .rating-pill-card:hover { border-color: #94A3B8; }
+    .rating-pill-card.active {
+      background: #FFF9E6; border-color: #F59E0B; box-shadow: 0 0 0 1px #F59E0B;
+    }
+    .rating-pill-stars { font-size: 11px; line-height: 1; margin-bottom: 3px; }
+    .rating-pill-val { font-size: 11px; font-weight: 800; color: #1E293B; }
+    .rating-pill-card.active .rating-pill-val { color: #B45309; }
+
+    /* Checkbox pills */
+    .checkbox-pills-wrap {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .custom-check-chip {
+      background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 20px;
+      padding: 6px 12px; font-size: 11px; font-weight: 700; color: #334155;
+      display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      user-select: none; transition: all 0.18s;
+    }
+    .custom-check-chip input { display: none; }
+    .custom-check-chip.checked {
+      background: #ECFDF5; border-color: #10B981; color: #047857; font-weight: 800;
+    }
+
+    /* Sort row */
+    .sort-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    }
+    .btn-sort {
+      background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+      padding: 7px 4px; font-size: 10.5px; font-weight: 700; color: #475569;
+      text-align: center; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-sort.active {
+      background: #1E293B; color: #FFF; border-color: #1E293B;
+    }
+
+    /* Sheet Footer actions */
+    .sheet-footer {
+      padding: 12px 18px; border-top: 1px solid #F1F5F9; display: flex; gap: 10px;
+      background: #FFF;
+    }
+    .btn-sheet-reset {
+      flex: 1; background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1;
+      padding: 11px; border-radius: 10px; font-size: 12.5px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 6px; transition: all 0.2s;
+    }
+    .btn-sheet-reset:hover { background: #E2E8F0; color: #0F172A; }
+    .btn-sheet-apply {
+      flex: 2; background: linear-gradient(135deg, #FF6933, #EE4D2D); color: #FFF;
+      border: none; padding: 11px; border-radius: 10px; font-size: 13px; font-weight: 800;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 6px; box-shadow: 0 4px 12px rgba(238, 77, 45, 0.3); transition: all 0.2s;
+    }
+    .btn-sheet-apply:hover { opacity: 0.95; transform: translateY(-1px); }
+
+    /* Price range badge on shop card */
+    .shop-price-tag {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px;
+      font-weight: 700; color: #D97706; background: #FEF3C7; padding: 2px 7px;
+      border-radius: 4px; margin-top: 5px;
+    }
+    .empty-state {
+      text-align: center; padding: 36px 16px; background: #FFF; border-radius: 14px;
+      border: 1px dashed #CBD5E1; margin: 10px 0;
+    }
+    .empty-state-icon { font-size: 40px; margin-bottom: 8px; }
+    .empty-state h4 { font-size: 14px; font-weight: 800; color: #1E293B; margin-bottom: 4px; }
+    .empty-state p { font-size: 11.5px; color: #64748B; margin-bottom: 12px; }
+
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>09:42</span>
+      <span>📶 5G 🔋 100%</span>
+    </div>
+
+    <!-- Header Oishi Food -->
+    <div class="header-bar">
+      <div class="brand-row">
+        <a href="b1.html" class="brand-left">
+          <div class="brand-logo">🍲</div>
+          <span class="brand-name">Oishi Food</span>
+        </a>
+        
+        <!-- BUTTON Ở GIỮA CHỮ OISHI FOOD VÀ ĐỊA CHỈ: BẤM VÀO HIỆN CÁC QUÁN GẦN ĐÂY -->
+        <button class="btn-nearby-header" id="btn-nearby-trigger" onclick="openNearbyModal()" title="Xem các quán ăn gần đây">
+          <span class="nearby-pulse-dot"></span>
+          <span>📍 Quán Gần Đây</span>
+        </button>
+
+        <div class="location-badge" onclick="openNearbyModal()" style="cursor: pointer;">
+          <span>📍 Q.1, TP.HCM ▾</span>
+        </div>
+      </div>
+
+      <div class="search-box">
+        <span>🔍</span>
+        <input type="text" placeholder="Tìm món ngon, quán ăn tại TP.HCM..." onclick="window.location.href='b4.html'">
+      </div>
+    </div>
+
+    <!-- Scroll Content -->
+    <div class="main-content">
+      <!-- Banner Ưu đãi -->
+      <div class="banner">
+        <div>
+          <span class="banner-badge">Freeship Extra</span>
+          <h2>ĐẠI TIỆC 0 ĐỒNG</h2>
+          <p>Mỗi quán 1 giỏ riêng • Giao nhanh nội thành</p>
+        </div>
+        <div style="font-size: 38px;">🍔</div>
+      </div>
+
+      <!-- Categories Icon Grid -->
+      <div class="categories">
+        <a href="b4.html" class="cat-item">
+          <div class="cat-icon">🍚</div>
+          <span class="cat-name">Cơm Trưa</span>
+        </a>
+        <a href="b5.html" class="cat-item">
+          <div class="cat-icon">🧋</div>
+          <span class="cat-name">Trà Sữa</span>
+        </a>
+        <a href="b4.html" class="cat-item">
+          <div class="cat-icon">🍜</div>
+          <span class="cat-name">Bún/Phở</span>
+        </a>
+        <a href="b4.html" class="cat-item">
+          <div class="cat-icon">🍗</div>
+          <span class="cat-name">Gà Rán</span>
+        </a>
+      </div>
+
+      <!-- Flash Deal Widget -->
+      <div class="deal-box">
+        <div class="deal-left">
+          <h4>⚡ FLASH SALE GIỜ VÀNG</h4>
+          <p>Giảm tới 50% các quán trà sữa, ăn vặt</p>
+        </div>
+        <div class="deal-timer" id="timer">01:45:20</div>
+      </div>
+
+      <!-- BỘ LỌC NÂNG CAO & THANH LỌC NHANH -->
+      <div class="filter-header-bar">
+        <div class="filter-scroll-row">
+          <button class="btn-filter-toggle" id="btn-filter-toggle" onclick="openFilterModal()">
+            <span>⚙️ Bộ Lọc (Giá & Sao)</span>
+            <span class="filter-badge" id="filter-badge" style="display:none;">0</span>
+          </button>
+          <button class="quick-chip" id="chip-rate-5" onclick="toggleQuickRating(5, this)">⭐ 5 Sao</button>
+          <button class="quick-chip" id="chip-rate-4" onclick="toggleQuickRating(4, this)">⭐ 4 Sao+</button>
+          <button class="quick-chip" id="chip-rate-3" onclick="toggleQuickRating(3, this)">⭐ 3 Sao+</button>
+        </div>
+      </div>
+
+      <!-- Active Filter Indicator Banner -->
+      <div class="active-filter-indicator" id="active-filter-indicator" style="display:none;">
+        <div class="indicator-text" id="indicator-text">
+          <span>🔍</span>
+          <span id="indicator-summary">Đang lọc kết quả...</span>
+        </div>
+        <button class="btn-clear-filter" onclick="resetFilters()">✕ Xóa lọc</button>
+      </div>
+
+      <!-- Danh Sách Quán Nổi Bật (Có hỗ trợ Bộ lọc giá & số sao) -->
+      <div class="section-title">
+        <span id="section-title-text">Món ngon đề xuất cho bạn</span>
+        <span id="store-count-badge" style="font-size: 11.5px; color: var(--text-muted); font-weight: 600;">(8 quán)</span>
+      </div>
+
+      <div class="shop-list" id="shop-list-container">
+        <!-- Quán 1: Hồng Trà Ngô Gia (Quán demo trung tâm) -->
+        <a href="b5.html" class="shop-card">
+          <div class="shop-img">
+            🧋
+            <span class="shop-badge-promo">-50%</span>
+          </div>
+          <div class="shop-info">
+            <h3 class="shop-name">Hồng Trà Ngô Gia - 28 Tô Vĩnh Diện</h3>
+            <p class="shop-meta">⭐ 4.8 (500+) • 1.2 km • TP. Thủ Đức</p>
+            <div class="shop-tags">
+              <span class="tag-badge tag-green">Đang Mở Cửa</span>
+              <span class="tag-badge tag-orange">Shipper Quán Giao</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- Quán 2: Cơm Tấm Ba Ghiền -->
+        <a href="b5.html" class="shop-card">
+          <div class="shop-img">🍛</div>
+          <div class="shop-info">
+            <h3 class="shop-name">Cơm Tấm Sườn Ba Ghiền</h3>
+            <p class="shop-meta">⭐ 4.8 (1.2k) • 2.5 km • Phú Nhuận</p>
+            <div class="shop-tags">
+              <span class="tag-badge tag-green">Đang Mở Cửa</span>
+              <span class="tag-badge tag-orange">Món Nóng Hổi</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- Quán 3: Phúc Long -->
+        <a href="b5.html" class="shop-card">
+          <div class="shop-img">🍵</div>
+          <div class="shop-info">
+            <h3 class="shop-name">Phúc Long Tea & Coffee - Huỳnh Thúc Kháng</h3>
+            <p class="shop-meta">⭐ 4.9 (800+) • 0.8 km • Quận 1</p>
+            <div class="shop-tags">
+              <span class="tag-badge tag-green">Freeship 15k</span>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+
+
+    
+    <!-- MODAL HIỂN THỊ CÁC QUÁN ĂN GẦN ĐÂY -->
+    <div class="nearby-modal-backdrop" id="nearby-modal-backdrop" onclick="closeNearbyModal(event)">
+      <div class="nearby-bottom-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <div class="sheet-title">
+            <span>📍</span>
+            <span>Các Quán Ăn Gần Bạn Nhất</span>
+          </div>
+          <button class="btn-close-sheet" onclick="closeNearbyModal()">✕</button>
+        </div>
+
+        <div class="current-loc-badge">
+          <span>📡 Vị trí hiện tại: <b>Phường Đa Kao, Quận 1, TP.HCM</b></span>
+          <span class="gps-active">Đang Bật GPS</span>
+        </div>
+
+        <div class="nearby-stores-scroll" id="nearby-stores-container">
+          <!-- Rendered via JavaScript -->
+        </div>
+
+        <div class="nearby-sheet-footer">
+          <button class="btn-nearby-filter-apply" onclick="filterByNearbyStores()">
+            <span>⚡ Chỉ Lọc Món Các Quán Gần (&lt; 1.5 km)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL / BOTTOM SHEET: BỘ LỌC NÂNG CAO OISHI FOOD -->
+    <div class="filter-modal-backdrop" id="filter-modal-backdrop" onclick="closeFilterModal(event)">
+      <div class="filter-bottom-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle-bar"></div>
+        <div class="sheet-header">
+          <div class="sheet-title">
+            <span>⚙️</span>
+            <span>Bộ Lọc Nâng Cao Oishi Food</span>
+          </div>
+          <button class="btn-close-sheet" onclick="closeFilterModal()">✕</button>
+        </div>
+
+        <div class="sheet-body">
+          <!-- 1. Lọc theo Mức Giá (2 Textbox: Giá từ - Giá đến) -->
+          <div class="filter-group">
+            <div class="filter-group-title">
+              <span>💰 KHOẢNG GIÁ MÓN ĂN (NHẬP SỐ TIỀN VNĐ)</span>
+              <span class="filter-group-value" id="val-price-text">Tất cả giá</span>
+            </div>
+            
+            <div class="price-input-row">
+              <div class="price-input-col">
+                <span class="price-input-title">Từ giá (Tối thiểu):</span>
+                <div class="price-input-wrapper">
+                  <input type="number" id="txt-min-price" placeholder="VD: 25000" min="0" step="5000" oninput="onPriceInputChange()">
+                  <span class="price-currency-unit">đ</span>
+                </div>
+              </div>
+              
+              <div class="price-range-hyphen">—</div>
+              
+              <div class="price-input-col">
+                <span class="price-input-title">Đến giá (Tối đa):</span>
+                <div class="price-input-wrapper">
+                  <input type="number" id="txt-max-price" placeholder="VD: 75000" min="0" step="5000" oninput="onPriceInputChange()">
+                  <span class="price-currency-unit">đ</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="price-guide-text">
+              <span>💡</span>
+              <span>Nhập 2 ô giá (VNĐ) để lọc quán có thực đơn trong tầm giá</span>
+            </div>
+          </div>
+
+          <!-- 2. Lọc theo Đánh Giá (Thanh kéo 2 đầu có khoảng từ 1.0 đến 5.0 sao) -->
+          <div class="filter-group" style="margin-top: 10px;">
+            <div class="filter-group-title">
+              <span>⭐ ĐÁNH GIÁ CỦA QUÁN (KHOẢNG SAO)</span>
+              <span class="filter-group-value" id="val-rating-text">1.0★ - 5.0★ (Tất cả)</span>
+            </div>
+            
+            <div class="rating-range-card">
+              <!-- 2 Hộp Hiển Thị Giá Trị Đầu Min & Đầu Max -->
+              <div class="rating-display-boxes">
+                <div class="rating-value-chip min-chip">
+                  <span class="rating-chip-label">Tối thiểu</span>
+                  <span class="rating-chip-val"><span id="disp-rating-min">1.0</span> <span class="rating-chip-star">★</span></span>
+                </div>
+                <div class="rating-range-arrow">➜</div>
+                <div class="rating-value-chip max-chip">
+                  <span class="rating-chip-label">Tối đa</span>
+                  <span class="rating-chip-val"><span id="disp-rating-max">5.0</span> <span class="rating-chip-star">★</span></span>
+                </div>
+              </div>
+
+              <!-- Thanh Trượt Kéo 2 Đầu (Dual Range Slider) -->
+              <div class="dual-slider-wrapper">
+                <div class="slider-track"></div>
+                <div class="slider-highlight" id="rating-slider-highlight"></div>
+                <input type="range" id="range-rating-min" min="1.0" max="5.0" step="0.1" value="1.0" oninput="onRatingRangeInput('min')">
+                <input type="range" id="range-rating-max" min="1.0" max="5.0" step="0.1" value="5.0" oninput="onRatingRangeInput('max')">
+              </div>
+
+              <!-- Thước đo mốc sao 1★ -> 5★ (Click vào để nhảy mốc) -->
+              <div class="slider-ticks-row">
+                <span class="tick-label" onclick="setRatingRange(1.0, null)">1.0★</span>
+                <span class="tick-label" onclick="setRatingRange(2.0, null)">2.0★</span>
+                <span class="tick-label" onclick="setRatingRange(3.0, null)">3.0★</span>
+                <span class="tick-label" onclick="setRatingRange(4.0, null)">4.0★</span>
+                <span class="tick-label" onclick="setRatingRange(null, 5.0)">5.0★</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="sheet-footer">
+          <button class="btn-sheet-reset" onclick="resetFilters()">
+            <span>🔄 Đặt lại</span>
+          </button>
+          <button class="btn-sheet-apply" onclick="applyModalFilters()">
+            <span id="btn-apply-modal-text">Áp dụng bộ lọc</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thanh Bottom Navigation -->
+    <nav class="bottom-nav">
+      <a href="b1.html" class="nav-item active">
+        <span class="nav-icon">🏠</span>
+        <span>Trang chủ</span>
+      </a>
+      <a href="b3.html" class="nav-item">
+        <span class="nav-icon">🧾</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="b10.html" class="nav-item">
+        <span class="nav-icon">🔔</span>
+        <span class="nav-badge">2</span>
+        <span>Thông báo</span>
+      </a>
+      <a href="b11.html" class="nav-item">
+        <span class="nav-icon">👤</span>
+        <span>Tôi</span>
+      </a>
+    </nav>
+  </div>
+
+
+  <script>
+    
+    // --- DANH SÁCH QUÁN ĂN ĐỊNH VỊ THEO CỰ LY GPS GẦN ĐÂY ---
+    const NEARBY_STORES_DATA = [
+      {
+        id: 1,
+        name: "Phúc Long Tea & Coffee - Huỳnh Thúc Kháng",
+        address: "63 Huỳnh Thúc Kháng, Bến Nghé, Quận 1",
+        distance: 0.8,
+        eta: "12-15 phút",
+        icon: "🍵",
+        rating: 4.9,
+        reviews: "800+ đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Freeship 15k", "Thương Hiệu Nổi Tiếng"],
+        url: "b5.html"
+      },
+      {
+        id: 2,
+        name: "Lẩu & Nướng Haidilao Express - Bitexco",
+        address: "Tầng 2, Bitexco Financial Tower, Quận 1",
+        distance: 0.9,
+        eta: "15-18 phút",
+        icon: "🍲",
+        rating: 4.9,
+        reviews: "1.5k đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Chuẩn 5 Sao", "Tặng Nước"],
+        url: "b5.html"
+      },
+      {
+        id: 3,
+        name: "Hồng Trà Ngô Gia - 28 Tô Vĩnh Diện",
+        address: "28 Tô Vĩnh Diện, Linh Chiểu, TP. Thủ Đức",
+        distance: 1.2,
+        eta: "18-20 phút",
+        icon: "🧋",
+        rating: 4.8,
+        reviews: "500+ đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Shipper Quán Giao", "Giảm 50%"],
+        url: "b5.html"
+      },
+      {
+        id: 4,
+        name: "Bún Bò Huế Đông Ba - Nguyễn Du",
+        address: "110A Nguyễn Du, Bến Thành, Quận 1",
+        distance: 1.5,
+        eta: "20-22 phút",
+        icon: "🍜",
+        rating: 4.7,
+        reviews: "640+ đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Gia Truyền", "Giảm 15k"],
+        url: "b5.html"
+      },
+      {
+        id: 5,
+        name: "Gà Rán Giòn Cay Popeyes - Hai Bà Trưng",
+        address: "67-69 Hai Bà Trưng, Phường 6, Quận 3",
+        distance: 1.6,
+        eta: "22-25 phút",
+        icon: "🍗",
+        rating: 4.6,
+        reviews: "720+ đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Combo Tiết Kiệm", "Giảm 30%"],
+        url: "b5.html"
+      },
+      {
+        id: 6,
+        name: "Bánh Tráng Trộn Cô Gánh - Ăn Vặt",
+        address: "124/8 Lý Thường Kiệt, Phường 7, Quận 10",
+        distance: 1.8,
+        eta: "22-25 phút",
+        icon: "🍢",
+        rating: 4.3,
+        reviews: "320+ đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Giá Học Sinh", "Đồng giá 20k"],
+        url: "b5.html"
+      },
+      {
+        id: 7,
+        name: "Bánh Mì Chảo Cô 3 - Hoàng Hoa Thám",
+        address: "45 Hoàng Hoa Thám, Phường 6, Bình Thạnh",
+        distance: 2.1,
+        eta: "25-28 phút",
+        icon: "🥖",
+        rating: 4.5,
+        reviews: "410+ đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Nóng Giòn", "Giao 20p"],
+        url: "b5.html"
+      },
+      {
+        id: 8,
+        name: "Cơm Tấm Sườn Ba Ghiền",
+        address: "84 Đặng Văn Ngữ, Phường 10, Phú Nhuận",
+        distance: 2.5,
+        eta: "28-30 phút",
+        icon: "🍛",
+        rating: 4.8,
+        reviews: "1.2k đánh giá",
+        status: "Đang mở cửa",
+        tags: ["Sườn Nướng Than", "Món Nóng"],
+        url: "b5.html"
+      }
+    ];
+
+    // --- MỞ & ĐÓNG MODAL QUÁN GẦN ĐÂY ---
+    function openNearbyModal() {
+      renderNearbyStores();
+      document.getElementById('nearby-modal-backdrop').classList.add('open');
+    }
+
+    function closeNearbyModal(e) {
+      if (e && e.target !== document.getElementById('nearby-modal-backdrop') && !e.target.classList.contains('btn-close-sheet')) {
+        return;
+      }
+      document.getElementById('nearby-modal-backdrop').classList.remove('open');
+    }
+
+    function renderNearbyStores() {
+      const container = document.getElementById('nearby-stores-container');
+      container.innerHTML = NEARBY_STORES_DATA.map(store => `
+        <a href="${store.url}" class="nearby-store-card">
+          <div class="nearby-store-icon">${store.icon}</div>
+          <div class="nearby-store-info">
+            <h4 class="nearby-store-title">${store.name}</h4>
+            <div class="nearby-store-sub">📍 ${store.address}</div>
+            <div class="nearby-store-tags">
+              <span class="dist-badge">📍 ${store.distance} km</span>
+              <span class="eta-badge">⏱ ${store.eta}</span>
+              <span style="font-size: 10.5px; font-weight: 700; color: #F59E0B;">⭐ ${store.rating}</span>
+            </div>
+          </div>
+          <div class="btn-enter-store" title="Xem thực đơn quán">›</div>
+        </a>
+      `).join('');
+    }
+
+    // Lọc nhanh danh sách món ở trang chủ theo các quán gần (< 1.5 km)
+    function filterByNearbyStores() {
+      closeNearbyModal();
+      // Lọc các món có cự ly <= 1.5 km
+      const nearbyDishes = DISHES_DATA.filter(d => d.distance <= 1.5);
+      const container = document.getElementById('shop-list-container');
+      const countBadge = document.getElementById('store-count-badge');
+      if (countBadge) countBadge.textContent = `(${nearbyDishes.length} món gần)`;
+
+      // Cập nhật banner thông báo
+      const indicator = document.getElementById('active-filter-indicator');
+      const summary = document.getElementById('indicator-summary');
+      if (indicator && summary) {
+        summary.textContent = `Đang lọc: 📍 Các quán gần nhất (< 1.5 km)`;
+        indicator.style.display = 'flex';
+      }
+
+      container.innerHTML = nearbyDishes.map(dish => `
+        <a href="${dish.url}" class="dish-food-card">
+          <div class="dish-food-img">
+            ${dish.icon}
+            ${dish.promo ? `<span class="dish-badge-promo">${dish.promo}</span>` : ''}
+          </div>
+          <div class="dish-food-info">
+            <h3 class="dish-food-name">${dish.name}</h3>
+            <div class="dish-food-price-row">
+              <span class="dish-food-price">${dish.price.toLocaleString('vi-VN')}đ</span>
+              ${dish.originalPrice ? `<span class="dish-food-old-price">${dish.originalPrice.toLocaleString('vi-VN')}đ</span>` : ''}
+            </div>
+            <div class="dish-store-line">
+              <span>🏪 ${dish.storeName}</span>
+            </div>
+            <div class="dish-food-meta">
+              <span class="dish-rating">⭐ ${dish.rating} (${dish.soldCount})</span>
+              <span style="color: #047857; font-weight: 700;">• 📍 ${dish.distance} km (Gần bạn)</span>
+            </div>
+            <div class="dish-tags-row">
+              ${dish.tags.map(t => `<span class="tag-badge ${t.cls}">${t.text}</span>`).join('')}
+            </div>
+          </div>
+          <button class="btn-dish-add" title="Chọn món & tùy biến topping" onclick="event.preventDefault(); window.location.href='${dish.url}'">
+            <span>+</span>
+          </button>
+        </a>
+      `).join('');
+    }
+
+    // --- DỮ LIỆU CÁC MÓN ĂN (ĐẦY ĐỦ GIÁ TIỀN & SỐ SAO QUÁN) ---
+    const DISHES_DATA = [
+      {
+        id: 1,
+        name: "Hồng Trà Sữa Trân Châu Hoàng Kim",
+        storeName: "Hồng Trà Ngô Gia - 28 Tô Vĩnh Diện",
+        category: "Trà Sữa",
+        icon: "🧋",
+        promo: "-50%",
+        price: 28000,
+        originalPrice: 56000,
+        rating: 4.8,
+        soldCount: "1.2k đã bán",
+        distance: 1.2,
+        district: "TP. Thủ Đức",
+        tags: [{ text: "Bán Chạy Nhất", cls: "tag-orange" }, { text: "Freeship Extra", cls: "tag-green" }],
+        url: "b6.html"
+      },
+      {
+        id: 2,
+        name: "Trà Xí Muội Ô Long Ngô Gia",
+        storeName: "Hồng Trà Ngô Gia - 28 Tô Vĩnh Diện",
+        category: "Trà Sữa",
+        icon: "🍹",
+        promo: "-25%",
+        price: 32000,
+        originalPrice: 42000,
+        rating: 4.8,
+        soldCount: "850 đã bán",
+        distance: 1.2,
+        district: "TP. Thủ Đức",
+        tags: [{ text: "Vị Chua Ngọt Đậm Đà", cls: "tag-orange" }],
+        url: "b6.html"
+      },
+      {
+        id: 3,
+        name: "Cơm Tấm Sườn Cốt Lết Ba Ghiền",
+        storeName: "Cơm Tấm Sườn Ba Ghiền",
+        category: "Cơm Trưa",
+        icon: "🍛",
+        promo: "Giảm 10k",
+        price: 55000,
+        originalPrice: 65000,
+        rating: 4.8,
+        soldCount: "2.4k đã bán",
+        distance: 2.5,
+        district: "Phú Nhuận",
+        tags: [{ text: "Sườn Nướng Than", cls: "tag-orange" }, { text: "Món Nóng Hổi", cls: "tag-green" }],
+        url: "b5.html"
+      },
+      {
+        id: 4,
+        name: "Cơm Tấm Đặc Biệt (Sườn Bì Chả Trứng)",
+        storeName: "Cơm Tấm Sườn Ba Ghiền",
+        category: "Cơm Trưa",
+        icon: "🍱",
+        promo: "Tặng Canh",
+        price: 75000,
+        originalPrice: 85000,
+        rating: 4.8,
+        soldCount: "1.8k đã bán",
+        distance: 2.5,
+        district: "Phú Nhuận",
+        tags: [{ text: "Phần Ăn Đại Bổ", cls: "tag-orange" }],
+        url: "b5.html"
+      },
+      {
+        id: 5,
+        name: "Trà Ô Long Hạt Sen Phúc Long",
+        storeName: "Phúc Long Tea & Coffee - Huỳnh Thúc Kháng",
+        category: "Trà Sữa",
+        icon: "🍵",
+        promo: "Freeship",
+        price: 50000,
+        originalPrice: 55000,
+        rating: 4.9,
+        soldCount: "3.1k đã bán",
+        distance: 0.8,
+        district: "Quận 1",
+        tags: [{ text: "Signature 5 Sao", cls: "tag-green" }, { text: "Hạt Sen Bùi", cls: "tag-orange" }],
+        url: "b5.html"
+      },
+      {
+        id: 6,
+        name: "Trà Đào Cam Sả Đặc Biệt",
+        storeName: "Phúc Long Tea & Coffee - Huỳnh Thúc Kháng",
+        category: "Trà Sữa",
+        icon: "🍑",
+        promo: "Freeship",
+        price: 55000,
+        originalPrice: 60000,
+        rating: 4.9,
+        soldCount: "2.7k đã bán",
+        distance: 0.8,
+        district: "Quận 1",
+        tags: [{ text: "Đào Miếng Giòn", cls: "tag-orange" }],
+        url: "b5.html"
+      },
+      {
+        id: 7,
+        name: "Bún Bò Huế Bắp Bò Nạm Chả Cua",
+        storeName: "Bún Bò Huế Đông Ba - Nguyễn Du",
+        category: "Bún/Phở",
+        icon: "🍜",
+        promo: "Giảm 15k",
+        price: 65000,
+        originalPrice: 80000,
+        rating: 4.7,
+        soldCount: "940 đã bán",
+        distance: 1.5,
+        district: "Quận 1",
+        tags: [{ text: "Nước Dùng Đậm Đà", cls: "tag-orange" }, { text: "Gia Truyền", cls: "tag-green" }],
+        url: "b5.html"
+      },
+      {
+        id: 8,
+        name: "Bánh Tráng Trộn Bò Khô Trứng Cút",
+        storeName: "Bánh Tráng Trộn Cô Gánh - Ăn Vặt Học Sinh",
+        category: "Ăn Vặt",
+        icon: "🍢",
+        promo: "Đồng giá 20k",
+        price: 20000,
+        originalPrice: 25000,
+        rating: 4.3,
+        soldCount: "1.5k đã bán",
+        distance: 1.8,
+        district: "Quận 10",
+        tags: [{ text: "Ăn Vặt Học Sinh", cls: "tag-green" }],
+        url: "b5.html"
+      },
+      {
+        id: 9,
+        name: "Bánh Mì Chảo Xíu Mại Trứng Ốp La",
+        storeName: "Bánh Mì Chảo Cô 3 - Hoàng Hoa Thám",
+        category: "Bánh Mì",
+        icon: "🥖",
+        promo: "-10%",
+        price: 35000,
+        originalPrice: 39000,
+        rating: 4.5,
+        soldCount: "680 đã bán",
+        distance: 2.1,
+        district: "Bình Thạnh",
+        tags: [{ text: "Bánh Mì Nóng Giòn", cls: "tag-orange" }, { text: "Kèm Pa-tê Béo", cls: "tag-green" }],
+        url: "b5.html"
+      },
+      {
+        id: 10,
+        name: "Gà Rán Giòn Cay Miếng Lớn",
+        storeName: "Gà Rán Giòn Cay Popeyes - Hai Bà Trưng",
+        category: "Gà Rán",
+        icon: "🍗",
+        promo: "-30%",
+        price: 42000,
+        originalPrice: 60000,
+        rating: 4.6,
+        soldCount: "1.9k đã bán",
+        distance: 1.6,
+        district: "Quận 3",
+        tags: [{ text: "Da Giòn Rụm", cls: "tag-orange" }],
+        url: "b5.html"
+      },
+      {
+        id: 11,
+        name: "Combo Gà Rán 2 Miếng + Khoai + Nước",
+        storeName: "Gà Rán Giòn Cay Popeyes - Hai Bà Trưng",
+        category: "Gà Rán",
+        icon: "🍟",
+        promo: "Combo Tiết Kiệm",
+        price: 89000,
+        originalPrice: 115000,
+        rating: 4.6,
+        soldCount: "1.1k đã bán",
+        distance: 1.6,
+        district: "Quận 3",
+        tags: [{ text: "Combo No Nê", cls: "tag-green" }],
+        url: "b5.html"
+      },
+      {
+        id: 12,
+        name: "Set Lẩu Nấm & Bò Mỹ Haidilao Express",
+        storeName: "Lẩu & Nướng Haidilao Express - Bitexco",
+        category: "Lẩu",
+        icon: "🍲",
+        promo: "Tặng Trà",
+        price: 135000,
+        originalPrice: 165000,
+        rating: 4.9,
+        soldCount: "1.3k đã bán",
+        distance: 0.9,
+        district: "Quận 1",
+        tags: [{ text: "Chuẩn 5 Sao", cls: "tag-green" }, { text: "Thịt Bò Mỹ", cls: "tag-orange" }],
+        url: "b5.html"
+      }
+    ];
+
+    // --- TRẠNG THÁI BỘ LỌC HIỆN TẠI (2 TEXTBOX GIÁ & THANH KÉO RATING 2 ĐẦU) ---
+    let currentFilter = {
+      minPrice: null,     // Number hoặc null (từ textbox Giá từ)
+      maxPrice: null,     // Number hoặc null (từ textbox Giá đến)
+      minRating: 1.0,     // 1.0 đến 5.0 (Đầu tối thiểu)
+      maxRating: 5.0      // 1.0 đến 5.0 (Đầu tối đa)
+    };
+
+    // Modal Draft State
+    let draftFilter = { ...currentFilter };
+
+    // --- FLASH DEAL COUNTDOWN TIMER CHÂN THỰC ---
+    function initTimer() {
+      let seconds = 1 * 3600 + 45 * 60 + 20;
+      const timerEl = document.getElementById('timer');
+      setInterval(() => {
+        if (seconds > 0) {
+          seconds--;
+          const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+          const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+          const s = String(seconds % 60).padStart(2, '0');
+          if (timerEl) timerEl.textContent = `${h}:${m}:${s}`;
+        }
+      }, 1000);
+    }
+
+    // --- ĐIỀU KHIỂN MODAL BỘ LỌC ---
+    function openFilterModal() {
+      draftFilter = { ...currentFilter };
+      syncModalUI();
+      updateModalPreviewCount();
+      document.getElementById('filter-modal-backdrop').classList.add('open');
+    }
+
+    function closeFilterModal(e) {
+      if (e && e.target !== document.getElementById('filter-modal-backdrop') && !e.target.classList.contains('btn-close-sheet')) {
+        return;
+      }
+      document.getElementById('filter-modal-backdrop').classList.remove('open');
+    }
+
+    // --- XỬ LÝ 2 Ô TEXTBOX NHẬP GIÁ ---
+    function onPriceInputChange() {
+      const minInput = document.getElementById('txt-min-price');
+      const maxInput = document.getElementById('txt-max-price');
+
+      const minVal = minInput.value.trim() !== '' ? Math.max(0, parseInt(minInput.value)) : null;
+      const maxVal = maxInput.value.trim() !== '' ? Math.max(0, parseInt(maxInput.value)) : null;
+
+      draftFilter.minPrice = minVal;
+      draftFilter.maxPrice = maxVal;
+
+      const valPriceText = document.getElementById('val-price-text');
+      if (minVal !== null && maxVal !== null) {
+        valPriceText.textContent = `${minVal.toLocaleString('vi-VN')}đ - ${maxVal.toLocaleString('vi-VN')}đ`;
+      } else if (minVal !== null) {
+        valPriceText.textContent = `Từ ${minVal.toLocaleString('vi-VN')}đ`;
+      } else if (maxVal !== null) {
+        valPriceText.textContent = `Đến ${maxVal.toLocaleString('vi-VN')}đ`;
+      } else {
+        valPriceText.textContent = 'Tất cả giá';
+      }
+
+      updateModalPreviewCount();
+    }
+
+    // --- XỬ LÝ THANH KÉO RATING 2 ĐẦU CÓ KHOẢNG (DUAL RANGE SLIDER) ---
+    function onRatingRangeInput(handle) {
+      const minInput = document.getElementById('range-rating-min');
+      const maxInput = document.getElementById('range-rating-max');
+
+      let minVal = parseFloat(minInput.value);
+      let maxVal = parseFloat(maxInput.value);
+
+      if (handle === 'min') {
+        if (minVal > maxVal) {
+          minVal = maxVal;
+          minInput.value = minVal;
+        }
+        minInput.style.zIndex = '4';
+        maxInput.style.zIndex = '3';
+      } else {
+        if (maxVal < minVal) {
+          maxVal = minVal;
+          maxInput.value = maxVal;
+        }
+        maxInput.style.zIndex = '4';
+        minInput.style.zIndex = '3';
+      }
+
+      draftFilter.minRating = Math.round(minVal * 10) / 10;
+      draftFilter.maxRating = Math.round(maxVal * 10) / 10;
+
+      updateRatingUI();
+      updateModalPreviewCount();
+    }
+
+    // Gán khoảng sao trực tiếp từ thước đo hoặc nút gợi ý
+    function setRatingRange(minR, maxR) {
+      const minInput = document.getElementById('range-rating-min');
+      const maxInput = document.getElementById('range-rating-max');
+
+      if (minR !== null && minR !== undefined) {
+        draftFilter.minRating = Math.round(minR * 10) / 10;
+        if (minInput) minInput.value = draftFilter.minRating;
+      }
+      if (maxR !== null && maxR !== undefined) {
+        draftFilter.maxRating = Math.round(maxR * 10) / 10;
+        if (maxInput) maxInput.value = draftFilter.maxRating;
+      }
+
+      // Đảm bảo min <= max
+      if (draftFilter.minRating > draftFilter.maxRating) {
+        if (minR !== null) {
+          draftFilter.maxRating = draftFilter.minRating;
+          if (maxInput) maxInput.value = draftFilter.maxRating;
+        } else {
+          draftFilter.minRating = draftFilter.maxRating;
+          if (minInput) minInput.value = draftFilter.minRating;
+        }
+      }
+
+      updateRatingUI();
+      updateModalPreviewCount();
+    }
+
+    function updateRatingUI() {
+      const minVal = (draftFilter.minRating !== null && draftFilter.minRating !== undefined) ? draftFilter.minRating : 1.0;
+      const maxVal = (draftFilter.maxRating !== null && draftFilter.maxRating !== undefined) ? draftFilter.maxRating : 5.0;
+
+      // Cập nhật track highlight
+      const minPercent = ((minVal - 1.0) / (5.0 - 1.0)) * 100;
+      const maxPercent = ((maxVal - 1.0) / (5.0 - 1.0)) * 100;
+
+      const highlight = document.getElementById('rating-slider-highlight');
+      if (highlight) {
+        highlight.style.left = `${minPercent}%`;
+        highlight.style.width = `${Math.max(0, maxPercent - minPercent)}%`;
+      }
+
+      // Cập nhật 2 ô hiển thị số
+      const dispMin = document.getElementById('disp-rating-min');
+      const dispMax = document.getElementById('disp-rating-max');
+      if (dispMin) dispMin.textContent = minVal.toFixed(1);
+      if (dispMax) dispMax.textContent = maxVal.toFixed(1);
+
+      // Cập nhật text tóm tắt ở title
+      const valRatingText = document.getElementById('val-rating-text');
+      if (valRatingText) {
+        if (minVal <= 1.0 && maxVal >= 5.0) {
+          valRatingText.textContent = '1.0★ - 5.0★ (Tất cả)';
+        } else if (minVal === maxVal) {
+          valRatingText.textContent = `Đúng ${minVal.toFixed(1)}★`;
+        } else {
+          valRatingText.textContent = `${minVal.toFixed(1)}★ - ${maxVal.toFixed(1)}★`;
+        }
+      }
+    }
+
+    function syncModalUI() {
+      // 1. Sync 2 Textboxes Giá
+      const minInput = document.getElementById('txt-min-price');
+      const maxInput = document.getElementById('txt-max-price');
+      if (minInput) minInput.value = draftFilter.minPrice !== null ? draftFilter.minPrice : '';
+      if (maxInput) maxInput.value = draftFilter.maxPrice !== null ? draftFilter.maxPrice : '';
+
+      const valPriceText = document.getElementById('val-price-text');
+      if (valPriceText) {
+        if (draftFilter.minPrice !== null && draftFilter.maxPrice !== null) {
+          valPriceText.textContent = `${draftFilter.minPrice.toLocaleString('vi-VN')}đ - ${draftFilter.maxPrice.toLocaleString('vi-VN')}đ`;
+        } else if (draftFilter.minPrice !== null) {
+          valPriceText.textContent = `Từ ${draftFilter.minPrice.toLocaleString('vi-VN')}đ`;
+        } else if (draftFilter.maxPrice !== null) {
+          valPriceText.textContent = `Đến ${draftFilter.maxPrice.toLocaleString('vi-VN')}đ`;
+        } else {
+          valPriceText.textContent = 'Tất cả giá';
+        }
+      }
+
+      // 2. Sync Thanh Kéo Rating 2 Đầu
+      const minRange = document.getElementById('range-rating-min');
+      const maxRange = document.getElementById('range-rating-max');
+      if (minRange) minRange.value = (draftFilter.minRating !== null && draftFilter.minRating !== undefined) ? draftFilter.minRating : 1.0;
+      if (maxRange) maxRange.value = (draftFilter.maxRating !== null && draftFilter.maxRating !== undefined) ? draftFilter.maxRating : 5.0;
+
+      updateRatingUI();
+    }
+
+    // --- LỌC MÓN ĂN THEO GIÁ (2 TEXTBOX) & KHOẢNG SAO (THANH KÉO 2 ĐẦU) ---
+    function filterDishes(filterObj) {
+      return DISHES_DATA.filter(dish => {
+        // 1. Lọc theo 2 Textbox Giá (Min - Max) của Món Ăn
+        if (filterObj.minPrice !== null && filterObj.minPrice > 0) {
+          if (dish.price < filterObj.minPrice) return false;
+        }
+        if (filterObj.maxPrice !== null && filterObj.maxPrice > 0) {
+          if (dish.price > filterObj.maxPrice) return false;
+        }
+
+        // 2. Lọc theo Khoảng Số Sao (Thanh kéo 2 đầu có khoảng)
+        const minR = (filterObj.minRating !== null && filterObj.minRating !== undefined) ? filterObj.minRating : 1.0;
+        const maxR = (filterObj.maxRating !== null && filterObj.maxRating !== undefined) ? filterObj.maxRating : 5.0;
+
+        if (minR > 1.0 || maxR < 5.0) {
+          if (dish.rating < (minR - 0.001) || dish.rating > (maxR + 0.001)) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    }
+
+    function updateModalPreviewCount() {
+      const matched = filterDishes(draftFilter);
+      const applyBtn = document.getElementById('btn-apply-modal-text');
+      if (applyBtn) {
+        applyBtn.textContent = `Áp dụng (${matched.length} món phù hợp)`;
+      }
+    }
+
+    function applyModalFilters() {
+      currentFilter = { ...draftFilter };
+      document.getElementById('filter-modal-backdrop').classList.remove('open');
+      renderCurrentFilteredList();
+      syncQuickChipsUI();
+    }
+
+    // --- QUICK CHIPS TRÊN THANH LỌC NHANH TRANG CHỦ ---
+    function toggleQuickRating(starNum, btn) {
+      let targetMin = 1.0;
+      let targetMax = 5.0;
+
+      if (starNum === 5) {
+        targetMin = 4.8;
+      } else if (starNum === 4) {
+        targetMin = 4.0;
+      } else if (starNum === 3) {
+        targetMin = 3.0;
+      }
+
+      // Nếu đang chọn đúng khoảng này thì click lần nữa sẽ hủy (về Tất cả)
+      if (Math.abs(currentFilter.minRating - targetMin) < 0.05 && Math.abs(currentFilter.maxRating - 5.0) < 0.05) {
+        currentFilter.minRating = 1.0;
+        currentFilter.maxRating = 5.0;
+      } else {
+        currentFilter.minRating = targetMin;
+        currentFilter.maxRating = targetMax;
+      }
+
+      draftFilter = { ...currentFilter };
+      syncModalUI();
+      renderCurrentFilteredList();
+      syncQuickChipsUI();
+    }
+
+    function resetFilters() {
+      currentFilter = {
+        minPrice: null,
+        maxPrice: null,
+        minRating: 1.0,
+        maxRating: 5.0
+      };
+      draftFilter = { ...currentFilter };
+      syncModalUI();
+      syncQuickChipsUI();
+      renderCurrentFilteredList();
+      if (document.getElementById('filter-modal-backdrop').classList.contains('open')) {
+        document.getElementById('filter-modal-backdrop').classList.remove('open');
+      }
+    }
+
+    function syncQuickChipsUI() {
+      const chip5 = document.getElementById('chip-rate-5');
+      if (chip5) chip5.classList.toggle('active', Math.abs(currentFilter.minRating - 4.8) < 0.05 && Math.abs(currentFilter.maxRating - 5.0) < 0.05);
+
+      const chip4 = document.getElementById('chip-rate-4');
+      if (chip4) chip4.classList.toggle('active', Math.abs(currentFilter.minRating - 4.0) < 0.05 && Math.abs(currentFilter.maxRating - 5.0) < 0.05);
+
+      const chip3 = document.getElementById('chip-rate-3');
+      if (chip3) chip3.classList.toggle('active', Math.abs(currentFilter.minRating - 3.0) < 0.05 && Math.abs(currentFilter.maxRating - 5.0) < 0.05);
+
+      // Main Filter Toggle Button Badge
+      let activeCount = 0;
+      if (currentFilter.minPrice !== null || currentFilter.maxPrice !== null) activeCount++;
+      if (currentFilter.minRating > 1.0 || currentFilter.maxRating < 5.0) activeCount++;
+
+      const btnToggle = document.getElementById('btn-filter-toggle');
+      const badge = document.getElementById('filter-badge');
+      if (badge && btnToggle) {
+        if (activeCount > 0) {
+          badge.textContent = activeCount;
+          badge.style.display = 'inline-flex';
+          btnToggle.classList.add('active');
+        } else {
+          badge.style.display = 'none';
+          btnToggle.classList.remove('active');
+        }
+      }
+
+      // Active Indicator Banner
+      const indicator = document.getElementById('active-filter-indicator');
+      const summary = document.getElementById('indicator-summary');
+      if (activeCount > 0) {
+        let parts = [];
+        if (currentFilter.minPrice !== null && currentFilter.maxPrice !== null) {
+          parts.push(`💰 Giá món: ${currentFilter.minPrice.toLocaleString('vi-VN')}đ - ${currentFilter.maxPrice.toLocaleString('vi-VN')}đ`);
+        } else if (currentFilter.minPrice !== null) {
+          parts.push(`💰 Giá món: ≥ ${currentFilter.minPrice.toLocaleString('vi-VN')}đ`);
+        } else if (currentFilter.maxPrice !== null) {
+          parts.push(`💰 Giá món: ≤ ${currentFilter.maxPrice.toLocaleString('vi-VN')}đ`);
+        }
+
+        if (currentFilter.minRating > 1.0 || currentFilter.maxRating < 5.0) {
+          if (currentFilter.minRating === currentFilter.maxRating) {
+            parts.push(`⭐ Đánh giá: đúng ${currentFilter.minRating.toFixed(1)}★`);
+          } else {
+            parts.push(`⭐ Đánh giá: ${currentFilter.minRating.toFixed(1)}★ - ${currentFilter.maxRating.toFixed(1)}★`);
+          }
+        }
+
+        summary.textContent = `Đang lọc: ${parts.join(' • ')}`;
+        indicator.style.display = 'flex';
+      } else {
+        indicator.style.display = 'none';
+      }
+    }
+
+    // --- RENDER DANH SÁCH CÁC MÓN ĂN ---
+    function renderCurrentFilteredList() {
+      const dishes = filterDishes(currentFilter);
+      const container = document.getElementById('shop-list-container');
+      const countBadge = document.getElementById('store-count-badge');
+      if (countBadge) countBadge.textContent = `(${dishes.length} món)`;
+
+      if (dishes.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🍲</div>
+            <h4>Không tìm thấy món ăn nào phù hợp</h4>
+            <p>Vui lòng nới khoảng giá hoặc chọn mức sao khác để tìm món ngon.</p>
+            <button class="btn-filter-toggle" style="margin: 0 auto;" onclick="resetFilters()">
+              <span>🔄 Đặt lại bộ lọc</span>
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = dishes.map(dish => `
+        <a href="${dish.url}" class="dish-food-card">
+          <div class="dish-food-img">
+            ${dish.icon}
+            ${dish.promo ? `<span class="dish-badge-promo">${dish.promo}</span>` : ''}
+          </div>
+          <div class="dish-food-info">
+            <h3 class="dish-food-name">${dish.name}</h3>
+            <div class="dish-food-price-row">
+              <span class="dish-food-price">${dish.price.toLocaleString('vi-VN')}đ</span>
+              ${dish.originalPrice ? `<span class="dish-food-old-price">${dish.originalPrice.toLocaleString('vi-VN')}đ</span>` : ''}
+            </div>
+            <div class="dish-store-line">
+              <span>🏪 ${dish.storeName}</span>
+            </div>
+            <div class="dish-food-meta">
+              <span class="dish-rating">⭐ ${dish.rating} (${dish.soldCount})</span>
+              <span>• ${dish.distance} km</span>
+            </div>
+            <div class="dish-tags-row">
+              ${dish.tags.map(t => `<span class="tag-badge ${t.cls}">${t.text}</span>`).join('')}
+            </div>
+          </div>
+          <button class="btn-dish-add" title="Chọn món & tùy biến topping" onclick="event.preventDefault(); window.location.href='${dish.url}'">
+            <span>+</span>
+          </button>
+        </a>
+      `).join('');
+    }
+
+    // Khởi tạo trang
+    document.addEventListener('DOMContentLoaded', () => {
+      initTimer();
+      renderCurrentFilteredList();
+      syncQuickChipsUI();
+    });
+  </script>
+
+</body>
+</html>

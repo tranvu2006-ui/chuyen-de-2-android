@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Tạo Combo Món Ăn</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F4F6F8;
+      --card: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --orange: #F59E0B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    /* Khung điện thoại */
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 28px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    /* Top Navbar */
+    .top-navbar {
+      height: 52px; background: #FFF; padding: 0 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .btn-back-round {
+      width: 32px; height: 32px; border-radius: 50%; background: #F1F5F9;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+      color: #333; text-decoration: none; font-weight: 700;
+    }
+    .nav-title { font-size: 15px; font-weight: 800; color: var(--text); }
+
+    /* Nội dung cuộn */
+    .content {
+      flex: 1; overflow-y: auto; padding: 14px 16px 90px 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    .form-card {
+      background: #FFF; border-radius: 16px; padding: 16px; border: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .card-heading {
+      font-size: 13px; font-weight: 800; color: var(--text); display: flex;
+      align-items: center; justify-content: space-between;
+    }
+
+    .input-group { display: flex; flex-direction: column; gap: 5px; }
+    .input-label { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+    .text-input, .textarea-input {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      font-size: 13px; outline: none; background: #FAFAFA;
+    }
+    .text-input:focus, .textarea-input:focus { border-color: var(--primary); background: #FFF; }
+    .textarea-input { resize: none; height: 60px; }
+
+    /* Checklist chọn món lẻ vào Combo */
+    .food-selection-list { display: flex; flex-direction: column; gap: 8px; }
+    .select-item-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: #FAFAFA; transition: all 0.2s;
+    }
+    .select-item-row.selected {
+      border-color: var(--primary); background: #FFF7F5;
+    }
+    .item-left { display: flex; align-items: center; gap: 10px; }
+    .item-left input[type="checkbox"] { accent-color: var(--primary); width: 18px; height: 18px; cursor: pointer; }
+    .item-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .item-price { font-size: 11px; color: var(--text-muted); }
+
+    .item-qty-control { display: flex; align-items: center; gap: 6px; }
+    .btn-qty {
+      width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border);
+      background: #FFF; font-weight: 800; font-size: 12px; cursor: pointer;
+    }
+    .qty-val { font-size: 12px; font-weight: 800; min-width: 14px; text-align: center; }
+
+    /* Tính toán & Giảm giá */
+    .calc-box {
+      background: #F8FAFC; border-radius: 12px; padding: 12px; border: 1px dashed #CBD5E1;
+      display: flex; flex-direction: column; gap: 8px; font-size: 12px;
+    }
+    .calc-row { display: flex; justify-content: space-between; }
+    .discount-badge {
+      display: inline-block; background: #ECFDF5; color: var(--green);
+      padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 11px;
+    }
+
+    /* Chân màn hình cố định chứa nút Lưu */
+    .bottom-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: #FFF; border-top: 1px solid var(--border); padding: 12px 16px 20px 16px;
+      display: flex; gap: 10px; z-index: 20;
+    }
+    .btn-submit-combo {
+      flex: 1; background: var(--primary); color: #FFF; border: none;
+      border-radius: 12px; padding: 14px 0; font-size: 15px; font-weight: 800;
+      cursor: pointer; text-align: center; box-shadow: 0 4px 12px rgba(238, 77, 45, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>11:00</span>
+      <span>📶 5G 🔋 98%</span>
+    </div>
+
+    <!-- Header Navbar -->
+    <div class="top-navbar">
+      <a href="2.html" class="btn-back-round">←</a>
+      <span class="nav-title">Tạo Gói Combo Món</span>
+      <div style="width: 32px;"></div>
+    </div>
+
+    <!-- Nội dung tạo Combo -->
+    <div class="content">
+      <!-- 1. Thông tin chung -->
+      <div class="form-card">
+        <div class="card-heading">Thông Tin Combo</div>
+        
+        <div class="input-group">
+          <label class="input-label">Tên Combo:</label>
+          <input type="text" class="text-input" id="comboName" value="Combo Đôi Bạn Cùng Tiến (2 Ly Nước)" placeholder="Nhập tên combo...">
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">Mô tả ngắn:</label>
+          <textarea class="textarea-input" id="comboDesc" placeholder="Mô tả ưu đãi của combo...">Tiết kiệm 8.000đ khi gọi chung 2 món signature của Ngô Gia.</textarea>
+        </div>
+      </div>
+
+      <!-- 2. Chọn món lẻ ghép vào combo -->
+      <div class="form-card">
+        <div class="card-heading">
+          <span>Chọn Món Thuộc Combo</span>
+          <span style="font-size: 11px; color: var(--blue); font-weight: 600;">(Đã chọn: <span id="selectedCount">2</span> món)</span>
+        </div>
+
+        <div class="food-selection-list">
+          <!-- Món 1 -->
+          <div class="select-item-row selected" id="row-1">
+            <div class="item-left">
+              <input type="checkbox" id="chk-1" checked onchange="updateCalculations()">
+              <div>
+                <div class="item-title">Trà Xí Muội Ô Long</div>
+                <div class="item-price">Giá gốc: 28.000 đ</div>
+              </div>
+            </div>
+            <div class="item-qty-control">
+              <button class="btn-qty" onclick="changeQty(1, -1)">-</button>
+              <span class="qty-val" id="qty-1">1</span>
+              <button class="btn-qty" onclick="changeQty(1, 1)">+</button>
+            </div>
+          </div>
+
+          <!-- Món 2 -->
+          <div class="select-item-row selected" id="row-2">
+            <div class="item-left">
+              <input type="checkbox" id="chk-2" checked onchange="updateCalculations()">
+              <div>
+                <div class="item-title">Trà Xí Muội Ngô Gia</div>
+                <div class="item-price">Giá gốc: 25.000 đ</div>
+              </div>
+            </div>
+            <div class="item-qty-control">
+              <button class="btn-qty" onclick="changeQty(2, -1)">-</button>
+              <span class="qty-val" id="qty-2">1</span>
+              <button class="btn-qty" onclick="changeQty(2, 1)">+</button>
+            </div>
+          </div>
+
+          <!-- Món 3 -->
+          <div class="select-item-row" id="row-3">
+            <div class="item-left">
+              <input type="checkbox" id="chk-3" onchange="updateCalculations()">
+              <div>
+                <div class="item-title">Trà Sữa Trân Châu Đen</div>
+                <div class="item-price">Giá gốc: 30.000 đ</div>
+              </div>
+            </div>
+            <div class="item-qty-control">
+              <button class="btn-qty" onclick="changeQty(3, -1)">-</button>
+              <span class="qty-val" id="qty-3">1</span>
+              <button class="btn-qty" onclick="changeQty(3, 1)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Thiết lập giá & Khuyến mãi -->
+      <div class="form-card">
+        <div class="card-heading">Định Giá Combo</div>
+
+        <div class="calc-box">
+          <div class="calc-row">
+            <span>Tổng giá trị các món gốc:</span>
+            <b id="txtOriginalPrice">53.000 đ</b>
+          </div>
+          <div class="calc-row">
+            <span>Mức tiết kiệm cho khách:</span>
+            <span class="discount-badge" id="txtDiscountRate">Tiết kiệm 15%</span>
+          </div>
+        </div>
+
+        <div class="input-group" style="margin-top: 6px;">
+          <label class="input-label">Giá Bán Ưu Đãi Của Combo (VNĐ):</label>
+          <input type="number" class="text-input" id="comboSalePrice" value="45000" oninput="updateCalculations()" style="font-size: 16px; font-weight: 800; color: var(--primary);">
+        </div>
+      </div>
+    </div>
+
+    <!-- Nút Tạo Chân Màn Hình -->
+    <div class="bottom-bar">
+      <button class="btn-submit-combo" onclick="saveCombo()">
+        Lưu & Mở Bán Combo
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const itemsData = {
+      1: { price: 28000 },
+      2: { price: 25000 },
+      3: { price: 30000 }
+    };
+
+    function changeQty(id, delta) {
+      const qtyElem = document.getElementById(`qty-${id}`);
+      let qty = parseInt(qtyElem.innerText) + delta;
+      if (qty < 1) qty = 1;
+      qtyElem.innerText = qty;
+      updateCalculations();
+    }
+
+    function updateCalculations() {
+      let originalTotal = 0;
+      let selectedCount = 0;
+
+      for (let id in itemsData) {
+        const isChecked = document.getElementById(`chk-${id}`).checked;
+        const row = document.getElementById(`row-${id}`);
+        
+        if (isChecked) {
+          row.classList.add('selected');
+          selectedCount++;
+          const qty = parseInt(document.getElementById(`qty-${id}`).innerText);
+          originalTotal += itemsData[id].price * qty;
+        } else {
+          row.classList.remove('selected');
+        }
+      }
+
+      document.getElementById('selectedCount').innerText = selectedCount;
+      document.getElementById('txtOriginalPrice').innerText = originalTotal.toLocaleString('vi-VN') + ' đ';
+
+      const salePrice = parseInt(document.getElementById('comboSalePrice').value) || 0;
+      if (originalTotal > 0 && salePrice > 0 && salePrice < originalTotal) {
+        const percent = Math.round(((originalTotal - salePrice) / originalTotal) * 100);
+        document.getElementById('txtDiscountRate').innerText = `Tiết kiệm ${percent}% (${(originalTotal - salePrice).toLocaleString('vi-VN')} đ)`;
+      } else {
+        document.getElementById('txtDiscountRate').innerText = "Không giảm giá";
+      }
+    }
+
+    function saveCombo() {
+      const name = document.getElementById('comboName').value.trim();
+      const salePrice = parseInt(document.getElementById('comboSalePrice').value);
+      const count = parseInt(document.getElementById('selectedCount').innerText);
+
+      if (!name) {
+        alert("Vui lòng nhập tên combo!");
+        return;
+      }
+      if (count < 2) {
+        alert("Một combo cần tối thiểu từ 2 món trở lên!");
+        return;
+      }
+      if (!salePrice || salePrice <= 0) {
+        alert("Vui lòng nhập giá bán hợp lệ cho combo!");
+        return;
+      }
+
+      alert(`Đã lưu và đưa [${name}] với giá ưu đãi ${salePrice.toLocaleString('vi-VN')} đ lên menu bán trực tuyến của quán!`);
+      window.location.href = "2.html";
+    }
+
+    // Khởi chạy tính toán lúc ban đầu
+    updateCalculations();
+  </script>
+
+</body>
+</html>

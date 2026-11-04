@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_rounded"
+    android:orientation="vertical"
+    android:padding="18dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Quét Mã QR Khách Hàng"
+            android:textColor="#0F172A"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/btnCloseScanner"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            android:src="@drawable/ic_close"
+            app:tint="#64748B" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvExpectedOrderInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:text="Đặt camera hướng trực tiếp vào mã QR trên ứng dụng của khách hàng để đối soát đơn."
+        android:textColor="#475569"
+        android:textSize="12sp" />
+
+    <!-- Real Camera Viewfinder Box (ZXing DecoratedBarcodeView) -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="250dp"
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="#0B0F19"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <!-- Camera Preview Thực Tế -->
+            <com.journeyapps.barcodescanner.DecoratedBarcodeView
+                android:id="@+id/barcodeScannerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <!-- Nút Đổi Camera Trước/Sau & Bật Đèn Flash -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="10dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/btnSwitchCamera"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:background="#990F172A"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="5dp"
+                    android:text="Đổi Cam"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnToggleFlash"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="#990F172A"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="5dp"
+                    android:text="Flash"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Khung ngắm mục tiêu QR -->
+            <View
+                android:layout_width="175dp"
+                android:layout_height="175dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_scanner_viewfinder" />
+
+            <!-- Trạng thái Camera thời gian thực -->
+            <TextView
+                android:id="@+id/tvScannerStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:background="#B30F172A"
+                android:fontFamily="monospace"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="7dp"
+                android:text="● Camera đang quét mã QR trên máy khách..."
+                android:textColor="#34D399"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Kết quả nhận diện Token -->
+    <LinearLayout
+        android:id="@+id/boxDetectedToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#F8FAFC"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Trạng thái đối soát mã QR:"
+            android:textColor="#64748B"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/tvDetectedToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:fontFamily="monospace"
+            android:text="⏳ Đang chờ đưa mã QR của khách vào khung ngắm..."
+            android:textColor="#0F172A"
+            android:textSize="12.5sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnOpenLiveCamera"
+        style="@style/Widget.Material3.Button"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="8dp"
+        android:backgroundTint="@color/primary"
+        android:text="Mở Camera Quét Thực Tế"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        app:cornerRadius="10dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPickQrImageDialog"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="10dp"
+        android:text="Chọn Ảnh Mã QR Từ Thư Viện"
+        android:textColor="@color/primary"
+        app:strokeColor="@color/primary"
+        android:textStyle="bold"
+        app:cornerRadius="10dp" />
+
+    <!-- Nhập mã dự phòng nếu màn hình khách bị mờ hoặc thiếu sáng -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/etManualTokenInput"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_badge_duty_off"
+            android:hint="Hoặc nhập mã Token / PIN trên máy khách..."
+            android:imeOptions="actionDone"
+            android:inputType="textCapCharacters"
+            android:paddingHorizontal="12dp"
+            android:singleLine="true"
+            android:textColor="#0F172A"
+            android:textColorHint="#94A3B8"
+            android:textSize="12sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnVerifyManualToken"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingHorizontal="12dp"
+            android:text="Kiểm tra"
+            android:textSize="11.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="8dp" />
+    </LinearLayout>
+
+    <!-- Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCancelScan"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="0.8"
+            android:text="Đóng"
+            android:textColor="#64748B"
+            app:cornerRadius="10dp"
+            app:strokeColor="#CBD5E1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnConfirmScannedToken"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1.2"
+            android:backgroundTint="#10B981"
+            android:text="Khớp &amp; Hoàn Tất"
+            android:textColor="@color/white"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="10dp" />
+    </LinearLayout>
+
+</LinearLayout>

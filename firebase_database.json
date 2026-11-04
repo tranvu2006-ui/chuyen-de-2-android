@@ -1,0 +1,169 @@
+{
+  "roles": {
+    "1": {
+      "roleId": 1,
+      "roleCode": "ADMIN",
+      "roleName": "Quản trị viên",
+      "description": "Toàn quyền quản trị hệ thống, kiểm duyệt quán và xử lý khiếu nại"
+    },
+    "2": {
+      "roleId": 2,
+      "roleCode": "CUSTOMER",
+      "roleName": "Khách hàng",
+      "description": "Người dùng mua đồ ăn, tạo giỏ hàng, đặt đơn và đánh giá món ăn"
+    },
+    "3": {
+      "roleId": 3,
+      "roleCode": "MERCHANT",
+      "roleName": "Chủ cửa hàng",
+      "description": "Quản lý thực đơn, duyệt đơn hàng và điều phối tài xế nội bộ"
+    },
+    "4": {
+      "roleId": 4,
+      "roleCode": "DRIVER",
+      "roleName": "Tài xế giao hàng",
+      "description": "Tài xế nội bộ của quán, nhận đơn, định vị GPS và xác thực QR"
+    }
+  },
+  "user_statuses": {
+    "1": {
+      "statusId": 1,
+      "statusCode": "ACTIVE",
+      "statusName": "Đang hoạt động",
+      "description": "Tài khoản đang trực tuyến và có thể tương tác bình thường"
+    },
+    "2": {
+      "statusId": 2,
+      "statusCode": "INACTIVE",
+      "statusName": "Ngưng hoạt động",
+      "description": "Tài khoản tạm ngừng hoạt động hoặc chưa kích hoạt"
+    },
+    "3": {
+      "statusId": 3,
+      "statusCode": "OFFLINE",
+      "statusName": "Ngoại tuyến",
+      "description": "Tài khoản đã đăng xuất hoặc ở trạng thái nghỉ ca"
+    }
+  },
+  "users": {},
+  "customers": {},
+  "trust_score_logs": {},
+  "drivers": {},
+  "approval_statuses": {
+    "1": {
+      "statusId": 1,
+      "statusCode": "PENDING",
+      "statusName": "Chờ duyệt",
+      "description": "Hồ sơ mới gửi, đang chờ quản trị viên đối chiếu CCCD và cấp phép"
+    },
+    "2": {
+      "statusId": 2,
+      "statusCode": "APPROVED",
+      "statusName": "Đã duyệt",
+      "description": "Hồ sơ hợp lệ, đã được cấp quyền kinh doanh/giao hàng trên nền tảng"
+    },
+    "3": {
+      "statusId": 3,
+      "statusCode": "REJECTED",
+      "statusName": "Từ chối",
+      "description": "Hồ sơ không hợp lệ hoặc thông tin CCCD không trùng khớp"
+    }
+  },
+  "merchants": {},
+  "bank_accounts": {},
+  "store_statuses": {
+    "1": {
+      "statusId": 1,
+      "statusCode": "PENDING",
+      "statusName": "Chờ duyệt",
+      "description": "Gian hàng đang đợi Admin phê duyệt hồ sơ"
+    },
+    "2": {
+      "statusId": 2,
+      "statusCode": "OPEN",
+      "statusName": "Đang mở cửa",
+      "description": "Gian hàng đang nhận đơn đặt từ khách hàng"
+    },
+    "3": {
+      "statusId": 3,
+      "statusCode": "CLOSED",
+      "statusName": "Đang đóng cửa",
+      "description": "Gian hàng tạm nghỉ hoặc hết giờ mở cửa"
+    },
+    "4": {
+      "statusId": 4,
+      "statusCode": "LOCKED",
+      "statusName": "Bị khóa",
+      "description": "Gian hàng bị khóa do chế tài vi phạm"
+    }
+  },
+  "penalty_tiers": {
+    "1": {
+      "tierId": 1,
+      "tierCode": "NONE",
+      "tierName": "Không phạt",
+      "description": "Gian hàng hoạt động bình thường, không có vi phạm"
+    },
+    "2": {
+      "tierId": 2,
+      "tierCode": "WARN",
+      "tierName": "Cảnh cáo",
+      "description": "Nhắc nhở qua thông báo hệ thống về chất lượng dịch vụ"
+    },
+    "3": {
+      "tierId": 3,
+      "tierCode": "HIDE",
+      "tierName": "Ẩn món/quán",
+      "description": "Tạm ẩn gian hàng khỏi trang tìm kiếm 24h"
+    },
+    "4": {
+      "tierId": 4,
+      "tierCode": "LOCK",
+      "tierName": "Khóa quán",
+      "description": "Khóa hoạt động kinh doanh vĩnh viễn hoặc đến khi khắc phục"
+    }
+  },
+  "delivery_time_frames": {
+    "1": {
+      "frameId": 1,
+      "frameCode": "15-25MIN",
+      "displayText": "15-25 phút",
+      "minMinutes": 15,
+      "maxMinutes": 25,
+      "isActive": true
+    },
+    "2": {
+      "frameId": 2,
+      "frameCode": "20-30MIN",
+      "displayText": "20-30 phút",
+      "minMinutes": 20,
+      "maxMinutes": 30,
+      "isActive": true
+    },
+    "3": {
+      "frameId": 3,
+      "frameCode": "25-35MIN",
+      "displayText": "25-35 phút",
+      "minMinutes": 25,
+      "maxMinutes": 35,
+      "isActive": true
+    },
+    "4": {
+      "frameId": 4,
+      "frameCode": "30-45MIN",
+      "displayText": "30-45 phút",
+      "minMinutes": 30,
+      "maxMinutes": 45,
+      "isActive": true
+    }
+  },
+  "restaurants": {},
+  "menus": {},
+  "stores": {},
+  "combos": {},
+  "dish_reviews": {},
+  "orders": {},
+  "tracking": {},
+  "carts": {},
+  "complaints": {}
+}

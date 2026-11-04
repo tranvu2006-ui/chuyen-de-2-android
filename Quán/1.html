@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food Merchant - Đội Ngũ Tài Xế Quán</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F4F6F8;
+      --card: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --green: #10B981;
+      --blue: #2563EB;
+      --orange: #F59E0B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+    .status-bar {
+      height: 28px; background: #FFF; padding: 0 18px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 700; color: #222; border-bottom: 1px solid #F1F5F9;
+    }
+
+    .top-navbar {
+      height: 52px; background: #FFF; padding: 0 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-title { font-size: 15px; font-weight: 800; color: var(--text); }
+    .btn-add-driver {
+      background: #EFF6FF; color: var(--blue); border: 1px solid #BFDBFE;
+      padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer;
+    }
+
+    .content {
+      flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px;
+      padding-bottom: 80px;
+    }
+
+    /* Stat Banner */
+    .stat-banner {
+      background: #FFF; border-radius: 14px; padding: 14px; border: 1px solid var(--border);
+      display: flex; justify-content: space-around; text-align: center;
+    }
+    .stat-box h3 { font-size: 18px; font-weight: 800; color: var(--text); }
+    .stat-box p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Driver Card */
+    .driver-card {
+      background: #FFF; border-radius: 16px; padding: 16px; border: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .driver-head { display: flex; gap: 12px; align-items: center; }
+    .driver-avatar {
+      width: 48px; height: 48px; border-radius: 50%; object-fit: cover;
+      border: 2px solid #E2E8F0;
+    }
+    .driver-meta { flex: 1; }
+    .driver-name-row { display: flex; align-items: center; gap: 6px; }
+    .driver-name { font-size: 14px; font-weight: 800; color: var(--text); }
+    .driver-code {
+      font-size: 10px; font-weight: 800; background: #F1F5F9; color: var(--text-muted);
+      padding: 1px 5px; border-radius: 4px; font-family: monospace;
+    }
+    .driver-phone { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .status-badge {
+      font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+    }
+    .badge-free { background: #ECFDF5; color: var(--green); border: 1px solid #A7F3D0; }
+    .badge-busy { background: #FFF0ED; color: var(--primary); border: 1px solid #FECACA; }
+    .badge-offline { background: #F1F5F9; color: var(--text-muted); border: 1px solid #CBD5E1; }
+
+    .driver-details-list {
+      background: #F8FAFC; border-radius: 10px; padding: 10px 12px; font-size: 11.5px;
+      display: flex; flex-direction: column; gap: 4px; color: #475569;
+    }
+
+    .driver-actions {
+      display: flex; justify-content: space-between; align-items: center; padding-top: 6px;
+    }
+    .btn-call {
+      background: #ECFDF5; color: var(--green); border: 1px solid #A7F3D0;
+      padding: 6px 14px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .btn-assign-quick {
+      background: var(--primary); color: #FFF; border: none;
+      padding: 6px 14px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+      cursor: pointer; text-decoration: none;
+    }
+
+    /* Bottom Nav Quán */
+    .bottom-nav {
+      height: 58px; background: #FFFFFF; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-around; align-items: center;
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-decoration: none; color: var(--text-muted); font-size: 10px; font-weight: 600;
+      gap: 3px; width: 25%;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-icon { font-size: 18px; line-height: 1; }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <div class="status-bar">
+      <span>10:32</span>
+      <span>📶 5G 🔋 98%</span>
+    </div>
+
+    <!-- Top Navbar -->
+    <div class="top-navbar">
+      <div class="nav-title">🛵 Đội Tài Xế Của Quán</div>
+      <button class="btn-add-driver" onclick="alert('Thêm tài xế mới vào danh sách shipper nội bộ quán!')">+ Thêm TX</button>
+    </div>
+
+    <div class="content">
+      <!-- Thống kê nhanh đội xe -->
+      <div class="stat-banner">
+        <div class="stat-box">
+          <h3 style="color: var(--blue);">3</h3>
+          <p>Tổng tài xế</p>
+        </div>
+        <div class="stat-box">
+          <h3 style="color: var(--green);">1</h3>
+          <p>🟢 Đang rảnh</p>
+        </div>
+        <div class="stat-box">
+          <h3 style="color: var(--primary);">1</h3>
+          <p>🚚 Đang giao</p>
+        </div>
+        <div class="stat-box">
+          <h3 style="color: var(--text-muted);">1</h3>
+          <p>⏸️ Nghỉ ca</p>
+        </div>
+      </div>
+
+      <!-- Tài xế 1: Trần Văn Nam (Tài xế chuyên quán chính thức) -->
+      <div class="driver-card">
+        <div class="driver-head">
+          <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80" class="driver-avatar" alt="Avatar">
+          <div class="driver-meta">
+            <div class="driver-name-row">
+              <span class="driver-name">Trần Văn Nam</span>
+              <span class="driver-code">TX-14</span>
+            </div>
+            <div class="driver-phone">📞 0903.882.910</div>
+          </div>
+          <span class="status-badge badge-free">🟢 Đang trực</span>
+        </div>
+
+        <div class="driver-details-list">
+          <div>🏍️ <b>Xe máy:</b> Yamaha Sirius Fi (59-T1 882.91)</div>
+          <div>📦 <b>Đã giao cho quán:</b> 12 đơn hôm nay • 1.240 đơn tổng</div>
+          <div>⭐ <b>Đánh giá uy tín:</b> 4.9 / 5.0 (Tài xế trực thuộc quán)</div>
+        </div>
+
+        <div class="driver-actions">
+          <a href="tel:0903882910" class="btn-call">📞 Liên hệ</a>
+          <span style="font-size: 11px; color: var(--green); font-weight:700; background:#ECFDF5; padding:4px 8px; border-radius:6px; border:1px solid #A7F3D0;">✓ Tự nhận đơn của quán</span>
+        </div>
+      </div>
+
+      <!-- Tài xế 2: Trần Văn Nam -->
+      <div class="driver-card">
+        <div class="driver-head">
+          <img src="https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80" class="driver-avatar" alt="Avatar">
+          <div class="driver-meta">
+            <div class="driver-name-row">
+              <span class="driver-name">Trần Văn Nam</span>
+              <span class="driver-code">TX-14</span>
+            </div>
+            <div class="driver-phone">📞 0909.888.777</div>
+          </div>
+          <span class="status-badge badge-busy">🚚 Đang giao đơn</span>
+        </div>
+
+        <div class="driver-details-list">
+          <div>🏍️ <b>Xe máy:</b> Yamaha Sirius (59-K2 654.32)</div>
+          <div>📦 <b>Đang giao đơn:</b> #ORD_OISHI_88290 (Giao Q.1)</div>
+          <div>⭐ <b>Đánh giá uy tín:</b> 4.8 / 5.0</div>
+        </div>
+
+        <div class="driver-actions">
+          <a href="tel:0909888777" class="btn-call">📞 Liên hệ</a>
+          <span style="font-size: 11px; color: var(--text-muted);">Đang thực hiện cuốc xe</span>
+        </div>
+      </div>
+
+      <!-- Tài xế 3: Lê Hữu Nghĩa -->
+      <div class="driver-card">
+        <div class="driver-head">
+          <img src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=150&auto=format&fit=crop&q=80" class="driver-avatar" alt="Avatar">
+          <div class="driver-meta">
+            <div class="driver-name-row">
+              <span class="driver-name">Lê Hữu Nghĩa</span>
+              <span class="driver-code">TX-08</span>
+            </div>
+            <div class="driver-phone">📞 0918.765.432</div>
+          </div>
+          <span class="status-badge badge-offline">⏸️ Nghỉ ca</span>
+        </div>
+
+        <div class="driver-details-list">
+          <div>🏍️ <b>Xe máy:</b> Honda AirBlade (59-P1 123.89)</div>
+          <div>📦 <b>Đã giao cho quán:</b> 95 đơn hoàn tất</div>
+          <div>⭐ <b>Đánh giá uy tín:</b> 4.9 / 5.0</div>
+        </div>
+
+        <div class="driver-actions">
+          <a href="tel:0918765432" class="btn-call">📞 Liên hệ</a>
+          <span style="font-size: 11px; color: var(--text-muted);">Vào ca lúc 14:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav Quán -->
+    <nav class="bottom-nav">
+      <a href="5.html" class="nav-item">
+        <span class="nav-icon">📋</span>
+        <span>Đơn hàng</span>
+      </a>
+      <a href="2.html" class="nav-item">
+        <span class="nav-icon">🍽️</span>
+        <span>Thực đơn</span>
+      </a>
+      <a href="1.html" class="nav-item active">
+        <span class="nav-icon">🛵</span>
+        <span>Tài xế</span>
+      </a>
+      <a href="7.html" class="nav-item">
+        <span class="nav-icon">📊</span>
+        <span>Báo cáo</span>
+      </a>
+    </nav>
+  </div>
+
+</body>
+</html>

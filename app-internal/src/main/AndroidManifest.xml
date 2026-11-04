@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Foreground Service cho GPS Shipper (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Cho phép kiểm tra và mở ứng dụng Khách hàng (Oishi Customer) -->
+    <queries>
+        <package android:name="com.chuyen_de_2.foodorder.customer" />
+    </queries>
+
+    <application
+        android:name=".FoodOrderInternalApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FoodOrder.Internal">
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="YOUR_MAPS_API_KEY_HERE" />
+
+        <!-- Auth -->
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.auth.RegisterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Phiếu địa chỉ bắt buộc & Xác minh thông tin Quán -->
+        <activity
+            android:name=".ui.auth.StoreVerificationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Màn hình ghim vị trí quán trên bản đồ -->
+        <activity
+            android:name=".ui.auth.SelectLocationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Dashboard (RBAC routing) -->
+        <activity
+            android:name=".ui.dashboard.DashboardActivity"
+            android:theme="@style/Theme.FoodOrder.Internal" />
+
+        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
+        <activity
+            android:name=".ui.ship.DeliveryTripActivity"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
+        <service
+            android:name=".service.LocationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- FCM Service -->
+        <service
+            android:name=".service.InternalFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Tự động đọc thông báo chuyển khoản Ví MoMo / Ngân hàng -->
+        <service
+            android:name=".service.MomoPaymentNotificationListenerService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

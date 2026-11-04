@@ -1,0 +1,385 @@
+1. Executive Summary
+Dự án "Đồ án Ứng dụng Đặt đồ ăn" (Chuyên đề 2 Android) là một hệ thống giao nhận thời gian thực dựa hoàn toàn trên hệ sinh thái Firebase (Serverless) kết hợp Retrofit, triển khai trong thời gian 14 tuần. Hệ thống bao gồm 2 ứng dụng Android riêng biệt: App Khách hàng (tập trung UI/UX mượt mà) và App Nội bộ gộp chung chức năng Shop & Shipper (phân quyền RBAC, ưu tiên ổn định và tính năng GPS chạy ngầm). Việc thiết kế kiến trúc phẳng trên Firebase Realtime DB và loại bỏ hoàn toàn Room Database sẽ giải quyết triệt để bài toán độ trễ, đảm bảo đồng bộ hóa tức thời và tối ưu hóa thời gian phát triển.
+
+2. Phân tích requirement
+Functional requirements
+App Khách hàng: Giao diện Material 3, load dữ liệu menu (Retrofit), quản lý giỏ hàng trực tuyến lưu thẳng Firebase, tiến hành đặt đơn và theo dõi vị trí shipper trên bản đồ realtime.
+
+App Nội bộ (Shop/Shipper - Phân quyền qua Firebase Auth):
+
+Role Shop: Hiển thị đơn hàng tức thì (Kanban), cảnh báo bằng chuông, thao tác gán đơn cho shipper nội bộ.
+
+Role Shipper: Nhận cuốc xe, cập nhật trạng thái đơn, liên tục phát tọa độ GPS ngầm qua Android Foreground Service.
+
+Backend Services (Hybrid):
+
+REST API (qua Retrofit) cung cấp dữ liệu tĩnh: Menu, nhà hàng.
+
+Firebase Cloud Messaging (FCM) đẩy thông báo đẩy.
+
+Firebase Realtime Database xử lý giỏ hàng và trạng thái đơn hàng.
+
+Non-functional requirements
+Latency: Cảnh báo đơn mới < 1.5s; Phản hồi tọa độ GPS < 2s.
+
+Availability: Uptime > 99.9% (Hưởng lợi từ Firebase/Google Cloud).
+
+Performance (UI): Cuộn danh sách món mượt ở 60 FPS; Foreground Service của GPS phải sinh tồn dưới Doze Mode của Android.
+
+Concurrency: Đảm bảo tính nhất quán (ACID-like) khi nhiều người dùng thêm món vào giỏ hoặc 2 quản lý cùng thao tác gán đơn.
+
+Thông tin thiếu / Giả thiết (Gaps)
+Giả thiết 1: Backend REST API đã có sẵn hoặc được nhóm phát triển độc lập và hoàn thiện kịp tiến độ 14 tuần.
+
+Giả thiết 2: Đồ án sử dụng gói Firebase Spark (miễn phí), giới hạn 100 CCU đồng thời, hoặc tài khoản Blaze (đã nâng cấp từ dự án cũ).
+
+Gaps cần bổ sung: Chưa rõ phương thức thanh toán thực tế (hiện giả định 100% COD). Chưa xác nhận yêu cầu in hóa đơn nhiệt phần cứng (ESC/POS).
+
+3. Kiến trúc tổng quan
+Client Tier: 2 ứng dụng Android Native (Kotlin). Sử dụng ConstraintLayout, ViewBinding, ViewModel.
+
+Sync & Realtime Layer: Firebase Realtime Database. Thiết kế NoSQL Flat để lưu trữ Giỏ hàng, Đơn hàng, GPS Tracker.
+
+Backend & Data Layer (Hybrid): Retrofit gọi đến REST API để lấy dữ liệu Danh mục. Firebase Authentication xử lý xác thực (Email/Phone).
+
+Notification Layer: Firebase Cloud Messaging (FCM) tích hợp Cloud Functions để đẩy thông báo.
+
+Third-party Layer: Google Maps Android SDK.
+
+Đảm bảo hệ thống:
+
+Scalability: Đạt được bằng cách tách luồng (Data tĩnh về REST, Data động về Firebase), cùng với thiết kế JSON phẳng trên Firebase.
+
+Security: Quản lý chặt qua Firebase Security Rules (RBAC based).
+
+Observability: Tích hợp Firebase Crashlytics để bắt lỗi văng app, đặc biệt theo dõi trạng thái Foreground Service của Shipper.
+
+4. Data model (Firebase Realtime Database JSON Schema)
+1. users/{userId} (Người dùng chung)
+
+uid: String
+
+role: String ("CUSTOMER", "MANAGER", "SHIPPER")
+
+name: String
+
+status: String ("ACTIVE", "OFFLINE")
+
+2. carts/{userId}/{shopId} (Giỏ hàng)
+
+totalAmount: Number
+
+items (Map):
+
+{itemId}: { "name": String, "price": Number, "quantity": Number }
+
+3. orders/{orderId} (Đơn hàng)
+
+customerId: String
+
+shopId: String
+
+shipperId: String (Nullable)
+
+status: String ("PENDING" | "READY" | "DELIVERING" | "COMPLETED")
+
+total: Number
+
+timestamp: Number
+
+4. tracking/{orderId} (Tọa độ Realtime)
+
+lat: Number
+
+lng: Number
+
+updatedAt: Number
+
+5. API contract
+1. [Retrofit] GET Danh sách món ăn
+
+Path: GET /api/v1/shops/{shopId}/menu
+
+Auth: Bearer Token JWT
+
+Response: { "data": [ {"id": "1", "name": "Cơm sườn", "price": 45000} ] }
+
+2. [Firebase] Cập nhật Giỏ hàng (Client SDK)
+
+Path: PUT carts/{userId}/{shopId} (SDK setValue)
+
+Auth: Firebase Rules: auth.uid == userId
+
+Request: {"totalAmount": 90000, "items": {"1": {"quantity": 2, "price": 45000}}}
+
+3. [Firebase] Tạo Đơn hàng (Client SDK)
+
+Path: POST orders/ (SDK push)
+
+Auth: Phải có Role CUSTOMER
+
+Request: {"shopId": "shop_1", "status": "PENDING", "total": 90000}
+
+4. [Firebase] Gán Đơn hàng (Xử lý Transaction)
+
+Path: POST orders/{orderId}/assign (SDK runTransaction)
+
+Auth: Role MANAGER
+
+Request: {"shipperId": "shipper_xyz"}
+
+5. [Firebase] Lắng nghe GPS (App Khách hàng)
+
+Path: GET tracking/{orderId} (SDK addValueEventListener)
+
+Response: Stream trả về liên tục chuỗi JSON {lat: 10.7, lng: 106.6}
+
+6. [FCM] Đẩy thông báo Push
+
+Path: POST [https://fcm.googleapis.com/fcm/send](https://fcm.googleapis.com/fcm/send) (Hoặc gọi qua HTTP v1)
+
+Payload: {"to": "<token>", "notification": {"title": "Đơn mới!"}}
+
+6. Core algorithm
+Logic Debounce Giỏ hàng & Cập nhật Firebase (Android Kotlin)
+Tránh việc người dùng bấm [+] liên tục làm quá tải số lượt Write (ghi) của Firebase. Thuật toán sử dụng Coroutine Flow để trì hoãn và chỉ đẩy trạng thái cuối cùng lên mạng sau khi thao tác dừng 1.5 giây.
+
+Độ phức tạp Thời gian (Time Complexity): O(1) do thao tác nội bộ trên RAM.
+
+Độ phức tạp Không gian (Space Complexity): O(1) do sử dụng Flow chỉ buffer sự kiện mới nhất.
+
+Kotlin
+class CartViewModel(private val repository: FirebaseRepository) : ViewModel() {
+    private val cartUpdates = MutableSharedFlow<CartPayload>(extraBufferCapacity = 1)
+
+    init {
+        viewModelScope.launch {
+            cartUpdates
+                .debounce(1500L) // Chờ nghỉ 1.5 giây mới thực thi
+                .distinctUntilChanged()
+                .collectLatest { payload ->
+                    repository.syncCartToFirebase(payload)
+                }
+        }
+    }
+
+    // Hàm gọi khi UI bấm [+] hoặc [-]
+    fun changeQuantity(itemId: String, newQty: Int, userId: String) {
+        viewModelScope.launch {
+            // 1. Cập nhật Local UI State để giao diện phản hồi mượt mà ngay lập tức
+            val updatedState = updateLocalUiState(itemId, newQty)
+            
+            // 2. Bắn payload vào Flow, flow sẽ tự động gom các lần click liên tiếp
+            cartUpdates.tryEmit(CartPayload(userId, updatedState))
+        }
+    }
+}
+7. Backlog
+EPIC 1: Foundation (Khởi tạo hệ thống)
+
+TASK-1.1: Dựng 2 Android Project, set up ConstraintLayout, ViewBinding, Retrofit, Hilt DI. [3 PD / 5 SP] (Deps: none)
+
+TASK-1.2: Cấu hình Firebase Auth, Login UI & Thiết lập Firebase Security Rules cơ bản. [5 PD / 8 SP] (Deps: 1.1)
+
+EPIC 2: Customer App (Trải nghiệm khách hàng)
+
+TASK-2.1: Tích hợp Retrofit load Menu vào RecyclerView, thêm animations. [4 PD / 5 SP] (Deps: 1.1)
+
+TASK-2.2: Logic Giỏ hàng Firebase với thuật toán Debounce. [5 PD / 8 SP] (Deps: 1.2, 2.1)
+
+TASK-2.3: Đặt hàng (Checkout) và xem bản đồ Google Maps (Routing). [6 PD / 10 SP] (Deps: 2.2)
+
+EPIC 3: Internal App (Shop/Shipper - Chức năng cốt lõi)
+
+TASK-3.1: UI Dashboard cho Shop, lắng nghe đơn realtime qua Firebase. [5 PD / 8 SP] (Deps: 2.3)
+
+TASK-3.2: Logic gán Shipper bằng Firebase Transaction (Chống xung đột). [3 PD / 5 SP] (Deps: 3.1)
+
+TASK-3.3: Xây dựng Android Foreground Location Service truyền GPS cho Shipper. [7 PD / 13 SP] (Deps: 1.2)
+
+EPIC 4: Notifications (Cảnh báo)
+
+TASK-4.1: Tích hợp FCM Push Data Notification đánh thức App Shop/Shipper. [4 PD / 5 SP] (Deps: 3.1)
+
+8. Roadmap
+Lộ trình 14 Tuần (7 Sprints):
+
+Milestone 1 (Sprint 1-2, Tuần 1-4): Base Setup. Hai ứng dụng kết nối Firebase Auth thành công, điều hướng chuẩn theo Role. Retrofit load được dữ liệu tĩnh từ Backend lên UI.
+
+Milestone 2 (Sprint 3-4, Tuần 5-8): Customer Engine. Luồng khách hàng hoàn tất: Thêm món -> Giỏ hàng realtime -> Nút Đặt đơn bắn dữ liệu thành công lên Firebase.
+
+Milestone 3 (Sprint 5-6, Tuần 9-12): Internal Operations. Hoàn tất App Shop/Shipper. Shop nhận chuông báo và gán đơn. Shipper chạy xe ngoài đường, App khách thấy marker di chuyển.
+
+Milestone 4 (Sprint 7, Tuần 13-14): UAT & Polish. Tối ưu hoá Security Rules, sửa lỗi GPS Doze mode, Build APK nghiệm thu.
+
+9. Ước lượng
+Tổng quy mô dự án cho nhóm 4 thành viên phát triển:
+
+Phát triển Mobile (UI, Maps, Foreground, Retrofit): ~28 Person-days
+
+Tích hợp Firebase (Realtime DB, Rules, FCM, Transaction): ~15 Person-days
+
+Kiểm thử & Khắc phục rủi ro phần cứng: ~10 Person-days
+
+Tổng cộng: ~53 Person-days (~75 Story Points).
+(Khối lượng hoàn toàn khả thi cho một nhóm đồ án đại học trong 14 tuần).
+
+10. Test plan
+Chiến lược: Unit test cho logic Debounce; Integration test cho Retrofit và Firebase JSON parsing; Field Test cho GPS Foreground.
+
+5 Test Cases quan trọng:
+
+Mục tiêu: Kiểm tra thuật toán chống Spam Write.
+
+Input: Bấm tăng số lượng món ăn 15 lần trong 2 giây.
+
+Expected Outcome: Firebase Console chỉ ghi nhận 1 lệnh Write, UI hiển thị số 15 ngay lập tức.
+
+Mục tiêu: Tranh chấp gán đơn (Race condition).
+
+Input: 2 Quản lý thao tác bấm "Gán đơn X cho Shipper Y" lúc t=0.
+
+Expected Outcome: Firebase Transaction cấp lock cho 1 luồng thành công, luồng kia báo lỗi "Xung đột, đơn đã xử lý", DB chỉ có 1 record.
+
+Mục tiêu: Kiểm tra sinh tồn GPS.
+
+Input: Shipper nhận cuốc, khóa màn hình đút túi quần, di chuyển 2km bằng xe máy.
+
+Expected Outcome: Foreground Service không bị Android OS "kill", khách hàng thấy icon di chuyển mượt mà trên bản đồ.
+
+Mục tiêu: Đánh thức thiết bị.
+
+Input: App Shop đã bị vuốt tắt hẳn đa nhiệm, nhận đơn hàng mới.
+
+Expected Outcome: FCM Payload kích hoạt máy tính bảng Shop sáng màn hình, rung và đổ chuông liên tục.
+
+Mục tiêu: Khôi phục kết nối.
+
+Input: Shipper xác nhận "Hoàn thành" lúc ở trong thang máy (mất 4G).
+
+Expected Outcome: Firebase Cache ghi đè offline, UI báo thành công tạm. Khi ra ngoài có 4G, Firebase tự động sync lên Server.
+
+11. Deployment checklist
+API Keys: Ràng buộc (Restrict) Google Maps API Key chỉ hoạt động với SHA-1 của production keystore.
+
+Firebase Check: Triển khai chặt chẽ Security Rules. Xác nhận google-services.json đúng môi trường.
+
+Build Config: Sử dụng Proguard/R8 nhưng phải khai báo @Keep cho mọi Model Data (để không bị lỗi parse JSON Firebase).
+
+Pre-release: Build APK và distribute thử nghiệm nội bộ qua Firebase App Distribution.
+
+Monitoring: Tích hợp Firebase Crashlytics; cấu hình alert gửi email nếu Firebase Rate (lượt Đọc/Ghi) vọt đỉnh.
+
+12. Risks & Mitigations
+Rủi ro: Hệ điều hành Android tự động kill Foreground Service (nhất là Xiaomi, Oppo).
+
+Mitigation: Xin cấp quyền IGNORE_BATTERY_OPTIMIZATIONS, dùng chuông báo notification High Priority, làm UI hướng dẫn khóa app đa nhiệm.
+
+Rủi ro: Hết quota miễn phí Firebase Realtime DB lúc trình diễn Demo.
+
+Mitigation: Xóa định kỳ dữ liệu GPS cũ (/tracking); sử dụng triệt để Debounce. Chuẩn bị sẵn 1$ nạp thẻ để nâng Blaze.
+
+Rủi ro: Sửa lỗi Crash Data Model do Firebase không map được JSON thành Object Kotlin khi bật Proguard.
+
+Mitigation: Khai báo rule -keep class com.yourpackage.models.** { *; } trong proguard-rules.pro.
+
+Rủi ro: Gian lận sửa giá trong quá trình Checkout (Client manipulation).
+
+Mitigation: Viết Firebase Security Rule để so sánh giá tổng tiền gửi lên với giá niêm yết, chặn thao tác write nếu sai lệch logic.
+
+Rủi ro: Mất kết nối Socket ngầm khi App Shop mở liên tục 8 tiếng.
+
+Mitigation: FCM làm kênh liên lạc dự phòng. Khi nhận Data Push, ép client gọi hàm FirebaseDatabase.goOnline() để refresh socket.
+
+13. Trade-offs
+Bài toán: Xử lý giỏ hàng offline (Do loại bỏ Room Database)
+
+Phương án 1 (Firebase Offline Persistence): Bật setPersistenceEnabled(true) ngay trong hàm Application class. Firebase tự cache disk.
+
+Pros: Nhanh, tốn 1 dòng code, giải quyết bài toán ngay lập tức.
+
+Cons: Khó kiểm soát logic cache nếu mất mạng dài hạn hoặc file cache phình to.
+
+Phương án 2 (Tự viết SQLite cục bộ): Tự tạo bảng lưu hứng data Firebase.
+
+Pros: Kiểm soát 100%.
+
+Cons: Vi phạm kiến trúc "bỏ Room", tốn thời gian code lớn.
+
+Phương án 3 (RAM Cache + DataStream): Giao diện chỉ lưu vào StateFlow của RAM. Mất mạng thì mất giỏ.
+
+Pros: Nhẹ app nhất.
+
+Cons: UX kém, người dùng thoát app mất giỏ.
+
+Khuyến nghị: Chọn Phương án 1. Phù hợp tuyệt đối với bài toán thời gian 14 tuần, giải quyết được nhu cầu Offline tạm thời mà không phá vỡ nguyên tắc loại bỏ Room.
+
+14. Deliverables examples
+1) DB Schema / Firebase Security Rules (JSON Schema)
+JSON
+{
+  "rules": {
+    "carts": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId"
+      }
+    },
+    "orders": {
+      ".read": "auth != null",
+      "$orderId": {
+        ".write": "auth != null",
+        "status": {
+          ".validate": "
+             newData.isString() && (
+                 auth.token.role == 'MANAGER' || 
+                 (auth.token.role == 'SHIPPER' && data.parent().child('shipperId').val() == auth.uid)
+             )
+          "
+        }
+      }
+    },
+    "tracking": {
+       ".write": "auth != null && auth.token.role == 'SHIPPER'",
+       ".read": "auth != null" 
+    }
+  }
+}
+2) Sample API Controller (Retrofit Interface)
+Kotlin
+interface RestBackendApi {
+    // Gọi dữ liệu tĩnh (ít thay đổi) qua REST API để giảm tải Firebase
+    @GET("api/v1/restaurants")
+    suspend fun getRestaurants(): Response<List<Restaurant>>
+
+    @GET("api/v1/restaurants/{id}/menu")
+    suspend fun getMenuByRestaurant(
+        @Path("id") shopId: String
+    ): Response<List<MenuItem>>
+}
+3) Sample Pseudocode (Firebase Transaction gán đơn)
+Kotlin
+fun assignShipper(orderId: String, shipperId: String) {
+    val dbRef = FirebaseDatabase.getInstance().getReference("orders").child(orderId)
+    
+    dbRef.runTransaction(object : Transaction.Handler {
+        override fun doTransaction(currentData: MutableData): Transaction.Result {
+            val order = currentData.getValue(Order::class.java) ?: return Transaction.abort()
+
+            // Kỹ thuật Lock: Đơn phải ở trạng thái READY và CHƯA có shipper
+            if (order.status != "READY" || order.shipperId != null) {
+                return Transaction.abort() // Xung đột, người khác đã gán
+            }
+
+            order.shipperId = shipperId
+            order.status = "DELIVERING"
+            currentData.value = order
+            
+            return Transaction.success(currentData)
+        }
+
+        override fun onComplete(error: DatabaseError?, committed: Boolean, snap: DataSnapshot?) {
+            if (committed) showToast("Gán thành công!") else showToast("Lỗi xung đột!")
+        }
+    })
+}

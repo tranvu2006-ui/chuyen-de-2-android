@@ -184,6 +184,23 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    suspend fun requestPhoneOtp(phone: String): Result<Unit> {
+        return try {
+            emailOtpApi.requestPhoneCode(phone)
+            Result.success(Unit)
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
+    suspend fun verifyPhoneOtp(phone: String, code: String): Result<String> {
+        return try {
+            Result.success(emailOtpApi.verifyPhoneCode(phone, code.trim()))
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
     /** Đăng ký tài khoản mới sau khi OTP đã được xác nhận và phân loại theo Actor */
     suspend fun register(
         name: String,
@@ -191,11 +208,16 @@ class AuthRepository @Inject constructor(
         password: String,
         role: String = User.Role.CUSTOMER,
         phone: String = "",
-        verifiedEmail: String
+        verifiedEmail: String,
+        verifiedPhone: String
     ): Result<FirebaseUser> {
         return try {
             if (!verifiedEmail.equals(email.trim(), ignoreCase = true)) {
                 return Result.failure(Exception("Email chưa được xác minh bằng OTP."))
+            }
+            val normalizedPhone = com.chuyen_de_2.foodorder.core.util.PhoneNumberUtils.toE164Vietnam(phone)
+            if (normalizedPhone != verifiedPhone) {
+                return Result.failure(Exception("Số điện thoại chưa được xác minh bằng OTP."))
             }
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng ký thất bại"))
@@ -235,7 +257,7 @@ class AuthRepository @Inject constructor(
                 role = normalizedRole,
                 name = name.trim(),
                 email = email.trim(),
-                phone = phone.trim(),
+                phone = normalizedPhone,
                 status = User.Status.ACTIVE,
                 isActive = true,
                 storeId = assignedStoreId,
@@ -256,7 +278,7 @@ class AuthRepository @Inject constructor(
                         "uid" to firebaseUser.uid,
                         "name" to name.trim(),
                         "email" to email.trim(),
-                        "phone" to phone.trim(),
+                        "phone" to normalizedPhone,
                         "trustScore" to 100,
                         "totalOrders" to 0,
                         "completedOrders" to 0,
@@ -276,7 +298,7 @@ class AuthRepository @Inject constructor(
                         storeId = assignedStoreId,
                         driverCode = randomCode,
                         name = name.trim(),
-                        phone = phone.trim(),
+                        phone = normalizedPhone,
                         vehiclePlate = "59P1-${(100..999).random()}.${(10..99).random()}",
                         ratingAvg = 5.0f,
                         dutyStatus = Driver.DutyStatus.AVAILABLE
@@ -293,7 +315,7 @@ class AuthRepository @Inject constructor(
                         merchantId = firebaseUser.uid,
                         name = if (name.isNotBlank()) name.trim() else "Quán Ăn Mới",
                         ownerName = name.trim(),
-                        phone = phone.trim(),
+                        phone = normalizedPhone,
                         address = "",
                         district = "",
                         storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,

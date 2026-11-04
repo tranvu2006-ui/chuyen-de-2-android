@@ -12,6 +12,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.PhoneNumberUtils
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityRegisterBinding
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -20,10 +21,14 @@ class RegisterActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRegisterBinding
     private val viewModel: AuthViewModel by viewModels()
-    private var pendingRegistration: ((String) -> Unit)? = null
+    private var pendingRegistration: ((String, String) -> Unit)? = null
     private var pendingEmail = ""
-    private var otpSent = false
+    private var pendingPhone = ""
+    private var emailOtpSent = false
+    private var emailVerified = false
+    private var phoneOtpSent = false
     private var otpDialog: AlertDialog? = null
+    private var phoneOtpDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +44,13 @@ class RegisterActivity : AppCompatActivity() {
         binding.btnRegister.setOnClickListener {
             val name = binding.etName.text.toString().trim()
             val phone = binding.etPhone.text.toString().trim()
+            val normalizedPhone = try {
+                PhoneNumberUtils.toE164Vietnam(phone)
+            } catch (error: IllegalArgumentException) {
+                binding.tilPhone.error = error.message
+                return@setOnClickListener
+            }
+            binding.tilPhone.error = null
             val email = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString()
             val confirmPassword = binding.etConfirmPassword.text.toString()
@@ -48,7 +60,7 @@ class RegisterActivity : AppCompatActivity() {
                 else -> User.Role.CUSTOMER
             }
             if (name.isBlank() || email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Vui lòng nhập họ tên, email và mật khẩu", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Vui lòng nhập họ tên, số điện thoại, email và mật khẩu", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
             if (password != confirmPassword || password.length < 6) {
@@ -59,15 +71,23 @@ class RegisterActivity : AppCompatActivity() {
                 ).show()
                 return@setOnClickListener
             }
-            pendingRegistration = { verifiedEmail ->
-                viewModel.register(name, email, password, confirmPassword, role, phone, verifiedEmail)
+            pendingRegistration = { verifiedEmail, verifiedPhone ->
+                viewModel.register(name, email, password, confirmPassword, role, phone, verifiedEmail, verifiedPhone)
             }
-            if (otpSent && pendingEmail.equals(email, ignoreCase = true)) {
-                showOtpDialog()
+            if (pendingEmail.equals(email, ignoreCase = true) && pendingPhone == normalizedPhone) {
+                when {
+                    !emailOtpSent -> viewModel.requestEmailOtp(email)
+                    !emailVerified -> showOtpDialog()
+                    !phoneOtpSent -> viewModel.requestPhoneOtp(normalizedPhone)
+                    else -> showPhoneOtpDialog()
+                }
                 return@setOnClickListener
             }
-            otpSent = false
+            emailOtpSent = false
+            emailVerified = false
+            phoneOtpSent = false
             pendingEmail = email
+            pendingPhone = normalizedPhone
             viewModel.requestEmailOtp(email)
         }
 
@@ -82,7 +102,7 @@ class RegisterActivity : AppCompatActivity() {
 
         viewModel.otpRequestResult.observe(this) { result ->
             result.onSuccess {
-                otpSent = true
+                emailOtpSent = true
                 val dialog = otpDialog
                 if (dialog?.isShowing == true) {
                     dialog.getButton(AlertDialog.BUTTON_NEUTRAL).isEnabled = true
@@ -95,18 +115,20 @@ class RegisterActivity : AppCompatActivity() {
                 otpDialog?.takeIf { it.isShowing }
                     ?.getButton(AlertDialog.BUTTON_NEUTRAL)?.isEnabled = true
                 Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
-                if (otpSent && otpDialog?.isShowing != true) showOtpDialog()
-                else if (!otpSent) {
+                if (emailOtpSent && otpDialog?.isShowing != true && !emailVerified) showOtpDialog()
+                else if (!emailOtpSent) {
                     pendingRegistration = null
                     pendingEmail = ""
+                    pendingPhone = ""
                 }
             }
         }
 
         viewModel.otpVerifyResult.observe(this) { result ->
             result.onSuccess { verifiedEmail ->
-                pendingRegistration?.invoke(verifiedEmail)
-                    ?: Toast.makeText(this, "Vui lòng đăng ký lại để tiếp tục", Toast.LENGTH_LONG).show()
+                emailVerified = true
+                Toast.makeText(this, "Email đã xác minh. Đang gửi OTP qua SMS...", Toast.LENGTH_SHORT).show()
+                viewModel.requestPhoneOtp(pendingPhone)
             }.onFailure { error ->
                 val message = error.message.orEmpty()
                 val userMessage = if (
@@ -119,7 +141,40 @@ class RegisterActivity : AppCompatActivity() {
                     message.ifBlank { "Không xác minh được mã OTP" }
                 }
                 Toast.makeText(this, userMessage, Toast.LENGTH_LONG).show()
-                if (pendingRegistration != null) showOtpDialog()
+                if (pendingRegistration != null && !emailVerified) showOtpDialog()
+            }
+        }
+
+        viewModel.phoneOtpRequestResult.observe(this) { result ->
+            result.onSuccess {
+                phoneOtpSent = true
+                val dialog = phoneOtpDialog
+                if (dialog?.isShowing == true) {
+                    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).isEnabled = true
+                    dialog.setMessage("Mã SMS mới đã gửi đến $pendingPhone. Nhập mã mới nhất.")
+                    Toast.makeText(this, "Đã gửi SMS OTP mới", Toast.LENGTH_SHORT).show()
+                } else {
+                    showPhoneOtpDialog()
+                }
+            }.onFailure { error ->
+                phoneOtpDialog?.takeIf { it.isShowing }
+                    ?.getButton(AlertDialog.BUTTON_NEUTRAL)?.isEnabled = true
+                Toast.makeText(
+                    this,
+                    error.message ?: "Không gửi được SMS OTP. Kiểm tra cấu hình nhà cung cấp SMS trong Supabase.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        viewModel.phoneOtpVerifyResult.observe(this) { result ->
+            result.onSuccess { verifiedPhone ->
+                val verifiedEmail = pendingEmail
+                pendingRegistration?.invoke(verifiedEmail, verifiedPhone)
+                    ?: Toast.makeText(this, "Vui lòng đăng ký lại để tiếp tục", Toast.LENGTH_LONG).show()
+            }.onFailure { error ->
+                Toast.makeText(this, error.message ?: "Mã SMS OTP không hợp lệ", Toast.LENGTH_LONG).show()
+                if (pendingRegistration != null) showPhoneOtpDialog()
             }
         }
 
@@ -127,17 +182,17 @@ class RegisterActivity : AppCompatActivity() {
             result.onSuccess {
                 pendingRegistration = null
                 pendingEmail = ""
-                otpSent = false
+                resetOtpState()
                 Toast.makeText(
                     this,
-                    "Email đã được xác nhận. Tài khoản đã tạo, bạn có thể đăng nhập.",
+                    "Email và số điện thoại đã xác nhận. Tài khoản đã tạo, bạn có thể đăng nhập.",
                     Toast.LENGTH_LONG
                 ).show()
                 finish()
             }.onFailure { error ->
                 pendingRegistration = null
                 pendingEmail = ""
-                otpSent = false
+                resetOtpState()
                 Toast.makeText(this, error.message ?: "Đăng ký thất bại", Toast.LENGTH_LONG).show()
             }
         }
@@ -182,5 +237,55 @@ class RegisterActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+    }
+
+    private fun showPhoneOtpDialog() {
+        val phone = pendingPhone
+        val codeInput = EditText(this).apply {
+            hint = "Nhập mã SMS OTP 6 chữ số"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter.LengthFilter(6))
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Xác nhận số điện thoại")
+            .setMessage("Nhập mã SMS đã gửi đến $phone")
+            .setView(codeInput)
+            .setPositiveButton("Xác nhận", null)
+            .setNeutralButton("Gửi mã mới", null)
+            .setNegativeButton("Hủy", null)
+            .create()
+        phoneOtpDialog = dialog
+        dialog.setOnDismissListener {
+            if (phoneOtpDialog === dialog) phoneOtpDialog = null
+        }
+        dialog.setOnShowListener {
+            codeInput.requestFocus()
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                it.isEnabled = false
+                codeInput.text?.clear()
+                viewModel.requestPhoneOtp(phone)
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val code = codeInput.text.toString().trim()
+                if (!code.matches(Regex("\\d{6}"))) {
+                    codeInput.error = "Mã SMS OTP phải gồm đúng 6 chữ số"
+                } else {
+                    dialog.dismiss()
+                    viewModel.verifyPhoneOtp(phone, code)
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun resetOtpState() {
+        pendingRegistration = null
+        pendingEmail = ""
+        pendingPhone = ""
+        emailOtpSent = false
+        emailVerified = false
+        phoneOtpSent = false
     }
 }

@@ -36,6 +36,25 @@ class EmailOtpApi @Inject constructor() {
         return verifiedEmail
     }
 
+    suspend fun requestPhoneCode(phone: String) {
+        post(
+            "/auth/v1/otp",
+            JSONObject().put("phone", phone).put("create_user", true)
+        )
+    }
+
+    suspend fun verifyPhoneCode(phone: String, code: String): String {
+        val result = post(
+            "/auth/v1/verify",
+            JSONObject().put("phone", phone).put("token", code).put("type", "sms")
+        )
+        val verifiedPhone = result.optJSONObject("user")?.optString("phone").orEmpty()
+        if (verifiedPhone.isNotBlank() && verifiedPhone != phone) {
+            throw IllegalStateException("Số điện thoại xác nhận không khớp số đã đăng ký.")
+        }
+        return phone
+    }
+
     private suspend fun post(path: String, payload: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val apiKey = BuildConfig.SUPABASE_ANON_KEY.trim()

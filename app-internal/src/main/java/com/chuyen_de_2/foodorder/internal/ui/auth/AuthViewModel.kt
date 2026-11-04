@@ -26,6 +26,12 @@ class AuthViewModel @Inject constructor(
     private val _otpVerifyResult = MutableLiveData<Result<String>>()
     val otpVerifyResult: LiveData<Result<String>> = _otpVerifyResult
 
+    private val _phoneOtpRequestResult = MutableLiveData<Result<Unit>>()
+    val phoneOtpRequestResult: LiveData<Result<Unit>> = _phoneOtpRequestResult
+
+    private val _phoneOtpVerifyResult = MutableLiveData<Result<String>>()
+    val phoneOtpVerifyResult: LiveData<Result<String>> = _phoneOtpVerifyResult
+
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
@@ -53,6 +59,26 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun requestPhoneOtp(phone: String) {
+        _isLoading.value = true
+        viewModelScope.launch {
+            _phoneOtpRequestResult.value = authRepository.requestPhoneOtp(phone)
+            _isLoading.value = false
+        }
+    }
+
+    fun verifyPhoneOtp(phone: String, code: String) {
+        if (!code.matches(Regex("\\d{6}"))) {
+            _phoneOtpVerifyResult.value = Result.failure(Exception("Mã SMS OTP phải gồm đúng 6 chữ số"))
+            return
+        }
+        _isLoading.value = true
+        viewModelScope.launch {
+            _phoneOtpVerifyResult.value = authRepository.verifyPhoneOtp(phone, code)
+            _isLoading.value = false
+        }
+    }
+
     fun login(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
             _loginResult.value = Result.failure(Exception("Vui lòng nhập đầy đủ thông tin"))
@@ -74,7 +100,8 @@ class AuthViewModel @Inject constructor(
         confirmPass: String,
         role: String,
         phone: String = "",
-        verifiedEmail: String
+        verifiedEmail: String,
+        verifiedPhone: String
     ) {
         if (name.isBlank() || email.isBlank() || pass.isBlank()) {
             _registerResult.value = Result.failure(Exception("Vui lòng điền đầy đủ các thông tin bắt buộc"))
@@ -91,7 +118,7 @@ class AuthViewModel @Inject constructor(
 
         _isLoading.value = true
         viewModelScope.launch {
-            val result = authRepository.register(name, email, pass, role, phone, verifiedEmail)
+            val result = authRepository.register(name, email, pass, role, phone, verifiedEmail, verifiedPhone)
             _registerResult.value = result.map { it.uid }
             _isLoading.value = false
         }

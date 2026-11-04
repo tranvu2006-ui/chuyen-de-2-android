@@ -1,6 +1,6 @@
-# Supabase email OTP setup
+# Supabase email and SMS OTP setup
 
-The customer and internal registration screens request and verify a six- or eight-digit OTP with Supabase Auth (`type=email`). Configure the OTP length in Supabase to match the code sent by email. After successful verification, the app creates the account in the existing Firebase Auth project and stores the verified-email state with the user's Firebase profile. Firebase remains the app's sign-in and Realtime Database provider.
+Customer and internal registration require both email OTP (`type=email`) and phone SMS OTP (`type=sms`). Phone numbers entered as Vietnamese local numbers are normalized to E.164 (`+84...`). After both codes are verified, the app creates the account in the existing Firebase Auth project and stores the verified phone in the user's Firebase profile. Firebase remains the app's sign-in and Realtime Database provider.
 
 ## Create and configure a Supabase project
 
@@ -22,6 +22,7 @@ The customer and internal registration screens request and verify a six- or eigh
    - Sender: an address on the verified domain, such as `no-reply@oishifood.vn`
 
    Resend's free plan has sending quotas; it is not unlimited. Never put the Resend API key or Supabase `service_role` key in the app.
+5. To send real SMS, enable **Phone** under **Authentication → Providers → Phone**, configure an SMS provider under the phone provider settings (for example Twilio), and set allowed SMS regions/rate limits. Supabase does not send SMS itself; the SMS provider account and its credentials are required. Provider trial/free quotas, if available, are limited and may restrict recipients; otherwise SMS is billed by the provider. No SMS will be sent until this is configured. Supabase phone OTPs are six digits and have a short validity window.
 
 ## Configure the Android build
 

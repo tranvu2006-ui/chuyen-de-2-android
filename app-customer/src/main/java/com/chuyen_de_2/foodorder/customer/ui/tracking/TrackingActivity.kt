@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.ImageView
 import android.widget.EditText
@@ -870,24 +871,36 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         if (order.items.isNotEmpty()) {
             for ((_, item) in order.items) {
-                val rowView = LayoutInflater.from(this).inflate(
-                    android.R.layout.simple_list_item_2,
-                    container,
-                    false
-                )
-                val text1 = rowView.findViewById<TextView>(android.R.id.text1)
-                val text2 = rowView.findViewById<TextView>(android.R.id.text2)
-
-                text1.text = "${item.quantity}x ${item.name}"
-                text1.textSize = 12f
-                text1.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
-
                 val subtotal = if (item.itemSubtotal > 0) item.itemSubtotal else item.price * item.quantity
-                text2.text = subtotal.toVndCurrency()
-                text2.textSize = 12f
-                text2.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
-
-                container.addView(rowView)
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = (6 * resources.displayMetrics.density).toInt()
+                    }
+                }
+                val itemName = TextView(this).apply {
+                    text = "${item.quantity}x ${item.name}"
+                    textSize = 12f
+                    setTextColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_primary))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val itemPrice = TextView(this).apply {
+                    text = subtotal.toVndCurrency()
+                    textSize = 12f
+                    setTextColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_primary))
+                    gravity = android.view.Gravity.END
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+                row.addView(itemName)
+                row.addView(itemPrice)
+                container.addView(row)
             }
         } else {
             // Hiển thị fallback nếu đơn không có item danh sách con

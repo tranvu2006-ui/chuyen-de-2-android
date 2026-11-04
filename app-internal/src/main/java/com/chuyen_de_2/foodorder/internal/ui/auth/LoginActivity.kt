@@ -6,8 +6,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
@@ -20,7 +18,7 @@ import javax.inject.Inject
  * Cách hoạt động:
  *  - Tiếp nhận thông tin tài khoản (Email & Mật khẩu).
  *  - Xác thực qua Firebase Authentication và kiểm tra quyền truy cập (Role) cũng như trạng thái tài khoản (ACTIVE / LOCKED).
- *  - Nếu đã đăng nhập trước đó và tài khoản hợp lệ, tự động điều hướng vào Dashboard.
+ *  - Mỗi lần mở ứng dụng đều yêu cầu đăng nhập lại, không tự dùng phiên Firebase đã lưu.
  * Luồng hướng tới:
  *  - Đăng nhập thành công -> Điều hướng sang [DashboardActivity].
  *  - Bấm "Đăng ký" -> Chuyển sang [RegisterActivity].
@@ -37,32 +35,16 @@ class LoginActivity : AppCompatActivity() {
     private val viewModel: AuthViewModel by viewModels()
 
     /**
-     * Tên chức năng: Khởi tạo màn hình và kiểm tra phiên làm việc (Session Check)
+     * Tên chức năng: Khởi tạo màn hình đăng nhập nội bộ
      * Cách hoạt động:
-     *  - Kiểm tra Intent cờ LOGOUT để đăng xuất nếu có yêu cầu.
-     *  - Nếu đã đăng nhập, gọi checkAccountActiveStatus() trên Firebase để đảm bảo tài khoản chưa bị Admin khóa.
-     * Luồng hướng tới: Vào [DashboardActivity] nếu hợp lệ hoặc hiển thị Dialog nếu bị khóa.
+     *  - Xóa phiên Firebase đã lưu khi mở app để luôn yêu cầu nhập email và mật khẩu.
+     * Luồng hướng tới: Người dùng đăng nhập thủ công rồi mới vào [DashboardActivity].
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val isLogout = intent.getBooleanExtra("LOGOUT", false)
-        if (isLogout) {
+        if (savedInstanceState == null && authRepository.isLoggedIn) {
             authRepository.logout()
-        } else if (authRepository.isLoggedIn) {
-            lifecycleScope.launch {
-                val statusCheck = authRepository.checkAccountActiveStatus()
-                if (statusCheck.isFailure) {
-                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                    androidx.appcompat.app.AlertDialog.Builder(this@LoginActivity)
-                        .setTitle("🔒 Tài khoản bị khóa")
-                        .setMessage(reason)
-                        .setPositiveButton("Đóng", null)
-                        .show()
-                } else {
-                    navigateToDashboard()
-                }
-            }
         }
 
         binding = ActivityLoginInternalBinding.inflate(layoutInflater)

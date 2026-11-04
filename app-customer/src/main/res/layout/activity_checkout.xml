@@ -916,7 +916,7 @@
                             android:textSize="13sp" />
                     </LinearLayout>
 
-                    <!-- Giảm giá Voucher (b8.html) -->
+                    <!-- Ưu đãi điểm uy tín -->
                     <LinearLayout
                         android:id="@+id/layoutVoucherDiscount"
                         android:layout_width="match_parent"
@@ -929,7 +929,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Giảm giá Voucher"
+                            android:text="Ưu đãi điểm uy tín (từ 95 điểm)"
                             android:textColor="@color/primary"
                             android:textSize="13sp"
                             android:textStyle="bold" />

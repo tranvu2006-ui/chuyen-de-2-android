@@ -347,8 +347,9 @@ class CheckoutActivity : AppCompatActivity() {
         lifecycleScope.launch {
             firebaseRepository.observeCustomerProfile(uid).collectLatest { cust ->
                 currentCustomerTrustScore = cust.trustScore
-                if (cust.trustScore >= 95 && currentDiscount < 5000L) {
-                    currentDiscount = 5000L
+                val eligibleDiscount = if (cust.trustScore >= 95) 5000L else 0L
+                if (currentDiscount != eligibleDiscount) {
+                    currentDiscount = eligibleDiscount
                     recalculateTotal()
                 }
 
@@ -570,6 +571,10 @@ class CheckoutActivity : AppCompatActivity() {
 
     private fun recalculateTotal() {
         binding.tvShippingFee.text = currentShippingFee.toVndCurrency()
+        binding.layoutVoucherDiscount.visibility = if (currentDiscount > 0L) View.VISIBLE else View.GONE
+        if (currentDiscount > 0L) {
+            binding.tvDiscount.text = "-${currentDiscount.toVndCurrency()}"
+        }
         val finalTotal = maxOf(0L, currentSubtotal + currentShippingFee - currentDiscount)
         val depositAmount = ((finalTotal * 0.2) / 1000).toLong() * 1000
         val remainAmount = finalTotal - depositAmount

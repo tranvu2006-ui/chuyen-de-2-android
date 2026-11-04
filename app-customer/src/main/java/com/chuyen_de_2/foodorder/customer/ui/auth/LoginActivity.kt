@@ -49,7 +49,7 @@ class LoginActivity : AppCompatActivity() {
         observeViewModel()
 
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
-        if (isLogout) {
+        if (isLogout || (savedInstanceState == null && viewModel.isLoggedIn)) {
             viewModel.logout()
         } else if (viewModel.isLoggedIn) {
             checkRoleAndRoute()

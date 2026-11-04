@@ -97,7 +97,7 @@ class MomoPaymentNotificationListenerService : NotificationListenerService() {
                     status.equals(Order.Status.COMPLETED, ignoreCase = true)
                 ) continue
                 if (paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) continue
-                if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true)) continue
+                if (!paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true)) continue
 
                 val shortCode = orderId.takeLast(6).uppercase().replace(Regex("[^A-Z0-9]"), "")
                 val totalPayment = child.child("totalPayment").getValue(Long::class.java)

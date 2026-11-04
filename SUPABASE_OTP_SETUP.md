@@ -1,6 +1,6 @@
-# Supabase email and SMS OTP setup
+# Supabase email OTP setup
 
-Customer and internal registration let users choose one verification channel: email OTP (`type=email`) or phone SMS OTP (`type=sms`). Phone numbers entered as Vietnamese local numbers are normalized to E.164 (`+84...`). After the selected code is verified, the app creates the account in the existing Firebase Auth project. Phone-verified registrations keep `emailVerified=false` and use a separate `registrationVerified` flag so the user can still sign in with their email and password. Firebase remains the app's sign-in and Realtime Database provider.
+Customer and internal registration use a six-digit email OTP (`type=email`). Set the Supabase email OTP length to 6 so the emailed code matches the app input. After the code is verified, the app creates the account in the existing Firebase Auth project. Firebase remains the app's sign-in and Realtime Database provider.
 
 ## Create and configure a Supabase project
 
@@ -22,8 +22,6 @@ Customer and internal registration let users choose one verification channel: em
    - Sender: an address on the verified domain, such as `no-reply@oishifood.vn`
 
    Resend's free plan has sending quotas; it is not unlimited. Never put the Resend API key or Supabase `service_role` key in the app.
-5. To send real SMS, enable **Phone** under **Authentication → Providers → Phone**, configure an SMS provider under the phone provider settings (for example Twilio), and set allowed SMS regions/rate limits. Supabase does not send SMS itself; the SMS provider account and its credentials are required. Provider trial/free quotas, if available, are limited and may restrict recipients; otherwise SMS is billed by the provider. No SMS will be sent until this is configured. Supabase phone OTPs are six digits and have a short validity window.
-
 ## Configure the Android build
 
 The repository includes the Supabase project URL and its public publishable key as build defaults, so a normal clone does not need extra Gradle configuration. To override them for a different Supabase project, add these properties to `%USERPROFILE%\.gradle\gradle.properties`:
@@ -37,6 +35,6 @@ The publishable/anon key is designed for client use; access to Supabase Auth mus
 
 ## Registration behavior and security boundary
 
-The selected OTP verification gates the normal in-app registration flow. The resulting account is registered in Firebase so existing Firebase login and Realtime Database code continue to work. The app does not use a Supabase session for Firebase Database access.
+Email OTP verification gates the normal in-app registration flow. The resulting account is registered in Firebase so existing Firebase login and Realtime Database code continue to work. The app does not use a Supabase session for Firebase Database access.
 
 Because Firebase account creation is performed by the Android client, this integration is a client-side registration gate, not a server-enforced link between the two identity providers. A user who directly calls Firebase's public sign-up API outside the app may bypass the screen flow. Enforcing the OTP requirement against direct API calls requires trusted server-side verification or using Supabase as the application's primary identity provider with an appropriate Firebase access bridge.

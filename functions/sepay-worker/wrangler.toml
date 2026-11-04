@@ -1,0 +1,9 @@
+name = "oishi-sepay-webhook"
+main = "src/index.js"
+compatibility_date = "2026-11-04"
+
+[vars]
+FIREBASE_DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+[observability]
+enabled = true

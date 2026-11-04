@@ -25,6 +25,8 @@ import com.chuyen_de_2.foodorder.admin.ui.complaint.AdminComplaintListFragment
 import com.chuyen_de_2.foodorder.admin.ui.dashboard.AdminDashboardFragment
 import com.chuyen_de_2.foodorder.admin.ui.monitor.AdminMonitorFragment
 import com.chuyen_de_2.foodorder.admin.ui.store.AdminStoreListFragment
+import com.chuyen_de_2.foodorder.admin.ui.auth.AdminLoginActivity
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -36,6 +38,14 @@ class AdminMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            startActivity(Intent(this, AdminLoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
+
         binding = ActivityAdminMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

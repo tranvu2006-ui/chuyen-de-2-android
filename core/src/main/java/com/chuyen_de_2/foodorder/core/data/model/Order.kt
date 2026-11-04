@@ -67,6 +67,9 @@ data class Order(
     @SerializedName("shippingFee")
     val shippingFee: Long = 0,
 
+    @SerializedName("discount")
+    val discount: Long = 0,
+
     @SerializedName("totalPayment")
     val totalPayment: Long = 0,
 
@@ -90,6 +93,12 @@ data class Order(
 
     @SerializedName("paymentStatus")
     var paymentStatus: String = PaymentStatus.UNPAID,
+
+    @SerializedName("paymentReference")
+    val paymentReference: String = "",
+
+    @SerializedName("sepayTransactionId")
+    var sepayTransactionId: String = "",
 
     @SerializedName("paidAt")
     var paidAt: Long? = null,

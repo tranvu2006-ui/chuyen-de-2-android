@@ -15,6 +15,7 @@ import com.google.firebase.database.ValueEventListener
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
@@ -174,9 +175,15 @@ class CheckoutViewModel @Inject constructor(
                         total = finalPayment,
                         subtotalAmount = cart.totalAmount,
                         shippingFee = shippingFee,
+                        discount = discount,
                         totalPayment = finalPayment,
                         paymentMethod = paymentMethod,
                         paymentMode = paymentMode,
+                        paymentReference = if (paymentMethod == Order.PaymentMethod.BANKING) {
+                            "OI${UUID.randomUUID().toString().replace("-", "").take(12).uppercase()}"
+                        } else {
+                            ""
+                        },
                         depositAmount = depositAmount,
                         remainAmount = remainAmount,
                         paymentStatus = Order.PaymentStatus.UNPAID,

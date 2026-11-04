@@ -139,35 +139,6 @@
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <TextView
-                    android:id="@+id/tvVerificationHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="Chọn một cách để nhận mã OTP xác minh."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
-
-                <RadioGroup
-                    android:id="@+id/rgVerificationMethod"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:checkedButton="@id/rbVerifyEmail"
-                    android:orientation="vertical">
-
-                    <RadioButton
-                        android:id="@+id/rbVerifyEmail"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Nhận mã qua email" />
-
-                    <RadioButton
-                        android:id="@+id/rbVerifyPhone"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Nhận mã qua SMS" />
-                </RadioGroup>
-
                 <!-- Mật khẩu -->
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/tilRegisterPassword"

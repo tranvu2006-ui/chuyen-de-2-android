@@ -190,23 +190,6 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun requestPhoneOtp(phone: String): Result<Unit> {
-        return try {
-            emailOtpApi.requestPhoneCode(phone)
-            Result.success(Unit)
-        } catch (error: Exception) {
-            Result.failure(error)
-        }
-    }
-
-    suspend fun verifyPhoneOtp(phone: String, code: String): Result<String> {
-        return try {
-            Result.success(emailOtpApi.verifyPhoneCode(phone, code.trim()))
-        } catch (error: Exception) {
-            Result.failure(error)
-        }
-    }
-
     /** Đăng ký tài khoản mới sau khi OTP đã được xác nhận và phân loại theo Actor */
     suspend fun register(
         name: String,
@@ -214,23 +197,13 @@ class AuthRepository @Inject constructor(
         password: String,
         role: String = User.Role.CUSTOMER,
         phone: String = "",
-        verifiedEmail: String,
-        verifiedPhone: String,
-        verificationMethod: String
+        verifiedEmail: String
     ): Result<FirebaseUser> {
         return try {
-            val normalizedPhone = if (verificationMethod == "phone") {
-                com.chuyen_de_2.foodorder.core.util.PhoneNumberUtils.toE164Vietnam(phone).also {
-                    if (it != verifiedPhone) {
-                        return Result.failure(Exception("Số điện thoại chưa được xác minh bằng OTP."))
-                    }
-                }
-            } else {
-                if (!verifiedEmail.equals(email.trim(), ignoreCase = true)) {
-                    return Result.failure(Exception("Email chưa được xác minh bằng OTP."))
-                }
-                phone.trim()
+            if (!verifiedEmail.equals(email.trim(), ignoreCase = true)) {
+                return Result.failure(Exception("Email chưa được xác minh bằng OTP."))
             }
+            val normalizedPhone = phone.trim()
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng ký thất bại"))
 
@@ -274,7 +247,7 @@ class AuthRepository @Inject constructor(
                 isActive = true,
                 storeId = assignedStoreId,
                 emailVerificationRequired = true,
-                emailVerified = verificationMethod == "email",
+                emailVerified = true,
                 registrationVerified = true
             )
             database.getReference("users")

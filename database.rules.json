@@ -117,6 +117,7 @@
         "driverId",
         "shopId",
         "storeId",
+        "paymentReference",
         "status",
         "orderStatus",
         "timestamp",
@@ -124,7 +125,7 @@
       ],
       ".read": "auth != null",
       "$orderId": {
-        ".write": "auth != null"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.admin == true || (data.exists() && newData.child('paymentMethod').val() == data.child('paymentMethod').val() && newData.child('paymentReference').val() == data.child('paymentReference').val() && newData.child('paymentStatus').val() == data.child('paymentStatus').val() && newData.child('paidAt').val() == data.child('paidAt').val() && newData.child('sepayTransactionId').val() == data.child('sepayTransactionId').val() && newData.child('isPaid').val() == data.child('isPaid').val() && newData.child('isDepositPaid').val() == data.child('isDepositPaid').val()) || (data.exists() && data.child('paymentMethod').val() == 'MOMO' && newData.child('paymentMethod').val() == 'MOMO') || (!data.exists() && newData.child('paymentStatus').val() == 'UNPAID' && !newData.child('paidAt').exists() && (!newData.child('sepayTransactionId').exists() || newData.child('sepayTransactionId').val() == '') && (!newData.child('isPaid').exists() || newData.child('isPaid').val() == false) && (!newData.child('isDepositPaid').exists() || newData.child('isDepositPaid').val() == false)))"
       }
     },
     "tracking": {

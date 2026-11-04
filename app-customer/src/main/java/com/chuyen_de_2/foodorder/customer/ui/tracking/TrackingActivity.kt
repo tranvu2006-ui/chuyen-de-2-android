@@ -902,6 +902,10 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Phí giao hàng
         val shippingFee = if (order.shippingFee > 0) order.shippingFee else 15000L
         binding.txtShippingFee.text = shippingFee.toVndCurrency()
+        binding.llDiscountRow.visibility = if (order.discount > 0L) View.VISIBLE else View.GONE
+        if (order.discount > 0L) {
+            binding.txtDiscount.text = "-${order.discount.toVndCurrency()}"
+        }
 
         // Tổng tiền
         val totalAmount = if (order.totalPayment > 0) order.totalPayment else if (order.total > 0) order.total else 50000L

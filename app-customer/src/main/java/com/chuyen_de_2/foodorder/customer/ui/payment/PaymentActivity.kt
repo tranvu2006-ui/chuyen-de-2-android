@@ -54,6 +54,8 @@ class PaymentActivity : AppCompatActivity() {
     private var currentAccountHolder = ""
     private var currentBankBin = "970422"
     private var isMomoChannel = false
+    private var isBankChannel = false
+    private var paymentReference = ""
 
     private var orderId = ""
     private var shopName = "Quán Ăn Oishi"
@@ -98,6 +100,7 @@ class PaymentActivity : AppCompatActivity() {
         val createdAt = intent.getLongExtra("extra_created_at", System.currentTimeMillis())
         val channel = intent.getStringExtra("extra_channel").orEmpty()
         isMomoChannel = channel.equals("momo", ignoreCase = true)
+        isBankChannel = channel.equals("bank", ignoreCase = true)
 
         // 1. Nhận thông tin ngân hàng / ví MoMo truyền qua Intent (nếu có)
         val passedShopPhone = intent.getStringExtra("extra_shop_phone")
@@ -120,8 +123,28 @@ class PaymentActivity : AppCompatActivity() {
         }
 
         setupToolbar(paymentMode)
-        renderPaymentUI(orderId, amount, paymentMode, remainAmount)
+        if (!isBankChannel) renderPaymentUI(orderId, amount, paymentMode, remainAmount)
         startCountdownTimer(orderId, createdAt)
+
+        if (isBankChannel && orderId.isNotBlank()) {
+            FirebaseDatabase.getInstance().getReference("orders").child(orderId)
+                .child("paymentReference").get()
+                .addOnSuccessListener { snapshot ->
+                    paymentReference = snapshot.getValue(String::class.java).orEmpty()
+                    if (paymentReference.isBlank()) {
+                        binding.tvAutoVerifyStatus.text =
+                            "Đơn này chưa có mã tự động đối soát. Vui lòng liên hệ cửa hàng để được hỗ trợ."
+                    } else {
+                        renderPaymentUI(orderId, amount, paymentMode, remainAmount)
+                    }
+                    observeOrderPaymentRealtime()
+                }
+                .addOnFailureListener {
+                    binding.layoutAutoVerifyBox.visibility = View.VISIBLE
+                    binding.tvAutoVerifyStatus.text =
+                        "Không tải được mã thanh toán. Hãy kiểm tra kết nối rồi thử lại."
+                }
+        }
 
         // 2. Tra cứu trực tiếp từ node stores/{shopId} trên Firebase để luôn lấy SĐT MoMo / STK Ngân hàng mới nhất của Quán
         if (shopId.isNotBlank()) {
@@ -146,12 +169,16 @@ class PaymentActivity : AppCompatActivity() {
                 }
         }
 
-        // 3. Nếu là Ví MoMo: ẩn nút thủ công, tự động lắng nghe & đối soát giao dịch. Nếu là VietQR: giữ nguyên nút xác nhận chuẩn gốc.
-        if (isMomoChannel) {
+        // Banking and MoMo payments are confirmed only by their trusted backend path.
+        if (isMomoChannel || isBankChannel) {
             binding.btnConfirmPaid.visibility = View.GONE
             binding.layoutAutoVerifyBox.visibility = View.VISIBLE
-            observeOrderPaymentRealtime()
-            startAutoVerifyPaymentWatcher()
+            if (isMomoChannel) {
+                observeOrderPaymentRealtime()
+                startAutoVerifyPaymentWatcher()
+            } else {
+                binding.tvAutoVerifyStatus.text = "Đang chờ cửa hàng xác nhận giao dịch từ SePay..."
+            }
         } else {
             binding.btnConfirmPaid.visibility = View.VISIBLE
             binding.layoutAutoVerifyBox.visibility = View.GONE
@@ -202,7 +229,7 @@ class PaymentActivity : AppCompatActivity() {
 
     /** Lắng nghe trực tiếp node orders/{orderId} trên Firebase — Khi paymentStatus == PAID thì tự động chuyển trang */
     private fun observeOrderPaymentRealtime() {
-        if (!isMomoChannel || orderId.isBlank()) return
+        if ((!isMomoChannel && !isBankChannel) || orderId.isBlank()) return
         val ref = FirebaseDatabase.getInstance().getReference("orders").child(orderId)
         orderRef = ref
         val listener = object : ValueEventListener {
@@ -253,7 +280,7 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun confirmPaidAndSyncToStore() {
-        if (hasNavigatedSuccess) return
+        if (!isMomoChannel || hasNavigatedSuccess) return
         if (orderId.isNotBlank()) {
             FirebaseDatabase.getInstance().getReference("orders").child(orderId)
                 .updateChildren(
@@ -366,6 +393,7 @@ class PaymentActivity : AppCompatActivity() {
 
     /** Hiển thị thông tin ngân hàng / Ví MoMo & Tạo ảnh mã QR chuẩn của Quán */
     private fun renderPaymentUI(orderId: String, amount: Long, paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL, remainAmount: Long = 0L) {
+        if (isBankChannel && paymentReference.isBlank()) return
         binding.tvAmountValue.text = amount.toVndCurrency()
 
         if (isMomoChannel) {
@@ -396,7 +424,13 @@ class PaymentActivity : AppCompatActivity() {
         }
 
         val prefix = if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) "COC" else "OISHI"
-        val code = if (orderId.isNotBlank()) orderId.takeLast(6).uppercase() else ""
+        val code = if (isBankChannel && paymentReference.isNotBlank()) {
+            paymentReference
+        } else if (orderId.isNotBlank()) {
+            orderId.takeLast(6).uppercase()
+        } else {
+            ""
+        }
         val transferSyntax = "$prefix $code".trim()
 
         if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {

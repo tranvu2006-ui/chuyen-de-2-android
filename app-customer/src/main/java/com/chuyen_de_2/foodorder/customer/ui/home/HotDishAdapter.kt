@@ -16,7 +16,8 @@ data class HotDish(
     val storeId: String,
     val storeName: String,
     val imageUrl: String = "",
-    val emoji: String = "🍲"
+    val emoji: String = "🍲",
+    val badgeText: String = "Hot"
 )
 
 class HotDishAdapter(
@@ -39,6 +40,7 @@ class HotDishAdapter(
             binding.tvDishName.text = dish.name
             binding.tvShopName.text = if (dish.storeName.startsWith("🏪")) dish.storeName else "🏪 ${dish.storeName}"
             binding.tvDishPrice.text = dish.price.toVndCurrency()
+            binding.tvHotBadge.text = dish.badgeText
 
             if (dish.imageUrl.isNotBlank()) {
                 binding.ivDishThumb.visibility = View.VISIBLE

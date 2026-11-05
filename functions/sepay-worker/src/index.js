@@ -2,7 +2,8 @@ const encoder = new TextEncoder();
 const MAX_BODY_BYTES = 32_768;
 const MAX_SIGNATURE_AGE_SECONDS = 300;
 const FIREBASE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const FIREBASE_SCOPE = "https://www.googleapis.com/auth/firebase.database";
+const FIREBASE_SCOPE =
+  "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/firebase.database";
 const PAYMENT_REFERENCE_PATTERN = /\bOI[A-F0-9]{12}\b/g;
 
 let cachedFirebaseToken = null;
@@ -162,12 +163,13 @@ export default {
         order.paymentMode === "DEPOSIT"
           ? { isDepositPaid: true }
           : { isPaid: true };
-      const orderUpdated = await firebasePatchIfMatch(
+      const orderUpdated = await firebasePutIfMatch(
         databaseUrl,
         `orders/${orderId}`,
         accessToken,
         orderSnapshot.etag,
         {
+          ...order,
           paymentStatus: "PAID",
           paidAt,
           sepayTransactionId: transactionId,
@@ -368,7 +370,7 @@ async function firebaseGet(databaseUrl, path, accessToken) {
       signal: AbortSignal.timeout(10_000),
     },
   );
-  if (!response.ok) throw new Error("Firebase read failed");
+  if (!response.ok) throw await firebaseResponseError("Firebase read", response);
   return response.json();
 }
 
@@ -380,7 +382,9 @@ async function firebaseGetWithEtag(databaseUrl, path, accessToken) {
     },
     signal: AbortSignal.timeout(10_000),
   });
-  if (!response.ok) throw new Error("Firebase order read failed");
+  if (!response.ok) {
+    throw await firebaseResponseError("Firebase order read", response);
+  }
   return { value: await response.json(), etag: response.headers.get("ETag") };
 }
 
@@ -393,24 +397,28 @@ async function firebaseQueryOrderByReference(databaseUrl, reference, accessToken
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(10_000),
   });
-  if (!response.ok) throw new Error("Firebase order lookup failed");
+  if (!response.ok) {
+    throw await firebaseResponseError("Firebase order lookup", response);
+  }
   return response.json();
 }
 
-async function firebasePatchIfMatch(databaseUrl, path, accessToken, etag, updates) {
+async function firebasePutIfMatch(databaseUrl, path, accessToken, etag, value) {
   if (!etag) throw new Error("Firebase order ETag is missing");
   const response = await fetch(`${databaseUrl}/${path}.json`, {
-    method: "PATCH",
+    method: "PUT",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       "if-match": etag,
     },
-    body: JSON.stringify(updates),
+    body: JSON.stringify(value),
     signal: AbortSignal.timeout(10_000),
   });
   if (response.status === 412) return false;
-  if (!response.ok) throw new Error("Firebase payment update failed");
+  if (!response.ok) {
+    throw await firebaseResponseError("Firebase payment update", response);
+  }
   return true;
 }
 
@@ -430,7 +438,16 @@ async function firebasePatch(databaseUrl, accessToken, updates) {
     body: JSON.stringify(updates),
     signal: AbortSignal.timeout(10_000),
   });
-  if (!response.ok) throw new Error("Firebase payment update failed");
+  if (!response.ok) {
+    throw await firebaseResponseError("Firebase payment update", response);
+  }
+}
+
+async function firebaseResponseError(operation, response) {
+  const body = (await response.text())
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .slice(0, 300);
+  return new Error(`${operation} failed (${response.status}): ${body || "empty response"}`);
 }
 
 function json(body, status = 200) {

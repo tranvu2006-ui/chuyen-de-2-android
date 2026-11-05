@@ -112,7 +112,7 @@ test("confirms one matching order and records the SePay transaction", async () =
         { headers: { ETag: '"v1"' } },
       );
     }
-    if (url.pathname === "/orders/order1.json" && init.method === "PATCH") {
+    if (url.pathname === "/orders/order1.json" && init.method === "PUT") {
       return new Response(null, { status: 204 });
     }
     if (url.pathname === "/.json" && init.method === "PATCH") {
@@ -140,17 +140,34 @@ test("confirms one matching order and records the SePay transaction", async () =
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { success: true });
 
-    const orderPatch = requests.find(
-      ({ url, init }) => url.pathname === "/orders/order1.json" && init.method === "PATCH",
+    const tokenRequest = requests.find(
+      ({ url }) => url.hostname === "oauth2.googleapis.com",
     );
-    assert.equal(orderPatch.init.headers["if-match"], '"v1"');
-    assert.deepEqual(JSON.parse(orderPatch.init.body), {
+    const assertion = new URLSearchParams(tokenRequest.init.body).get("assertion");
+    const claims = JSON.parse(
+      Buffer.from(assertion.split(".")[1], "base64url").toString("utf8"),
+    );
+    assert.equal(
+      claims.scope,
+      "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/firebase.database",
+    );
+
+    const orderPut = requests.find(
+      ({ url, init }) => url.pathname === "/orders/order1.json" && init.method === "PUT",
+    );
+    assert.equal(orderPut.init.headers["if-match"], '"v1"');
+    assert.deepEqual(JSON.parse(orderPut.init.body), {
+      storeId: "store1",
+      paymentReference: "OI0123456789AB",
+      paymentMethod: "BANKING",
+      paymentMode: "FULL",
       paymentStatus: "PAID",
       paidAt: JSON.parse(requests.find(({ url }) => url.pathname === "/.json").init.body)[
         "sepay_transactions/1234567890_998877"
       ].processedAt,
       sepayTransactionId: "998877",
       status: "PENDING",
+      totalPayment: 2000,
       orderStatus: "PENDING",
       isPaid: true,
     });

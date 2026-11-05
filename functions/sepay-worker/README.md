@@ -10,7 +10,7 @@ The Worker confirms only incoming transfers whose receiving account, unique orde
    npx wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON
    ```
 
-   `SEPAY_WEBHOOK_SECRETS_JSON` is a JSON object mapping each Firebase store ID to that store's SePay HMAC-SHA256 secret, for example `{"storeId1":"secret-from-sepay-1","storeId2":"secret-from-sepay-2"}`. Use the same store IDs in the webhook URL. `FIREBASE_SERVICE_ACCOUNT_JSON` is the complete JSON key for a Firebase service account with Realtime Database access. `FIREBASE_DATABASE_URL` is a non-secret Worker variable already set in `wrangler.toml`.
+   `SEPAY_WEBHOOK_SECRETS_JSON` is a JSON object mapping each Firebase store ID to that store's SePay HMAC-SHA256 secret, for example `{"storeId1":"secret-from-sepay-1","storeId2":"secret-from-sepay-2"}`. Use the same store IDs in the webhook URL. `FIREBASE_SERVICE_ACCOUNT_JSON` is the complete JSON key for a Firebase service account with Realtime Database access. The Worker requests both the `userinfo.email` and `firebase.database` OAuth scopes. `FIREBASE_DATABASE_URL` is a non-secret Worker variable already set in `wrangler.toml`.
 
 2. Deploy the Worker:
 

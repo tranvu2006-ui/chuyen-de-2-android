@@ -74,7 +74,8 @@ class AdminCategoryListFragment : Fragment() {
         }
 
         binding.btnAddCategory.setOnClickListener {
-            val dialog = AddEditCategoryDialogFragment { newCat ->
+            val nextOrder = (viewModel.categories.value.maxOfOrNull { it.displayOrder } ?: 0) + 1
+            val dialog = AddEditCategoryDialogFragment(defaultOrder = nextOrder) { newCat ->
                 viewModel.saveCategory(newCat)
             }
             dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)

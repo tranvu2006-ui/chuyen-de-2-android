@@ -1098,32 +1098,91 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Lưu / cập nhật danh mục nền tảng lên Firebase */
+    /** Lưu / cập nhật danh mục nền tảng lên Firebase kèm cơ chế tự động chen vị trí & đẩy các danh mục phía sau lên +1 */
     suspend fun saveCategory(category: com.chuyen_de_2.foodorder.core.data.model.Category, desc: String = ""): Result<Unit> {
         return try {
-            val id = category.categoryId.ifBlank { "cat-${System.currentTimeMillis()}" }
+            val targetId = category.categoryId.ifBlank { "cat-${System.currentTimeMillis()}" }
+            val targetOrder = category.displayOrder.coerceAtLeast(1)
             val finalDesc = if (desc.isNotBlank()) desc else category.description
-            val map = mapOf<String, Any>(
-                "id" to id,
-                "categoryId" to id,
+
+            // 1. Đọc danh sách tất cả các danh mục hiện có trên Firebase
+            val snapshot = database.getReference("categories").get().await()
+            val existingList = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Category>()
+            for (child in snapshot.children) {
+                val id = child.key ?: continue
+                if (id == targetId) continue // Bỏ qua danh mục đang thao tác (kể cả khi chỉnh sửa)
+
+                val name = child.child("categoryName").getValue(String::class.java)
+                    ?: child.child("name").getValue(String::class.java) ?: ""
+                val icon = child.child("iconUrl").getValue(String::class.java)
+                    ?: child.child("icon").getValue(String::class.java) ?: ""
+                val d = child.child("description").getValue(String::class.java)
+                    ?: child.child("desc").getValue(String::class.java) ?: ""
+                val order = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                val active = child.child("isActive").getValue(Boolean::class.java)
+                    ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
+
+                existingList.add(
+                    com.chuyen_de_2.foodorder.core.data.model.Category(
+                        categoryId = id,
+                        categoryName = name,
+                        iconUrl = icon,
+                        displayOrder = order,
+                        isActive = active,
+                        description = d
+                    )
+                )
+            }
+
+            // Sắp xếp các danh mục hiện tại theo thứ tự hiển thị tăng dần
+            existingList.sortWith(compareBy({ it.displayOrder }, { it.categoryName }))
+
+            // 2. Tính toán cập nhật số thứ tự: Nếu có mục có thứ tự >= targetOrder, tự động đẩy lên
+            val updates = mutableMapOf<String, Any>()
+            var lastAssignedOrder = targetOrder
+
+            for (otherCat in existingList) {
+                if (otherCat.displayOrder < targetOrder) {
+                    continue
+                }
+
+                // Nếu số thứ tự của danh mục khác nhỏ hơn hoặc bằng lastAssignedOrder -> phải đẩy lên tiếp theo
+                val newOrder = if (otherCat.displayOrder <= lastAssignedOrder) {
+                    lastAssignedOrder + 1
+                } else {
+                    otherCat.displayOrder
+                }
+
+                lastAssignedOrder = newOrder
+
+                if (newOrder != otherCat.displayOrder) {
+                    updates["categories/${otherCat.categoryId}/displayOrder"] = newOrder
+                    updates["categories/${otherCat.categoryId}/updatedAt"] = System.currentTimeMillis()
+                    updates["menus/categories/${otherCat.categoryId}/displayOrder"] = newOrder
+                    updates["menus/categories/${otherCat.categoryId}/updatedAt"] = System.currentTimeMillis()
+                }
+            }
+
+            // 3. Đóng gói danh mục mục tiêu cần lưu
+            val targetMap = mapOf<String, Any>(
+                "id" to targetId,
+                "categoryId" to targetId,
                 "name" to category.categoryName,
                 "categoryName" to category.categoryName,
                 "icon" to "",
                 "iconUrl" to category.iconUrl,
                 "desc" to finalDesc,
                 "description" to finalDesc,
-                "displayOrder" to category.displayOrder,
+                "displayOrder" to targetOrder,
                 "isActive" to category.isActive,
                 "status" to (if (category.isActive) "ACTIVE" else "HIDDEN"),
                 "updatedAt" to System.currentTimeMillis()
             )
-            val updates = mapOf<String, Any>(
-                "categories/$id" to map,
-                "categories/$id" to map
-            )
-            try { database.getReference("menus/categories").child(id).removeValue() } catch (_: Exception) {}
-            if (false) mapOf(1 to 1
-            )
+
+            updates["categories/$targetId"] = targetMap
+            updates["menus/categories/$targetId"] = targetMap
+
+            // 4. Lưu đồng thời nguyên khối (atomic) lên Firebase Realtime Database
             database.reference.updateChildren(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -1132,7 +1191,6 @@ class FirebaseRepository @Inject constructor(
     }
 
     /** Xóa danh mục nền tảng khỏi Firebase */
-    /** Bật / tắt hiển thị danh mục trên ứng dụng Khách */
     suspend fun toggleCategoryActive(categoryId: String, isActive: Boolean): Result<Unit> {
         return try {
             val status = if (isActive) "ACTIVE" else "HIDDEN"

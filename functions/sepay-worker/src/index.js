@@ -8,6 +8,12 @@ const PAYMENT_REFERENCE_PATTERN = /\bOI[A-F0-9]{12}\b/g;
 
 let cachedFirebaseToken = null;
 
+/**
+ * Endpoint tiếp nhận SePay Webhook xử lý gạch nợ thanh toán VietQR tự động.
+ * - Xác thực HMAC-SHA256 theo từng storeId của quán.
+ * - Kiểm tra số tài khoản nhận tiền và mã tham chiếu thanh toán (paymentReference dạng OI...).
+ * - Cập nhật trạng thái đơn hàng sang PAID và PENDING trực tiếp trên Firebase Realtime Database.
+ */
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -208,6 +214,9 @@ export default {
   },
 };
 
+/**
+ * Xác thực chữ ký số HMAC-SHA256 (x-sepay-signature) và thời gian hợp lệ từ SePay Webhook.
+ */
 async function verifySePaySignature(headers, body, secret) {
   const timestamp = headers.get("x-sepay-timestamp") ?? "";
   const supplied = headers.get("x-sepay-signature") ?? "";
@@ -252,10 +261,16 @@ function constantTimeEqual(left, right) {
   return difference === 0;
 }
 
+/**
+ * Chuẩn hóa số tài khoản ngân hàng, chỉ giữ lại các ký tự số.
+ */
 function normalizeAccountNumber(value) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+/**
+ * Trích xuất mã nhận diện đơn hàng chuẩn dạng OI + 12 ký tự hex từ nội dung/code giao dịch SePay.
+ */
 function extractPaymentReference(value) {
   const matches = [...String(value).toUpperCase().matchAll(PAYMENT_REFERENCE_PATTERN)];
   return matches.length === 1 ? matches[0][0] : "";

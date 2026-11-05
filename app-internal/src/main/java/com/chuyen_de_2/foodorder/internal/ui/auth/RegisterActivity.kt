@@ -144,6 +144,9 @@ class RegisterActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Hiển thị hộp thoại nhập mã OTP 6 số xác thực Email cho tài khoản nội bộ (Chủ quán/Tài xế).
+     */
     private fun showOtpDialog() {
         val email = binding.etRegisterEmail.text?.toString()?.trim().orEmpty()
         val codeInput = EditText(this).apply {

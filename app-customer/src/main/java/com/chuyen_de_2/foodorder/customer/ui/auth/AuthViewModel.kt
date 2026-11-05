@@ -10,6 +10,11 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
+/*
+Vị trí code: Dòng 40–62: Quản lý LiveData/StateFlow gọi requestEmailOtp và verifyEmailOtp.
+
+
+ */
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
@@ -37,6 +42,9 @@ class AuthViewModel @Inject constructor(
 
     fun logout() = authRepository.logout()
 
+    /**
+     * Yêu cầu gửi mã OTP xác thực qua Email cho khách hàng đăng ký tài khoản.
+     */
     fun requestEmailOtp(email: String) {
         if (email.isBlank()) {
             _otpRequestResult.value = Result.failure(Exception("Vui lòng nhập email"))
@@ -49,6 +57,9 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Xác minh mã OTP 6 số do khách hàng nhập từ email.
+     */
     fun verifyEmailOtp(email: String, code: String) {
         if (!code.matches(Regex("\\d{6}"))) {
             _otpVerifyResult.value = Result.failure(Exception("Mã OTP phải gồm đúng 6 chữ số"))

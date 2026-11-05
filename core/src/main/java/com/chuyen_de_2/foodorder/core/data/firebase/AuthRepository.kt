@@ -18,6 +18,15 @@ import javax.inject.Singleton
  * Repository xử lý xác thực — Firebase Authentication
  * Hỗ trợ: Login Email/Password, Register, Get current user, Get user role
  */
+
+/*
+Dòng 176–183: Hàm requestEmailOtp(email).
+Dòng 185–191: Hàm verifyEmailOtp(email, code).
+Dòng 194–205: Hàm register(...) bắt buộc email phải khớp với verifiedEmail mới cho tạo tài khoản.
+
+Đường dẫn đầy đủ: C:\Users\hothi\OneDrive\Documents\Downloads\chuyen-de-2-android-giau-3-11\SUPABASE_OTP_SETUP.md
+Nội dung: Hướng dẫn cấu hình dịch vụ email và email template gửi OTP trên Supabase.
+ */
 @Singleton
 class AuthRepository @Inject constructor(
     private val auth: FirebaseAuth,
@@ -173,6 +182,9 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Gửi yêu cầu mã OTP 6 số đến email đăng ký thông qua dịch vụ Supabase Auth.
+     */
     suspend fun requestEmailOtp(email: String): Result<Unit> {
         return try {
             emailOtpApi.requestCode(email.trim())
@@ -182,6 +194,10 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Xác thực mã OTP người dùng nhập với email đăng ký.
+     * Trả về Result chứa email đã xác thực thành công.
+     */
     suspend fun verifyEmailOtp(email: String, code: String): Result<String> {
         return try {
             Result.success(emailOtpApi.verifyCode(email.trim(), code.trim()))

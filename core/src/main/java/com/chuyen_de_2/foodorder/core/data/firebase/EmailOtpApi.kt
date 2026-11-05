@@ -12,6 +12,9 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Client API giao tiếp với Supabase Auth REST API phục vụ chức năng nhận và xác thực mã OTP qua Email.
+ */
 @Singleton
 class EmailOtpApi @Inject constructor() {
 
@@ -20,10 +23,20 @@ class EmailOtpApi @Inject constructor() {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    /**
+     * Gửi yêu cầu sinh và gửi mã OTP 6 số tới địa chỉ email đăng ký qua endpoint Supabase `/auth/v1/otp`.
+     * @param email Địa chỉ email nhận mã OTP.
+     */
     suspend fun requestCode(email: String) {
         post("/auth/v1/otp", JSONObject().put("email", email).put("create_user", true))
     }
 
+    /**
+     * Xác thực mã OTP người dùng nhập qua endpoint Supabase `/auth/v1/verify`.
+     * @param email Địa chỉ email đăng ký.
+     * @param code Mã OTP 6 chữ số người dùng nhập.
+     * @return Email đã được xác minh từ hệ thống Supabase.
+     */
     suspend fun verifyCode(email: String, code: String): String {
         val result = post(
             "/auth/v1/verify",
@@ -36,6 +49,9 @@ class EmailOtpApi @Inject constructor() {
         return verifiedEmail
     }
 
+    /**
+     * Thực hiện gửi HTTP POST request kèm API key đến Supabase endpoint.
+     */
     private suspend fun post(path: String, payload: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val apiKey = BuildConfig.SUPABASE_ANON_KEY.trim()

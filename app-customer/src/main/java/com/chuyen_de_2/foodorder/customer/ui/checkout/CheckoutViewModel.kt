@@ -179,6 +179,7 @@ class CheckoutViewModel @Inject constructor(
                         totalPayment = finalPayment,
                         paymentMethod = paymentMethod,
                         paymentMode = paymentMode,
+                        // Sinh mã tham chiếu duy nhất (paymentReference) chuẩn "OI" + 12 ký tự hex cho đơn chuyển khoản VietQR tự động
                         paymentReference = if (paymentMethod == Order.PaymentMethod.BANKING) {
                             "OI${UUID.randomUUID().toString().replace("-", "").take(12).uppercase()}"
                         } else {

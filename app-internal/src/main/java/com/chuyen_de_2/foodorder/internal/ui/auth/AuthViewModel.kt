@@ -29,6 +29,9 @@ class AuthViewModel @Inject constructor(
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
+    /**
+     * Yêu cầu gửi mã OTP xác thực qua Email cho tài khoản nội bộ (Chủ quán/Tài xế).
+     */
     fun requestEmailOtp(email: String) {
         if (email.isBlank()) {
             _otpRequestResult.value = Result.failure(Exception("Vui lòng nhập email"))
@@ -41,6 +44,9 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Xác minh mã OTP 6 số của tài khoản nội bộ (Chủ quán/Tài xế).
+     */
     fun verifyEmailOtp(email: String, code: String) {
         if (!code.matches(Regex("\\d{6}"))) {
             _otpVerifyResult.value = Result.failure(Exception("Mã OTP phải gồm đúng 6 chữ số"))

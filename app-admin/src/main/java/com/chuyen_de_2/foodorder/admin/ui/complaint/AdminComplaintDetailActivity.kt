@@ -9,6 +9,10 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.view.Gravity
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -301,7 +305,7 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
         if (complaint.evidenceImage.isNotBlank()) {
             binding.llEvidenceContainer.visibility = View.VISIBLE
             binding.llNoEvidence.visibility = View.GONE
-            ImageLoadUtils.loadStoreImage(
+            ImageLoadUtils.loadEvidenceImage(
                 imageView = binding.ivEvidencePhoto,
                 imageUrl = complaint.evidenceImage,
                 cornerDp = 10
@@ -481,18 +485,43 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
 
     private fun showFullEvidenceDialog(evidenceImage: String) {
         val dialog = Dialog(this)
-        val iv = ImageView(this).apply {
+        val container = FrameLayout(this).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(Color.parseColor("#E6000000"))
+        }
+
+        val iv = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
             )
             adjustViewBounds = true
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(16, 16, 16, 16)
+            setPadding(24, 48, 24, 48)
         }
-        ImageLoadUtils.loadStoreImage(iv, evidenceImage)
-        dialog.setContentView(iv)
-        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        ImageLoadUtils.loadEvidenceImage(iv, evidenceImage, cornerDp = 0)
+        container.addView(iv)
+
+        val btnClose = ImageView(this).apply {
+            val size = (36 * resources.displayMetrics.density).toInt()
+            layoutParams = FrameLayout.LayoutParams(size, size, Gravity.TOP or Gravity.END).apply {
+                setMargins(24, 40, 24, 0)
+            }
+            setImageResource(R.drawable.ic_close)
+            setColorFilter(Color.WHITE)
+            setOnClickListener { dialog.dismiss() }
+        }
+        container.addView(btnClose)
+
+        dialog.setContentView(container)
+        dialog.window?.let { win ->
+            win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
         dialog.show()
     }
 

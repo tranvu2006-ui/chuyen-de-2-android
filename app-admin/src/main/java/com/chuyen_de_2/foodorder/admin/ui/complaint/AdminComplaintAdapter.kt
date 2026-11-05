@@ -103,7 +103,7 @@ class AdminComplaintAdapter(
             // 5. Ảnh bằng chứng hiện trường
             if (complaint.evidenceImage.isNotBlank()) {
                 binding.llEvidenceThumbnail.visibility = View.VISIBLE
-                ImageLoadUtils.loadStoreImage(
+                ImageLoadUtils.loadEvidenceImage(
                     imageView = binding.ivComplaintEvidenceThumb,
                     imageUrl = complaint.evidenceImage,
                     cornerDp = 8
@@ -121,7 +121,9 @@ class AdminComplaintAdapter(
                     binding.tvComplaintStatusBadge.text = "ĐÃ GIẢI QUYẾT"
                     binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
                     binding.tvComplaintStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-                    binding.btnResolveAction.text = "🔍 Xem Biên Bản Phán Quyết"
+                    binding.btnResolveAction.text = "Xem Biên Bản Phán Quyết"
+                    binding.btnResolveAction.icon = ContextCompat.getDrawable(context, R.drawable.ic_eye)
+                    binding.btnResolveAction.iconTint = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.brand_green))
                     binding.btnResolveAction.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
                     binding.btnResolveAction.setBackgroundColor(ContextCompat.getColor(context, R.color.brand_green_bg))
                 }
@@ -129,7 +131,9 @@ class AdminComplaintAdapter(
                     binding.tvComplaintStatusBadge.text = "ĐÃ BÁC BỎ"
                     binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
                     binding.tvComplaintStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-                    binding.btnResolveAction.text = "🔍 Xem Lý Do Bác Bỏ"
+                    binding.btnResolveAction.text = "Xem Lý Do Bác Bỏ"
+                    binding.btnResolveAction.icon = ContextCompat.getDrawable(context, R.drawable.ic_close)
+                    binding.btnResolveAction.iconTint = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_secondary))
                     binding.btnResolveAction.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
                     binding.btnResolveAction.setBackgroundColor(ContextCompat.getColor(context, R.color.background))
                 }
@@ -137,7 +141,9 @@ class AdminComplaintAdapter(
                     binding.tvComplaintStatusBadge.text = "CHỜ XỬ LÝ"
                     binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvComplaintStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-                    binding.btnResolveAction.text = "⚖️ Thẩm Định & Phán Quyết Hồ Sơ"
+                    binding.btnResolveAction.text = "Thẩm Định & Phán Quyết Hồ Sơ"
+                    binding.btnResolveAction.icon = ContextCompat.getDrawable(context, R.drawable.ic_shield_alert)
+                    binding.btnResolveAction.iconTint = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.primary))
                     binding.btnResolveAction.setTextColor(ContextCompat.getColor(context, R.color.primary))
                     binding.btnResolveAction.setBackgroundColor(ContextCompat.getColor(context, R.color.primary_light))
                 }

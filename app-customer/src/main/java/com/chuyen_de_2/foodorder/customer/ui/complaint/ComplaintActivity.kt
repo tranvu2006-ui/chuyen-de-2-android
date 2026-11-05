@@ -22,6 +22,7 @@ import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Complaint
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.ImageLoadUtils
 import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.customer.R
@@ -61,13 +62,13 @@ class ComplaintActivity : AppCompatActivity() {
 
     private val pickEvidenceLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@registerForActivityResult
-        val base64 = ImagePickerUtils.compressUriToBase64(this, uri, maxDimension = 600, quality = 80)
+        val base64 = ImagePickerUtils.compressUriToBase64(this, uri, maxDimension = 720, quality = 80)
         if (!base64.isNullOrBlank()) {
             selectedEvidenceBase64 = base64
             binding.layoutUploadBoxPlaceholder.visibility = View.GONE
             binding.layoutEvidencePreviewContainer.visibility = View.VISIBLE
-            Glide.with(this).load(base64).into(binding.ivEvidencePreview)
-            Toast.makeText(this, "📷 Đã đính kèm ảnh minh chứng thành công!", Toast.LENGTH_SHORT).show()
+            ImageLoadUtils.loadEvidenceImage(binding.ivEvidencePreview, base64, cornerDp = 12)
+            Toast.makeText(this, "✓ Đã đính kèm ảnh minh chứng thành công!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", Toast.LENGTH_SHORT).show()
         }
@@ -293,6 +294,12 @@ class ComplaintActivity : AppCompatActivity() {
             pickEvidenceLauncher.launch("image/*")
         }
 
+        binding.ivEvidencePreview.setOnClickListener {
+            if (selectedEvidenceBase64.isNotBlank()) {
+                showFullEvidenceDialog(selectedEvidenceBase64)
+            }
+        }
+
         binding.btnChangeEvidenceImage.setOnClickListener {
             pickEvidenceLauncher.launch("image/*")
         }
@@ -301,9 +308,29 @@ class ComplaintActivity : AppCompatActivity() {
             selectedEvidenceBase64 = ""
             binding.layoutUploadBoxPlaceholder.visibility = View.VISIBLE
             binding.layoutEvidencePreviewContainer.visibility = View.GONE
-            Glide.with(this).clear(binding.ivEvidencePreview)
+            try {
+                Glide.with(this).clear(binding.ivEvidencePreview)
+            } catch (_: Exception) {}
+            binding.ivEvidencePreview.setImageDrawable(null)
             Toast.makeText(this, "Đã gỡ bỏ ảnh minh chứng", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showFullEvidenceDialog(evidenceImage: String) {
+        val dialog = android.app.Dialog(this)
+        val iv = android.widget.ImageView(this).apply {
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            adjustViewBounds = true
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            setPadding(16, 16, 16, 16)
+        }
+        ImageLoadUtils.loadEvidenceImage(iv, evidenceImage, cornerDp = 0)
+        dialog.setContentView(iv)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.show()
     }
 
     private fun setupSubmitButton() {

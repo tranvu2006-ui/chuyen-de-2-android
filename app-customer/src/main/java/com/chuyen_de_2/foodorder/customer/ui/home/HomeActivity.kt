@@ -502,10 +502,6 @@ class HomeActivity : AppCompatActivity() {
             showAdvancedFilterBottomSheet()
         }
 
-        binding.chipRate5.setOnClickListener { toggleQuickRating(5) }
-        binding.chipRate4.setOnClickListener { toggleQuickRating(4) }
-        binding.chipRate3.setOnClickListener { toggleQuickRating(3) }
-
         syncFilterUI()
     }
 
@@ -695,23 +691,7 @@ class HomeActivity : AppCompatActivity() {
             binding.tvFilterBadge.visibility = View.GONE
         }
 
-        val is5Active = Math.abs(viewModel.currentMinRating - 4.8f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
-        val is4Active = Math.abs(viewModel.currentMinRating - 4.0f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
-        val is3Active = Math.abs(viewModel.currentMinRating - 3.0f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
 
-        fun updateQuickChipStyle(tv: TextView, isActive: Boolean) {
-            if (isActive) {
-                tv.setBackgroundResource(R.drawable.bg_quick_chip_active)
-                tv.setTextColor(ContextCompat.getColor(this, R.color.primary))
-            } else {
-                tv.setBackgroundResource(R.drawable.bg_quick_chip)
-                tv.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
-            }
-        }
-
-        updateQuickChipStyle(binding.chipRate5, is5Active)
-        updateQuickChipStyle(binding.chipRate4, is4Active)
-        updateQuickChipStyle(binding.chipRate3, is3Active)
 
         updateFilterIndicator()
     }

@@ -12,6 +12,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -416,19 +417,79 @@ class OrderListFragment : Fragment() {
         dialog.setContentView(R.layout.dialog_store_warning_detail)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            (resources.displayMetrics.widthPixels * 0.95).toInt(),
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
 
+        val tvSubHeader = dialog.findViewById<TextView>(R.id.tvModalSubHeader)
+        val tvReason = dialog.findViewById<TextView>(R.id.tvIncidentReason)
+        val tvDriver = dialog.findViewById<TextView>(R.id.tvIncidentDriver)
         val tvInfo = dialog.findViewById<TextView>(R.id.tvOrderIncidentInfo)
+        val tvDriverNotes = dialog.findViewById<TextView>(R.id.tvDriverNotes)
+        val ivCallProof = dialog.findViewById<ImageView>(R.id.ivCallProofImage)
+        val boxCallEmpty = dialog.findViewById<View>(R.id.boxCallProofEmpty)
+        val ivMsgProof = dialog.findViewById<ImageView>(R.id.ivMsgProofImage)
+        val boxMsgEmpty = dialog.findViewById<View>(R.id.boxMsgProofEmpty)
         val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseModal)
         val btnDismiss = dialog.findViewById<MaterialButton>(R.id.btnDismissModal)
 
         val total = if (order.totalPayment > 0) order.totalPayment else order.total
         val customer = order.customerName.ifBlank { "Khách hàng" }
-        val address = order.address.ifBlank { "Chưa cập nhật địa chỉ" }
+        val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Chưa cập nhật địa chỉ" } }
         val driver = order.shipperName.ifBlank { "Chưa có tài xế" }
-        tvInfo.text = "Mã đơn: #ORD_OISHI_${order.orderId.takeLast(6).uppercase()}\nKhách hàng: $customer\nĐịa chỉ: $address\nTài xế giao: $driver\nTổng bill: ${total.toVndCurrency()}\nThời gian báo sự cố: Hệ thống ghi nhận 3 cuộc gọi nhỡ"
+        val driverPhone = order.shipperPhone.ifBlank { "" }
+        val shortCode = order.orderId.takeLast(6).uppercase()
+
+        tvSubHeader.text = "#ORD_OISHI_$shortCode • Ghi nhận hệ thống"
+
+        val incidentReason = order.riskReason.ifBlank {
+            order.cancelReason.ifBlank {
+                order.incidentWarningText.ifBlank {
+                    "Khách không nghe máy sau thời gian đếm ngược (Cảnh báo mất đơn)"
+                }
+            }
+        }
+        tvReason.text = incidentReason
+        tvDriver.text = if (driverPhone.isNotBlank()) "$driver ($driverPhone)" else driver
+
+        tvInfo.text = "Khách hàng: $customer\nĐịa chỉ: $address\nTổng bill: ${total.toVndCurrency()}"
+
+        val noteText = order.note.ifBlank {
+            order.incidentWarningText.ifBlank {
+                "Tài xế đã có mặt tại địa chỉ giao hàng và liên hệ nhiều cuộc gọi nhưng không có phản hồi."
+            }
+        }
+        tvDriverNotes.text = "\"$noteText\""
+
+        // Hiển thị ảnh chụp bằng chứng cuộc gọi từ tài xế
+        val callProof = order.incidentCallProofImage
+        if (callProof.isNotBlank()) {
+            ivCallProof.visibility = View.VISIBLE
+            boxCallEmpty.visibility = View.GONE
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                ivCallProof,
+                callProof,
+                R.drawable.ic_camera
+            )
+        } else {
+            ivCallProof.visibility = View.GONE
+            boxCallEmpty.visibility = View.VISIBLE
+        }
+
+        // Hiển thị ảnh chụp bằng chứng nhắn tin từ tài xế
+        val msgProof = order.incidentMessageProofImage
+        if (msgProof.isNotBlank()) {
+            ivMsgProof.visibility = View.VISIBLE
+            boxMsgEmpty.visibility = View.GONE
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                ivMsgProof,
+                msgProof,
+                R.drawable.ic_camera
+            )
+        } else {
+            ivMsgProof.visibility = View.GONE
+            boxMsgEmpty.visibility = View.VISIBLE
+        }
 
         val dismissAction = View.OnClickListener { dialog.dismiss() }
         btnClose.setOnClickListener(dismissAction)

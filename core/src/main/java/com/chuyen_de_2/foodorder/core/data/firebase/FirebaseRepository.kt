@@ -21,6 +21,7 @@ import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,9 +45,27 @@ class FirebaseRepository @Inject constructor(
         try {
             // Giữ kết nối socket và cache sync liên tục để tránh độ trễ khi chuyển màn hình
             database.getReference("orders").keepSynced(true)
-            database.getReference("tracking").keepSynced(true); database.getReference("categories").keepSynced(true); database.getReference("stores").keepSynced(true)
+            database.getReference("tracking").keepSynced(true)
+            database.getReference("categories").keepSynced(true)
+            database.getReference("stores").keepSynced(true)
+            database.getReference("users").keepSynced(true)
+            database.getReference("customers").keepSynced(true)
+            database.getReference("drivers").keepSynced(true)
         } catch (_: Exception) {}
     }
+
+    /** Đọc nhanh từ bộ nhớ đệm đã keepSynced (<1ms) thay vì chờ round-trip mạng từ .get().await() */
+    suspend fun readCacheFirst(ref: com.google.firebase.database.Query): DataSnapshot? =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            ref.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (cont.isActive) cont.resume(snapshot, null)
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    if (cont.isActive) cont.resume(null, null)
+                }
+            })
+        }
 
     // ==================== GIỎ HÀNG (CART) ====================
 
@@ -121,16 +140,18 @@ class FirebaseRepository @Inject constructor(
             var targetShopImageUrl = order.shopImageUrl.trim()
             if ((targetShopPhone.isBlank() || targetShopName.isBlank() || targetShopImageUrl.isBlank()) && targetStoreId.isNotBlank()) {
                 try {
-                    val storeSnap = database.getReference("stores").child(targetStoreId).get().await()
-                    if (targetShopPhone.isBlank()) {
-                        targetShopPhone = storeSnap.child("phone").getValue(String::class.java).orEmpty().trim()
-                    }
-                    if (targetShopName.isBlank()) {
-                        targetShopName = storeSnap.child("name").getValue(String::class.java).orEmpty().trim()
-                    }
-                    if (targetShopImageUrl.isBlank()) {
-                        val storeObj = storeSnap.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
-                        targetShopImageUrl = storeObj?.effectiveImageUrl.orEmpty().trim()
+                    val storeSnap = readCacheFirst(database.getReference("stores").child(targetStoreId))
+                    if (storeSnap != null) {
+                        if (targetShopPhone.isBlank()) {
+                            targetShopPhone = storeSnap.child("phone").getValue(String::class.java).orEmpty().trim()
+                        }
+                        if (targetShopName.isBlank()) {
+                            targetShopName = storeSnap.child("name").getValue(String::class.java).orEmpty().trim()
+                        }
+                        if (targetShopImageUrl.isBlank()) {
+                            val storeObj = storeSnap.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                            targetShopImageUrl = storeObj?.effectiveImageUrl.orEmpty().trim()
+                        }
                     }
                 } catch (_: Exception) {}
             }
@@ -151,7 +172,8 @@ class FirebaseRepository @Inject constructor(
                 createdAt = targetTimestamp,
                 timestamp = targetTimestamp
             )
-            ref.setValue(orderWithId).await()
+            // Ghi tức thời vào cache cục bộ + đẩy qua WebSocket không chặn UI bởi độ trễ ACK
+            ref.setValue(orderWithId)
 
             Result.success(orderId)
         } catch (e: Exception) {
@@ -340,88 +362,167 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Cập nhật trạng thái đơn hàng và đồng bộ hai chiều status/orderStatus */
-    suspend fun updateOrderStatus(orderId: String, status: String, reason: String = "") {
-        val prevOrderSnap = try { database.getReference("orders").child(orderId).get().await() } catch (_: Exception) { null }
+    /** Cập nhật trạng thái đơn hàng tức thời (<10ms) và xử lý điểm uy tín bất đồng bộ ở nền */
+    suspend fun updateOrderStatus(
+        orderId: String,
+        status: String,
+        reason: String = "",
+        targetCustomerId: String = ""
+    ) {
+        val normalizedStatus = status.uppercase()
+        val needsTrustScoreUpdate = normalizedStatus == Order.Status.COMPLETED ||
+                normalizedStatus == Order.Status.BOOM ||
+                normalizedStatus == Order.Status.RETURNING_TO_STORE ||
+                normalizedStatus == Order.Status.RETURNED_TO_STORE ||
+                normalizedStatus == Order.Status.CANCELLED
+
+        // Chỉ đọc snapshot trước đó từ bộ nhớ đệm (<1ms) khi cần tính điểm uy tín
+        val prevOrderSnap = if (needsTrustScoreUpdate) {
+            try { readCacheFirst(database.getReference("orders").child(orderId)) } catch (_: Exception) { null }
+        } else null
         val prevStatus = prevOrderSnap?.child("status")?.getValue(String::class.java)?.uppercase().orEmpty()
-        val updates = mutableMapOf<String, Any>("status" to status, "orderStatus" to status, "updatedAt" to System.currentTimeMillis())
+
+        val updates = mutableMapOf<String, Any>(
+            "status" to status,
+            "orderStatus" to status,
+            "updatedAt" to System.currentTimeMillis()
+        )
         if (reason.isNotBlank()) updates["cancelReason"] = reason
-        if (status.uppercase() == Order.Status.COMPLETED || status.uppercase() == Order.Status.BOOM || status.uppercase() == Order.Status.CANCELLED) {
+
+        // Cập nhật trạng thái đơn hàng NGAY LẬP TỨC vào cache + đẩy socket realtime (không chờ .await() chặn luồng)
+        database.getReference("orders").child(orderId).updateChildren(updates)
+
+        if (normalizedStatus == Order.Status.COMPLETED || normalizedStatus == Order.Status.BOOM || normalizedStatus == Order.Status.CANCELLED) {
             try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
         }
-        database.getReference("orders").child(orderId).updateChildren(updates).await()
-        if (prevStatus == status.uppercase()) return
-        try {
-            val customerId = prevOrderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
-            if (customerId.isNotBlank()) {
-                val userRef = database.getReference("users").child(customerId)
-                val custNodeRef = database.getReference("customers").child(customerId)
-                val userSnap = userRef.get().await()
-                val custNodeSnap = custNodeRef.get().await()
-                val currentCompleted = maxOf(userSnap.child("completedOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("completedOrders").getValue(Long::class.java) ?: 0L)
-                val currentTotal = maxOf(userSnap.child("totalOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("totalOrders").getValue(Long::class.java) ?: 0L)
-                val currentBoom = maxOf(userSnap.child("boomOrders").getValue(Long::class.java) ?: 0L, custNodeSnap.child("boomOrders").getValue(Long::class.java) ?: 0L)
-                val currentScore = custNodeSnap.child("trustScore").getValue(Long::class.java) ?: userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
-                val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
-                val statsUpdates = mutableMapOf<String, Any>()
-                var scoreChange = 0
-                var logReason = ""
-                var newScore = currentScore
-                when (status.uppercase()) {
-                    Order.Status.COMPLETED -> {
-                        newScore = minOf(100L, currentScore + 2L)
-                        scoreChange = (newScore - currentScore).toInt()
-                        logReason = "Hoàn thành nhận hàng & thanh toán đơn #ORD-$shortCode (+2 điểm)"
-                        statsUpdates["completedOrders"] = currentCompleted + 1
-                        statsUpdates["totalOrders"] = currentTotal + 1
-                        statsUpdates["trustScore"] = newScore
-                    }
-                    Order.Status.BOOM -> {
-                        newScore = maxOf(0L, currentScore - 30L)
-                        scoreChange = (newScore - currentScore).toInt()
-                        logReason = if (reason.isNotBlank()) "Bom hàng đơn #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
-                        statsUpdates["boomOrders"] = currentBoom + 1
-                        statsUpdates["totalOrders"] = currentTotal + 1
-                        statsUpdates["trustScore"] = newScore
-                        if (newScore < 20L) {
-                            statsUpdates["status"] = "LOCKED"
-                            statsUpdates["isActive"] = false
-                            statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
-                        }
-                    }
-                    Order.Status.CANCELLED -> {
-                        if (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING) {
-                            newScore = maxOf(0L, currentScore - 10L)
+
+        if (!needsTrustScoreUpdate || prevStatus == normalizedStatus) return
+
+        // Xử lý cộng/trừ điểm uy tín ở luồng nền để UI chuyển bước tức thì 0ms
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val customerId = targetCustomerId.ifBlank {
+                    prevOrderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
+                        .ifBlank { prevOrderSnap?.child("userId")?.getValue(String::class.java).orEmpty() }
+                }
+                if (customerId.isNotBlank()) {
+                    val userRef = database.getReference("users").child(customerId)
+                    val custNodeRef = database.getReference("customers").child(customerId)
+                    val userSnap = try { readCacheFirst(userRef) } catch (_: Exception) { null }
+                    val custNodeSnap = try { readCacheFirst(custNodeRef) } catch (_: Exception) { null }
+
+                    val currentCompleted = maxOf(
+                        custNodeSnap?.child("completedOrders")?.getValue(Int::class.java)?.toLong()
+                            ?: custNodeSnap?.child("completedOrders")?.getValue(Long::class.java)
+                            ?: userSnap?.child("completedOrders")?.getValue(Int::class.java)?.toLong()
+                            ?: userSnap?.child("completedOrders")?.getValue(Long::class.java)
+                            ?: 0L
+                    )
+                    val currentTotal = maxOf(
+                        custNodeSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                            ?: custNodeSnap?.child("totalOrders")?.getValue(Long::class.java)
+                            ?: userSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                            ?: userSnap?.child("totalOrders")?.getValue(Long::class.java)
+                            ?: 0L
+                    )
+                    val currentBoom = maxOf(
+                        custNodeSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                            ?: custNodeSnap?.child("boomOrders")?.getValue(Long::class.java)
+                            ?: userSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                            ?: userSnap?.child("boomOrders")?.getValue(Long::class.java)
+                            ?: 0L
+                    )
+                    val currentScore = custNodeSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                        ?: custNodeSnap?.child("trustScore")?.getValue(Long::class.java)
+                        ?: userSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                        ?: userSnap?.child("trustScore")?.getValue(Long::class.java)
+                        ?: 100L
+
+                    val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
+                    val statsUpdates = mutableMapOf<String, Any>()
+                    var scoreChange = 0
+                    var logReason = ""
+                    var newScore = currentScore
+                    when (normalizedStatus) {
+                        Order.Status.COMPLETED -> {
+                            newScore = minOf(100L, currentScore + 2L)
                             scoreChange = (newScore - currentScore).toInt()
-                            logReason = if (reason.isNotBlank()) "Hủy đơn muộn #ORD-$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #ORD-$shortCode sau khi quán đã chế biến (-10 điểm)"
-                            statsUpdates["boomOrders"] = currentBoom + 1
+                            logReason = "Hoàn thành nhận hàng & thanh toán đơn #ORD-$shortCode (+2 điểm)"
+                            statsUpdates["completedOrders"] = currentCompleted + 1
                             statsUpdates["totalOrders"] = currentTotal + 1
                             statsUpdates["trustScore"] = newScore
                         }
+                        Order.Status.BOOM, Order.Status.RETURNING_TO_STORE -> {
+                            if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
+                                newScore = maxOf(0L, currentScore - 30L)
+                                scoreChange = (newScore - currentScore).toInt()
+                                logReason = if (reason.isNotBlank()) "Bom hàng đơn #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
+                                statsUpdates["boomOrders"] = currentBoom + 1
+                                statsUpdates["totalOrders"] = currentTotal + 1
+                                statsUpdates["trustScore"] = newScore
+                                if (newScore < 20L) {
+                                    statsUpdates["status"] = "LOCKED"
+                                    statsUpdates["isActive"] = false
+                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                                }
+                            }
+                        }
+                        Order.Status.RETURNED_TO_STORE -> {
+                            if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
+                                newScore = maxOf(0L, currentScore - 30L)
+                                scoreChange = (newScore - currentScore).toInt()
+                                logReason = if (reason.isNotBlank()) "Bom hàng trả về quán #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
+                                statsUpdates["boomOrders"] = currentBoom + 1
+                                statsUpdates["totalOrders"] = currentTotal + 1
+                                statsUpdates["trustScore"] = newScore
+                                if (newScore < 20L) {
+                                    statsUpdates["status"] = "LOCKED"
+                                    statsUpdates["isActive"] = false
+                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                                }
+                            }
+                        }
+                        Order.Status.CANCELLED -> {
+                            if (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING || prevStatus == Order.Status.ARRIVED_AT_CUSTOMER) {
+                                newScore = maxOf(0L, currentScore - 10L)
+                                scoreChange = (newScore - currentScore).toInt()
+                                logReason = if (reason.isNotBlank()) "Hủy đơn muộn #ORD-$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #ORD-$shortCode sau khi quán đã chế biến (-10 điểm)"
+                                statsUpdates["boomOrders"] = currentBoom + 1
+                                statsUpdates["totalOrders"] = currentTotal + 1
+                                statsUpdates["trustScore"] = newScore
+                            }
+                        }
                     }
-                }
-                if (statsUpdates.isNotEmpty()) {
-                    userRef.updateChildren(statsUpdates)
-                    custNodeRef.updateChildren(statsUpdates)
-                    if (logReason.isNotBlank()) {
-                        val logRef = database.getReference("trust_score_logs").push()
-                        val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
-                        val logEntry = TrustScoreLog(
-                            logId = logId,
-                            customerId = customerId,
-                            orderId = orderId,
-                            changeAmount = if (scoreChange != 0) scoreChange else if (status.uppercase() == Order.Status.COMPLETED) 2 else -10,
-                            oldScore = currentScore.toInt(),
-                            newScore = newScore.toInt(),
-                            reason = logReason,
-                            createdAt = System.currentTimeMillis()
+                    if (statsUpdates.isNotEmpty()) {
+                        userRef.updateChildren(statsUpdates)
+                        custNodeRef.updateChildren(statsUpdates)
+                        database.getReference("orders").child(orderId).updateChildren(
+                            mapOf(
+                                "customerTrustScore" to newScore,
+                                "trustScoreChange" to scoreChange
+                            )
                         )
-                        logRef.setValue(logEntry)
+                        if (logReason.isNotBlank()) {
+                            val logRef = database.getReference("trust_score_logs").push()
+                            val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
+                            val logEntry = TrustScoreLog(
+                                logId = logId,
+                                customerId = customerId,
+                                orderId = orderId,
+                                changeAmount = if (scoreChange != 0) scoreChange else if (normalizedStatus == Order.Status.COMPLETED) 2 else -10,
+                                oldScore = currentScore.toInt(),
+                                newScore = newScore.toInt(),
+                                reason = logReason,
+                                createdAt = System.currentTimeMillis()
+                            )
+                            logRef.setValue(logEntry)
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                android.util.Log.e("FirebaseRepo", "updateOrderStatus background error: ${e.message}")
             }
-        } catch (_: Exception) {}
-        return
+        }
     }
     private suspend fun legacyUpdateOrderStatusUnused(orderId: String, status: String) {
         val updates = mutableMapOf<String, Any>(

@@ -136,6 +136,8 @@ object ImageLoadUtils {
     /**
      * Helper tiện ích nạp avatar kèm ID tài nguyên màu mặc định (R.color.xxx)
      */
+    fun loadDishImage(imageView: ImageView, imageUrl: String?, placeholderResId: Int = R.drawable.ic_store, errorResId: Int = placeholderResId, cornerDp: Int = 0) = loadStoreImage(imageView, imageUrl, placeholderResId, errorResId, cornerDp)
+
     fun loadUserAvatarWithTintRes(
         imageView: ImageView,
         avatarUrl: String?,

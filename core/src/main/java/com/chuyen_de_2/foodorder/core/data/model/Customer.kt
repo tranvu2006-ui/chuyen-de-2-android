@@ -32,21 +32,20 @@ data class Customer(
     @get:Exclude
     val tierBadge: String
         get() = when {
-            trustScore >= 95 -> "💎 Hạng Kim Cương"
-            trustScore >= 80 -> "🥇 Hạng Vàng"
-            trustScore >= 50 -> "🥈 Hạng Bạc"
+            trustScore >= 95 -> "💎 Hạng Kim Cương (COD)"
+            trustScore >= 90 -> "🥇 Hạng Vàng (COD)"
+            trustScore >= 50 -> "🥈 Hạng Bạc (Cấm COD)"
             trustScore >= 20 -> "⚠️ Hạn Chế COD"
             else -> "🚫 Đình Chỉ"
         }
 
     @get:Exclude
     val maxCodLimitVnd: Long
-        get() = when {
-            trustScore >= 95 -> Long.MAX_VALUE
-            trustScore >= 80 -> 500_000L
-            trustScore >= 50 -> 150_000L
-            else -> 0L
-        }
+        get() = if (trustScore >= 90) Long.MAX_VALUE else 0L
+
+    @get:Exclude
+    val isCodEligible: Boolean
+        get() = trustScore >= 90
 
     @get:Exclude
     val shippingDiscountVnd: Long
@@ -63,10 +62,7 @@ data class Customer(
     @get:Exclude
     val privilegeDescription: String
         get() = when {
-            trustScore >= 95 -> "Tỷ lệ nhận đơn $completionRatePercent%. Đặc quyền Hạng Kim Cương: Thanh toán tiền mặt COD không giới hạn & tự động giảm 5.000đ phí giao hàng mọi đơn!"
-            trustScore >= 80 -> "Tỷ lệ nhận đơn $completionRatePercent%. Quyền lợi Hạng Vàng: Được thanh toán tiền mặt COD cho đơn hàng lên đến 500.000đ."
-            trustScore >= 50 -> "Cảnh báo Hạng Bạc: Chỉ hỗ trợ thanh toán tiền mặt COD tối đa 150.000đ/đơn. Hãy nhận hàng đúng hẹn (+2đ/đơn) để nâng hạng!"
-            trustScore >= 20 -> "Hạn chế tín nhiệm (<50 điểm): Đã khóa thanh toán tiền mặt COD. Vui lòng thanh toán Chuyển khoản VietQR để tích lũy lại điểm (+2đ/đơn)."
-            else -> "Tài khoản bị khóa tự động do điểm uy tín dưới 20 điểm vì bom hàng nhiều lần."
+            trustScore >= 90 -> "Tỷ lệ nhận đơn $completionRatePercent%. Đủ điều kiện thanh toán tiền mặt COD (từ 90 điểm trở lên)${if (trustScore >= 95) " & giảm 5.000đ ship" else ""}."
+            else -> "Điểm uy tín dưới 90 điểm ($trustScore/100): Đã khóa hình thức COD. Vui lòng chọn Đặt cọc 20% hoặc Chuyển khoản VietQR để tích lũy lại điểm (+2đ/đơn)."
         }
 }

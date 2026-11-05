@@ -1967,7 +1967,7 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Phán quyết xử lý khiếu nại và áp dụng 3 mức chế tài vi phạm (Cảnh báo, Ẩn tạm thời, Khóa tài khoản) */
+    /** Phán quyết xử lý khiếu nại và áp dụng 3 mức chế tài vi phạm (hỗ trợ phạt ngược người gửi khi báo cáo sai sự thật) */
     suspend fun resolveComplaint(
         complaintId: String,
         status: String,
@@ -1978,19 +1978,47 @@ class FirebaseRepository @Inject constructor(
         targetId: String = "",
         customerId: String = "",
         driverId: String = "",
-        orderId: String = ""
+        orderId: String = "",
+        isCounterPenalty: Boolean = false,
+        counterPenaltyTier: String = "NONE"
     ): Result<Unit> {
         return try {
             val resolvedAt = System.currentTimeMillis()
+            val effectiveCounterPenalty = if (isCounterPenalty) counterPenaltyTier else "NONE"
+            val trustDeducted = when {
+                !isCounterPenalty -> 0
+                effectiveCounterPenalty == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.WARN -> 10
+                effectiveCounterPenalty == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.HIDE -> 30
+                effectiveCounterPenalty == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK -> 50
+                else -> 0
+            }
             val updates = mutableMapOf<String, Any?>(
                 "status" to status,
-                "penaltyApplied" to penaltyApplied,
+                "penaltyApplied" to if (isCounterPenalty) "NONE" else penaltyApplied,
                 "adminNote" to adminNote,
+                "isComplainantPenalized" to isCounterPenalty,
+                "counterPenaltyApplied" to effectiveCounterPenalty,
+                "counterPenaltyReason" to if (isCounterPenalty) adminNote else "",
+                "trustScoreDeducted" to trustDeducted,
                 "resolvedAt" to resolvedAt
             )
             database.getReference("complaints").child(complaintId).updateChildren(updates).await()
 
-            if (status.equals(com.chuyen_de_2.foodorder.core.data.model.Complaint.ComplaintStatus.RESOLVED, ignoreCase = true) && penaltyApplied != "NONE") {
+            // 1. Phạt ngược người gửi khiếu nại (Khách hàng báo cáo sai / vu khống / lạm dụng)
+            if (isCounterPenalty && customerId.isNotBlank()) {
+                when (effectiveCounterPenalty) {
+                    com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.WARN -> {
+                        deductCustomerTrustScore(customerId, 10, "Phạt báo cáo sai sự thật đơn #$orderId: $adminNote", orderId)
+                    }
+                    com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.HIDE -> {
+                        deductCustomerTrustScore(customerId, 30, "Phạt nặng vu khống / lạm dụng khiếu nại đơn #$orderId: $adminNote", orderId)
+                    }
+                    com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK -> {
+                        deductCustomerTrustScore(customerId, 50, "Khóa tài khoản do lạm dụng khiếu nại đơn #$orderId: $adminNote", orderId)
+                        updateUserStatus(customerId, "LOCKED", false, "Tài khoản bị khóa vĩnh viễn do vu khống / lạm dụng hệ thống khiếu nại: $adminNote")
+                    }
+                }
+            } else if (status.equals(com.chuyen_de_2.foodorder.core.data.model.Complaint.ComplaintStatus.RESOLVED, ignoreCase = true) && penaltyApplied != "NONE") {
                 val effectiveStoreId = storeId.ifBlank { if (targetType == com.chuyen_de_2.foodorder.core.data.model.Complaint.TargetType.STORE) targetId else "" }
                 val effectiveCustomerId = customerId.ifBlank { if (targetType == com.chuyen_de_2.foodorder.core.data.model.Complaint.TargetType.CUSTOMER) targetId else "" }
                 val effectiveDriverId = driverId.ifBlank { if (targetType == com.chuyen_de_2.foodorder.core.data.model.Complaint.TargetType.DRIVER) targetId else "" }
@@ -2036,7 +2064,7 @@ class FirebaseRepository @Inject constructor(
                 try {
                     val orderUpdates = mapOf<String, Any>(
                         "complaintStatus" to status,
-                        "complaintPenalty" to penaltyApplied,
+                        "complaintPenalty" to if (isCounterPenalty) effectiveCounterPenalty else penaltyApplied,
                         "complaintNote" to adminNote
                     )
                     database.getReference("orders").child(orderId).updateChildren(orderUpdates).await()
@@ -2047,6 +2075,30 @@ class FirebaseRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /** Lắng nghe danh sách khiếu nại do 1 khách hàng cụ thể gửi */
+    fun observeCustomerComplaints(customerId: String): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Complaint>> = callbackFlow {
+        val ref = database.getReference("complaints")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Complaint>()
+                for (child in snapshot.children) {
+                    val c = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+                    if (c != null && c.customerId == customerId) {
+                        val cId = if (c.complaintId.isBlank()) child.key ?: "" else c.complaintId
+                        list.add(c.copy(complaintId = cId))
+                    }
+                }
+                trySend(list.sortedByDescending { it.createdAt })
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
     }
 
     private suspend fun deductCustomerTrustScore(customerId: String, amount: Int, reason: String, orderId: String = "") {

@@ -115,8 +115,19 @@ class AdminComplaintAdapter(
             // 6. Trạng thái hồ sơ
             val isResolved = complaint.status.equals(Complaint.ComplaintStatus.RESOLVED, ignoreCase = true)
             val isRejected = complaint.status.equals(Complaint.ComplaintStatus.REJECTED, ignoreCase = true)
+            val isCounterPenalized = complaint.isComplainantPenalized
 
             when {
+                isCounterPenalized -> {
+                    binding.tvComplaintStatusBadge.text = "PHẠT NGƯỢC KHÁCH"
+                    binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvComplaintStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                    binding.btnResolveAction.text = "Xem Quyết Định Phạt Ngược"
+                    binding.btnResolveAction.icon = ContextCompat.getDrawable(context, R.drawable.ic_shield_alert)
+                    binding.btnResolveAction.iconTint = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.danger))
+                    binding.btnResolveAction.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                    binding.btnResolveAction.setBackgroundColor(ContextCompat.getColor(context, R.color.danger_bg))
+                }
                 isResolved -> {
                     binding.tvComplaintStatusBadge.text = "ĐÃ GIẢI QUYẾT"
                     binding.tvComplaintStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)

@@ -135,6 +135,16 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
             binding.rbResolveApprove.isChecked = true
             binding.rbPenaltyNone.isChecked = true
         }
+        binding.chipNoteFalseReport.setOnClickListener {
+            binding.rbResolveCounterPenalty.isChecked = true
+            binding.rbPenaltyWarn.isChecked = true
+            binding.etAdminVerdictNote.setText("Bác bỏ khiếu nại & phạt người gửi do báo cáo sai sự thật, vu khống đối tượng.")
+        }
+        binding.chipNoteAbuse.setOnClickListener {
+            binding.rbResolveCounterPenalty.isChecked = true
+            binding.rbPenaltyHide.isChecked = true
+            binding.etAdminVerdictNote.setText("Bác bỏ hồ sơ & áp dụng chế tài do lạm dụng khiếu nại nhiều lần không căn cứ.")
+        }
 
         // Nút Bác bỏ nhanh
         binding.btnQuickReject.setOnClickListener {
@@ -148,24 +158,24 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
 
         // Nút Xác nhận phán quyết
         binding.btnSubmitVerdict.setOnClickListener {
-            val status = if (binding.rbResolveReject.isChecked) {
+            val isCounterPenalty = binding.rbResolveCounterPenalty.isChecked
+            val status = if (binding.rbResolveReject.isChecked || isCounterPenalty) {
                 Complaint.ComplaintStatus.REJECTED
             } else {
                 Complaint.ComplaintStatus.RESOLVED
             }
 
-            val penaltyTier = if (status == Complaint.ComplaintStatus.REJECTED) {
-                Store.PenaltyTier.NONE
-            } else {
-                when (binding.rgComplaintPenalty.checkedRadioButtonId) {
+            val penaltyTier = when {
+                binding.rbResolveReject.isChecked -> Store.PenaltyTier.NONE
+                else -> when (binding.rgComplaintPenalty.checkedRadioButtonId) {
                     R.id.rbPenaltyWarn -> Store.PenaltyTier.WARN
                     R.id.rbPenaltyHide -> Store.PenaltyTier.HIDE
                     R.id.rbPenaltyLock -> Store.PenaltyTier.LOCK
-                    else -> Store.PenaltyTier.NONE
+                    else -> if (isCounterPenalty) Store.PenaltyTier.WARN else Store.PenaltyTier.NONE
                 }
             }
 
-            submitVerdict(status, penaltyTier)
+            submitVerdict(status, penaltyTier, isCounterPenalty)
         }
 
         // Chạm ảnh để xem toàn màn hình
@@ -323,11 +333,20 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
             val resolvedTime = if (complaint.resolvedAt > 0) dateFormat.format(Date(complaint.resolvedAt)) else timeStr
             binding.tvResolvedTime.text = resolvedTime
 
-            val penaltyDesc = when (complaint.penaltyApplied) {
-                Store.PenaltyTier.WARN -> "🟡 Mức 1 - Cảnh Báo Vi Phạm (WARN)"
-                Store.PenaltyTier.HIDE -> "🟠 Mức 2 - Ẩn Tạm Thời / Đình Chỉ Hoạt Động (HIDE)"
-                Store.PenaltyTier.LOCK -> "🔴 Mức 3 - Khóa Tài Khoản Vĩnh Viễn (LOCK)"
-                else -> if (isRejected) "❌ Bác Bỏ Khiếu Nại (Không Vi Phạm)" else "⚪ Không áp dụng chế tài"
+            val penaltyDesc = when {
+                complaint.isComplainantPenalized -> {
+                    when (complaint.counterPenaltyApplied) {
+                        Store.PenaltyTier.WARN -> "⚠️ PHẠT NGƯỢC KHÁCH HÀNG: Cảnh cáo & Trừ 10 điểm uy tín"
+                        Store.PenaltyTier.HIDE -> "🚫 PHẠT NGƯỢC KHÁCH HÀNG: Trừ nặng 30 điểm uy tín & Tước quyền COD"
+                        Store.PenaltyTier.LOCK -> "🔒 PHẠT NGƯỢC KHÁCH HÀNG: Khóa tài khoản vĩnh viễn (Trừ 50đ)"
+                        else -> "⚠️ Đã phạt ngược người khiếu nại"
+                    }
+                }
+                complaint.penaltyApplied == Store.PenaltyTier.WARN -> "🟡 Mức 1 - Cảnh Báo Vi Phạm (WARN)"
+                complaint.penaltyApplied == Store.PenaltyTier.HIDE -> "🟠 Mức 2 - Ẩn Tạm Thời / Đình Chỉ Hoạt Động (HIDE)"
+                complaint.penaltyApplied == Store.PenaltyTier.LOCK -> "🔴 Mức 3 - Khóa Tài Khoản Vĩnh Viễn (LOCK)"
+                isRejected -> "❌ Bác Bỏ Khiếu Nại (Không Vi Phạm)"
+                else -> "⚪ Không áp dụng chế tài"
             }
             binding.tvExistingPenaltyApplied.text = "Chế tài: $penaltyDesc"
             binding.tvExistingAdminNote.text = "Biên bản Admin: ${complaint.adminNote.ifBlank { "Đã thụ lý theo quy chế sàn." }}"
@@ -336,7 +355,15 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
             if (binding.etAdminVerdictNote.text.isNullOrBlank()) {
                 binding.etAdminVerdictNote.setText(complaint.adminNote)
             }
-            if (isRejected) {
+            if (complaint.isComplainantPenalized) {
+                binding.rbResolveCounterPenalty.isChecked = true
+                when (complaint.counterPenaltyApplied) {
+                    Store.PenaltyTier.WARN -> binding.rbPenaltyWarn.isChecked = true
+                    Store.PenaltyTier.HIDE -> binding.rbPenaltyHide.isChecked = true
+                    Store.PenaltyTier.LOCK -> binding.rbPenaltyLock.isChecked = true
+                    else -> binding.rbPenaltyNone.isChecked = true
+                }
+            } else if (isRejected) {
                 binding.rbResolveReject.isChecked = true
                 binding.rbPenaltyNone.isChecked = true
             } else {
@@ -402,14 +429,40 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
     private fun updatePenaltyImpactCallout() {
         val complaint = currentComplaint
 
-        // Nếu chọn bác bỏ
+        // Nếu chọn Bác bỏ hồ sơ (không phạt)
         if (binding.rbResolveReject.isChecked) {
-            binding.tvPenaltyImpactCallout.text = "❌ Bác bỏ khiếu nại: Xác định không đủ chứng cứ vi phạm hoặc khiếu nại vu khống. Hồ sơ sẽ được đóng và không áp dụng chế tài nào."
-            binding.tvPenaltyImpactCallout.setBackgroundColor(0xFFFEF2F2.toInt())
-            binding.tvPenaltyImpactCallout.setTextColor(0xFF991B1B.toInt())
+            binding.tvPenaltySectionTitle.text = "2. Biện pháp chế tài:"
+            binding.tvPenaltyImpactCallout.text = "⚪ Bác bỏ bình thường: Không đủ chứng cứ vi phạm rõ ràng. Hồ sơ sẽ được đóng lại và không áp dụng chế tài lên bên nào."
+            binding.tvPenaltyImpactCallout.setBackgroundColor(0xFFF3F4F6.toInt())
+            binding.tvPenaltyImpactCallout.setTextColor(0xFF4B5563.toInt())
             return
         }
 
+        // Nếu chọn Phạt ngược người khiếu nại (Khách hàng)
+        if (binding.rbResolveCounterPenalty.isChecked) {
+            val customerName = complaint?.senderName.orEmpty().ifBlank { "Khách hàng" }
+            binding.tvPenaltySectionTitle.text = "2. Biện pháp PHẠT NGƯỢC khách hàng ($customerName):"
+            binding.tvPenaltyImpactCallout.setBackgroundColor(0xFFFEF2F2.toInt())
+            binding.tvPenaltyImpactCallout.setTextColor(0xFF991B1B.toInt())
+            when (binding.rgComplaintPenalty.checkedRadioButtonId) {
+                R.id.rbPenaltyWarn -> {
+                    binding.tvPenaltyImpactCallout.text = "🟡 Phạt ngược Mức 1 - Cảnh cáo & Trừ 10 điểm uy tín: Ghi nhận vi phạm báo cáo sai sự thật. Điểm uy tín của $customerName bị trừ 10 điểm và lưu log kiểm tra."
+                }
+                R.id.rbPenaltyHide -> {
+                    binding.tvPenaltyImpactCallout.text = "🟠 Phạt ngược Mức 2 - Trừ nặng 30 điểm uy tín & Khóa quyền COD: Điểm uy tín bị giảm 30 điểm. Nếu điểm rơi xuống dưới 90 điểm, khách hàng sẽ bị cấm vĩnh viễn thanh toán COD!"
+                }
+                R.id.rbPenaltyLock -> {
+                    binding.tvPenaltyImpactCallout.text = "🔴 Phạt ngược Mức 3 - Khóa tài khoản vĩnh viễn: Trừ 50 điểm uy tín và KHÓA TÀI KHOẢN người dùng (LOCKED). Khách hàng không thể đăng nhập vào ứng dụng."
+                }
+                else -> {
+                    binding.tvPenaltyImpactCallout.text = "⚠️ Vui lòng chọn 1 trong 3 mức chế tài phạt ngược để áp dụng lên khách hàng vi phạm."
+                }
+            }
+            return
+        }
+
+        // Chấp thuận khiếu nại: phạt bên bị khiếu nại
+        binding.tvPenaltySectionTitle.text = "2. Biện pháp chế tài đối tượng vi phạm (3 Mức):"
         binding.tvPenaltyImpactCallout.setBackgroundColor(0xFFFFFBEB.toInt())
         binding.tvPenaltyImpactCallout.setTextColor(0xFF92400E.toInt())
 
@@ -441,7 +494,7 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
         }
     }
 
-    private fun submitVerdict(status: String, penaltyTier: String) {
+    private fun submitVerdict(status: String, penaltyTier: String, isCounterPenalty: Boolean = false) {
         val note = binding.etAdminVerdictNote.text?.toString().orEmpty().trim()
         if (note.isBlank()) {
             Toast.makeText(this, "Vui lòng nhập lý do / phản hồi chính thức của Admin", Toast.LENGTH_SHORT).show()
@@ -466,7 +519,9 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
                 targetId = complaint.targetId,
                 customerId = complaint.customerId,
                 driverId = complaint.driverId,
-                orderId = complaint.orderId
+                orderId = complaint.orderId,
+                isCounterPenalty = isCounterPenalty,
+                counterPenaltyTier = penaltyTier
             )
 
             binding.progressBarSubmitting.visibility = View.GONE

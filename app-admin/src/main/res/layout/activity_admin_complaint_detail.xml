@@ -798,8 +798,18 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:checked="true"
-                            android:text="Chấp thuận khiếu nại (Xác nhận có vi phạm)"
+                            android:text="Chấp thuận khiếu nại (Xác nhận bên bị khiếu nại vi phạm)"
                             android:textColor="@color/brand_green"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <RadioButton
+                            android:id="@+id/rbResolveCounterPenalty"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Bác bỏ &amp; Phạt ngược khách hàng (Báo cáo sai / Lạm dụng)"
+                            android:textColor="@color/danger"
                             android:textSize="13sp"
                             android:textStyle="bold" />
 
@@ -807,8 +817,9 @@
                             android:id="@+id/rbResolveReject"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Bác bỏ khiếu nại (Không đủ căn cứ / Vu khống)"
-                            android:textColor="@color/danger"
+                            android:layout_marginTop="2dp"
+                            android:text="Bác bỏ hồ sơ (Không đủ chứng cứ, không phạt bên nào)"
+                            android:textColor="@color/text_secondary"
                             android:textSize="13sp"
                             android:textStyle="bold" />
                     </RadioGroup>
@@ -940,6 +951,24 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="6dp"
                                 android:text="Hai bên đã hòa giải đền bù"
+                                android:textSize="11sp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipNoteFalseReport"
+                                style="@style/Widget.Material3.Chip.Assist"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="Báo cáo sai sự thật / Vu khống"
+                                android:textSize="11sp" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipNoteAbuse"
+                                style="@style/Widget.Material3.Chip.Assist"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="Lạm dụng khiếu nại không căn cứ"
                                 android:textSize="11sp" />
                         </LinearLayout>
                     </HorizontalScrollView>

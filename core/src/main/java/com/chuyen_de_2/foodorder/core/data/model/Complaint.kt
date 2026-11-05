@@ -75,6 +75,19 @@ data class Complaint(
     @SerializedName("adminNote")
     val adminNote: String = "",
 
+    // Chế tài phạt ngược người khiếu nại (báo cáo sai / vu khống / lạm dụng hệ thống)
+    @SerializedName("isComplainantPenalized")
+    val isComplainantPenalized: Boolean = false,
+
+    @SerializedName("counterPenaltyApplied")
+    val counterPenaltyApplied: String = "NONE", // WARN, HIDE, LOCK, NONE
+
+    @SerializedName("counterPenaltyReason")
+    val counterPenaltyReason: String = "",
+
+    @SerializedName("trustScoreDeducted")
+    val trustScoreDeducted: Int = 0,
+
     @SerializedName("createdAt")
     val createdAt: Long = 0,
 

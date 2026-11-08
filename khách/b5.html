@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Chi Tiết Món & Thực Đơn Quán Ngô Gia</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --teal: #0D9488;
+      --star: #F59E0B;
+      --green: #10B981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    /* Khung giả lập Smartphone */
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 28px; background: #FFF; color: #1E293B;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 18px; font-size: 11px; font-weight: 700; flex-shrink: 0;
+      border-bottom: 1px solid #F1F5F9; z-index: 10;
+    }
+
+    /* Top Nav Header */
+    .app-top-nav {
+      height: 44px; background: #FFF; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px; flex-shrink: 0; z-index: 10;
+    }
+    .btn-nav-back {
+      width: 32px; height: 32px; border-radius: 50%; background: #F1F5F9;
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+      color: #1E293B; text-decoration: none; font-weight: 800; border: none; cursor: pointer;
+    }
+    .top-nav-title {
+      font-size: 13.5px; font-weight: 800; color: #1E293B; display: flex; align-items: center; gap: 6px;
+    }
+    .top-nav-actions { display: flex; gap: 8px; }
+    .btn-icon-action {
+      width: 32px; height: 32px; border-radius: 50%; background: #F1F5F9;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+      border: none; cursor: pointer; text-decoration: none; color: #334155;
+    }
+
+    /* ===================================================
+       1. NỬA TRÊN: CHI TIẾT MÓN ĂN ĐANG ĐƯỢC CHỌN
+       (Giữ nguyên nửa trên, bỏ bộ nút cộng trừ ở trên đi)
+       =================================================== */
+    .top-detail-section {
+      height: 260px; background: #FFF; border-bottom: 6px solid #F1F5F9;
+      display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
+      padding: 12px 16px; position: relative;
+    }
+
+    .detail-card-main {
+      display: flex; gap: 14px; align-items: flex-start; margin-bottom: 8px;
+    }
+    .detail-img-box {
+      width: 110px; height: 110px; border-radius: 14px; overflow: hidden;
+      flex-shrink: 0; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      border: 1px solid var(--border);
+    }
+    .detail-img-box img {
+      width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s;
+    }
+    .detail-img-badge {
+      position: absolute; top: 6px; left: 6px; background: var(--primary); color: #FFF;
+      font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px;
+    }
+
+    .detail-info-box { flex: 1; min-width: 0; }
+    .detail-dish-title {
+      font-size: 15.5px; font-weight: 800; color: #0F172A; line-height: 1.3;
+      margin-bottom: 4px;
+    }
+    .detail-dish-store {
+      font-size: 11.5px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .detail-price-row {
+      display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;
+    }
+    .detail-price-main {
+      font-size: 18px; font-weight: 800; color: var(--primary);
+    }
+    .detail-price-old {
+      font-size: 12px; color: #94A3B8; text-decoration: line-through; font-weight: 600;
+    }
+    .detail-rating-row {
+      display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #64748B;
+    }
+    .detail-stars { color: var(--star); font-weight: 800; }
+
+    /* Mô tả & Thông tin tùy chọn */
+    .detail-desc-box {
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px 12px; font-size: 11px; color: #475569; line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .detail-specs-row {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .spec-pill {
+      font-size: 10.5px; font-weight: 700; background: #FFF5F2; color: var(--primary);
+      border: 1px solid rgba(238, 77, 45, 0.25); padding: 3px 8px; border-radius: 6px;
+    }
+
+    /* ===================================================
+       2. NỬA DƯỚI: LIST VIEW MÓN ĂN CỦA QUÁN
+       (Cộng trừ ở bên phải món đó luôn)
+       =================================================== */
+    .bottom-list-section {
+      flex: 1; overflow-y: auto; background: #F8FAFC; display: flex;
+      flex-direction: column; padding-bottom: 74px; /* Tránh đè nút thanh toán */
+    }
+
+    .list-section-header {
+      padding: 10px 16px 8px 16px; background: #FFF; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 8;
+    }
+    .list-section-title {
+      font-size: 13px; font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 6px;
+    }
+    .list-item-badge {
+      background: #F1F5F9; color: #64748B; font-size: 10.5px; font-weight: 700;
+      padding: 2px 7px; border-radius: 99px;
+    }
+
+    /* Category Filter Tabs */
+    .category-tabs-scroll {
+      display: flex; gap: 6px; padding: 8px 14px; background: #FFF;
+      border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    .category-tabs-scroll::-webkit-scrollbar { display: none; }
+    .cat-tab-chip {
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 20px;
+      padding: 5px 12px; font-size: 11px; font-weight: 700; color: #475569;
+      white-space: nowrap; cursor: pointer; transition: all 0.18s;
+    }
+    .cat-tab-chip:hover { color: #1E293B; border-color: #CBD5E1; }
+    .cat-tab-chip.active {
+      background: var(--primary); color: #FFF; border-color: var(--primary);
+    }
+
+    /* List View Container */
+    .dishes-list-view {
+      padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+    }
+
+    .dish-list-card {
+      background: #FFF; border-radius: 12px; padding: 10px 12px; display: flex; gap: 10px;
+      border: 1.5px solid var(--border); cursor: pointer; transition: all 0.18s ease;
+      align-items: center; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .dish-list-card:hover {
+      border-color: #CBD5E1; transform: translateY(-1px);
+    }
+    .dish-list-card.selected-view {
+      border-color: #0F172A; background: #F8FAFC;
+    }
+    .dish-list-card.in-cart {
+      border-color: var(--primary); background: #FFF9F7;
+    }
+
+    .dish-thumb-box {
+      width: 64px; height: 64px; border-radius: 10px; overflow: hidden;
+      flex-shrink: 0; position: relative; background: #F1F5F9;
+    }
+    .dish-thumb-box img {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    .dish-promo-pill {
+      position: absolute; top: 3px; left: 3px; background: var(--primary); color: #FFF;
+      font-size: 8.5px; font-weight: 800; padding: 1px 4px; border-radius: 3px;
+    }
+
+    .dish-list-content { flex: 1; min-width: 0; }
+    .dish-list-name {
+      font-size: 13px; font-weight: 800; color: #0F172A; line-height: 1.3;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dish-list-desc {
+      font-size: 10.5px; color: #64748B; margin: 2px 0 3px 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dish-list-foot {
+      display: flex; align-items: baseline; gap: 8px;
+    }
+    .dish-list-price {
+      font-size: 13.5px; font-weight: 800; color: var(--primary);
+    }
+    .dish-list-sold {
+      font-size: 10px; color: #94A3B8; font-weight: 600;
+    }
+
+    /* BỘ CỘNG TRỪ Ở BÊN PHẢI MÓN ĐÓ LUÔN */
+    .dish-stepper-box {
+      display: flex; align-items: center; border: 1.5px solid #CBD5E1;
+      border-radius: 8px; overflow: hidden; background: #FFF; flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: all 0.2s ease;
+    }
+    .dish-stepper-box.has-qty {
+      border-color: var(--primary); background: #FFF9F7;
+      box-shadow: 0 2px 6px rgba(238, 77, 45, 0.15);
+    }
+    .btn-dish-step {
+      width: 26px; height: 30px; border: none; background: #F8FAFC;
+      font-size: 15px; font-weight: 800; color: #1E293B; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; user-select: none;
+    }
+    .btn-dish-step:hover {
+      background: var(--primary); color: #FFF;
+    }
+    .btn-dish-step:active { transform: scale(0.92); }
+    .dish-step-val {
+      width: 24px; text-align: center; font-size: 12.5px; font-weight: 800;
+      color: #64748B;
+    }
+    .dish-stepper-box.has-qty .dish-step-val {
+      color: var(--primary); font-size: 13px;
+    }
+    .dish-stepper-box.has-qty .btn-dish-step {
+      background: #FFF0ED; color: var(--primary);
+    }
+    .dish-stepper-box.has-qty .btn-dish-step:hover {
+      background: var(--primary); color: #FFF;
+    }
+
+    /* ===================================================
+       3. DƯỚI CÙNG: NÚT THANH TOÁN CỐ ĐỊNH (FIXED CHECKOUT BAR)
+       =================================================== */
+    .checkout-bottom-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: #FFFFFF; border-top: 1px solid var(--border);
+      padding: 10px 14px; z-index: 30; box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+    }
+    .btn-checkout-now {
+      width: 100%; height: 50px; background: linear-gradient(135deg, #FF6933, #EE4D2D);
+      color: #FFF; border: none; border-radius: 12px; display: flex;
+      align-items: center; justify-content: space-between; padding: 0 16px;
+      text-decoration: none; cursor: pointer; box-shadow: 0 4px 16px rgba(238, 77, 45, 0.4);
+      transition: all 0.2s;
+    }
+    .btn-checkout-now:hover { opacity: 0.96; transform: translateY(-1px); }
+    .btn-checkout-now:active { transform: scale(0.99); }
+
+    .checkout-left {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .checkout-cart-icon {
+      font-size: 20px;
+    }
+    .checkout-title {
+      font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px; line-height: 1.2;
+    }
+    .checkout-sub {
+      font-size: 10.5px; opacity: 0.9; font-weight: 600;
+    }
+
+    .checkout-right {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .checkout-total-price {
+      font-size: 16px; font-weight: 800; letter-spacing: -0.3px;
+    }
+    .checkout-arrow {
+      font-size: 16px; font-weight: 800;
+    }
+
+    /* Nút xem bình luận ở header danh sách món */
+    .btn-view-dish-reviews {
+      background: #FFF5F2;
+      border: 1.5px solid rgba(238, 77, 45, 0.25);
+      color: var(--primary);
+      padding: 5px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 3px rgba(238, 77, 45, 0.08);
+      user-select: none;
+    }
+    .btn-view-dish-reviews:hover {
+      background: var(--primary);
+      color: #FFF;
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(238, 77, 45, 0.3);
+    }
+    .btn-view-dish-reviews:active {
+      transform: scale(0.96);
+    }
+    .review-btn-icon { font-size: 12px; }
+    .review-btn-arrow { font-size: 13px; font-weight: 800; line-height: 1; }
+
+    /* ===================================================
+       4. BOTTOM SHEET MODAL XEM BÌNH LUẬN CỦA MÓN
+       =================================================== */
+    .reviews-backdrop {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(4px);
+      z-index: 60;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .reviews-backdrop.open {
+      opacity: 1; pointer-events: auto;
+    }
+    .reviews-sheet {
+      background: #FFFFFF;
+      border-radius: 24px 24px 0 0;
+      max-height: 82%;
+      display: flex; flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.25);
+    }
+    .reviews-backdrop.open .reviews-sheet {
+      transform: translateY(0);
+    }
+
+    .reviews-sheet-header {
+      padding: 14px 18px 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: flex-start;
+      position: relative;
+    }
+    .reviews-sheet-title-box { flex: 1; min-width: 0; padding-right: 12px; }
+    .reviews-sheet-title {
+      font-size: 15px; font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 6px;
+    }
+    .reviews-dish-subtitle {
+      font-size: 11.5px; color: var(--primary); font-weight: 700; margin-top: 2px;
+      display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .btn-close-reviews {
+      width: 28px; height: 28px; border-radius: 50%; background: #F1F5F9;
+      border: none; font-size: 13px; font-weight: 800; color: #64748B;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; flex-shrink: 0;
+    }
+    .btn-close-reviews:hover { background: #E2E8F0; color: #1E293B; }
+
+    /* Overview Rating Box */
+    .reviews-overview-card {
+      margin: 12px 16px 8px 16px;
+      background: linear-gradient(135deg, #FFF9F7, #FFF5F2);
+      border: 1.5px solid rgba(238, 77, 45, 0.15);
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .overview-score-box {
+      text-align: center; flex-shrink: 0; padding-right: 12px;
+      border-right: 1px solid rgba(238, 77, 45, 0.15);
+    }
+    .overview-score-num {
+      font-size: 26px; font-weight: 800; color: var(--primary); line-height: 1;
+    }
+    .overview-score-stars {
+      color: var(--star); font-size: 12px; margin: 3px 0 2px 0;
+    }
+    .overview-score-total {
+      font-size: 10px; font-weight: 700; color: #64748B;
+    }
+    .overview-bars-box { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+    .rating-bar-row {
+      display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; color: #64748B;
+    }
+    .bar-label { width: 18px; text-align: right; }
+    .bar-track {
+      flex: 1; height: 5px; background: #E2E8F0; border-radius: 99px; overflow: hidden;
+    }
+    .bar-fill { height: 100%; background: #F59E0B; border-radius: 99px; }
+    .bar-pct { width: 26px; text-align: right; font-size: 9.5px; color: #94A3B8; }
+
+    /* Filter Chips */
+    .reviews-filter-row {
+      display: flex; gap: 6px; padding: 4px 16px 8px 16px;
+      overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+    }
+    .reviews-filter-row::-webkit-scrollbar { display: none; }
+    .review-filter-chip {
+      background: #F8FAFC; border: 1px solid var(--border); border-radius: 16px;
+      padding: 4px 10px; font-size: 11px; font-weight: 700; color: #475569;
+      white-space: nowrap; cursor: pointer; transition: all 0.15s;
+    }
+    .review-filter-chip:hover { border-color: #CBD5E1; color: #1E293B; }
+    .review-filter-chip.active {
+      background: #1E293B; color: #FFF; border-color: #1E293B;
+    }
+
+    /* Form viết bình luận nhanh */
+    .quick-add-review-box {
+      margin: 0 16px 8px 16px;
+      background: #F8FAFC; border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .quick-review-input-row {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .quick-review-input-row input {
+      flex: 1; border: 1px solid #CBD5E1; border-radius: 8px;
+      padding: 6px 10px; font-size: 11.5px; outline: none; background: #FFF;
+      font-family: inherit;
+    }
+    .quick-review-input-row input:focus {
+      border-color: var(--primary);
+    }
+    .btn-send-review {
+      background: var(--primary); color: #FFF; border: none; border-radius: 8px;
+      padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-send-review:hover { background: var(--primary-hover); }
+    .quick-star-select {
+      display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; color: #64748B;
+    }
+    .star-rating-select { display: flex; gap: 2px; }
+    .star-pick {
+      font-size: 15px; color: #CBD5E1; cursor: pointer; transition: color 0.15s;
+    }
+    .star-pick.active { color: #F59E0B; }
+
+    /* Reviews List Body */
+    .reviews-list-body {
+      flex: 1; overflow-y: auto; padding: 4px 16px 20px 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .review-card {
+      background: #FFFFFF; border: 1px solid #F1F5F9; border-radius: 12px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .review-user-row {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .review-user-left {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .review-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #EE4D2D; color: #FFF; font-size: 11px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .review-user-name {
+      font-size: 12px; font-weight: 800; color: #0F172A; line-height: 1.2;
+    }
+    .review-user-stars {
+      color: #F59E0B; font-size: 10.5px;
+    }
+    .review-date {
+      font-size: 10px; color: #94A3B8; font-weight: 600;
+    }
+    .review-tag-spec {
+      display: inline-block; font-size: 9.5px; font-weight: 700;
+      background: #F1F5F9; color: #475569; padding: 2px 6px; border-radius: 4px;
+      width: fit-content;
+    }
+    .review-text-content {
+      font-size: 11.5px; color: #334155; line-height: 1.45;
+    }
+    .review-like-btn {
+      align-self: flex-start; background: none; border: none;
+      font-size: 10.5px; color: #64748B; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; gap: 4px; padding: 2px 0;
+    }
+    .review-like-btn.liked { color: var(--primary); }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>10:01</span>
+      <span>📶 5G 🔋 99%</span>
+    </div>
+
+    <!-- Top Nav Header -->
+    <header class="app-top-nav">
+      <a href="b1.html" class="btn-nav-back" title="Về trang chủ">←</a>
+      <div class="top-nav-title">
+        <span>🏪</span>
+        <span>Hồng Trà Ngô Gia</span>
+      </div>
+      <div class="top-nav-actions">
+        <a href="b7.html" class="btn-icon-action" title="Xem giỏ hàng">🛒</a>
+        <button class="btn-icon-action" title="Chia sẻ quán">🔗</button>
+      </div>
+    </header>
+
+    <!-- ===================================================
+         1. NỬA TRÊN: CHI TIẾT MÓN ĂN ĐANG ĐƯỢC CHỌN
+         (Hiển thị chi tiết món, đã chuyển nút + - xuống dưới)
+         =================================================== -->
+    <section class="top-detail-section" id="top-detail-container">
+      <div class="detail-card-main">
+        <div class="detail-img-box">
+          <img id="detail-img" src="https://images.unsplash.com/photo-1556881286-fc6915169721?w=600&auto=format&fit=crop&q=80" alt="Món đang chọn">
+          <span class="detail-img-badge" id="detail-promo">-25%</span>
+        </div>
+
+        <div class="detail-info-box">
+          <h2 class="detail-dish-title" id="detail-name">Trà Xí Muội Ô Long Ngô Gia</h2>
+          <div class="detail-dish-store">
+            <span>📍 Hồng Trà Ngô Gia • 28 Tô Vĩnh Diện</span>
+          </div>
+          <div class="detail-price-row">
+            <span class="detail-price-main" id="detail-price">28.000đ</span>
+            <span class="detail-price-old" id="detail-old-price">38.000đ</span>
+          </div>
+          <div class="detail-rating-row" onclick="openReviewsSheet()" style="cursor: pointer;" title="Nhấn để xem đánh giá & bình luận của món">
+            <span class="detail-stars" id="detail-stars">★★★★★ 4.8</span>
+            <span id="detail-sold">• 1.2k đã bán</span>
+            <span style="font-size: 10px; color: var(--primary); font-weight: 700; text-decoration: underline; margin-left: 2px;">(Xem bình luận)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mô tả chi tiết món -->
+      <div class="detail-desc-box" id="detail-desc">
+        Trà Ô Long đặc sản ủ lạnh kết hợp vị xí muội mặn ngọt chua thanh độc quyền, giúp thanh nhiệt giải độc ngày hè.
+      </div>
+
+      <!-- Tùy chọn mặc định -->
+      <div class="detail-specs-row" id="detail-specs">
+        <span class="spec-pill" id="spec-size">Size L (+5k)</span>
+        <span class="spec-pill" id="spec-sugar">50% Đường</span>
+        <span class="spec-pill" id="spec-ice">70% Đá</span>
+        <span class="spec-pill">Trân Châu Hoàng Kim</span>
+      </div>
+    </section>
+
+    <!-- ===================================================
+         2. NỬA DƯỚI: LIST VIEW MÓN ĂN CỦA QUÁN
+         (Có nút cộng trừ bên phải mỗi món)
+         =================================================== -->
+    <section class="bottom-list-section">
+      <div class="list-section-header">
+        <div class="list-section-title">
+          <span>📋 CÁC MÓN ĐƯỢC BÁN HÔM NAY</span>
+          <span class="list-item-badge" id="list-count-badge">8 món</span>
+        </div>
+        <button class="btn-view-dish-reviews" id="btn-view-dish-reviews" onclick="openReviewsSheet()" title="Xem đánh giá & bình luận của món này">
+          <span class="review-btn-icon">💬</span>
+          <span id="review-btn-label">Bình luận (128)</span>
+          <span class="review-btn-arrow">›</span>
+        </button>
+      </div>
+
+      <!-- Category Filter Tabs -->
+      <div class="category-tabs-scroll">
+        <button class="cat-tab-chip active" onclick="filterMenuCategory('ALL', this)">TẤT CẢ (8)</button>
+        <button class="cat-tab-chip" onclick="filterMenuCategory('THỨC UỐNG MỚI', this)">THỨC UỐNG MỚI</button>
+        <button class="cat-tab-chip" onclick="filterMenuCategory('COMBO', this)">COMBO</button>
+        <button class="cat-tab-chip" onclick="filterMenuCategory('LOẠI CÀ PHÊ', this)">LOẠI CÀ PHÊ</button>
+      </div>
+
+      <!-- Danh sách List View các món -->
+      <div class="dishes-list-view" id="dishes-list-container">
+        <!-- Rendered via JavaScript -->
+      </div>
+    </section>
+
+    <!-- ===================================================
+         3. DƯỚI CÙNG: NÚT THANH TOÁN CỐ ĐỊNH
+         =================================================== -->
+    <div class="checkout-bottom-bar">
+      <a href="b8.html" class="btn-checkout-now" id="btn-checkout">
+        <div class="checkout-left">
+          <span class="checkout-cart-icon">🛍️</span>
+          <div>
+            <div class="checkout-title">TIẾP TỤC THANH TOÁN</div>
+            <div class="checkout-sub" id="cart-item-count">Đã chọn 2 món • Quán Ngô Gia</div>
+          </div>
+        </div>
+        <div class="checkout-right">
+          <span class="checkout-total-price" id="cart-total-price">53.000đ</span>
+          <span class="checkout-arrow">➔</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- ===================================================
+         4. BOTTOM SHEET MODAL XEM BÌNH LUẬN & ĐÁNH GIÁ MÓN
+         =================================================== -->
+    <div class="reviews-backdrop" id="reviews-backdrop" onclick="closeReviewsSheet(event)">
+      <div class="reviews-sheet" id="reviews-sheet">
+        <!-- Header -->
+        <div class="reviews-sheet-header">
+          <div class="reviews-sheet-title-box">
+            <h3 class="reviews-sheet-title">⭐ Đánh Giá & Bình Luận</h3>
+            <span class="reviews-dish-subtitle" id="reviews-dish-subtitle">Trà Xí Muội Ô Long Ngô Gia</span>
+          </div>
+          <button class="btn-close-reviews" onclick="closeReviewsSheet()">✕</button>
+        </div>
+
+        <!-- Rating Overview Card -->
+        <div class="reviews-overview-card">
+          <div class="overview-score-box">
+            <div class="overview-score-num" id="overview-score">4.8</div>
+            <div class="overview-score-stars" id="overview-stars">★★★★★</div>
+            <div class="overview-score-total" id="overview-total-text">128 đánh giá</div>
+          </div>
+          <div class="overview-bars-box">
+            <div class="rating-bar-row">
+              <span class="bar-label">5★</span>
+              <div class="bar-track"><div class="bar-fill" id="bar-fill-5" style="width: 82%;"></div></div>
+              <span class="bar-pct" id="bar-pct-5">82%</span>
+            </div>
+            <div class="rating-bar-row">
+              <span class="bar-label">4★</span>
+              <div class="bar-track"><div class="bar-fill" id="bar-fill-4" style="width: 14%;"></div></div>
+              <span class="bar-pct" id="bar-pct-4">14%</span>
+            </div>
+            <div class="rating-bar-row">
+              <span class="bar-label">3★</span>
+              <div class="bar-track"><div class="bar-fill" id="bar-fill-3" style="width: 3%;"></div></div>
+              <span class="bar-pct" id="bar-pct-3">3%</span>
+            </div>
+            <div class="rating-bar-row">
+              <span class="bar-label">2★</span>
+              <div class="bar-track"><div class="bar-fill" id="bar-fill-2" style="width: 1%;"></div></div>
+              <span class="bar-pct" id="bar-pct-2">1%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter tags -->
+        <div class="reviews-filter-row">
+          <button class="review-filter-chip active" onclick="filterReviewsStar('ALL', this)">Tất cả (<span id="count-all-rev">128</span>)</button>
+          <button class="review-filter-chip" onclick="filterReviewsStar(5, this)">5★ (<span id="count-5-rev">98</span>)</button>
+          <button class="review-filter-chip" onclick="filterReviewsStar(4, this)">4★ (<span id="count-4-rev">24</span>)</button>
+          <button class="review-filter-chip" onclick="filterReviewsStar('HAS_IMG', this)">📷 Có ảnh (35)</button>
+        </div>
+
+        <!-- Form gửi bình luận nhanh -->
+        <div class="quick-add-review-box">
+          <div class="quick-review-input-row">
+            <input type="text" id="input-quick-review" placeholder="Viết cảm nhận của bạn về món này..." maxlength="200" onkeydown="if(event.key==='Enter') submitQuickReview()">
+            <button class="btn-send-review" onclick="submitQuickReview()">Gửi</button>
+          </div>
+          <div class="quick-star-select">
+            <span>Chọn số sao:</span>
+            <div class="star-rating-select" id="star-select-box">
+              <span class="star-pick active" data-v="1" onclick="setPickStar(1)">★</span>
+              <span class="star-pick active" data-v="2" onclick="setPickStar(2)">★</span>
+              <span class="star-pick active" data-v="3" onclick="setPickStar(3)">★</span>
+              <span class="star-pick active" data-v="4" onclick="setPickStar(4)">★</span>
+              <span class="star-pick active" data-v="5" onclick="setPickStar(5)">★</span>
+            </div>
+            <span id="star-pick-label" style="color: #F59E0B; font-weight: 800; margin-left: 2px;">5★ Tuyệt vời</span>
+          </div>
+        </div>
+
+        <!-- Danh sách bình luận -->
+        <div class="reviews-list-body" id="reviews-list-container">
+          <!-- Rendered dynamically via JS -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- DANH SÁCH MÓN ĂN QUÁN HỒNG TRÀ NGÔ GIA ---
+    const STORE_DISHES = [
+      {
+        id: 1,
+        name: "Trà Xí Muội Ô Long Ngô Gia",
+        price: 28000,
+        originalPrice: 38000,
+        promo: "-25%",
+        image: "https://images.unsplash.com/photo-1556881286-fc6915169721?w=600&auto=format&fit=crop&q=80",
+        rating: 4.8,
+        sold: "1.2k đã bán",
+        category: "THỨC UỐNG MỚI",
+        specs: ["Size L (+5k)", "50% Đường", "70% Đá", "Trân Châu Hoàng Kim"],
+        description: "Trà Ô Long đặc sản ủ lạnh kết hợp vị xí muội mặn ngọt chua thanh độc quyền, giúp thanh nhiệt giải độc ngày hè."
+      },
+      {
+        id: 2,
+        name: "Trà Xanh Sữa Trân Châu Hoàng Kim",
+        price: 25000,
+        originalPrice: 35000,
+        promo: "Combo Hot",
+        image: "https://images.unsplash.com/photo-1558857563-b371033873b8?w=600&auto=format&fit=crop&q=80",
+        rating: 4.9,
+        sold: "2.5k đã bán",
+        category: "COMBO",
+        specs: ["Size M", "100% Sữa tươi", "Trân Châu Dẻo", "Ít Đá"],
+        description: "Lá trà xanh Mộc Châu thơm ngát hòa quyện sữa tươi béo nhẹ và trân châu hoàng kim dẻo dai."
+      },
+      {
+        id: 3,
+        name: "Trà Bí Đao Hạt Chia Thanh Mát",
+        price: 24000,
+        originalPrice: 30000,
+        promo: "Giảm 20%",
+        image: "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&auto=format&fit=crop&q=80",
+        rating: 4.7,
+        sold: "1.0k đã bán",
+        category: "THỨC UỐNG MỚI",
+        specs: ["Size L", "Đường Phèn", "Hạt Chia Organic", "Lạnh"],
+        description: "Bí đao tự nhiên nấu với đường phèn thanh khiết cùng hạt chia hữu cơ bổ dưỡng."
+      },
+      {
+        id: 4,
+        name: "Trà Xí Muội Ngô Gia Truyền Thống",
+        price: 25000,
+        originalPrice: 32000,
+        promo: "Gia Truyền",
+        image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80",
+        rating: 4.8,
+        sold: "1.8k đã bán",
+        category: "THỨC UỐNG MỚI",
+        specs: ["Size M", "Vị Mặn Ngọt", "Xí Muội Mềm", "Nhiều Đá"],
+        description: "Công thức nước xí muội gia truyền hơn 10 năm của Ngô Gia, vị mặn mòi ngọt hậu."
+      },
+      {
+        id: 5,
+        name: "Cà Phê Sữa Pha Phin Đậm Đà",
+        price: 22000,
+        originalPrice: 28000,
+        promo: "Phin Mộc",
+        image: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80",
+        rating: 4.6,
+        sold: "650 đã bán",
+        category: "LOẠI CÀ PHÊ",
+        specs: ["Phin Nhôm", "Sữa Đặc Ông Thọ", "Đá Riêng", "Đậm Vị"],
+        description: "Hạt cà phê Robusta Buôn Ma Thuột rang mộc xay nguyên chất, pha phin truyền thống thơm lừng."
+      },
+      {
+        id: 6,
+        name: "Hồng Trà Macchiato Phô Mai",
+        price: 34000,
+        originalPrice: 42000,
+        promo: "Combo Tiết Kiệm",
+        image: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80",
+        rating: 4.9,
+        sold: "1.4k đã bán",
+        category: "COMBO",
+        specs: ["Size L", "Váng Kem Phô Mai", "Ít Đường", "70% Đá"],
+        description: "Lớp kem béo ngậy mằn mặn phô mai New Zealand phủ trên nền hồng trà hảo hạng thơm ngát."
+      },
+      {
+        id: 7,
+        name: "Sữa Tươi Trân Châu Đường Đen",
+        price: 32000,
+        originalPrice: 38000,
+        promo: "Combo Bán Chạy",
+        image: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop&q=80",
+        rating: 4.8,
+        sold: "920 đã bán",
+        category: "COMBO",
+        specs: ["Size M", "Đường Đen Đài Loan", "Trân Châu Nóng", "Sữa Dalatmilk"],
+        description: "Đường đen Đài Loan nấu cô đặc cùng trân châu ấm dẻo kết hợp sữa tươi thanh trùng."
+      },
+      {
+        id: 8,
+        name: "Trà Trái Cây Nhiệt Đới Tươi",
+        price: 30000,
+        originalPrice: 36000,
+        promo: "Vitamin C",
+        image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80",
+        rating: 4.7,
+        sold: "780 đã bán",
+        category: "THỨC UỐNG MỚI",
+        specs: ["Size L", "Cam + Táo + Dưa Hấu", "Đường Ăn Kiêng", "Lạnh"],
+        description: "Các loại trái cây tươi như cam, táo, dưa hấu, chanh dây ngâm trong cốt trà hoa quả thanh dịu."
+      }
+    ];
+
+    // Món đang được chọn hiển thị ở nửa trên
+    let selectedDishId = 1;
+
+    // Số lượng các món trong giỏ hàng: Mặc định món 1 (1 phần = 28k), món 2 (1 phần = 25k)
+    let dishQuantities = {
+      1: 1,
+      2: 1
+    };
+
+    let currentCategory = 'ALL';
+
+    // --- DỮ LIỆU BÌNH LUẬN & ĐÁNH GIÁ CHI TIẾT THEO TỪNG MÓN ---
+    const DISH_REVIEWS_DATA = {
+      1: [
+        {
+          id: 101,
+          name: "Nguyễn Thùy Trang",
+          avatar: "T",
+          avatarColor: "#EE4D2D",
+          rating: 5,
+          date: "Hôm qua",
+          spec: "Size L • 50% Đường • 70% Đá",
+          comment: "Trà thơm đậm vị, vị xí muội mặn ngọt hài hòa uống rất cuốn, trân châu hoàng kim dai dẻo chuẩn vị. Đã gọi lần thứ 3 trong tuần rồi!",
+          hasImg: true,
+          likes: 14
+        },
+        {
+          id: 102,
+          name: "Hoàng Tuấn Kiệt",
+          avatar: "K",
+          avatarColor: "#2563EB",
+          rating: 5,
+          date: "2 ngày trước",
+          spec: "Size L • Ít ngọt • Nhiều đá",
+          comment: "Giao tới nơi đá vẫn chưa tan nhiều, vị đậm đà không bị nhạt. Uống thanh mát giải nhiệt ngày hè cực đã.",
+          hasImg: true,
+          likes: 9
+        },
+        {
+          id: 103,
+          name: "Lê Minh Đức",
+          avatar: "Đ",
+          avatarColor: "#10B981",
+          rating: 4,
+          date: "3 ngày trước",
+          spec: "Size M • 70% Đường",
+          comment: "Món ngon, vị xí muội chuẩn truyền thống Ngô Gia. Nếu quán cho thêm xíu topping trân châu nữa thì tuyệt vời.",
+          hasImg: false,
+          likes: 5
+        },
+        {
+          id: 104,
+          name: "Phạm Bảo Ngọc",
+          avatar: "N",
+          avatarColor: "#8B5CF6",
+          rating: 5,
+          date: "5 ngày trước",
+          spec: "Size L • Trân châu hoàng kim",
+          comment: "Món đặc trưng đỉnh nhất của Ngô Gia, bạn nào lần đầu uống nhớ chọn 50% đường là vừa vặn thơm ngon nhất nha!",
+          hasImg: true,
+          likes: 21
+        }
+      ],
+      2: [
+        {
+          id: 201,
+          name: "Trần Anh Tuấn",
+          avatar: "T",
+          avatarColor: "#10B981",
+          rating: 5,
+          date: "Hôm nay",
+          spec: "Size M • 100% Sữa tươi",
+          comment: "Trà xanh sữa siêu thơm, không hề bị ngấy. Trân châu nấu vừa tới, mềm dai nhai thích lắm.",
+          hasImg: true,
+          likes: 18
+        },
+        {
+          id: 202,
+          name: "Đặng Mỹ Linh",
+          avatar: "L",
+          avatarColor: "#EC4899",
+          rating: 5,
+          date: "1 ngày trước",
+          spec: "Size L • Ít đá",
+          comment: "Uống ngon hơn nhiều so với các thương hiệu đắt tiền khác. Giá 25k quá hời cho một ly chất lượng như này.",
+          hasImg: true,
+          likes: 12
+        },
+        {
+          id: 203,
+          name: "Võ Quang Huy",
+          avatar: "H",
+          avatarColor: "#F59E0B",
+          rating: 4,
+          date: "4 ngày trước",
+          spec: "Size M • 50% Đường",
+          comment: "Vị trà xanh Mộc Châu rất rõ, sữa tươi ngậy béo. Điểm 9/10!",
+          hasImg: false,
+          likes: 6
+        }
+      ],
+      3: [
+        {
+          id: 301,
+          name: "Vũ Hải Yến",
+          avatar: "Y",
+          avatarColor: "#0D9488",
+          rating: 5,
+          date: "Hôm qua",
+          spec: "Size L • Đường phèn",
+          comment: "Bí đao nấu thanh mát tự nhiên không bị ngọt gắt hương liệu, hạt chia nhiều uống rất healthy.",
+          hasImg: true,
+          likes: 11
+        },
+        {
+          id: 302,
+          name: "Ngô Quốc Bảo",
+          avatar: "B",
+          avatarColor: "#6366F1",
+          rating: 4,
+          date: "3 ngày trước",
+          spec: "Size L • Lạnh",
+          comment: "Uống rất mát gan giải nhiệt. Giao nhanh 15 phút là có.",
+          hasImg: false,
+          likes: 4
+        }
+      ],
+      4: [
+        {
+          id: 401,
+          name: "Lê Cẩm Tú",
+          avatar: "T",
+          avatarColor: "#EF4444",
+          rating: 5,
+          date: "2 ngày trước",
+          spec: "Size M • Vị truyền thống",
+          comment: "Vị xí muội nguyên bản tuổi thơ, chua chua ngọt ngọt mặn mặn cực kỳ cuốn hút.",
+          hasImg: true,
+          likes: 15
+        },
+        {
+          id: 402,
+          name: "Đinh Trọng Nghĩa",
+          avatar: "N",
+          avatarColor: "#0284C7",
+          rating: 5,
+          date: "4 ngày trước",
+          spec: "Size L • Nhiều xí muội",
+          comment: "Trái xí muội to dẻo, ăn rất đã. Món tủ của mình mỗi lần ghé Ngô Gia.",
+          hasImg: false,
+          likes: 7
+        }
+      ],
+      5: [
+        {
+          id: 501,
+          name: "Phan Văn Hưng",
+          avatar: "H",
+          avatarColor: "#78350F",
+          rating: 5,
+          date: "Sáng nay",
+          spec: "Cà phê sữa phin • Đậm vị",
+          comment: "Cà phê pha phin truyền thống thơm nức mũi, đậm vị chuẩn gu Robusta Tây Nguyên. Uống tỉnh cả người!",
+          hasImg: true,
+          likes: 19
+        },
+        {
+          id: 502,
+          name: "Bùi Thị Lan",
+          avatar: "L",
+          avatarColor: "#D97706",
+          rating: 4,
+          date: "Hôm qua",
+          spec: "Ít sữa • Đá riêng",
+          comment: "Cà phê sạch, rang mộc không pha tạp. Quán đóng gói túi đá riêng rất chu đáo.",
+          hasImg: false,
+          likes: 8
+        }
+      ],
+      6: [
+        {
+          id: 601,
+          name: "Đỗ Phương Thảo",
+          avatar: "T",
+          avatarColor: "#DB2777",
+          rating: 5,
+          date: "Hôm qua",
+          spec: "Size L • Váng phô mai",
+          comment: "Lớp kem macchiato phô mai béo ngậy mặn mặn dày cộm, kết hợp hồng trà thơm ngát uống siêu dính!",
+          hasImg: true,
+          likes: 24
+        }
+      ],
+      7: [
+        {
+          id: 701,
+          name: "Lâm Gia Hân",
+          avatar: "H",
+          avatarColor: "#059669",
+          rating: 5,
+          date: "Hôm nay",
+          spec: "Size M • Trân châu nóng",
+          comment: "Đường đen Đài Loan thơm lừng, trân châu nấu ấm dẻo quyện với sữa tươi Dalatmilk béo thơm tuyệt vời.",
+          hasImg: true,
+          likes: 16
+        }
+      ],
+      8: [
+        {
+          id: 801,
+          name: "Nguyễn Hoài Nam",
+          avatar: "N",
+          avatarColor: "#EA580C",
+          rating: 5,
+          date: "2 ngày trước",
+          spec: "Size L • Trái cây tươi",
+          comment: "Rất nhiều miếng trái cây tươi cam, táo, dưa hấu giòn ngọt. Uống mùa hè thì không gì bằng.",
+          hasImg: true,
+          likes: 13
+        }
+      ]
+    };
+
+    let currentReviewStarFilter = 'ALL';
+    let currentPickStar = 5;
+
+    // --- CHỌN MÓN ĐỂ XEM CHI TIẾT Ở NỬA TRÊN ---
+    function selectDish(dishId) {
+      selectedDishId = dishId;
+      const dish = STORE_DISHES.find(d => d.id === dishId);
+      if (!dish) return;
+
+      // Cập nhật nửa trên
+      document.getElementById('detail-img').src = dish.image;
+      document.getElementById('detail-name').textContent = dish.name;
+      document.getElementById('detail-price').textContent = dish.price.toLocaleString('vi-VN') + 'đ';
+      document.getElementById('detail-old-price').textContent = dish.originalPrice ? dish.originalPrice.toLocaleString('vi-VN') + 'đ' : '';
+      document.getElementById('detail-stars').textContent = '★★★★★ ' + dish.rating;
+      document.getElementById('detail-sold').textContent = '• ' + dish.sold;
+      document.getElementById('detail-desc').textContent = dish.description;
+
+      const promoBadge = document.getElementById('detail-promo');
+      if (dish.promo) {
+        promoBadge.textContent = dish.promo;
+        promoBadge.style.display = 'block';
+      } else {
+        promoBadge.style.display = 'none';
+      }
+
+      // Specs
+      const specsContainer = document.getElementById('detail-specs');
+      if (dish.specs && dish.specs.length > 0) {
+        specsContainer.innerHTML = dish.specs.map(s => `<span class="spec-pill">${s}</span>`).join('');
+      }
+
+      // Highlight thẻ được chọn trong danh sách dưới
+      document.querySelectorAll('.dish-list-card').forEach(card => {
+        card.classList.toggle('selected-view', Number(card.dataset.id) === dishId);
+      });
+
+      // Cập nhật nhãn số bình luận cho món này
+      updateReviewBadgeCount();
+    }
+
+    // --- ĐIỀU KHIỂN MODAL BOTTOM SHEET XEM BÌNH LUẬN ---
+    function openReviewsSheet() {
+      const dish = STORE_DISHES.find(d => d.id === selectedDishId);
+      if (!dish) return;
+
+      document.getElementById('reviews-dish-subtitle').textContent = `${dish.name} • ${dish.rating}★ (${dish.sold})`;
+      document.getElementById('overview-score').textContent = dish.rating;
+      
+      const reviews = DISH_REVIEWS_DATA[selectedDishId] || [];
+      const totalReviews = reviews.length;
+
+      document.getElementById('overview-total-text').textContent = `${totalReviews} đánh giá`;
+      document.getElementById('count-all-rev').textContent = totalReviews;
+
+      const count5 = reviews.filter(r => r.rating === 5).length;
+      const count4 = reviews.filter(r => r.rating === 4).length;
+      document.getElementById('count-5-rev').textContent = count5;
+      document.getElementById('count-4-rev').textContent = count4;
+
+      currentReviewStarFilter = 'ALL';
+      document.querySelectorAll('.review-filter-chip').forEach(c => c.classList.remove('active'));
+      const firstChip = document.querySelector('.review-filter-chip');
+      if (firstChip) firstChip.classList.add('active');
+
+      renderReviewsList();
+      document.getElementById('reviews-backdrop').classList.add('open');
+    }
+
+    function closeReviewsSheet(e) {
+      if (e && e.target !== document.getElementById('reviews-backdrop') && !e.target.classList.contains('btn-close-reviews')) {
+        return;
+      }
+      document.getElementById('reviews-backdrop').classList.remove('open');
+    }
+
+    function filterReviewsStar(filter, btn) {
+      currentReviewStarFilter = filter;
+      document.querySelectorAll('.review-filter-chip').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      renderReviewsList();
+    }
+
+    function renderReviewsList() {
+      const listEl = document.getElementById('reviews-list-container');
+      const reviews = DISH_REVIEWS_DATA[selectedDishId] || [];
+
+      let filtered = reviews;
+      if (currentReviewStarFilter === 'HAS_IMG') {
+        filtered = reviews.filter(r => r.hasImg);
+      } else if (currentReviewStarFilter !== 'ALL') {
+        filtered = reviews.filter(r => r.rating === Number(currentReviewStarFilter));
+      }
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div style="text-align: center; padding: 28px 10px; color: #94A3B8;">
+            <div style="font-size: 32px; margin-bottom: 6px;">💬</div>
+            <p style="font-size: 12px; font-weight: 700;">Chưa có bình luận nào ở mục này</p>
+            <p style="font-size: 10.5px; margin-top: 2px;">Hãy là người đầu tiên để lại cảm nhận của bạn!</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(r => `
+        <div class="review-card">
+          <div class="review-user-row">
+            <div class="review-user-left">
+              <div class="review-avatar" style="background: ${r.avatarColor || '#EE4D2D'}">${r.avatar}</div>
+              <div>
+                <div class="review-user-name">${r.name}</div>
+                <div class="review-user-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</div>
+              </div>
+            </div>
+            <span class="review-date">${r.date}</span>
+          </div>
+
+          ${r.spec ? `<div class="review-tag-spec">🏷️ ${r.spec}</div>` : ''}
+
+          <div class="review-text-content">${r.comment}</div>
+
+          <button class="review-like-btn" onclick="toggleLikeReview(${r.id}, this)">
+            <span>👍 Hữu ích</span>
+            <span class="like-count">(${r.likes || 0})</span>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function setPickStar(star) {
+      currentPickStar = star;
+      const stars = document.querySelectorAll('.star-pick');
+      stars.forEach(s => {
+        const v = Number(s.dataset.v);
+        s.classList.toggle('active', v <= star);
+      });
+      const labels = { 5: "5★ Tuyệt vời", 4: "4★ Rất ngon", 3: "3★ Bình thường", 2: "2★ Tạm được", 1: "1★ Cần cải thiện" };
+      document.getElementById('star-pick-label').textContent = labels[star] || `${star}★`;
+    }
+
+    function submitQuickReview() {
+      const input = document.getElementById('input-quick-review');
+      const text = input.value.trim();
+      if (!text) {
+        alert('Vui lòng nhập nội dung bình luận của bạn!');
+        return;
+      }
+
+      if (!DISH_REVIEWS_DATA[selectedDishId]) {
+        DISH_REVIEWS_DATA[selectedDishId] = [];
+      }
+
+      const newRev = {
+        id: Date.now(),
+        name: "Bạn (Tôi)",
+        avatar: "B",
+        avatarColor: "#EE4D2D",
+        rating: currentPickStar,
+        date: "Vừa xong",
+        spec: "Món đặt hôm nay",
+        comment: text,
+        hasImg: false,
+        likes: 0
+      };
+
+      DISH_REVIEWS_DATA[selectedDishId].unshift(newRev);
+      input.value = '';
+
+      updateReviewBadgeCount();
+      openReviewsSheet();
+      alert('Cảm ơn bạn đã gửi bình luận đánh giá!');
+    }
+
+    function toggleLikeReview(revId, btn) {
+      const isLiked = btn.classList.toggle('liked');
+      const countEl = btn.querySelector('.like-count');
+      let currentLikes = parseInt(countEl.textContent.replace(/\D/g, '')) || 0;
+      currentLikes = isLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+      countEl.textContent = `(${currentLikes})`;
+    }
+
+    function updateReviewBadgeCount() {
+      const reviews = DISH_REVIEWS_DATA[selectedDishId] || [];
+      const btnLabel = document.getElementById('review-btn-label');
+      if (btnLabel) {
+        btnLabel.textContent = `Bình luận (${reviews.length})`;
+      }
+    }
+
+    // --- CỘNG TRỪ SỐ LƯỢNG BÊN PHẢI MỖI MÓN ---
+    function updateDishQty(dishId, delta, event) {
+      if (event) event.stopPropagation();
+
+      const current = dishQuantities[dishId] || 0;
+      const next = Math.max(0, current + delta);
+      dishQuantities[dishId] = next;
+
+      // Cập nhật ô số lượng món đó
+      const valEl = document.getElementById(`qty-val-${dishId}`);
+      const stepperBox = document.getElementById(`stepper-${dishId}`);
+      const cardEl = document.getElementById(`dish-card-${dishId}`);
+
+      if (valEl) valEl.textContent = next;
+      if (stepperBox) stepperBox.classList.toggle('has-qty', next > 0);
+      if (cardEl) cardEl.classList.toggle('in-cart', next > 0);
+
+      // Đồng thời chọn món này để xem ở nửa trên
+      selectDish(dishId);
+
+      // Cập nhật tổng tiền dưới nút thanh toán
+      recalculateCart();
+    }
+
+    // --- TÍNH TOÁN LẠI TỔNG TIỀN THANH TOÁN ---
+    function recalculateCart() {
+      let totalAmount = 0;
+      let totalCount = 0;
+
+      STORE_DISHES.forEach(dish => {
+        const q = dishQuantities[dish.id] || 0;
+        if (q > 0) {
+          totalAmount += dish.price * q;
+          totalCount += q;
+        }
+      });
+
+      const priceDisplay = document.getElementById('cart-total-price');
+      const countDisplay = document.getElementById('cart-item-count');
+      const checkoutBtn = document.getElementById('btn-checkout');
+
+      if (priceDisplay) priceDisplay.textContent = totalAmount.toLocaleString('vi-VN') + 'đ';
+      if (countDisplay) {
+        countDisplay.textContent = totalCount > 0 
+          ? `Đã chọn ${totalCount} món • Quán Ngô Gia` 
+          : `Chưa chọn món nào • Quán Ngô Gia`;
+      }
+      if (checkoutBtn) {
+        checkoutBtn.href = `b8.html?amount=${totalAmount}&count=${totalCount}`;
+        checkoutBtn.style.opacity = totalCount === 0 ? '0.7' : '1';
+      }
+    }
+
+    // --- LỌC MENU THEO DANH MỤC ---
+    function filterMenuCategory(cat, btn) {
+      currentCategory = cat;
+      document.querySelectorAll('.cat-tab-chip').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      renderDishesList();
+    }
+
+    // --- RENDER DANH SÁCH MÓN ĂN VỚI BỘ CỘNG TRỪ BÊN PHẢI ---
+    function renderDishesList() {
+      const filtered = currentCategory === 'ALL'
+        ? STORE_DISHES
+        : STORE_DISHES.filter(d => d.category === currentCategory);
+
+      document.getElementById('list-count-badge').textContent = `${filtered.length} món`;
+
+      const container = document.getElementById('dishes-list-container');
+      container.innerHTML = filtered.map(dish => {
+        const qty = dishQuantities[dish.id] || 0;
+        const hasQty = qty > 0;
+        const isSelected = dish.id === selectedDishId;
+
+        return `
+          <div class="dish-list-card ${hasQty ? 'in-cart' : ''} ${isSelected ? 'selected-view' : ''}" 
+               id="dish-card-${dish.id}" 
+               data-id="${dish.id}"
+               onclick="selectDish(${dish.id})">
+            <!-- Ảnh thumbnail món -->
+            <div class="dish-thumb-box">
+              <img src="${dish.image}" alt="${dish.name}">
+              ${dish.promo ? `<span class="dish-promo-pill">${dish.promo}</span>` : ''}
+            </div>
+
+            <!-- Thông tin món -->
+            <div class="dish-list-content">
+              <h4 class="dish-list-name">${dish.name}</h4>
+              <p class="dish-list-desc">${dish.description}</p>
+              <div class="dish-list-foot">
+                <span class="dish-list-price">${dish.price.toLocaleString('vi-VN')}đ</span>
+                <span class="dish-list-sold">★ ${dish.rating} • ${dish.sold}</span>
+              </div>
+            </div>
+
+            <!-- BỘ CỘNG TRỪ Ở BÊN PHẢI MÓN ĐÓ LUÔN -->
+            <div class="dish-stepper-box ${hasQty ? 'has-qty' : ''}" 
+                 id="stepper-${dish.id}" 
+                 onclick="event.stopPropagation()">
+              <button class="btn-dish-step" onclick="updateDishQty(${dish.id}, -1, event)" title="Giảm 1 phần">−</button>
+              <span class="dish-step-val" id="qty-val-${dish.id}">${qty}</span>
+              <button class="btn-dish-step" onclick="updateDishQty(${dish.id}, 1, event)" title="Thêm 1 phần">+</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Khởi tạo trang khi load xong
+    document.addEventListener('DOMContentLoaded', () => {
+      renderDishesList();
+      selectDish(1);
+      recalculateCart();
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "output": {
+    "filePath": ".antigravity/CODE_MAP.md",
+    "style": "markdown",
+    "compress": true,
+    "showLineNumbers": false
+  },
+  "ignore": {
+    "useGitignore": true
+  }
+}

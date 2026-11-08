@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Thêm Món Vào Giỏ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --bg: #FFFFFF;
+      --gray-bg: #F4F5F7;
+      --text: #222222;
+      --text-muted: #757575;
+      --border: #F0F0F0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background: #0F172A; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+    /* Khung giả lập Smartphone */
+    .mobile-frame {
+      width: 412px; height: 860px; background: var(--bg);
+      border-radius: 36px; border: 10px solid #1E293B;
+      display: flex; flex-direction: column; overflow: hidden; position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+    }
+
+    /* Lớp nền phía sau (Shop detail bị làm mờ) */
+    .backdrop-bg {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('https://images.unsplash.com/photo-1558857563-b371033873b8?w=700&auto=format&fit=crop&q=80') top/cover no-repeat;
+      filter: blur(2px);
+      z-index: 1;
+    }
+
+    /* Khung Bottom Sheet Modal */
+    .bottom-sheet {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 82%;
+      background: #FFFFFF; border-radius: 20px 20px 0 0; z-index: 10;
+      display: flex; flex-direction: column; box-shadow: 0 -8px 24px rgba(0,0,0,0.15);
+    }
+
+    /* Modal Header */
+    .modal-header {
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center; position: relative;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .btn-close {
+      position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; font-size: 18px; color: #888; cursor: pointer;
+    }
+
+    /* Modal Content Cuộn */
+    .modal-body {
+      flex: 1; overflow-y: auto; padding-bottom: 20px;
+    }
+
+    /* Dish Summary Card */
+    .dish-summary {
+      display: flex; align-items: center; padding: 14px 16px; gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dish-thumb {
+      width: 72px; height: 72px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+    }
+    .dish-detail { flex: 1; }
+    .dish-name { font-size: 15px; font-weight: 700; color: var(--text); }
+    .dish-sold { font-size: 11px; color: var(--text-muted); margin: 3px 0 6px 0; }
+    .dish-price { font-size: 15px; font-weight: 800; color: var(--primary); }
+
+    /* Quantity Controls */
+    .qty-wrap {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .qty-btn {
+      width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 4px;
+      background: #FFF; font-weight: 700; cursor: pointer; display: flex;
+      align-items: center; justify-content: center; font-size: 15px; color: #444;
+    }
+    .qty-btn.active {
+      background: var(--primary); color: #FFF; border-color: var(--primary);
+    }
+    .qty-val { font-size: 13px; font-weight: 700; min-width: 16px; text-align: center; }
+
+    /* Option Sections (Size / Đá) */
+    .section-header {
+      background: var(--gray-bg); padding: 8px 16px;
+      font-size: 12px; color: var(--text-muted); font-weight: 600;
+    }
+    .option-list { display: flex; flex-direction: column; }
+    .option-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+    }
+    .option-left h4 { font-size: 13px; font-weight: 600; color: var(--text); }
+    .option-left span { font-size: 12px; color: var(--text-muted); margin-top: 2px; display: block; }
+
+    /* Custom Checkbox (ShopeeFood Style) */
+    .custom-check {
+      width: 20px; height: 20px; border: 1.5px solid #CCC; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .option-item.selected .custom-check {
+      background: var(--primary); border-color: var(--primary);
+    }
+    .custom-check::after {
+      content: '✓'; color: #FFF; font-size: 12px; font-weight: 800; display: none;
+    }
+    .option-item.selected .custom-check::after { display: block; }
+
+    /* Bottom Button Bar */
+    .modal-bottom {
+      padding: 10px 16px; background: #FFF; border-top: 1px solid var(--border);
+    }
+    .btn-submit-cart {
+      width: 100%; background: var(--primary); color: #FFF; border: none;
+      border-radius: 8px; padding: 13px; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-submit-cart:hover { background: var(--primary-hover); }
+  </style>
+</head>
+<body>
+
+  <div class="mobile-frame">
+    <!-- Nền phía sau của Quán ăn -->
+    <div class="backdrop-bg"></div>
+
+    <!-- Bottom Sheet Modal: Thêm món mới -->
+    <div class="bottom-sheet">
+      <!-- Header -->
+      <div class="modal-header">
+        <span class="modal-title">Thêm món mới</span>
+        <button class="btn-close" onclick="window.location.href='shop_detail.html'">✕</button>
+      </div>
+
+      <!-- Nội dung chọn option -->
+      <div class="modal-body">
+        <!-- Tóm tắt món -->
+        <div class="dish-summary">
+          <img class="dish-thumb" src="https://images.unsplash.com/photo-1556881286-fc6915169721?w=200&auto=format&fit=crop&q=60" alt="Trà Xí Muội Ô Long">
+          <div class="dish-detail">
+            <h3 class="dish-name">Trà Xí Muội Ô Long</h3>
+            <div class="dish-sold">400+ đã bán | 1 lượt thích</div>
+            <div class="dish-price" id="basePriceDisplay">28.000đ</div>
+          </div>
+          <div class="qty-wrap">
+            <button class="qty-btn" onclick="updateQty(-1)">—</button>
+            <span class="qty-val" id="qtyText">1</span>
+            <button class="qty-btn active" onclick="updateQty(1)">+</button>
+          </div>
+        </div>
+
+        <!-- Nhóm: Size (Chọn 1) -->
+        <div class="section-header">Size (Chọn 1)</div>
+        <div class="option-list">
+          <div class="option-item selected" onclick="selectSize(this, 0)">
+            <div class="option-left">
+              <h4>Size M</h4>
+              <span>0đ</span>
+            </div>
+            <div class="custom-check"></div>
+          </div>
+
+          <div class="option-item" onclick="selectSize(this, 3000)">
+            <div class="option-left">
+              <h4>Size L</h4>
+              <span>3.000đ</span>
+            </div>
+            <div class="custom-check"></div>
+          </div>
+        </div>
+
+        <!-- Nhóm: Chọn Đá Cho Thức Uống (Chọn 1) -->
+        <div class="section-header">Chọn Đá Cho Thức Uống (Chọn 1)</div>
+        <div class="option-list">
+          <div class="option-item selected" onclick="selectOption(this, 'ice')">
+            <div class="option-left">
+              <h4>Đá bình thường</h4>
+              <span>0đ</span>
+            </div>
+            <div class="custom-check"></div>
+          </div>
+
+          <div class="option-item" onclick="selectOption(this, 'ice')">
+            <div class="option-left">
+              <h4>Không đá</h4>
+              <span>0đ</span>
+            </div>
+            <div class="custom-check"></div>
+          </div>
+
+          <div class="option-item" onclick="selectOption(this, 'ice')">
+            <div class="option-left">
+              <h4>Ít đá</h4>
+              <span>0đ</span>
+            </div>
+            <div class="custom-check"></div>
+          </div>
+
+          <div class="option-item" onclick="selectOption(this, 'ice')">
+            <div class="option-left">
+              <h4>Nhiều đá</h4>
+              <span>0đ</span>
+            </div>
+            <div class="custom-check"></div>
+          </div>
+
+          <div class="option-item" onclick="selectOption(this, 'ice')">
+            <div class="option-left">
+              <h4>Đá Riêng</h4>
+              <span>0đ</span>
+            </div>
+            <div class="custom-check"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chân nút xác nhận thêm vào giỏ -->
+      <div class="modal-bottom">
+        <button class="btn-submit-cart" id="btnAddCart" onclick="addToCart()">
+          Thêm vào giỏ hàng - 28.000đ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let basePrice = 28000;
+    let sizeExtra = 0;
+    let quantity = 1;
+
+    function recalculateTotal() {
+      const total = (basePrice + sizeExtra) * quantity;
+      document.getElementById('btnAddCart').innerText = `Thêm vào giỏ hàng - ${total.toLocaleString('vi-VN')}đ`;
+    }
+
+    function selectSize(element, extraPrice) {
+      const parent = element.parentElement;
+      parent.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+
+      sizeExtra = extraPrice;
+      recalculateTotal();
+    }
+
+    function selectOption(element, groupName) {
+      const parent = element.parentElement;
+      parent.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+    }
+
+    function updateQty(delta) {
+      if (quantity + delta < 1) return;
+      quantity += delta;
+      document.getElementById('qtyText').innerText = quantity;
+      recalculateTotal();
+    }
+
+    function addToCart() {
+      const total = (basePrice + sizeExtra) * quantity;
+      alert(`Đã thêm ${quantity}x Trà Xí Muội Ô Long vào giỏ của Quán Ngô Gia!\nTổng: ${total.toLocaleString('vi-VN')}đ`);
+      window.location.href = 'b7.html';
+    }
+  </script>
+
+</body>
+</html>

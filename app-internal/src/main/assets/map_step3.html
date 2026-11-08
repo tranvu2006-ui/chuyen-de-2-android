@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #realMap { width: 100%; height: 100%; }
+
+    .driver-marker-wrap {
+      position: relative; width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .driver-pulse-ring {
+      position: absolute; width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(5, 150, 105, 0.25);
+      animation: driverRadar 2s infinite ease-out;
+    }
+    .driver-marker-card {
+      position: relative; width: 40px; height: 40px; background: #FFFFFF;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      border: 3px solid #059669;
+      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45), 0 2px 6px rgba(0,0,0,0.12);
+      z-index: 2;
+    }
+    .customer-marker-box {
+      padding: 6px 12px; background: #EE4D2D; border-radius: 14px;
+      display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800;
+      color: #FFF; border: 2.5px solid #FFF; box-shadow: 0 4px 14px rgba(238, 77, 45, 0.4);
+      white-space: nowrap;
+    }
+    @keyframes driverRadar {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+    .route-info-badge {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+      padding: 6px 14px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 1000; font-size: 12px; font-weight: 700; color: #1E293B; display: flex;
+      align-items: center; gap: 6px; border: 1px solid #E2E8F0;
+    }
+    .route-info-badge span { color: #059669; }
+  </style>
+</head>
+<body>
+  <div id="routeBadge" class="route-info-badge" style="display:none;">
+    <span>🛵</span> <span id="routeDistance">Đang tải lộ trình...</span>
+  </div>
+  <div id="realMap"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let driverCoords = [10.8548, 106.7720];
+    let customerCoords = [10.8580, 106.7765];
+
+    const map = L.map('realMap', {
+      zoomControl: false,
+      attributionControl: false
+    }).setView(driverCoords, 16);
+
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    }).addTo(map);
+
+    const driverIcon = L.divIcon({
+      className: 'driver-div-icon',
+      html: `
+        <div class="driver-marker-wrap">
+          <div class="driver-pulse-ring"></div>
+          <div class="driver-marker-card">
+            <svg viewBox="0 0 32 32" width="25" height="25" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="7" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="7" cy="22" r="1.4" fill="#FFFFFF"/>
+              <circle cx="24" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="24" cy="22" r="1.4" fill="#FFFFFF"/>
+              <rect x="3.5" y="10" width="7" height="7.5" rx="1.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
+              <line x1="7" y1="11" x2="7" y2="16.5" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+              <path d="M7 22l3.8-7.5h5.8l2.8 7.5" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16.6 14.5l3.5-6h3.2" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="15.8" cy="7" r="2.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
+              <path d="M13.5 10.5l2.8 4h3.5" stroke="#1E293B" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      `,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24]
+    });
+    const driverMarker = L.marker(driverCoords, { icon: driverIcon }).addTo(map);
+
+    const customerIcon = L.divIcon({
+      className: 'customer-marker-box',
+      html: '📍 Điểm giao khách',
+      iconSize: [140, 32],
+      iconAnchor: [70, 16]
+    });
+    const customerMarker = L.marker(customerCoords, { icon: customerIcon }).addTo(map);
+
+    let routeBorder = null;
+    let routeLine = null;
+
+    async function fetchRealRoute(dLat, dLng, cLat, cLng) {
+      if (!dLat || !dLng || !cLat || !cLng || (dLat === 0 && dLng === 0) || (cLat === 0 && cLng === 0)) {
+        return;
+      }
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${cLng},${cLat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+          
+          if (routeBorder) map.removeLayer(routeBorder);
+          if (routeLine) map.removeLayer(routeLine);
+
+          // Lớp viền xanh lục đậm
+          routeBorder = L.polyline(coords, {
+            color: '#047857', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+          }).addTo(map);
+
+          // Lớp tuyến đường xanh lá cây
+          routeLine = L.polyline(coords, {
+            color: '#059669', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round'
+          }).addTo(map);
+
+          map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+          const distKm = (route.distance / 1000).toFixed(1);
+          const durationMin = Math.round(route.duration / 60);
+          const badge = document.getElementById('routeBadge');
+          const distSpan = document.getElementById('routeDistance');
+          if (badge && distSpan) {
+            badge.style.display = 'flex';
+            distSpan.innerHTML = `Đến nhà khách: <b>${distKm} km</b> (~${durationMin} phút)`;
+          }
+          return;
+        }
+      } catch (e) {
+        console.warn('Lỗi tải tuyến đường thực tế bước 3:', e);
+      }
+
+      fallbackStraightRoute(dLat, dLng, cLat, cLng);
+    }
+
+    function fallbackStraightRoute(dLat, dLng, cLat, cLng) {
+      if (routeBorder) map.removeLayer(routeBorder);
+      if (routeLine) map.removeLayer(routeLine);
+
+      const midLat = (dLat + cLat) / 2;
+      const midLng = (dLng + cLng) / 2;
+      const points = [[dLat, dLng], [midLat, midLng], [cLat, cLng]];
+
+      routeLine = L.polyline(points, {
+        color: '#059669', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+      }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+    }
+
+    function updateDriverLocation(lat, lng) {
+      driverCoords = [lat, lng];
+      driverMarker.setLatLng(driverCoords);
+      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+    }
+
+    function setDestination(lat, lng, customerName) {
+      customerCoords = [lat, lng];
+      customerMarker.setLatLng(customerCoords);
+      if (customerName) {
+        customerMarker.setIcon(L.divIcon({
+          className: 'customer-marker-box',
+          html: `📍 ${customerName}`,
+          iconSize: [150, 32],
+          iconAnchor: [75, 16]
+        }));
+      }
+      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+    }
+
+    function focusCustomer() {
+      map.flyTo(customerCoords, 17, { duration: 1 });
+    }
+    function focusDriver() {
+      map.flyTo(driverCoords, 17, { duration: 1 });
+    }
+
+    fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => console.log('Chưa cấp quyền GPS trình duyệt:', err),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+  </script>
+</body>
+</html>

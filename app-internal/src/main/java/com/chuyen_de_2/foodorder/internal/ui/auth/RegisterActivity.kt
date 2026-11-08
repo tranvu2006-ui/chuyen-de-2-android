@@ -1,0 +1,225 @@
+package com.chuyen_de_2.foodorder.internal.ui.auth
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.text.InputFilter
+import android.text.InputType
+import android.view.View
+import android.view.WindowManager
+import android.widget.EditText
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityRegisterInternalBinding
+import dagger.hilt.android.AndroidEntryPoint
+
+/**
+ * Màn hình đăng ký đối tác (Chủ quán/Tài xế), hỗ trợ xác thực mã OTP qua Email.
+ */
+@AndroidEntryPoint
+class RegisterActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityRegisterInternalBinding
+    private val viewModel: AuthViewModel by viewModels()
+
+    private var pendingRegistration: ((String) -> Unit)? = null
+    private var pendingTarget = ""
+    private var otpSent = false
+    private var isTargetVerified = false
+    private var otpDialog: AlertDialog? = null
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityRegisterInternalBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.setLightStatusBar(this, true)
+        checkNotificationPermission()
+        setupUI()
+        observeViewModel()
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    private fun setupUI() {
+        binding.btnSubmitRegister.setOnClickListener {
+            val name = binding.etRegisterName.text.toString().trim()
+            val phone = binding.etRegisterPhone.text.toString().trim()
+            val email = binding.etRegisterEmail.text.toString().trim()
+            val password = binding.etRegisterPassword.text.toString()
+            val confirmPassword = binding.etRegisterConfirmPassword.text.toString()
+
+            if (name.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Vui lòng nhập đầy đủ thông tin", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            if (password != confirmPassword || password.length < 6) {
+                Toast.makeText(
+                    this,
+                    if (password != confirmPassword) "Mật khẩu xác nhận không khớp" else "Mật khẩu phải có ít nhất 6 ký tự",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+
+            pendingRegistration = { vEmail ->
+                viewModel.register(
+                    name = name,
+                    email = email,
+                    pass = password,
+                    confirmPass = confirmPassword,
+                    role = User.Role.MERCHANT,
+                    phone = phone,
+                    verifiedEmail = vEmail
+                )
+            }
+
+            if (pendingTarget.equals(email, ignoreCase = true)) {
+                if (otpSent) showOtpDialog() else viewModel.requestEmailOtp(email)
+                return@setOnClickListener
+            }
+            otpSent = false
+            isTargetVerified = false
+            pendingTarget = email
+            viewModel.requestEmailOtp(email)
+        }
+
+        binding.tvBackToLogin.setOnClickListener { finish() }
+    }
+
+    private fun observeViewModel() {
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBarRegister.visibility = if (isLoading) View.VISIBLE else View.GONE
+            binding.btnSubmitRegister.isEnabled = !isLoading
+        }
+
+        viewModel.otpRequestResult.observe(this) { result ->
+            result.onSuccess {
+                otpSent = true
+                val dialog = otpDialog
+                if (dialog?.isShowing == true) {
+                    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).isEnabled = true
+                    dialog.setMessage("Mã mới đã gửi đến $pendingTarget. Nhập mã mới nhất.")
+                    Toast.makeText(this, "Đã gửi lại mã OTP!", Toast.LENGTH_SHORT).show()
+                } else {
+                    showOtpDialog()
+                }
+            }.onFailure { error ->
+                otpDialog?.takeIf { it.isShowing }
+                    ?.getButton(AlertDialog.BUTTON_NEUTRAL)?.isEnabled = true
+                Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
+                if (otpSent && otpDialog?.isShowing != true && !isTargetVerified) {
+                    showOtpDialog()
+                }
+            }
+        }
+
+        viewModel.otpVerifyResult.observe(this) { result ->
+            result.onSuccess { verifiedValue ->
+                isTargetVerified = true
+                pendingRegistration?.invoke(verifiedValue)
+                    ?: Toast.makeText(this, "Vui lòng bấm Đăng ký lại để hoàn tất", Toast.LENGTH_LONG).show()
+            }.onFailure { error ->
+                val message = error.message.orEmpty()
+                val userMessage = if (
+                    message.contains("expired", ignoreCase = true) ||
+                    message.contains("invalid", ignoreCase = true) ||
+                    message.contains("token", ignoreCase = true)
+                ) {
+                    "Mã OTP sai hoặc hết hạn. Chọn “Gửi mã mới” rồi nhập mã mới nhất."
+                } else {
+                    message.ifBlank { "Không xác minh được mã OTP" }
+                }
+                Toast.makeText(this, userMessage, Toast.LENGTH_LONG).show()
+                if (pendingRegistration != null) showOtpDialog()
+            }
+        }
+
+        viewModel.registerResult.observe(this) { result ->
+            result.onSuccess {
+                resetOtpState()
+                Toast.makeText(
+                    this,
+                    "Đã xác minh thành công! Tài khoản đối tác đã được tạo, bạn có thể đăng nhập.",
+                    Toast.LENGTH_LONG
+                ).show()
+                finish()
+            }.onFailure { error ->
+                resetOtpState()
+                Toast.makeText(this, error.message ?: "Đăng ký thất bại", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /**
+     * Hiển thị hộp thoại nhập mã OTP 6 số qua Email cho tài khoản nội bộ.
+     */
+    private fun showOtpDialog() {
+        val target = binding.etRegisterEmail.text?.toString()?.trim().orEmpty()
+        val codeInput = EditText(this).apply {
+            hint = "Nhập mã OTP 6 chữ số"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter.LengthFilter(6))
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+        }
+        val title = "Xác nhận Email"
+        val message = "Nhập mã OTP đã gửi đến $target"
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setView(codeInput)
+            .setPositiveButton("Xác nhận", null)
+            .setNeutralButton("Gửi mã mới", null)
+            .setNegativeButton("Hủy", null)
+            .create()
+        otpDialog = dialog
+        dialog.setOnDismissListener {
+            if (otpDialog === dialog) otpDialog = null
+        }
+        dialog.setOnShowListener {
+            codeInput.requestFocus()
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                it.isEnabled = false
+                codeInput.text?.clear()
+                viewModel.requestEmailOtp(target)
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val code = codeInput.text.toString().trim()
+                if (!code.matches(Regex("\\d{6}"))) {
+                    codeInput.error = "Mã OTP phải gồm đúng 6 chữ số"
+                } else {
+                    dialog.dismiss()
+                    viewModel.verifyEmailOtp(target, code)
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun resetOtpState() {
+        pendingRegistration = null
+        pendingTarget = ""
+        otpSent = false
+        isTargetVerified = false
+    }
+}

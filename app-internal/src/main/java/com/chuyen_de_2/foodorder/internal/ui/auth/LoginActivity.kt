@@ -11,7 +11,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
@@ -20,7 +19,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Màn hình đăng nhập đối tác nội bộ, tích hợp lấy và nhập mã xác thực OTP trực tiếp (inline OTP).
+ * Màn hình đăng nhập đối tác nội bộ, bắt buộc xác thực mã OTP qua Email trực tiếp trên form (inline OTP).
  */
 @AndroidEntryPoint
 class LoginActivity : AppCompatActivity() {
@@ -99,14 +98,14 @@ class LoginActivity : AppCompatActivity() {
             viewModel.requestEmailOtp(email)
         }
 
-        // Nút "Đăng nhập"
+        // Nút "Đăng nhập" — Bắt buộc phải có cả Email, Mật khẩu và Mã OTP
         binding.btnLogin.setOnClickListener {
             val email = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString().trim()
             val otp = binding.etOtp.text.toString().trim()
 
-            if (email.isBlank()) {
-                binding.tilEmail.error = "Vui lòng nhập email"
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
                 binding.etEmail.requestFocus()
                 return@setOnClickListener
             }
@@ -115,17 +114,13 @@ class LoginActivity : AppCompatActivity() {
                 binding.etPassword.requestFocus()
                 return@setOnClickListener
             }
-
-            if (otp.isNotBlank()) {
-                if (otp.length != 6 || !otp.all { it.isDigit() }) {
-                    binding.tilOtp.error = "Mã OTP phải gồm đúng 6 chữ số"
-                    binding.etOtp.requestFocus()
-                    return@setOnClickListener
-                }
-                viewModel.verifyLoginOtp(email, password, otp)
-            } else {
-                viewModel.login(email, password)
+            if (otp.length != 6 || !otp.all { it.isDigit() }) {
+                binding.tilOtp.error = "Vui lòng bấm 'Lấy mã' và nhập mã OTP 6 số để đăng nhập"
+                binding.etOtp.requestFocus()
+                return@setOnClickListener
             }
+
+            viewModel.verifyLoginOtp(email, password, otp)
         }
 
         binding.tvGoToRegister.setOnClickListener {
@@ -137,24 +132,6 @@ class LoginActivity : AppCompatActivity() {
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
             binding.btnLogin.isEnabled = !isLoading
-        }
-
-        viewModel.loginResult.observe(this) { result ->
-            result.onSuccess {
-                navigateToDashboard()
-            }.onFailure { error ->
-                if (error is EmailOtpRequiredException) {
-                    val email = binding.etEmail.text.toString().trim()
-                    binding.tilOtp.error = "Tài khoản cần xác minh. Vui lòng bấm 'Lấy mã' và nhập mã OTP."
-                    binding.etOtp.requestFocus()
-                    if (binding.btnGetOtp.isEnabled) {
-                        viewModel.requestEmailOtp(email)
-                        startOtpCountdown()
-                    }
-                } else {
-                    Toast.makeText(this, error.message ?: "Đăng nhập thất bại", Toast.LENGTH_LONG).show()
-                }
-            }
         }
 
         viewModel.otpRequestResult.observe(this) { result ->
@@ -171,12 +148,28 @@ class LoginActivity : AppCompatActivity() {
 
         viewModel.loginOtpResult.observe(this) { result ->
             result.onSuccess {
-                Toast.makeText(this, "Xác minh email và đăng nhập thành công.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
                 navigateToDashboard()
             }.onFailure { error ->
-                val userMsg = error.message ?: "Mã OTP không hợp lệ."
-                binding.tilOtp.error = userMsg
-                binding.etOtp.requestFocus()
+                val msg = error.message.orEmpty()
+                val userMsg = if (
+                    msg.contains("password", ignoreCase = true) ||
+                    msg.contains("credential", ignoreCase = true) ||
+                    msg.contains("mật khẩu", ignoreCase = true)
+                ) {
+                    binding.tilPassword.error = "Mật khẩu không chính xác"
+                    "Mật khẩu không chính xác"
+                } else if (
+                    msg.contains("token", ignoreCase = true) ||
+                    msg.contains("otp", ignoreCase = true) ||
+                    msg.contains("expired", ignoreCase = true) ||
+                    msg.contains("invalid", ignoreCase = true)
+                ) {
+                    binding.tilOtp.error = "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                    "Mã OTP không đúng hoặc đã hết hạn"
+                } else {
+                    msg.ifBlank { "Đăng nhập thất bại" }
+                }
                 Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
             }
         }

@@ -135,8 +135,8 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:hint="Mã OTP (nếu có)"
-                        app:helperText="Dùng khi tài khoản cần xác thực email"
+                        android:hint="Mã xác thực OTP (6 số)"
+                        app:helperText="Bấm 'Lấy mã' để nhận OTP qua email"
                         app:startIconDrawable="@drawable/ic_shield">
 
                         <com.google.android.material.textfield.TextInputEditText

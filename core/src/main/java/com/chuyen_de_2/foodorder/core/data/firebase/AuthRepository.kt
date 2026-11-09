@@ -123,10 +123,17 @@ class AuthRepository @Inject constructor(
                     ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
                 val dbPhone = freshJson?.optString("phone", "")?.takeIf { it.isNotBlank() }
                     ?: userSnap?.child("phone")?.getValue(String::class.java).orEmpty()
-                val dbRole = freshJson?.optString("role", "")?.takeIf { it.isNotBlank() }
+                val rawDbRole = freshJson?.optString("role", "")?.takeIf { it.isNotBlank() }
                     ?: userSnap?.child("role")?.getValue(String::class.java).orEmpty()
-                val dbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
+                val rawDbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
                     ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
+
+                val (dbRole, dbStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
+                    uid = firebaseUser.uid,
+                    email = actualEmail,
+                    currentRole = rawDbRole,
+                    currentStoreId = rawDbStoreId
+                )
 
                 val wasCorruptedMock = dbEmail == "mai.tran@oishifood.vn" && !actualEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
                 val resolvedRole = when {
@@ -160,6 +167,7 @@ class AuthRepository @Inject constructor(
                     "phone" to resolvedPhone,
                     "role" to resolvedRole,
                     "roleId" to resolvedRoleId,
+                    "storeId" to dbStoreId,
                     "status" to User.Status.ACTIVE,
                     "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp),
                     "isActive" to true,
@@ -470,6 +478,21 @@ class AuthRepository @Inject constructor(
                 } catch (_: Exception) {}
                 user = newUser
             } else {
+                // Tự động sửa nếu tài khoản khách hàng từng bị gán nhầm storeId của quán khác
+                val (healedRole, healedStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
+                    uid = uid,
+                    email = currentEmail,
+                    currentRole = user.role,
+                    currentStoreId = user.storeId
+                )
+                if (healedRole != user.role || healedStoreId != user.storeId) {
+                    user = user.copy(
+                        role = healedRole,
+                        roleId = if (healedRole == User.Role.CUSTOMER) 2 else user.roleId,
+                        storeId = healedStoreId
+                    )
+                }
+
                 // Kiểm tra nếu bản ghi trên DB bị thiếu Gmail, tên hoặc bị ghi đè bởi dữ liệu mẫu cũ
                 val wasCorruptedMock = user.email == "mai.tran@oishifood.vn" && currentEmail.isNotBlank() && !currentEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
                 val needEmailSync = currentEmail.isNotBlank() && (user.email.isBlank() || user.email != currentEmail)
@@ -601,40 +624,58 @@ class AuthRepository @Inject constructor(
             val rawRole = userData?.role?.trim()?.uppercase()
             val roleId = userData?.roleId
 
-            // 1. Kiểm tra nếu đã có role rõ ràng là Quán hoặc Tài xế hoặc Admin
-            if (rawRole == "MERCHANT" || rawRole == "MANAGER" || roleId == 3) return User.Role.MERCHANT
-            if (rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4) return User.Role.DRIVER
+            // 1. Kiểm tra nếu là Admin hoặc Tài xế
             if (rawRole == "ADMIN" || roleId == 1) return User.Role.ADMIN
+            if (rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4) return User.Role.DRIVER
 
-            // 2. Tra cứu chéo: Người dùng có sở hữu cửa hàng nào không?
-            if (!userData?.storeId.isNullOrBlank()) {
-                // Tự động đồng bộ lại role thành MERCHANT cho tài khoản
-                database.getReference("users").child(uid).updateChildren(
-                    mapOf("role" to User.Role.MERCHANT, "roleId" to 3)
-                ).await()
+            // 2. Nếu là CUSTOMER rõ ràng -> trả về CUSTOMER ngay (không tra cứu stores tránh gán nhầm quán)
+            if (rawRole == "CUSTOMER" || roleId == 2) return User.Role.CUSTOMER
+
+            // 3. Nếu đang mang role MERCHANT/MANAGER hoặc có storeId -> xác thực quyền sở hữu thực sự trên bảng stores
+            if (rawRole == "MERCHANT" || rawRole == "MANAGER" || roleId == 3 || !userData?.storeId.isNullOrBlank()) {
+                val sid = userData?.storeId.orEmpty().trim()
+                if (sid.isNotBlank()) {
+                    val storeSnap = try { database.getReference("stores").child(sid).get().await() } catch (_: Exception) { null }
+                    if (storeSnap != null && storeSnap.exists()) {
+                        val mId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
+                        val oId = storeSnap.child("ownerId").getValue(String::class.java).orEmpty()
+                        if (mId == uid || oId == uid || (mId.isBlank() && oId.isBlank())) {
+                            return User.Role.MERCHANT
+                        } else {
+                            // Tài khoản khách hàng từng bị gán nhầm storeId của quán khác -> Tự động khôi phục về CUSTOMER
+                            val isEmailMerchant = currentEmail.contains("manager", true) || currentEmail.contains("merchant", true)
+                            if (!isEmailMerchant) {
+                                try {
+                                    database.getReference("users").child(uid).updateChildren(
+                                        mapOf(
+                                            "role" to User.Role.CUSTOMER,
+                                            "roleId" to 2,
+                                            "storeId" to ""
+                                        )
+                                    ).await()
+                                } catch (_: Exception) {}
+                                return User.Role.CUSTOMER
+                            }
+                        }
+                    }
+                }
                 return User.Role.MERCHANT
             }
 
+            // 4. Tra cứu chéo: Chỉ khớp khi merchantId hoặc ownerId của store bằng đúng uid
             try {
                 val byMerchant = database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
-                val matchedKey = byMerchant.children.firstOrNull()?.key
-                    ?: database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await().children.firstOrNull()?.key
-                if (!matchedKey.isNullOrBlank()) {
-                    database.getReference("users").child(uid).updateChildren(
-                        mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to matchedKey)
-                    ).await()
-                    return User.Role.MERCHANT
-                }
-                val storesSnap = byMerchant
-                for (child in storesSnap.children) {
+                for (child in byMerchant.children) {
                     val merchantId = child.child("merchantId").getValue(String::class.java)
                         ?: child.child("ownerId").getValue(String::class.java)
                     if (merchantId == uid) {
                         val storeId = child.key ?: ""
-                        database.getReference("users").child(uid).updateChildren(
-                            mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to storeId)
-                        ).await()
-                        return User.Role.MERCHANT
+                        if (storeId.isNotBlank()) {
+                            database.getReference("users").child(uid).updateChildren(
+                                mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to storeId)
+                            ).await()
+                            return User.Role.MERCHANT
+                        }
                     }
                 }
             } catch (_: Exception) {}
@@ -893,6 +934,64 @@ class AuthRepository @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Khôi phục role CUSTOMER nếu tài khoản khách hàng từng bị gán nhầm storeId của quán khác.
+     */
+    private suspend fun sanitizeCorruptedCustomerRoleIfNeeded(
+        uid: String,
+        email: String,
+        currentRole: String,
+        currentStoreId: String
+    ): Pair<String, String> {
+        val normRole = currentRole.trim().uppercase()
+        val sid = currentStoreId.trim()
+        if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {
+            return Pair(currentRole, currentStoreId)
+        }
+        return try {
+            if (sid.isNotBlank()) {
+                val storeSnap = database.getReference("stores").child(sid).get().await()
+                if (storeSnap.exists()) {
+                    val mId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
+                    val oId = storeSnap.child("ownerId").getValue(String::class.java).orEmpty()
+                    if (mId == uid || oId == uid || (mId.isBlank() && oId.isBlank())) {
+                        return Pair(currentRole, currentStoreId)
+                    }
+                    // Store này thuộc về người khác! Kiểm tra xem uid có thực sự sở hữu store nào không
+                    val byMerchant = try {
+                        database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+                    } catch (_: Exception) { null }
+                    val realOwnedKey = byMerchant?.children?.firstOrNull {
+                        it.child("merchantId").getValue(String::class.java) == uid ||
+                            it.child("ownerId").getValue(String::class.java) == uid
+                    }?.key
+                    if (!realOwnedKey.isNullOrBlank()) {
+                        database.getReference("users").child(uid).updateChildren(
+                            mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to realOwnedKey)
+                        ).await()
+                        return Pair(User.Role.MERCHANT, realOwnedKey)
+                    }
+
+                    val isEmailMerchant = email.contains("manager", ignoreCase = true) ||
+                        email.contains("merchant", ignoreCase = true)
+                    if (!isEmailMerchant) {
+                        database.getReference("users").child(uid).updateChildren(
+                            mapOf(
+                                "role" to User.Role.CUSTOMER,
+                                "roleId" to 2,
+                                "storeId" to ""
+                            )
+                        ).await()
+                        return Pair(User.Role.CUSTOMER, "")
+                    }
+                }
+            }
+            Pair(currentRole, currentStoreId)
+        } catch (_: Exception) {
+            Pair(currentRole, currentStoreId)
         }
     }
 

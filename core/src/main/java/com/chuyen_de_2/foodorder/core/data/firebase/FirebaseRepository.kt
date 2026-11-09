@@ -901,15 +901,19 @@ class FirebaseRepository @Inject constructor(
                     }
                 }
             }
-            // 2. Kiểm tra stores bằng index merchantId / ownerId
+            // 2. Kiểm tra stores bằng index merchantId / ownerId (luôn đối chiếu đúng uid)
             val byMerchant = try { database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await() } catch (_: Exception) { null }
-            val matchedMerchantKey = byMerchant?.children?.firstOrNull()?.key
+            val matchedMerchantKey = byMerchant?.children?.firstOrNull {
+                it.child("merchantId").getValue(String::class.java) == uid
+            }?.key
             if (!matchedMerchantKey.isNullOrBlank()) {
                 try { database.getReference("users").child(uid).child("storeId").setValue(matchedMerchantKey) } catch (_: Exception) {}
                 return matchedMerchantKey
             }
             val byOwner = try { database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await() } catch (_: Exception) { null }
-            val matchedOwnerKey = byOwner?.children?.firstOrNull()?.key
+            val matchedOwnerKey = byOwner?.children?.firstOrNull {
+                it.child("ownerId").getValue(String::class.java) == uid
+            }?.key
             if (!matchedOwnerKey.isNullOrBlank()) {
                 try { database.getReference("users").child(uid).child("storeId").setValue(matchedOwnerKey) } catch (_: Exception) {}
                 return matchedOwnerKey

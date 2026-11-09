@@ -283,6 +283,23 @@
             android:orientation="horizontal">
 
             <Button
+                android:id="@+id/btnChatStore"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="6dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="10dp"
+                android:text="💬 Nhắn Quán"
+                android:textColor="#0284C7"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                app:backgroundTint="#F0F9FF"
+                app:cornerRadius="8dp"
+                app:strokeColor="#BAE6FD" />
+
+            <Button
                 android:id="@+id/btnActionSecondary"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"

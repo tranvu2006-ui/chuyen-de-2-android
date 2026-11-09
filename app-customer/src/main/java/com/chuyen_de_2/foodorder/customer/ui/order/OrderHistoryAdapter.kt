@@ -26,7 +26,8 @@ class OrderHistoryAdapter(
     private val onReorderClick: (Order) -> Unit,
     private val onViewProofClick: (Order) -> Unit,
     private val onRefundDetailsClick: (Order) -> Unit,
-    private val onCallClick: (String) -> Unit
+    private val onCallClick: (String) -> Unit,
+    private val onChatStoreClick: (Order) -> Unit = {}
 ) : ListAdapter<Order, OrderHistoryAdapter.OrderViewHolder>(DiffCallback) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
@@ -213,6 +214,31 @@ class OrderHistoryAdapter(
             )
 
             binding.cardOrder.setOnClickListener { onTrackClick(order) }
+            binding.btnChatStore.text = "💬 Nhắn Quán"
+            binding.btnChatStore.tag = order.orderId
+            binding.btnChatStore.setOnClickListener { onChatStoreClick(order) }
+
+            if (order.orderId.isNotBlank()) {
+                com.google.firebase.database.FirebaseDatabase.getInstance()
+                    .getReference("tracking")
+                    .child("chats_${order.orderId}")
+                    .limitToLast(1)
+                    .addValueEventListener(object : com.google.firebase.database.ValueEventListener {
+                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                            if (binding.btnChatStore.tag != order.orderId) return
+                            val lastChild = snapshot.children.lastOrNull()
+                            val sender = lastChild?.child("sender")?.getValue(String::class.java)
+                            if (sender == "SHOP") {
+                                binding.btnChatStore.text = "💬 Tin nhắn Quán (1)"
+                                binding.btnChatStore.setTextColor(Color.parseColor("#EA580C"))
+                            } else {
+                                binding.btnChatStore.text = "💬 Nhắn Quán"
+                                binding.btnChatStore.setTextColor(Color.parseColor("#0284C7"))
+                            }
+                        }
+                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+                    })
+            }
 
             if (isWarningOrder) {
                 // 1. ĐƠN BỊ CẢNH BÁO MẤT ĐƠN (15 PHÚT)

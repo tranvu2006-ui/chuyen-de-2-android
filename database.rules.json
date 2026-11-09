@@ -129,23 +129,22 @@
       "$orderId": {
         ".write": "auth != null",
         "refundStatus": {
-          ".write": "auth != null && auth.uid == data.parent().child('customerId').val() && data.parent().child('status').val() == 'CANCELLED' && data.val() == 'PENDING_INFO' && newData.val() == 'PENDING_REFUND' && root.child('refund_payment_details').child($orderId).child('customerProvided').hasChildren(['bankName', 'bankBin', 'accountNumber', 'accountHolder', 'updatedAt'])",
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == 'NONE') || (auth != null && auth.uid == data.parent().child('customerId').val() && data.parent().child('status').val() == 'CANCELLED' && data.val() == 'PENDING_INFO' && newData.val() == 'PENDING_REFUND' && root.child('refund_payment_details').child($orderId).child('customerProvided').hasChildren(['bankName', 'bankBin', 'accountNumber', 'accountHolder', 'updatedAt'])) || (auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('shopId').val()) && ((newData.val() == 'PENDING_INFO' && (data.parent().child('status').val() == 'PENDING' || data.parent().child('status').val() == 'PREPARING' || data.parent().child('status').val() == 'READY') && newData.parent().child('status').val() == 'CANCELLED' && newData.parent().child('cancelledBy').val() == 'MERCHANT' && newData.parent().child('refundAmount').isNumber() && newData.parent().child('refundAmount').val() > 0 && (data.parent().child('paymentStatus').val() == 'PAID' || data.parent().child('isPaid').val() == true || data.parent().child('isDepositPaid').val() == true)) || (newData.val() == 'NOT_REQUIRED' && (data.parent().child('status').val() == 'PENDING' || data.parent().child('status').val() == 'PREPARING' || data.parent().child('status').val() == 'READY') && newData.parent().child('status').val() == 'CANCELLED' && newData.parent().child('cancelledBy').val() == 'MERCHANT' && newData.parent().child('refundAmount').val() == 0 && data.parent().child('paymentStatus').val() != 'PAID' && data.parent().child('isPaid').val() != true && data.parent().child('isDepositPaid').val() != true)))"
+          ".write": "auth != null"
         },
         "refundReference": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == '') || (auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('shopId').val()) && (((!data.exists() || data.val() == '') && (newData.val() == $orderId || newData.val().matches(/^OI[A-Z0-9]{8}$/)) && (newData.parent().child('refundStatus').val() == 'PENDING_INFO' || newData.parent().child('refundStatus').val() == 'PENDING_REFUND') && newData.parent().child('status').val() == 'CANCELLED' && newData.parent().child('cancelledBy').val() == 'MERCHANT') || (data.val() == $orderId && newData.val() == data.val() && newData.parent().child('refundStatus').val() == 'REFUNDED')))"
+          ".write": "auth != null"
         },
         "refundTransactionId": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == '')"
+          ".write": "auth != null"
         },
         "refundedAt": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && !newData.exists())"
+          ".write": "auth != null"
         },
         "refundedBy": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == '')"
+          ".write": "auth != null"
         },
         "refundAmount": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == 0) || (auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('shopId').val()) && ((newData.parent().child('refundStatus').val() == 'NOT_REQUIRED' && newData.val() == 0) || ((newData.parent().child('refundStatus').val() == 'PENDING_INFO' || newData.parent().child('refundStatus').val() == 'PENDING_REFUND') && ((newData.parent().child('paymentMode').val() == 'DEPOSIT' && newData.val() == newData.parent().child('depositAmount').val()) || (newData.parent().child('paymentMode').val() != 'DEPOSIT' && newData.val() == newData.parent().child('totalPayment').val()) || (newData.parent().child('paymentMode').val() != 'DEPOSIT' && newData.parent().child('totalPayment').val() == 0 && newData.val() == newData.parent().child('total').val())))))"
+          ".write": "auth != null"
         },
         "paymentStatus": {
           ".write": "auth != null"
@@ -154,16 +153,16 @@
           ".write": "auth != null"
         },
         "status": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentStatus').val() == 'UNPAID' && data.val() == 'AWAITING_PAYMENT' && newData.val() == 'PENDING'"
+          ".write": "auth != null"
         },
         "orderStatus": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentStatus').val() == 'UNPAID' && newData.val() == 'PENDING'"
+          ".write": "auth != null"
         },
         "isPaid": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentMode').val() != 'DEPOSIT' && data.parent().child('paymentStatus').val() == 'UNPAID' && newData.val() == true"
+          ".write": "auth != null"
         },
         "isDepositPaid": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentMode').val() == 'DEPOSIT' && data.parent().child('paymentStatus').val() == 'UNPAID' && newData.val() == true"
+          ".write": "auth != null"
         }
       }
     },

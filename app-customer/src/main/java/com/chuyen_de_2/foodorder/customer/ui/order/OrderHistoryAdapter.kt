@@ -247,8 +247,9 @@ class OrderHistoryAdapter(
             } else when (effectiveStatus) {
                 Order.Status.AWAITING_PAYMENT, Order.Status.PENDING -> {
                     // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
-                    val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||
-                            (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L)
+                    val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid
+                    val isUnpaid = !isPaid && ((order.status == Order.Status.AWAITING_PAYMENT) ||
+                            (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L))
                     if (isUnpaid) {
                         binding.cardOrder.strokeColor = Color.parseColor("#FDBA74")
                         binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFCF9"))

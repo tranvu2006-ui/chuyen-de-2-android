@@ -72,6 +72,8 @@ class PaymentActivity : AppCompatActivity() {
         InsetUtils.applyToolbarInsets(binding.toolbar)
         InsetUtils.applyNavigationBarPadding(binding.bottomBar)
 
+        checkSmsPermission()
+
         orderId = intent.getStringExtra(Constants.EXTRA_ORDER_ID) ?: ""
         val shopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: ""
         shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Quán Ăn Oishi"
@@ -142,20 +144,31 @@ class PaymentActivity : AppCompatActivity() {
                 }
         }
 
-        binding.btnConfirmPaid.setOnClickListener {
-            completePaymentWithSound()
-        }
-
         binding.btnCancelToHome.setOnClickListener { navigateHome() }
         binding.btnHomeNav.setOnClickListener { navigateHome() }
+    }
 
-        startAutoVerificationFallback()
+    private fun checkSmsPermission() {
+        val permissions = arrayOf(
+            android.Manifest.permission.RECEIVE_SMS,
+            android.Manifest.permission.READ_SMS
+        )
+        val missingPermissions = permissions.filter {
+            androidx.core.content.ContextCompat.checkSelfPermission(this, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (missingPermissions.isNotEmpty()) {
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this,
+                missingPermissions.toTypedArray(),
+                101
+            )
+        }
     }
 
     /**
      * BƯỚC QUAN TRỌNG: Lắng nghe biến động Realtime từ Firebase Database.
-     * Khi khách chuyển khoản -> BroadcastReceiver (Di Động 2) bắt tin nhắn SMS ngân hàng hoặc khách bấm xác nhận -> Cập nhật paymentStatus = "PAID".
-     * Hàm này ngay lập tức phát hiện và tự động chuyển trang mà khách không cần bấm nút nào!
+     * Khi khách chuyển khoản -> BankSmsReceiver (máy Quán) bắt SMS biến động số dư -> Cập nhật paymentStatus = "PAID".
+     * Bộ lắng nghe này phát hiện và tự động chuyển trang OrderSuccessActivity.
      */
     private fun observeOrderPaymentRealtime() {
         if (orderId.isBlank()) return
@@ -178,63 +191,6 @@ class PaymentActivity : AppCompatActivity() {
         }
         orderPaymentListener = listener
         ref.addValueEventListener(listener)
-    }
-
-    private var autoVerifyJob: Job? = null
-
-    private fun startAutoVerificationFallback() {
-        if (orderId.isBlank()) return
-        autoVerifyJob?.cancel()
-        autoVerifyJob = lifecycleScope.launch {
-            // Chờ 15 giây giả lập đối soát cổng Napas, hoặc nếu khách rời app đi chuyển tiền rồi quay lại
-            kotlinx.coroutines.delay(15000)
-            if (!hasNavigatedSuccess && !isFinishing && !isDestroyed) {
-                completePaymentWithSound()
-            }
-        }
-    }
-
-    private var hasLeftScreenToPay = false
-
-    override fun onPause() {
-        super.onPause()
-        hasLeftScreenToPay = true
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Khi khách đã rời app để mở app ngân hàng chuyển tiền (dù 26k ngân hàng không gửi SMS),
-        // vừa quay lại app Oishi Food là tự động xác nhận thanh toán thành công!
-        if (hasLeftScreenToPay && !hasNavigatedSuccess) {
-            completePaymentWithSound()
-        }
-    }
-
-    /**
-     * Xác nhận thanh toán thành công và cập nhật Firebase paymentStatus = PAID.
-     * Gọi từ 3 nguồn:
-     *  1. BankSmsReceiver (máy Quán) phát hiện SMS tiền vào → Firebase cập nhật → observeOrderPaymentRealtime() kích hoạt.
-     *  2. onResume() khi khách quay lại từ app ngân hàng (dự phòng SMS thất bại).
-     *  3. Khách bấm nút [✓ Tôi Đã Thanh Toán Thành Công ➔] thủ công.
-     */
-    private fun completePaymentWithSound() {
-        if (hasNavigatedSuccess || isFinishing || isDestroyed) return
-        binding.btnConfirmPaid.isEnabled = false
-        binding.btnConfirmPaid.text = "✓ Đang xác nhận thanh toán..."
-
-        if (orderId.isNotBlank()) {
-            val updates = mapOf<String, Any>(
-                "paymentStatus" to Order.PaymentStatus.PAID,
-                "isPaid" to true,
-                "updatedAt" to System.currentTimeMillis()
-            )
-            FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
-                .addOnCompleteListener {
-                    navigateToOrderSuccessAuto()
-                }
-        } else {
-            navigateToOrderSuccessAuto()
-        }
     }
 
     /**
@@ -302,7 +258,7 @@ class PaymentActivity : AppCompatActivity() {
     private fun renderPaymentUI(orderId: String, amount: Long, paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL, remainAmount: Long = 0L) {
         if (orderId.isBlank()) return
         binding.tvAmountValue.text = amount.toVndCurrency()
-        val transferSyntax = orderId.trim()
+        val transferSyntax = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
 
         if (isMomoChannel) {
             binding.toolbar.title = "Quét Mã Ví MoMo"

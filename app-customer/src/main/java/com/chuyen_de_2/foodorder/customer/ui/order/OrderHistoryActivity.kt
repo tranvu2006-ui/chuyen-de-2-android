@@ -361,14 +361,16 @@ class OrderHistoryActivity : AppCompatActivity() {
         val countCancelled = orders.count { isBombedOrCancelledOrder(it) }
         val countUnpaid = orders.count {
             val st = it.effectiveStatus.uppercase()
-            val isAwaiting = st == Order.Status.AWAITING_PAYMENT ||
-                    (st == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
+            val isPaid = it.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || it.isPaid
+            val isAwaiting = !isPaid && (st == Order.Status.AWAITING_PAYMENT ||
+                    (st == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L))
             val isNotExpired = (now - it.createdAt) <= 30 * 60 * 1000L
             isAwaiting && isNotExpired
         }
         val countConfirming = orders.count {
             val st = it.effectiveStatus.uppercase()
-            (st == Order.Status.PENDING || st == Order.Status.PREPARING || st == Order.Status.READY) && !isActiveWarningOrder(it)
+            val isPaid = it.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || it.isPaid
+            (st == Order.Status.PENDING || st == Order.Status.PREPARING || st == Order.Status.READY || (st == Order.Status.AWAITING_PAYMENT && isPaid)) && !isActiveWarningOrder(it)
         }
 
         // Tự động hủy trên database các đơn chờ thanh toán đã quá 30 phút
@@ -418,14 +420,16 @@ class OrderHistoryActivity : AppCompatActivity() {
             "CANCELLED" -> allOrders.filter { isBombedOrCancelledOrder(it) }
             "UNPAID" -> allOrders.filter {
                 val st = it.effectiveStatus.uppercase()
-                val isAwaiting = st == Order.Status.AWAITING_PAYMENT ||
-                        (st == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L)
+                val isPaid = it.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || it.isPaid
+                val isAwaiting = !isPaid && (st == Order.Status.AWAITING_PAYMENT ||
+                        (st == Order.Status.PENDING && it.paymentMethod != Order.PaymentMethod.COD && it.totalPayment == 0L))
                 val isNotExpired = (now - it.createdAt) <= 30 * 60 * 1000L
                 isAwaiting && isNotExpired
             }
             "CONFIRMING" -> allOrders.filter {
                 val st = it.effectiveStatus.uppercase()
-                st == Order.Status.PENDING || st == Order.Status.PREPARING || st == Order.Status.READY
+                val isPaid = it.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || it.isPaid
+                (st == Order.Status.PENDING || st == Order.Status.PREPARING || st == Order.Status.READY || (st == Order.Status.AWAITING_PAYMENT && isPaid)) && !isActiveWarningOrder(it)
             }
             "COMPLETED" -> allOrders.filter { it.effectiveStatus.uppercase() == Order.Status.COMPLETED }
             else -> allOrders

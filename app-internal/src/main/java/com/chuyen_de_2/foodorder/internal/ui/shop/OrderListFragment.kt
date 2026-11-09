@@ -41,7 +41,9 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -95,6 +97,8 @@ class OrderListFragment : Fragment() {
      */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        checkSmsPermission()
 
         setupUI()
         setupTabs()
@@ -229,6 +233,19 @@ class OrderListFragment : Fragment() {
 
     private fun setupUI() {
         bindShopStatusSwitchListener()
+    }
+
+    private fun checkSmsPermission() {
+        val permissions = arrayOf(
+            android.Manifest.permission.RECEIVE_SMS,
+            android.Manifest.permission.READ_SMS
+        )
+        val missing = permissions.filter {
+            androidx.core.content.ContextCompat.checkSelfPermission(requireContext(), it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) {
+            requestPermissions(missing.toTypedArray(), 101)
+        }
     }
 
     /**
@@ -483,8 +500,8 @@ class OrderListFragment : Fragment() {
      *   2. Sau khi xác nhận → gọi viewModel.cancelOrderByStore() → Firebase đổi status = CANCELLED.
      *   3. Nếu khách đã thanh toán → gọi showRefundTransferDetails() để hiện QR hoàn tiền.
      *   4. Quán quét QR, chuyển khoản → Ngân hàng gửi SMS về máy KHÁCH.
-     *   5. BankSmsReceiver (core) trên máy Khách bắt SMS → tự động cập nhật refundStatus = REFUNDED.
-     *   6. Dự phòng: Quán bấm [✓ Tôi đã hoàn tiền thành công] → gọi confirmRefundSuccess().
+     *   5. BankSmsReceiver (core) trên máy Khách/Quán bắt SMS → tự động cập nhật refundStatus = REFUNDED.
+     *   6. Hộp thoại QR hoàn tiền trên máy Quán tự động đóng khi Firebase nhận được trạng thái REFUNDED.
      */
     private fun promptStoreOrderCancellation(order: Order) {
         val dialogBinding = DialogStoreCancelOrderBinding.inflate(layoutInflater)
@@ -707,14 +724,31 @@ class OrderListFragment : Fragment() {
             text = "$details\n\nQuét mã bằng ứng dụng ngân hàng và kiểm tra đúng người nhận, số tiền trước khi chuyển."
             setPadding(0, (8 * density).toInt(), 0, 0)
         })
-        AlertDialog.Builder(requireContext())
+        val refundDialog = AlertDialog.Builder(requireContext())
             .setTitle("Quét mã để hoàn tiền")
             .setView(content)
-            .setPositiveButton("✓ Tôi đã hoàn tiền thành công") { _, _ ->
-                confirmRefundSuccess(order)
+            .setPositiveButton("Đóng", null)
+            .create()
+
+        // Lắng nghe Realtime: Khi BankSmsReceiver bắt được SMS hoàn tiền -> tự động đóng dialog
+        val refundRef = FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).child("refundStatus")
+        val refundListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val st = snapshot.getValue(String::class.java).orEmpty()
+                if (st.equals(Order.RefundStatus.REFUNDED, ignoreCase = true)) {
+                    if (isAdded && refundDialog.isShowing) {
+                        refundDialog.dismiss()
+                        Toast.makeText(requireContext(), "✅ Đã nhận SMS ngân hàng xác nhận hoàn tiền thành công!", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
-            .setNegativeButton("Đóng", null)
-            .show()
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        refundRef.addValueEventListener(refundListener)
+        refundDialog.setOnDismissListener {
+            refundRef.removeEventListener(refundListener)
+        }
+        refundDialog.show()
         Glide.with(this)
             .load(qrUrl)
             .listener(object : RequestListener<Drawable> {
@@ -758,28 +792,7 @@ class OrderListFragment : Fragment() {
         }
     }
 
-    /**
-     * [Dự phòng thủ công] Quán xác nhận đã hoàn tiền khi BankSmsReceiver chưa kích hoạt
-     *
-     * Dùng khi:
-     *  - Máy khách chưa đăng ký SMS Banking hoặc số tiền hoàn < ngưỡng ngân hàng gửi SMS.
-     *  - Quán đã chuyển khoản xong nhưng refundStatus vẫn chưa tự đổi sang REFUNDED.
-     * Hành động: Ghi thẳng Firebase orders/{orderId}/refundStatus = "REFUNDED" + refundedAt.
-     */
-    private fun confirmRefundSuccess(order: Order) {
-        val database = FirebaseDatabase.getInstance()
-        val updates = mapOf<String, Any>(
-            "refundStatus" to Order.RefundStatus.REFUNDED,
-            "refundedAt" to System.currentTimeMillis()
-        )
-        database.getReference("orders").child(order.orderId).updateChildren(updates)
-            .addOnSuccessListener {
-                Toast.makeText(requireContext(), "Đã xác nhận hoàn tiền thành công cho khách!", Toast.LENGTH_SHORT).show()
-            }
-            .addOnFailureListener {
-                Toast.makeText(requireContext(), "Lỗi cập nhật: ${it.message}", Toast.LENGTH_SHORT).show()
-            }
-    }
+
 
     /**
      * Tên chức năng: Quán xác nhận thủ công đã nhận tiền MoMo

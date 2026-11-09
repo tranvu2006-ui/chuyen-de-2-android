@@ -59,9 +59,8 @@ class LoginActivity : AppCompatActivity() {
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
         if (isLogout) {
             viewModel.logout()
-        } else if (viewModel.isLoggedIn) {
-            checkRoleAndRoute()
         }
+        // Giữ ở màn hình Đăng nhập để người dùng chủ động đăng nhập, không tự động nhảy vào Trang chủ
     }
 
     override fun onNewIntent(intent: Intent) {

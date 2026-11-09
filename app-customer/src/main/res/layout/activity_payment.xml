@@ -408,33 +408,18 @@
         app:layout_constraintBottom_toBottomOf="parent">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnConfirmPaid"
-            style="@style/Widget.Material3.Button"
+            android:id="@+id/btnCancelToHome"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:layout_marginTop="8dp"
-            android:backgroundTint="#10B981"
-            android:elevation="2dp"
             android:insetTop="0dp"
             android:insetBottom="0dp"
-            android:letterSpacing="0.01"
-            android:text="✓ Tôi Đã Thanh Toán Thành Công ➔"
-            android:textColor="@color/white"
+            android:text="← Quay về màn hình chính"
+            android:textColor="@color/text_primary"
             android:textSize="13.5sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
-
-        <TextView
-            android:id="@+id/btnCancelToHome"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="8dp"
-            android:padding="4dp"
-            android:text="Về màn hình chính"
-            android:textColor="@color/text_muted"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            app:cornerRadius="12dp"
+            app:strokeColor="@color/border" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

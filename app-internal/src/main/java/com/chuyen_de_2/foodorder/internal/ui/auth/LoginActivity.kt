@@ -2,56 +2,37 @@ package com.chuyen_de_2.foodorder.internal.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.InputFilter
-import android.text.InputType
+import android.os.CountDownTimer
 import android.view.View
-import android.view.WindowManager
-import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Tên chức năng: Màn hình Đăng nhập Hệ thống Nội bộ (Merchant / Shipper)
- * Cách hoạt động:
- *  - Tiếp nhận thông tin tài khoản (Email & Mật khẩu).
- *  - Xác thực qua Firebase Authentication và kiểm tra quyền truy cập (Role) cũng như trạng thái tài khoản (ACTIVE / LOCKED).
- *  - Mỗi lần mở ứng dụng đều yêu cầu đăng nhập lại, không tự dùng phiên Firebase đã lưu.
- * Luồng hướng tới:
- *  - Đăng nhập thành công -> Điều hướng sang [DashboardActivity].
- *  - Bấm "Đăng ký" -> Chuyển sang [RegisterActivity].
- *  - Tài khoản bị khóa -> Hiển thị Dialog cảnh báo khóa tài khoản.
+ * Màn hình đăng nhập đối tác nội bộ, tích hợp lấy và nhập mã xác thực OTP trực tiếp (inline OTP).
  */
 @AndroidEntryPoint
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginInternalBinding
-    private var pendingOtpEmail = ""
-    private var pendingOtpPassword = ""
-    private var loginOtpDialog: AlertDialog? = null
+    private var otpCountDownTimer: CountDownTimer? = null
 
     @Inject
     lateinit var authRepository: AuthRepository
 
     private val viewModel: AuthViewModel by viewModels()
 
-    /**
-     * Tên chức năng: Khởi tạo màn hình và kiểm tra phiên làm việc (Session Check)
-     * Cách hoạt động:
-     *  - Kiểm tra Intent cờ LOGOUT để đăng xuất nếu có yêu cầu.
-     *  - Nếu đã đăng nhập, gọi checkAccountActiveStatus() trên Firebase để đảm bảo tài khoản chưa bị Admin khóa.
-     * Luồng hướng tới: Vào [DashboardActivity] nếu hợp lệ hoặc hiển thị Dialog nếu bị khóa.
-     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -83,16 +64,68 @@ class LoginActivity : AppCompatActivity() {
         observeViewModel()
     }
 
-    /**
-     * Tên chức năng: Thiết lập sự kiện giao diện Đăng nhập
-     * Cách hoạt động: Lấy thông tin email, password từ EditText và kích hoạt luồng xử lý đăng nhập tại [AuthViewModel].
-     * Luồng hướng tới: Gửi dữ liệu tới [AuthViewModel.login].
-     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("LOGOUT", false)) {
+            authRepository.logout()
+        }
+    }
+
     private fun setupUI() {
+        binding.etEmail.doAfterTextChanged {
+            binding.tilEmail.error = null
+            binding.tilOtp.error = null
+        }
+        binding.etPassword.doAfterTextChanged {
+            binding.tilPassword.error = null
+        }
+        binding.etOtp.doAfterTextChanged {
+            binding.tilOtp.error = null
+        }
+
+        // Nút "Lấy mã" kế bên ô nhập OTP
+        binding.btnGetOtp.setOnClickListener {
+            val email = binding.etEmail.text.toString().trim()
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
+                binding.etEmail.requestFocus()
+                return@setOnClickListener
+            }
+            binding.tilEmail.error = null
+            binding.tilOtp.error = null
+            binding.btnGetOtp.isEnabled = false
+            binding.btnGetOtp.text = "Đang gửi..."
+            viewModel.requestEmailOtp(email)
+        }
+
+        // Nút "Đăng nhập"
         binding.btnLogin.setOnClickListener {
             val email = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString().trim()
-            viewModel.login(email, password)
+            val otp = binding.etOtp.text.toString().trim()
+
+            if (email.isBlank()) {
+                binding.tilEmail.error = "Vui lòng nhập email"
+                binding.etEmail.requestFocus()
+                return@setOnClickListener
+            }
+            if (password.isBlank()) {
+                binding.tilPassword.error = "Vui lòng nhập mật khẩu"
+                binding.etPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            if (otp.isNotBlank()) {
+                if (otp.length != 6 || !otp.all { it.isDigit() }) {
+                    binding.tilOtp.error = "Mã OTP phải gồm đúng 6 chữ số"
+                    binding.etOtp.requestFocus()
+                    return@setOnClickListener
+                }
+                viewModel.verifyLoginOtp(email, password, otp)
+            } else {
+                viewModel.login(email, password)
+            }
         }
 
         binding.tvGoToRegister.setOnClickListener {
@@ -100,11 +133,6 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Tên chức năng: Lắng nghe trạng thái từ ViewModel (State Observer)
-     * Cách hoạt động: Cập nhật ProgressBar và xử lý kết quả đăng nhập trả về từ ViewModel.
-     * Luồng hướng tới: Điều hướng tới [navigateToDashboard] khi thành công hoặc hiện Toast báo lỗi khi thất bại.
-     */
     private fun observeViewModel() {
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
@@ -116,7 +144,13 @@ class LoginActivity : AppCompatActivity() {
                 navigateToDashboard()
             }.onFailure { error ->
                 if (error is EmailOtpRequiredException) {
-                    showLoginOtpDialog()
+                    val email = binding.etEmail.text.toString().trim()
+                    binding.tilOtp.error = "Tài khoản cần xác minh. Vui lòng bấm 'Lấy mã' và nhập mã OTP."
+                    binding.etOtp.requestFocus()
+                    if (binding.btnGetOtp.isEnabled) {
+                        viewModel.requestEmailOtp(email)
+                        startOtpCountdown()
+                    }
                 } else {
                     Toast.makeText(this, error.message ?: "Đăng nhập thất bại", Toast.LENGTH_LONG).show()
                 }
@@ -125,87 +159,55 @@ class LoginActivity : AppCompatActivity() {
 
         viewModel.otpRequestResult.observe(this) { result ->
             result.onSuccess {
-                Toast.makeText(this, "Đã gửi mã OTP đến email.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Đã gửi mã OTP đến email. Vui lòng kiểm tra hộp thư!", Toast.LENGTH_LONG).show()
+                startOtpCountdown()
+                binding.etOtp.requestFocus()
             }.onFailure { error ->
+                binding.btnGetOtp.isEnabled = true
+                binding.btnGetOtp.text = "Lấy mã"
                 Toast.makeText(this, error.message ?: "Không gửi được mã OTP.", Toast.LENGTH_LONG).show()
             }
         }
 
         viewModel.loginOtpResult.observe(this) { result ->
             result.onSuccess {
-                loginOtpDialog?.dismiss()
-                loginOtpDialog = null
-                pendingOtpPassword = ""
                 Toast.makeText(this, "Xác minh email và đăng nhập thành công.", Toast.LENGTH_SHORT).show()
                 navigateToDashboard()
             }.onFailure { error ->
-                Toast.makeText(this, error.message ?: "Mã OTP không hợp lệ.", Toast.LENGTH_LONG).show()
+                val userMsg = error.message ?: "Mã OTP không hợp lệ."
+                binding.tilOtp.error = userMsg
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    private fun showLoginOtpDialog() {
-        if (loginOtpDialog?.isShowing == true) return
-        pendingOtpEmail = binding.etEmail.text.toString().trim()
-        pendingOtpPassword = binding.etPassword.text.toString().trim()
-        val codeInput = EditText(this).apply {
-            hint = "Nhập mã OTP 6 chữ số"
-            inputType = InputType.TYPE_CLASS_NUMBER
-            filters = arrayOf(InputFilter.LengthFilter(6))
-            textAlignment = View.TEXT_ALIGNMENT_CENTER
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Xác minh email")
-            .setMessage("Tài khoản chưa xác minh. Nhập mã OTP đã gửi đến $pendingOtpEmail.")
-            .setView(codeInput)
-            .setPositiveButton("Xác nhận", null)
-            .setNeutralButton("Gửi lại mã", null)
-            .setNegativeButton("Hủy", null)
-            .create()
-        loginOtpDialog = dialog
-        dialog.setOnDismissListener {
-            if (loginOtpDialog === dialog) loginOtpDialog = null
-            pendingOtpPassword = ""
-        }
-        dialog.setOnShowListener {
-            codeInput.requestFocus()
-            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                codeInput.text?.clear()
-                viewModel.requestEmailOtp(pendingOtpEmail)
+    private fun startOtpCountdown() {
+        otpCountDownTimer?.cancel()
+        binding.btnGetOtp.isEnabled = false
+        otpCountDownTimer = object : CountDownTimer(60_000L, 1_000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val sec = millisUntilFinished / 1000
+                binding.btnGetOtp.text = "${sec}s"
             }
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val code = codeInput.text.toString().trim()
-                if (!code.matches(Regex("\\d{6}"))) {
-                    codeInput.error = "Mã OTP phải gồm đúng 6 chữ số"
-                } else {
-                    viewModel.verifyLoginOtp(pendingOtpEmail, pendingOtpPassword, code)
-                }
+
+            override fun onFinish() {
+                binding.btnGetOtp.isEnabled = true
+                binding.btnGetOtp.text = "Gửi lại"
             }
-        }
-        dialog.show()
+        }.start()
     }
 
-    /**
-     * Tên chức năng: Điều hướng vào Dashboard
-     * Cách hoạt động: Mở màn hình chính của ứng dụng nội bộ và đóng màn hình Login.
-     * Luồng hướng tới: [DashboardActivity].
-     */
     private fun navigateToDashboard() {
-        startActivity(Intent(this, DashboardActivity::class.java))
+        val intent = Intent(this, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
         finish()
     }
 
-    /**
-     * Tên chức năng: Xử lý Intent mới khi Activity đang ở backstack
-     * Cách hoạt động: Nhận tín hiệu đăng xuất từ các màn hình khác chuyển về (FLAG_ACTIVITY_CLEAR_TOP).
-     * Luồng hướng tới: Gọi authRepository.logout() để giải phóng phiên làm việc.
-     */
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent.getBooleanExtra("LOGOUT", false)) {
-            authRepository.logout()
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        otpCountDownTimer?.cancel()
     }
 }

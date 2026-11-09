@@ -328,16 +328,28 @@
                         android:orientation="vertical"
                         android:padding="20dp">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="📸"
-                            android:textSize="32sp" />
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="52dp"
+                            android:layout_height="52dp"
+                            app:cardBackgroundColor="#EFF6FF"
+                            app:cardCornerRadius="26dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="#BFDBFE"
+                            app:strokeWidth="1dp">
+
+                            <ImageView
+                                android:layout_width="26dp"
+                                android:layout_height="26dp"
+                                android:layout_gravity="center"
+                                android:contentDescription="Tải ảnh minh chứng"
+                                android:src="@drawable/ic_camera"
+                                app:tint="@color/brand_blue" />
+                        </com.google.android.material.card.MaterialCardView>
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
+                            android:layout_marginTop="8dp"
                             android:text="Bấm để tải ảnh chụp món ăn / hóa đơn"
                             android:textColor="@color/text_primary"
                             android:textSize="13sp"
@@ -407,7 +419,10 @@
                                 android:textColor="@color/brand_blue"
                                 android:textSize="11.5sp"
                                 android:textStyle="bold"
-                                app:cornerRadius="8dp" />
+                                app:cornerRadius="8dp"
+                                app:icon="@drawable/ic_camera"
+                                app:iconSize="15dp"
+                                app:iconTint="@color/brand_blue" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnClearEvidenceImage"
@@ -421,7 +436,10 @@
                                 android:text="Xóa ảnh"
                                 android:textAllCaps="false"
                                 android:textColor="@color/danger"
-                                android:textSize="11.5sp" />
+                                android:textSize="11.5sp"
+                                app:icon="@drawable/ic_trash"
+                                app:iconSize="15dp"
+                                app:iconTint="@color/danger" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -436,11 +454,14 @@
                 android:orientation="horizontal"
                 android:padding="14dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚖️"
-                    android:textSize="20sp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="top"
+                    android:layout_marginTop="1dp"
+                    android:contentDescription="Chế tài xử phạt"
+                    android:src="@drawable/ic_shield_alert"
+                    app:tint="#DC2626" />
 
                 <TextView
                     android:layout_width="0dp"
@@ -472,13 +493,18 @@
             android:id="@+id/btnSubmitComplaint"
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            android:text="Gửi Khiếu Nại Lên Ban Quản Trị ⚖️"
+            android:text="Gửi Khiếu Nại Lên Ban Quản Trị"
             android:textColor="@color/white"
-            android:textSize="14.5sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             app:backgroundTint="@color/primary"
             app:cornerRadius="12dp"
-            app:elevation="2dp" />
+            app:elevation="2dp"
+            app:icon="@drawable/ic_shield_alert"
+            app:iconGravity="textStart"
+            app:iconPadding="10dp"
+            app:iconSize="20dp"
+            app:iconTint="@color/white" />
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

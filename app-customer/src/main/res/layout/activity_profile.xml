@@ -377,7 +377,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="14dp"
                             android:layout_weight="1"
-                            android:text="Trung tâm gửi khiếu nại"
+                            android:text="Theo dõi &amp; Gửi khiếu nại"
                             android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />

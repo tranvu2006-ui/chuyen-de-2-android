@@ -101,6 +101,10 @@
             android:name=".ui.complaint.ComplaintActivity"
             android:theme="@style/Theme.FoodOrder.Customer" />
 
+        <activity
+            android:name=".ui.complaint.CustomerComplaintTrackingActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
         <!-- Notifications -->
         <activity
             android:name=".ui.notification.NotificationActivity"

@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.customer.ui.complaint
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
@@ -22,6 +23,7 @@ import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Complaint
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.ImageLoadUtils
 import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.customer.R
@@ -61,13 +63,13 @@ class ComplaintActivity : AppCompatActivity() {
 
     private val pickEvidenceLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@registerForActivityResult
-        val base64 = ImagePickerUtils.compressUriToBase64(this, uri, maxDimension = 600, quality = 80)
+        val base64 = ImagePickerUtils.compressUriToBase64(this, uri, maxDimension = 720, quality = 80)
         if (!base64.isNullOrBlank()) {
             selectedEvidenceBase64 = base64
             binding.layoutUploadBoxPlaceholder.visibility = View.GONE
             binding.layoutEvidencePreviewContainer.visibility = View.VISIBLE
-            Glide.with(this).load(base64).into(binding.ivEvidencePreview)
-            Toast.makeText(this, "📷 Đã đính kèm ảnh minh chứng thành công!", Toast.LENGTH_SHORT).show()
+            ImageLoadUtils.loadEvidenceImage(binding.ivEvidencePreview, base64, cornerDp = 12)
+            Toast.makeText(this, "✓ Đã đính kèm ảnh minh chứng thành công!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", Toast.LENGTH_SHORT).show()
         }
@@ -124,6 +126,15 @@ class ComplaintActivity : AppCompatActivity() {
     private fun setupToolbar() {
         binding.toolbar.setNavigationOnClickListener {
             finish()
+        }
+        binding.toolbar.inflateMenu(R.menu.menu_complaint_toolbar)
+        binding.toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_track_complaints) {
+                startActivity(Intent(this, CustomerComplaintTrackingActivity::class.java))
+                true
+            } else {
+                false
+            }
         }
     }
 
@@ -293,6 +304,12 @@ class ComplaintActivity : AppCompatActivity() {
             pickEvidenceLauncher.launch("image/*")
         }
 
+        binding.ivEvidencePreview.setOnClickListener {
+            if (selectedEvidenceBase64.isNotBlank()) {
+                showFullEvidenceDialog(selectedEvidenceBase64)
+            }
+        }
+
         binding.btnChangeEvidenceImage.setOnClickListener {
             pickEvidenceLauncher.launch("image/*")
         }
@@ -301,9 +318,29 @@ class ComplaintActivity : AppCompatActivity() {
             selectedEvidenceBase64 = ""
             binding.layoutUploadBoxPlaceholder.visibility = View.VISIBLE
             binding.layoutEvidencePreviewContainer.visibility = View.GONE
-            Glide.with(this).clear(binding.ivEvidencePreview)
+            try {
+                Glide.with(this).clear(binding.ivEvidencePreview)
+            } catch (_: Exception) {}
+            binding.ivEvidencePreview.setImageDrawable(null)
             Toast.makeText(this, "Đã gỡ bỏ ảnh minh chứng", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showFullEvidenceDialog(evidenceImage: String) {
+        val dialog = android.app.Dialog(this)
+        val iv = android.widget.ImageView(this).apply {
+            layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            adjustViewBounds = true
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            setPadding(16, 16, 16, 16)
+        }
+        ImageLoadUtils.loadEvidenceImage(iv, evidenceImage, cornerDp = 0)
+        dialog.setContentView(iv)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.show()
     }
 
     private fun setupSubmitButton() {
@@ -381,9 +418,13 @@ class ComplaintActivity : AppCompatActivity() {
                 if (result.isSuccess) {
                     AlertDialog.Builder(this@ComplaintActivity)
                         .setTitle("🎉 Gửi Khiếu Nại Thành Công!")
-                        .setMessage("Mã hồ sơ tiếp nhận: #$complaintCode\n\nBan Quản Trị Oishi Food sẽ tiến hành thẩm định và áp dụng chế tài xử phạt đối với ${if (isDriverFault) "tài xế" else "quán ăn"} trong vòng 2 giờ.")
+                        .setMessage("Mã hồ sơ tiếp nhận: #$complaintCode\n\nBan Quản Trị Oishi Food sẽ tiến hành thẩm định và áp dụng chế tài xử phạt đối với ${if (isDriverFault) "tài xế" else "quán ăn"} trong vòng 2 giờ.\n\nLưu ý: Nếu khiếu nại sai sự thật hoặc lạm dụng, tài khoản có thể bị phạt trừ điểm uy tín hoặc tạm khóa.")
                         .setCancelable(false)
-                        .setPositiveButton("Đã hiểu") { _, _ ->
+                        .setPositiveButton("Theo dõi tiến độ ngay") { _, _ ->
+                            startActivity(Intent(this@ComplaintActivity, CustomerComplaintTrackingActivity::class.java))
+                            finish()
+                        }
+                        .setNegativeButton("Đóng") { _, _ ->
                             finish()
                         }
                         .show()

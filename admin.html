@@ -5277,6 +5277,31 @@
       }
 
       const targetId = catId || ('cat-' + Date.now());
+      const targetOrder = Math.max(1, order);
+
+      // Tự động đẩy các danh mục có displayOrder >= targetOrder lên +1 (chen và đẩy)
+      const otherCats = categories.filter(c => (c.id || c.categoryId) !== targetId)
+        .sort((a, b) => (parseInt(a.displayOrder, 10) || 99) - (parseInt(b.displayOrder, 10) || 99));
+
+      const fbBatchUpdates = {};
+      let lastAssignedOrder = targetOrder;
+
+      otherCats.forEach(c => {
+        const curOrder = parseInt(c.displayOrder, 10) || 99;
+        if (curOrder >= targetOrder) {
+          const newOrder = curOrder <= lastAssignedOrder ? (lastAssignedOrder + 1) : curOrder;
+          lastAssignedOrder = newOrder;
+          if (newOrder !== curOrder) {
+            c.displayOrder = newOrder;
+            const cid = c.categoryId || c.id;
+            fbBatchUpdates[`categories/${cid}/displayOrder`] = newOrder;
+            fbBatchUpdates[`categories/${cid}/updatedAt`] = Date.now();
+            fbBatchUpdates[`menus/categories/${cid}/displayOrder`] = newOrder;
+            fbBatchUpdates[`menus/categories/${cid}/updatedAt`] = Date.now();
+          }
+        }
+      });
+
       const catObj = {
         id: targetId,
         categoryId: targetId,
@@ -5286,7 +5311,7 @@
         iconUrl: icon,
         desc: desc,
         description: desc,
-        displayOrder: order,
+        displayOrder: targetOrder,
         count: 0,
         status: status,
         isActive: status === 'ACTIVE',
@@ -5294,29 +5319,31 @@
       };
 
       if (catId) {
-        const idx = categories.findIndex(c => c.id === catId);
+        const idx = categories.findIndex(c => (c.id || c.categoryId) === catId);
         if (idx !== -1) {
           categories[idx] = { ...categories[idx], ...catObj };
         }
-        addLog(`Chỉnh sửa danh mục "${name}"`, 'info');
+        addLog(`Chỉnh sửa danh mục "${name}" (Thứ tự #${targetOrder})`, 'info');
         showToast(`Đã cập nhật danh mục "${name}" trên Firebase!`, 'success');
       } else {
         categories.push(catObj);
-        addLog(`Thêm mới danh mục "${name}"`, 'success');
+        addLog(`Thêm mới danh mục "${name}" (Thứ tự #${targetOrder})`, 'success');
         showToast(`Đã tạo mới danh mục "${name}" trên Firebase!`, 'success');
       }
 
-      categories.sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+      categories.sort((a, b) => (parseInt(a.displayOrder, 10) || 99) - (parseInt(b.displayOrder, 10) || 99));
 
-      // Đồng bộ cả 2 node trên Firebase: menus/categories & categories
+      // Đồng bộ cả 2 node trên Firebase nguyên khối atomic
       if (fbDb && isFirebaseReady) {
-        fbDb.ref(`menus/categories/${targetId}`).set(catObj).then(() => {
-          showToast(`Đã lưu danh mục "${name}" lên Firebase thành công!`, 'success');
+        fbBatchUpdates[`categories/${targetId}`] = catObj;
+        fbBatchUpdates[`menus/categories/${targetId}`] = catObj;
+
+        fbDb.ref().update(fbBatchUpdates).then(() => {
+          showToast(`Đã lưu danh mục "${name}" và cập nhật thứ tự thành công!`, 'success');
         }).catch(err => {
-          console.error('Lỗi lưu menus/categories:', err);
+          console.error('Lỗi lưu danh mục:', err);
           showToast('Lỗi khi lưu lên Firebase: ' + (err.message || err), 'danger');
         });
-        fbDb.ref(`categories/${targetId}`).set(catObj).catch(() => {});
       }
 
       closeModal('modal-category');

@@ -11,15 +11,19 @@ import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.chuyen_de_2.foodorder.core.R
 
 /**
- * Tiện ích tải ảnh đồng bộ hỗ trợ:
- * - Chuỗi Data URI Base64 ("data:image/...;base64,...")
- * - Chuỗi Base64 thuần (>300 ký tự)
- * - Đường dẫn URL HTTP / HTTPS
- * - Tự động bo góc (cornerDp) và fallback placeholder khi trống hoặc lỗi
- * - Tự động gỡ bỏ/khôi phục Tint cho avatar để chống lỗi ảnh bị ám màu
+ * Tiện ích tải ảnh đồng bộ tối ưu hóa toàn diện cho toàn hệ thống:
+ * - Tự động nhận diện chính xác URL mạng (http, https, content, file) và Base64 / Data URI
+ * - Khắc phục triệt để lỗi URL dài (>300 ký tự) từ Firebase Storage / Cloudinary bị nhận nhầm thành Base64
+ * - Tự động xóa sạch tint/màu ám cũ của ImageView trước khi nạp ảnh thật
+ * - Tự động lọc khoảng trắng/xuống dòng cho chuỗi Base64
+ * - Hỗ trợ bo góc mịn (cornerDp) và cắt tròn (circleCrop)
+ * - Tự động khôi phục placeholder/icon mặc định khi ảnh trống hoặc lỗi mạng
  */
 object ImageLoadUtils {
 
+    /**
+     * Tải ảnh quán ăn hoặc hình ảnh chung
+     */
     fun loadStoreImage(
         imageView: ImageView,
         imageUrl: String?,
@@ -38,12 +42,22 @@ object ImageLoadUtils {
             return
         }
 
+        // Gỡ bỏ tint màu cũ trước khi nạp ảnh thật để chống ám màu
+        imageView.imageTintList = null
+        imageView.clearColorFilter()
+
         try {
             val requestManager = Glide.with(context)
-            val isBase64 = raw.startsWith("data:image", ignoreCase = true) || raw.length > 300
+            val isUrl = raw.startsWith("http://", ignoreCase = true) ||
+                    raw.startsWith("https://", ignoreCase = true) ||
+                    raw.startsWith("content://", ignoreCase = true) ||
+                    raw.startsWith("file://", ignoreCase = true) ||
+                    raw.startsWith("android.resource://", ignoreCase = true)
+
+            val isBase64 = !isUrl && (raw.startsWith("data:image", ignoreCase = true) || (!raw.startsWith("/") && raw.length > 80))
 
             if (isBase64) {
-                val clean = if (raw.contains(",")) raw.substringAfter(",") else raw
+                val clean = (if (raw.contains(",")) raw.substringAfter(",") else raw).replace("\\s+".toRegex(), "")
                 val decodedBytes = Base64.decode(clean, Base64.DEFAULT)
                 var req = requestManager.asBitmap().load(decodedBytes)
                 if (cornerDp > 0) {
@@ -66,6 +80,44 @@ object ImageLoadUtils {
         } catch (_: Exception) {
             imageView.setImageResource(errorResId)
         }
+    }
+
+    /**
+     * Tải ảnh minh chứng khiếu nại hoặc bằng chứng sự cố của Shipper / Khách hàng
+     */
+    fun loadEvidenceImage(
+        imageView: ImageView,
+        imageUrl: String?,
+        placeholderResId: Int = R.drawable.ic_image,
+        errorResId: Int = placeholderResId,
+        cornerDp: Int = 8
+    ) {
+        loadStoreImage(
+            imageView = imageView,
+            imageUrl = imageUrl,
+            placeholderResId = placeholderResId,
+            errorResId = errorResId,
+            cornerDp = cornerDp
+        )
+    }
+
+    /**
+     * Tải ảnh món ăn
+     */
+    fun loadDishImage(
+        imageView: ImageView,
+        imageUrl: String?,
+        placeholderResId: Int = R.drawable.ic_utensils_crossed,
+        errorResId: Int = placeholderResId,
+        cornerDp: Int = 0
+    ) {
+        loadStoreImage(
+            imageView = imageView,
+            imageUrl = imageUrl,
+            placeholderResId = placeholderResId,
+            errorResId = errorResId,
+            cornerDp = cornerDp
+        )
     }
 
     /**
@@ -105,10 +157,16 @@ object ImageLoadUtils {
 
         try {
             val requestManager = Glide.with(context)
-            val isBase64 = raw.startsWith("data:image", ignoreCase = true) || raw.length > 300
+            val isUrl = raw.startsWith("http://", ignoreCase = true) ||
+                    raw.startsWith("https://", ignoreCase = true) ||
+                    raw.startsWith("content://", ignoreCase = true) ||
+                    raw.startsWith("file://", ignoreCase = true) ||
+                    raw.startsWith("android.resource://", ignoreCase = true)
+
+            val isBase64 = !isUrl && (raw.startsWith("data:image", ignoreCase = true) || (!raw.startsWith("/") && raw.length > 80))
 
             if (isBase64) {
-                val clean = if (raw.contains(",")) raw.substringAfter(",") else raw
+                val clean = (if (raw.contains(",")) raw.substringAfter(",") else raw).replace("\\s+".toRegex(), "")
                 val decodedBytes = Base64.decode(clean, Base64.DEFAULT)
                 requestManager.asBitmap()
                     .load(decodedBytes)
@@ -136,8 +194,6 @@ object ImageLoadUtils {
     /**
      * Helper tiện ích nạp avatar kèm ID tài nguyên màu mặc định (R.color.xxx)
      */
-    fun loadDishImage(imageView: ImageView, imageUrl: String?, placeholderResId: Int = R.drawable.ic_store, errorResId: Int = placeholderResId, cornerDp: Int = 0) = loadStoreImage(imageView, imageUrl, placeholderResId, errorResId, cornerDp)
-
     fun loadUserAvatarWithTintRes(
         imageView: ImageView,
         avatarUrl: String?,

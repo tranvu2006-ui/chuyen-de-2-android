@@ -346,11 +346,16 @@
             android:layout_height="42dp"
             android:insetTop="0dp"
             android:insetBottom="0dp"
-            android:text="⚖️ Thẩm Định &amp; Phán Quyết Hồ Sơ"
+            android:text="Thẩm Định &amp; Phán Quyết Hồ Sơ"
             android:textColor="@color/primary"
             android:textSize="12.5sp"
             android:textStyle="bold"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="10dp"
+            app:icon="@drawable/ic_shield_alert"
+            app:iconGravity="textStart"
+            app:iconPadding="6dp"
+            app:iconSize="16dp"
+            app:iconTint="@color/primary" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

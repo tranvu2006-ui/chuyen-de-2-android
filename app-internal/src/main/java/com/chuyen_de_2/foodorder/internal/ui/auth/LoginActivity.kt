@@ -83,14 +83,6 @@ class LoginActivity : AppCompatActivity() {
         observeViewModel()
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent.getBooleanExtra("LOGOUT", false)) {
-            authRepository.logout()
-        }
-    }
-
     /**
      * Tên chức năng: Thiết lập sự kiện giao diện Đăng nhập
      * Cách hoạt động: Lấy thông tin email, password từ EditText và kích hoạt luồng xử lý đăng nhập tại [AuthViewModel].

@@ -407,34 +407,22 @@
         android:paddingVertical="12dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <LinearLayout
-            android:id="@+id/layoutAutoVerifyBox"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnConfirmPaid"
+            style="@style/Widget.Material3.Button"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_blue_info_box"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="12dp"
-            android:visibility="gone">
-
-            <ProgressBar
-                android:id="@+id/pbAutoVerify"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:indeterminate="true" />
-
-            <TextView
-                android:id="@+id/tvAutoVerifyStatus"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:text="Đang chờ xác nhận giao dịch VietQR..."
-                android:textColor="#0284C7"
-                android:textSize="12.5sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#10B981"
+            android:elevation="2dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:letterSpacing="0.01"
+            android:text="✓ Tôi Đã Thanh Toán Thành Công ➔"
+            android:textColor="@color/white"
+            android:textSize="13.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="12dp" />
 
         <TextView
             android:id="@+id/btnCancelToHome"

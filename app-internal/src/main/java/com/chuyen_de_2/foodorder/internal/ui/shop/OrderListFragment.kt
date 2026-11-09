@@ -325,7 +325,8 @@ class OrderListFragment : Fragment() {
                     Toast.makeText(requireContext(), "Không thể gọi số $phone", Toast.LENGTH_SHORT).show()
                 }
             },
-            onWarningDetailClick = { order -> showWarningDetailModal(order) }
+            onWarningDetailClick = { order -> showWarningDetailModal(order) },
+            onCancelClick = { order -> promptStoreOrderCancellation(order) }
         )
 
         binding.rvOrders.apply {
@@ -439,7 +440,7 @@ class OrderListFragment : Fragment() {
                 "\nHoàn tiền: CHỜ khách cung cấp thông tin nhận • ${order.refundAmount.toVndCurrency()}"
             Order.RefundStatus.PENDING_REFUND ->
                 "\nHoàn tiền: CHỜ quán chuyển khoản • ${order.refundAmount.toVndCurrency()}\nNội dung chuyển khoản: ${refundTransferContent(order)}"
-            Order.RefundStatus.REFUNDED -> "\nSePay đã ghi nhận hoàn tiền • ${order.refundAmount.toVndCurrency()}"
+            Order.RefundStatus.REFUNDED -> "\nĐã hoàn tiền thành công • ${order.refundAmount.toVndCurrency()}"
             Order.RefundStatus.NOT_REQUIRED -> "\nHoàn tiền: Không cần hoàn"
             else -> ""
         }
@@ -449,13 +450,13 @@ class OrderListFragment : Fragment() {
             .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\n$totalDetail\nThanh toán: $payDetail\nTrạng thái: ${order.status}$refundDetail")
             .setNegativeButton("Đóng", null)
 
-        val canCancelByStore = order.effectiveStoreId == currentStoreId && (
+        val canCancelByStore = (currentStoreId.isBlank() || order.effectiveStoreId == currentStoreId || order.shopId == currentStoreId || order.effectiveStoreId.isBlank()) && (
             order.status == Order.Status.PENDING ||
                 order.status == Order.Status.PREPARING ||
                 (order.status == Order.Status.READY && order.shipperId.isNullOrBlank() && order.driverId.isNullOrBlank())
             )
         when {
-            canCancelByStore -> dialog.setPositiveButton("Hủy đơn") { _, _ ->
+            canCancelByStore -> dialog.setPositiveButton("Hủy đơn hàng") { _, _ ->
                 promptStoreOrderCancellation(order)
             }
             order.status == Order.Status.CANCELLED &&
@@ -474,6 +475,17 @@ class OrderListFragment : Fragment() {
         dialog.show()
     }
 
+    /**
+     * [BroadcastReceiver - Môn Di Động 2] Hủy đơn & Khởi động luồng Hoàn tiền
+     *
+     * Luồng hoạt động:
+     *   1. Quán bấm [✕ HỦY ĐƠN] → hàm này mở dialog chọn lý do hủy.
+     *   2. Sau khi xác nhận → gọi viewModel.cancelOrderByStore() → Firebase đổi status = CANCELLED.
+     *   3. Nếu khách đã thanh toán → gọi showRefundTransferDetails() để hiện QR hoàn tiền.
+     *   4. Quán quét QR, chuyển khoản → Ngân hàng gửi SMS về máy KHÁCH.
+     *   5. BankSmsReceiver (core) trên máy Khách bắt SMS → tự động cập nhật refundStatus = REFUNDED.
+     *   6. Dự phòng: Quán bấm [✓ Tôi đã hoàn tiền thành công] → gọi confirmRefundSuccess().
+     */
     private fun promptStoreOrderCancellation(order: Order) {
         val dialogBinding = DialogStoreCancelOrderBinding.inflate(layoutInflater)
         val reasons = resources.getStringArray(R.array.store_cancel_reasons)
@@ -567,7 +579,7 @@ class OrderListFragment : Fragment() {
      *   1. Kiểm tra đơn có trạng thái PENDING_REFUND (khách đã cung cấp STK nhận hoàn)
      *   2. Đọc node Firebase: refund_payment_details/{orderId}/customerProvided
      *   3. Nếu đủ thông tin → gọi showRefundTransferQr() để tạo mã QR chuyển tiền hoàn
-     * Luồng hướng tới: Quán ăn → nhấn "Hoàn tiền" → quét QR → chuyển khoản → SePay ghi nhận
+     * Luồng hướng tới: Quán ăn → nhấn "Hoàn tiền" → quét QR → chuyển khoản hoàn tiền cho khách
      */
     private fun showRefundTransferDetails(order: Order) {
         val database = FirebaseDatabase.getInstance()
@@ -642,7 +654,7 @@ class OrderListFragment : Fragment() {
      *   2. Ghép URL VietQR từ BIN ngân hàng + STK của Khách
      *   3. Hiển thị Dialog có ảnh QR + thông tin chi tiết
      *   4. Dùng Glide tải ảnh QR từ api.vietqr.io
-     * Luồng hướng tới: Quán quét QR → chuyển khoản → SePay ghi nhận vào refund_transactions
+     * Luồng hướng tới: Quán quét QR → chuyển khoản → Ngân hàng SMS → BankSmsReceiver máy Khách → REFUNDED
      */
     private fun showRefundTransferQr(
         order: Order,
@@ -664,7 +676,7 @@ class OrderListFragment : Fragment() {
         // - BIN: mã định danh ngân hàng (6 chữ số) của tài khoản KHÁCH nhận hoàn
         // - accountNumber: STK của Khách (do khách nhập trên app-customer)
         // - amount: số tiền hoàn (VNĐ)
-        // - addInfo: nội dung CK để SePay nhận diện đây là giao dịch hoàn tiền
+        // - addInfo: nội dung CK chứa mã đơn để BankSmsReceiver trên máy Khách nhận diện đây là giao dịch hoàn tiền
         val qrUrl = "https://api.vietqr.io/image/$bankBin-$accountNumber-qLrkX2P.jpg" +
             "?amount=${order.refundAmount}&addInfo=${Uri.encode(memo)}&accountName=${Uri.encode(accountHolder)}"
         val details = buildString {
@@ -698,7 +710,10 @@ class OrderListFragment : Fragment() {
         AlertDialog.Builder(requireContext())
             .setTitle("Quét mã để hoàn tiền")
             .setView(content)
-            .setPositiveButton("Đóng", null)
+            .setPositiveButton("✓ Tôi đã hoàn tiền thành công") { _, _ ->
+                confirmRefundSuccess(order)
+            }
+            .setNegativeButton("Đóng", null)
             .show()
         Glide.with(this)
             .load(qrUrl)
@@ -741,6 +756,29 @@ class OrderListFragment : Fragment() {
         } else {
             order.totalPayment.takeIf { it > 0 } ?: order.total
         }
+    }
+
+    /**
+     * [Dự phòng thủ công] Quán xác nhận đã hoàn tiền khi BankSmsReceiver chưa kích hoạt
+     *
+     * Dùng khi:
+     *  - Máy khách chưa đăng ký SMS Banking hoặc số tiền hoàn < ngưỡng ngân hàng gửi SMS.
+     *  - Quán đã chuyển khoản xong nhưng refundStatus vẫn chưa tự đổi sang REFUNDED.
+     * Hành động: Ghi thẳng Firebase orders/{orderId}/refundStatus = "REFUNDED" + refundedAt.
+     */
+    private fun confirmRefundSuccess(order: Order) {
+        val database = FirebaseDatabase.getInstance()
+        val updates = mapOf<String, Any>(
+            "refundStatus" to Order.RefundStatus.REFUNDED,
+            "refundedAt" to System.currentTimeMillis()
+        )
+        database.getReference("orders").child(order.orderId).updateChildren(updates)
+            .addOnSuccessListener {
+                Toast.makeText(requireContext(), "Đã xác nhận hoàn tiền thành công cho khách!", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener {
+                Toast.makeText(requireContext(), "Lỗi cập nhật: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
     }
 
     /**

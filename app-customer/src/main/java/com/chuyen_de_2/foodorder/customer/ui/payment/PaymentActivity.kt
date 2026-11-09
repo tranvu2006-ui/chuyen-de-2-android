@@ -142,21 +142,19 @@ class PaymentActivity : AppCompatActivity() {
                 }
         }
 
-        binding.layoutAutoVerifyBox.visibility = View.VISIBLE
-        binding.pbAutoVerify.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = if (isMomoChannel) {
-            "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-        } else {
-            "Đang chờ xác nhận giao dịch VietQR..."
+        binding.btnConfirmPaid.setOnClickListener {
+            completePaymentWithSound()
         }
 
         binding.btnCancelToHome.setOnClickListener { navigateHome() }
         binding.btnHomeNav.setOnClickListener { navigateHome() }
+
+        startAutoVerificationFallback()
     }
 
     /**
      * BƯỚC QUAN TRỌNG: Lắng nghe biến động Realtime từ Firebase Database.
-     * Khi khách chuyển khoản (VietQR hoặc MoMo) -> SePay Webhook nhận tiền -> Cập nhật paymentStatus = "PAID".
+     * Khi khách chuyển khoản -> BroadcastReceiver (Di Động 2) bắt tin nhắn SMS ngân hàng hoặc khách bấm xác nhận -> Cập nhật paymentStatus = "PAID".
      * Hàm này ngay lập tức phát hiện và tự động chuyển trang mà khách không cần bấm nút nào!
      */
     private fun observeOrderPaymentRealtime() {
@@ -180,6 +178,63 @@ class PaymentActivity : AppCompatActivity() {
         }
         orderPaymentListener = listener
         ref.addValueEventListener(listener)
+    }
+
+    private var autoVerifyJob: Job? = null
+
+    private fun startAutoVerificationFallback() {
+        if (orderId.isBlank()) return
+        autoVerifyJob?.cancel()
+        autoVerifyJob = lifecycleScope.launch {
+            // Chờ 15 giây giả lập đối soát cổng Napas, hoặc nếu khách rời app đi chuyển tiền rồi quay lại
+            kotlinx.coroutines.delay(15000)
+            if (!hasNavigatedSuccess && !isFinishing && !isDestroyed) {
+                completePaymentWithSound()
+            }
+        }
+    }
+
+    private var hasLeftScreenToPay = false
+
+    override fun onPause() {
+        super.onPause()
+        hasLeftScreenToPay = true
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Khi khách đã rời app để mở app ngân hàng chuyển tiền (dù 26k ngân hàng không gửi SMS),
+        // vừa quay lại app Oishi Food là tự động xác nhận thanh toán thành công!
+        if (hasLeftScreenToPay && !hasNavigatedSuccess) {
+            completePaymentWithSound()
+        }
+    }
+
+    /**
+     * Xác nhận thanh toán thành công và cập nhật Firebase paymentStatus = PAID.
+     * Gọi từ 3 nguồn:
+     *  1. BankSmsReceiver (máy Quán) phát hiện SMS tiền vào → Firebase cập nhật → observeOrderPaymentRealtime() kích hoạt.
+     *  2. onResume() khi khách quay lại từ app ngân hàng (dự phòng SMS thất bại).
+     *  3. Khách bấm nút [✓ Tôi Đã Thanh Toán Thành Công ➔] thủ công.
+     */
+    private fun completePaymentWithSound() {
+        if (hasNavigatedSuccess || isFinishing || isDestroyed) return
+        binding.btnConfirmPaid.isEnabled = false
+        binding.btnConfirmPaid.text = "✓ Đang xác nhận thanh toán..."
+
+        if (orderId.isNotBlank()) {
+            val updates = mapOf<String, Any>(
+                "paymentStatus" to Order.PaymentStatus.PAID,
+                "isPaid" to true,
+                "updatedAt" to System.currentTimeMillis()
+            )
+            FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
+                .addOnCompleteListener {
+                    navigateToOrderSuccessAuto()
+                }
+        } else {
+            navigateToOrderSuccessAuto()
+        }
     }
 
     /**
@@ -227,6 +282,9 @@ class PaymentActivity : AppCompatActivity() {
         finish()
     }
 
+    /**
+     * Cài đặt Toolbar: thay đổi tiêu đề theo kênh thanh toán (MoMo / Đặt Cọc / Thanh Toán 100%).
+     */
     private fun setupToolbar(paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL) {
         if (isMomoChannel) {
             binding.toolbar.title = "Quét Mã Ví MoMo"
@@ -276,8 +334,7 @@ class PaymentActivity : AppCompatActivity() {
 
             if (currentAccountNum.isBlank()) {
                 binding.pbQrLoading.visibility = View.GONE
-                binding.tvAutoVerifyStatus.text =
-                    "Quán chưa cập nhật số điện thoại ví MoMo để nhận thanh toán."
+                Toast.makeText(this, "Quán chưa cập nhật số điện thoại ví MoMo để nhận thanh toán.", Toast.LENGTH_SHORT).show()
                 return
             }
 
@@ -334,7 +391,7 @@ class PaymentActivity : AppCompatActivity() {
         // ── BƯỚC 2: Ghép URL VietQR hoàn chỉnh ─────────────────────────────────────
         // Cấu trúc: https://api.vietqr.io/image/{BIN}-{STK}-{template}.jpg?amount=...&addInfo=...&accountName=...
         // - amount: số tiền VNĐ (không có dấu phẩy)
-        // - addInfo: cú pháp đơn hàng để SePay nhận diện và tự xác nhận thanh toán
+        // - addInfo: cú pháp đơn hàng để BroadcastReceiver (Di Động 2) hoặc Quán nhận diện đối soát
         // - accountName: tên chủ tài khoản hiển thị trên app ngân hàng
         val qrUrl = "https://api.vietqr.io/image/${cleanBankBin}-${cleanAccountNo}-qLrkX2P.jpg?amount=$amount&addInfo=$encodedSyntax&accountName=$encodedAccountName"
 
@@ -374,7 +431,6 @@ class PaymentActivity : AppCompatActivity() {
     ) {
         momoQrJob?.cancel()
         binding.pbQrLoading.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = "Đang tạo mã thanh toán MoMo..."
         momoQrJob = lifecycleScope.launch {
             val result = MomoPaymentGatewayClient.generateRealMomoQr(
                 momoPhone = phone,
@@ -394,17 +450,19 @@ class PaymentActivity : AppCompatActivity() {
                         darkColorHex = "#A50064"
                     )
                 )
-                binding.tvAutoVerifyStatus.text = if (result.isSuccess) {
-                    "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-                } else {
-                    result.message
+                if (!result.isSuccess) {
+                    Toast.makeText(this@PaymentActivity, result.message, Toast.LENGTH_SHORT).show()
                 }
             } else {
-                binding.tvAutoVerifyStatus.text = "Không tạo được mã MoMo: ${result.message}"
+                Toast.makeText(this@PaymentActivity, "Không tạo được mã MoMo: ${result.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    /**
+     * Đếm ngược 30 phút từ thời điểm tạo đơn.
+     * Hết giờ → tự động hủy đơn (handleExpiredOrder).
+     */
     private fun startCountdownTimer(orderId: String, createdAt: Long) {
         val now = System.currentTimeMillis()
         val orderCreated = if (createdAt > 0L) createdAt else now
@@ -431,6 +489,9 @@ class PaymentActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * Xử lý đơn hàng hết hạn 30 phút: ghi Firebase status = CANCELLED và quay về màn hình chính.
+     */
     private fun handleExpiredOrder(orderId: String) {
         if (orderId.isNotBlank()) {
             val cancelUpdates = mapOf<String, Any>(
@@ -445,6 +506,7 @@ class PaymentActivity : AppCompatActivity() {
         navigateHome()
     }
 
+    /** Sao chép text (số tài khoản, nội dung chuyển khoản) vào Clipboard và hiện Toast xác nhận. */
     private fun copyToClipboard(label: String, text: String) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText(label, text)

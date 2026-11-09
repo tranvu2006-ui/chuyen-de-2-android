@@ -320,20 +320,42 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDetail"
                 style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="90dp"
+                android:layout_width="80dp"
                 android:layout_height="42dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingHorizontal="6dp"
+                android:paddingHorizontal="4dp"
                 android:text="Chi Tiết"
                 android:textColor="#334155"
-                android:textSize="12sp"
+                android:textSize="11.5sp"
                 android:textStyle="bold"
                 app:cornerRadius="10dp"
                 app:icon="@drawable/ic_eye"
-                app:iconSize="14dp"
+                app:iconSize="13dp"
                 app:iconTint="#475569"
                 app:strokeColor="#CBD5E1"
+                app:strokeWidth="1dp" />
+
+            <!-- Nút Hủy Đơn Màu Đỏ Nổi Bật Dễ Thấy Nhất -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCancelOrder"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="#FEE2E2"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="10dp"
+                android:text="HỦY ĐƠN"
+                android:textColor="#DC2626"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                app:cornerRadius="10dp"
+                app:icon="@drawable/ic_trash"
+                app:iconSize="14dp"
+                app:iconTint="#DC2626"
+                app:strokeColor="#FCA5A5"
                 app:strokeWidth="1dp" />
 
             <!-- Nút hành động chính theo 3 bước -->

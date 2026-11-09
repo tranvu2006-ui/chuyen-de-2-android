@@ -73,6 +73,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Xác minh OTP khi đăng nhập tài khoản yêu cầu xác thực 2 bước.
+     * Gọi sau khi LoginActivity nhận được lỗi EmailOtpRequiredException.
+     */
     fun verifyLoginOtp(email: String, password: String, code: String) {
         if (!code.matches(Regex("\\d{6}"))) {
             _loginOtpResult.value = Result.failure(Exception("Mã OTP phải gồm đúng 6 chữ số"))
@@ -86,6 +90,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Đăng nhập bằng email/password. Nếu tài khoản yêu cầu OTP → AuthRepository ném EmailOtpRequiredException.
+     * LoginActivity bắt exception đó và gọi showLoginOtpDialog().
+     */
     fun login(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
             _loginResult.value = Result.failure(Exception("Vui lòng nhập đầy đủ thông tin"))
@@ -100,6 +108,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Tạo tài khoản Firebase mới sau khi email đã được xác minh OTP thành công.
+     * verifiedEmail: email trả về từ Supabase, dùng để đảm bảo đúng email đã xác thực.
+     */
     fun register(
         name: String,
         email: String,

@@ -4,13 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.Spinner
-import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -24,7 +18,6 @@ import com.chuyen_de_2.foodorder.customer.ui.complaint.ComplaintActivity
 import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
 import com.chuyen_de_2.foodorder.customer.ui.tracking.TrackingActivity
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -46,21 +39,6 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class OrderHistoryActivity : AppCompatActivity() {
-    private data class RefundBank(val name: String, val bin: String)
-
-    private val refundBanks = listOf(
-        RefundBank("MB Bank (Quân Đội)", "970422"),
-        RefundBank("Vietcombank (Ngoại Thương)", "970436"),
-        RefundBank("Techcombank (Kỹ Thương)", "970407"),
-        RefundBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
-        RefundBank("ACB (Á Châu)", "970416"),
-        RefundBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
-        RefundBank("Agribank (Nông Nghiệp)", "970405"),
-        RefundBank("TPBank (Tiên Phong)", "970423"),
-        RefundBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
-        RefundBank("VIB (Quốc Tế)", "970441"),
-        RefundBank("OCB (Phương Đông)", "970448")
-    )
 
     private lateinit var binding: ActivityOrderHistoryBinding
     private lateinit var adapter: OrderHistoryAdapter
@@ -175,7 +153,6 @@ class OrderHistoryActivity : AppCompatActivity() {
                 )
                 modal.show(supportFragmentManager, "IncidentProofModal")
             },
-            onRefundDetailsClick = { order -> showRefundAccountForm(order) },
             onCallClick = { phone ->
                 try {
                     val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
@@ -188,102 +165,6 @@ class OrderHistoryActivity : AppCompatActivity() {
 
         binding.rvOrders.layoutManager = LinearLayoutManager(this)
         binding.rvOrders.adapter = adapter
-    }
-
-    private fun showRefundAccountForm(order: Order) {
-        val customerId = firebaseAuth.currentUser?.uid
-        if (customerId.isNullOrBlank() ||
-            order.status != Order.Status.CANCELLED ||
-            order.refundStatus != Order.RefundStatus.PENDING_INFO
-        ) {
-            Toast.makeText(this, "Đơn hàng không còn ở trạng thái chờ nhập thông tin hoàn tiền.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val padding = (20 * resources.displayMetrics.density).toInt()
-        val form = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(padding, padding, padding, 0)
-        }
-        val bankSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(
-                this@OrderHistoryActivity,
-                android.R.layout.simple_spinner_dropdown_item,
-                refundBanks.map { it.name }
-            )
-        }
-        val accountNumber = EditText(this).apply {
-            hint = "Số tài khoản nhận hoàn"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setSingleLine(true)
-        }
-        val accountHolder = EditText(this).apply {
-            hint = "Tên chủ tài khoản"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
-            setSingleLine(true)
-        }
-        form.addView(TextView(this).apply { text = "Ngân hàng nhận tiền" })
-        form.addView(bankSpinner)
-        form.addView(accountNumber)
-        form.addView(accountHolder)
-
-        val detailsRef = FirebaseDatabase.getInstance()
-            .getReference("refund_payment_details")
-            .child(order.orderId)
-            .child("customerProvided")
-        detailsRef.get().addOnSuccessListener { snapshot ->
-                snapshot.child("accountNumber").getValue(String::class.java)?.let { accountNumber.setText(it) }
-                snapshot.child("accountHolder").getValue(String::class.java)?.let { accountHolder.setText(it) }
-            val savedBin = snapshot.child("bankBin").getValue(String::class.java).orEmpty()
-            refundBanks.indexOfFirst { it.bin == savedBin }.takeIf { it >= 0 }?.let(bankSpinner::setSelection)
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Thông tin nhận hoàn tiền")
-            .setMessage("Nhập đúng thông tin tài khoản ngân hàng của bạn. Quán sẽ dùng thông tin này để tạo mã QR hoàn tiền.")
-            .setView(form)
-            .setNegativeButton("Để sau", null)
-            .setPositiveButton("Lưu thông tin", null)
-            .create()
-            .also { dialog ->
-                dialog.setOnShowListener {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        val number = accountNumber.text.toString().trim()
-                        val holder = accountHolder.text.toString().trim().uppercase()
-                        val bank = refundBanks.getOrNull(bankSpinner.selectedItemPosition)
-                        if (number.length !in 6..24 || !number.all(Char::isDigit) || holder.isBlank() || bank == null) {
-                            Toast.makeText(this, "Vui lòng nhập đúng số tài khoản, tên chủ tài khoản và ngân hàng.", Toast.LENGTH_LONG).show()
-                            return@setOnClickListener
-                        }
-                        val values = mapOf(
-                            "bankName" to bank.name,
-                            "bankBin" to bank.bin,
-                            "accountNumber" to number,
-                            "accountHolder" to holder,
-                            "updatedAt" to System.currentTimeMillis()
-                        )
-                        detailsRef.setValue(values)
-                            .addOnSuccessListener {
-                                FirebaseDatabase.getInstance()
-                                    .getReference("orders")
-                                    .child(order.orderId)
-                                    .child("refundStatus")
-                                    .setValue(Order.RefundStatus.PENDING_REFUND)
-                                    .addOnSuccessListener {
-                                        Toast.makeText(this, "Đã lưu thông tin. Hoàn tiền đang chờ quán chuyển khoản.", Toast.LENGTH_LONG).show()
-                                        dialog.dismiss()
-                                    }
-                                    .addOnFailureListener {
-                                        Toast.makeText(this, "Đã lưu thông tin nhưng chưa cập nhật được trạng thái. Hãy thử lưu lại.", Toast.LENGTH_LONG).show()
-                                    }
-                            }
-                            .addOnFailureListener {
-                                Toast.makeText(this, "Không lưu được thông tin. Hãy thử lại hoặc kiểm tra quyền truy cập.", Toast.LENGTH_LONG).show()
-                            }
-                    }
-                }
-                dialog.show()
-            }
     }
 
     private fun setupTabs() {
@@ -395,9 +276,7 @@ class OrderHistoryActivity : AppCompatActivity() {
         if (countWarning > 0) {
             binding.layoutEmergencyWarningBanner.visibility = View.VISIBLE
             val warnOrder = orders.firstOrNull { isActiveWarningOrder(it) }
-            val code = warnOrder?.orderId?.let {
-                com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(it)
-            } ?: ""
+            val code = warnOrder?.orderId?.takeLast(6)?.uppercase() ?: ""
             binding.tvEmergencyWarningTitle.text = if (code.isNotBlank()) "Đơn #$code đang bị tài xế cảnh báo mất đơn!" else "Đơn hàng của bạn đang bị tài xế cảnh báo mất đơn!"
         } else {
             binding.layoutEmergencyWarningBanner.visibility = View.GONE

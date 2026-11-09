@@ -663,8 +663,6 @@ app-internal/
           bg_status_delivering.xml
           bg_status_pending.xml
           bg_status_ready.xml
-          bg_store_cancel_icon.xml
-          bg_store_cancel_notice.xml
           bg_swipe_thumb.xml
           bg_swipe_track.xml
           bg_warning_inline.xml
@@ -769,7 +767,6 @@ app-internal/
           dialog_new_order_popup.xml
           dialog_qr_scanner.xml
           dialog_report_incident.xml
-          dialog_store_cancel_order.xml
           dialog_store_warning_detail.xml
           fragment_driver_list.xml
           fragment_menu_manage.xml
@@ -789,7 +786,6 @@ app-internal/
           item_order.xml
           item_select_combo_dish.xml
           item_shipper_trip.xml
-          item_store_cancel_reason.xml
           item_store_category_chip.xml
         menu/
           menu_bottom_nav_merchant.xml
@@ -963,15 +959,6 @@ core/
           item_address_suggestion.xml
       AndroidManifest.xml
   build.gradle.kts
-functions/
-  sepay-worker/
-    src/
-      index.js
-    test/
-      index.test.js
-    package.json
-    README.md
-    wrangler.toml
 gradle/
   wrapper/
     gradle-wrapper.jar
@@ -1044,12 +1031,10 @@ gradle.properties
 gradlew
 gradlew.bat
 HE_THONG_CHUC_NANG_VA_LUONG_HOAT_DONG.md
-HUONG_DAN_CHU_QUAN_THANH_TOAN_TU_DONG.md
 local.properties.example
 logo-app-admin.png
 logo-app-khach.png
 logo-app-quan.png
-luồng trạng thái đơn và trạng thái hoàn tiền và trạng thái xác thực otp email.md
 Phan_Tich_CSDL_Toan_Bo_Du_An.docx
 README.md
 repomix.config.json
@@ -20723,25 +20708,6 @@ class StoreReportFragment : Fragment() {
 </shape>
 ````
 
-## File: app-internal/src/main/res/drawable/bg_store_cancel_icon.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
-    <solid android:color="@color/danger_bg" />
-</shape>
-````
-
-## File: app-internal/src/main/res/drawable/bg_store_cancel_notice.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/danger_bg" />
-    <corners android:radius="12dp" />
-</shape>
-````
-
 ## File: app-internal/src/main/res/drawable/bg_swipe_thumb.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -25248,176 +25214,6 @@ class StoreReportFragment : Fragment() {
 </LinearLayout>
 ````
 
-## File: app-internal/src/main/res/layout/dialog_store_cancel_order.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="@drawable/bg_dialog_rounded"
-    android:orientation="vertical"
-    android:padding="20dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="@drawable/bg_store_cancel_icon"
-            android:gravity="center"
-            android:text="!"
-            android:textColor="@color/danger"
-            android:textSize="24sp"
-            android:textStyle="bold" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/store_cancel_dialog_title"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvCancelOrderCode"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:background="@drawable/bg_store_cancel_notice"
-        android:gravity="top"
-        android:orientation="horizontal"
-        android:padding="12dp">
-
-        <TextView
-            android:layout_width="20dp"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="!"
-            android:textColor="@color/danger"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvCancelPaymentNotice"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:layout_weight="1"
-            android:lineSpacingExtra="2dp"
-            android:textColor="@color/text_primary"
-            android:textSize="12sp" />
-    </LinearLayout>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
-        android:layout_marginBottom="6dp"
-        android:text="@string/store_cancel_reason_label"
-        android:textColor="@color/text_primary"
-        android:textSize="13sp"
-        android:textStyle="bold" />
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/tilCancelReason"
-        style="@style/Widget.Internal.TextInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:endIconMode="dropdown_menu"
-        app:hintEnabled="false">
-
-        <com.google.android.material.textfield.MaterialAutoCompleteTextView
-            android:id="@+id/actvCancelReason"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:dropDownHeight="260dp"
-            android:dropDownWidth="match_parent"
-            android:ellipsize="end"
-            android:inputType="none"
-            android:maxLines="2"
-            android:minHeight="54dp"
-            android:paddingStart="14dp"
-            android:paddingEnd="12dp"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/tilCustomCancelReason"
-        style="@style/Widget.Internal.TextInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:visibility="gone"
-        app:counterEnabled="true"
-        app:counterMaxLength="160"
-        app:hintEnabled="true"
-        android:hint="@string/store_cancel_custom_reason_hint">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etCustomCancelReason"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="top|start"
-            android:inputType="textCapSentences|textMultiLine"
-            android:maxLength="160"
-            android:minLines="2"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp" />
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:gravity="end|center_vertical"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCancelStoreCancellation"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="46dp"
-            android:text="@string/store_cancel_dismiss"
-            android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnConfirmStoreCancellation"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="46dp"
-            android:layout_marginStart="8dp"
-            android:backgroundTint="@color/danger"
-            android:text="@string/store_cancel_confirm"
-            android:textColor="@color/white"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            app:cornerRadius="12dp" />
-    </LinearLayout>
-</LinearLayout>
-````
-
 ## File: app-internal/src/main/res/layout/fragment_menu_manage.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -27550,23 +27346,6 @@ class StoreReportFragment : Fragment() {
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
-````
-
-## File: app-internal/src/main/res/layout/item_store_cancel_reason.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:gravity="center_vertical"
-    android:minHeight="48dp"
-    android:maxLines="3"
-    android:paddingStart="16dp"
-    android:paddingTop="8dp"
-    android:paddingEnd="16dp"
-    android:paddingBottom="8dp"
-    android:textColor="@color/text_primary"
-    android:textSize="14sp" />
 ````
 
 ## File: app-internal/src/main/res/layout/item_store_category_chip.xml
@@ -31556,324 +31335,6 @@ object PhoneNumberUtils {
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>
-````
-
-## File: functions/sepay-worker/src/index.js
-````javascript
-// Dùng chung bộ mã hóa UTF-8 khi tạo chữ ký và JWT gửi Firebase.
-⋮----
-// Giới hạn kích thước webhook để tránh nhận payload bất thường/quá lớn.
-⋮----
-// Chấp nhận timestamp chữ ký trong khoảng 5 phút để hạn chế webhook phát lại.
-⋮----
-// Endpoint OAuth của Google dùng đổi JWT service account thành access token Firebase.
-⋮----
-// Worker chỉ cần hai quyền: đọc danh tính service account và truy cập Realtime Database.
-⋮----
-// Mẫu mã tham chiếu thanh toán được hỗ trợ; mỗi payload chỉ được khớp một mã duy nhất.
-⋮----
-// Mẫu mã đơn chuẩn dùng cho webhook tiền vào/ra.
-⋮----
-// Cache token trong isolate để giảm số lần gọi Google OAuth; token sắp hết hạn sẽ được làm mới.
-⋮----
-/**
- * Endpoint tiếp nhận SePay Webhook xử lý thanh toán vào và hoàn tiền ra.
- * - Xác thực HMAC-SHA256 theo từng storeId của quán.
- * - Ghép mã đơn/mã hoàn tiền; đối chiếu tài khoản cửa hàng, số tiền và trạng thái.
- * - Cập nhật trạng thái thanh toán/hoàn tiền trên Firebase Realtime Database.
- */
-⋮----
-async fetch(request, env)
-⋮----
-// Chỉ nhận POST tại đúng endpoint webhook, các đường dẫn/phương thức khác không được xử lý.
-⋮----
-// Secret dùng làm phương án dự phòng; trên môi trường thật nên đặt bằng Cloudflare Secret,
-// không để secret dùng chung trong mã nguồn hoặc cấu hình được commit.
-⋮----
-// Worker cần secret để xác thực webhook và service account để ghi trạng thái lên Firebase.
-⋮----
-// storeId xác định cửa hàng để tra secret riêng, tài khoản ngân hàng đã liên kết và đơn hàng.
-⋮----
-// Đọc nguyên văn body vì chữ ký HMAC được tính trên timestamp cộng chính xác chuỗi body này.
-⋮----
-// Parse JSON sau khi giới hạn kích thước; body sai định dạng bị từ chối.
-⋮----
-// Phân biệt tiền vào (thanh toán) và tiền ra (hoàn tiền); loại khác không cập nhật đơn.
-⋮----
-// Đọc bản đồ {storeId: secret} của webhook tiền vào; JSON lỗi là lỗi cấu hình, không bỏ qua.
-⋮----
-// Có thể đặt secret riêng cho webhook hoàn tiền; nếu không có sẽ dùng secret tiền vào của cửa hàng.
-⋮----
-// Ưu tiên secret theo cửa hàng/loại giao dịch, sau đó mới dùng secret dự phòng.
-⋮----
-// Hỗ trợ HMAC có timestamp; đồng thời giữ tương thích header API key theo cấu hình SePay hiện có.
-⋮----
-// Chuẩn hóa và xác thực các trường giao dịch trước khi truy vấn Firebase.
-⋮----
-// SePay có thể đưa mã tham chiếu vào content hoặc code; tìm mã đơn từ cả hai trường.
-⋮----
-// Dùng service account phía Worker (không phải app Android) để truy cập Firebase có quyền ghi.
-⋮----
-// Tiền ra được xử lý riêng và chỉ xác nhận hoàn nếu tồn tại đơn đã hủy, đang chờ hoàn, đúng mã/số tiền.
-⋮----
-// ── BƯỚC 1: Tìm đúng một đơn đang thanh toán theo mã trong nội dung chuyển khoản ───────────
-⋮----
-// Trường hợp tìm trực tiếp bằng orderId trích xuất từ nội dung CK (ví dụ: ORD_xxx)
-⋮----
-// Chỉ đối soát thanh toán ngân hàng, không tự xác nhận đơn MoMo
-⋮----
-// Trường hợp fallback: tra cứu bằng paymentReference (cú pháp cũ)
-⋮----
-matches = []; // Không tìm thấy mã nào trong nội dung CK → bỏ qua
-⋮----
-// Phải khớp đúng 1 đơn: 0 = không tìm thấy, >1 = mơ hồ → từ chối xử lý
-⋮----
-// ── BƯỚC 2: Đọc lại đơn cùng ETag để phát hiện dữ liệu bị thay đổi đồng thời ──────────────
-⋮----
-// Dùng ETag để đảm bảo không có worker khác ghi đè đồng thời
-⋮----
-// Kiểm tra lại: đơn vẫn còn khớp với storeId và paymentReference
-⋮----
-// ── BƯỚC 3: Chống xử lý trùng lặp (idempotency) ───────────────────────────────
-⋮----
-// The order's sepayTransactionId prevents a payment webhook from being applied twice.
-⋮----
-// ── BƯỚC 4: Kiểm tra điều kiện đơn hàng hợp lệ ────────────────────────────────
-// Đơn phải là BANKING hoặc MOMO, chưa PAID, đang chờ thanh toán
-⋮----
-// ── BƯỚC 5: Kiểm tra số tiền chuyển khớp đúng với tổng đơn ──────────────────
-⋮----
-// Nếu số tiền nhận được khác với số tiền đơn → từ chối (tránh thiếu/thừa tiền)
-⋮----
-// Đến đây webhook đã khớp mã giao dịch/đơn, quán, phương thức, trạng thái chờ thanh toán và số tiền cần trả;
-// bước kiểm tra phía trên cũng bỏ qua giao dịch đã xử lý để tránh ghi nhận thanh toán hai lần.
-// Worker chỉ tự động GHI NHẬN khoản tiền đã chuyển bằng cách cập nhật Firebase; nó không trừ tiền hay chuyển tiền.
-// ── BƯỚC 6: Cập nhật Firebase — đánh dấu PAID và chuyển sang PENDING ─────────
-const paidAt = Date.now(); // Thời điểm ghi nhận thanh toán (Unix ms)
-// Đơn cọc chỉ bật isDepositPaid; đơn trả toàn bộ bật isPaid để các màn hình tính phần còn phải thu chính xác.
-⋮----
-? { isDepositPaid: true }  // Đã cọc 20%
-: { isPaid: true };         // Đã thanh toán 100%
-// Ghi nguyên tử lên Firebase với ETag — chỉ ghi nếu dữ liệu chưa bị thay đổi
-⋮----
-paymentStatus: "PAID",           // Đánh dấu đã thanh toán
-paidAt,                           // Lưu thời điểm thanh toán
-sepayTransactionId: transactionId, // ID giao dịch SePay để chống trùng
-status: "PENDING",                // Chuyển đơn sang hàng đợi xử lý
-orderStatus: "PENDING",           // Đồng bộ field orderStatus (legacy)
-⋮----
-// Nếu ETag không khớp (worker khác đã ghi trước) → kiểm tra có phải trùng không
-⋮----
-return json({ success: true }); // Trả về 200 OK để SePay không gửi lại webhook
-⋮----
-/**
- * Xác thực chữ ký số HMAC-SHA256 (x-sepay-signature) và thời gian hợp lệ từ SePay Webhook.
- */
-async function verifySePaySignature(headers, body, secret)
-⋮----
-// Chữ ký phải gồm timestamp số và digest SHA-256 đúng định dạng.
-⋮----
-// Từ chối chữ ký quá cũ/quá xa thời gian hiện tại để giảm nguy cơ phát lại webhook.
-⋮----
-// Tạo khóa HMAC từ secret cấu hình; ký timestamp.body theo giao thức webhook.
-⋮----
-// Chuyển digest thành chuỗi hex theo định dạng header SePay rồi so sánh an toàn.
-⋮----
-function constantTimeEqual(left, right)
-⋮----
-// So sánh toàn bộ chuỗi thay vì dừng ở ký tự sai đầu tiên để giảm rò rỉ thời gian.
-⋮----
-function verifySePayApiKey(headers, secret)
-⋮----
-// Tương thích xác thực kiểu Authorization: Apikey/Bearer nếu SePay được cấu hình theo API key.
-⋮----
-function normalizeAccountNumber(value)
-⋮----
-// Loại dấu cách/ký tự phân cách để so sánh số tài khoản nhất quán.
-⋮----
-/**
- * Trích xuất mã đơn hàng VietQR từ nội dung/code giao dịch SePay.
- */
-function extractPaymentReference(value)
-⋮----
-// Chỉ trả mã khi tìm thấy đúng một tham chiếu; nhiều mã trong nội dung là mơ hồ nên không khớp.
-⋮----
-function extractOrderId(value)
-⋮----
-// Quy tắc tương tự mã thanh toán nhưng giới hạn vào định dạng order ID chuẩn.
-⋮----
-function extractRefundReference(value)
-⋮----
-async function processOutgoingRefund({
-  databaseUrl,
-  accessToken,
-  storeId,
-  transactionId,
-  transferAmount,
-  content,
-})
-⋮----
-// Mã đơn trong nội dung chuyển khoản là khóa liên kết giao dịch tiền ra với yêu cầu hoàn.
-⋮----
-// Tra các đơn theo mã hoàn, sau đó bắt buộc khớp cửa hàng, đơn đã hủy, trạng thái và số tiền chính xác.
-⋮----
-// Đọc mới nhất kèm ETag trước khi ghi để tránh ghi đè thay đổi đồng thời.
-⋮----
-// Chỉ ghi nhận webhook sau khi đối chiếu thành công; Worker không thực hiện lệnh chuyển tiền.
-⋮----
-function getDatabaseUrl(serviceAccount, configuredUrl)
-⋮----
-// Đảm bảo database URL thuộc đúng project service account và chỉ dùng HTTPS host được hỗ trợ.
-⋮----
-async function getFirebaseAccessToken(serviceAccount)
-⋮----
-// Dùng token còn hạn trong cache; làm mới trước khi hết hạn để tránh lỗi giữa yêu cầu.
-⋮----
-// Tạo JWT service-account assertion có thời hạn một giờ để xin OAuth access token.
-⋮----
-// Gửi assertion ký RSA tới Google OAuth; private key chỉ được nạp từ secret phía Worker.
-⋮----
-function pemToArrayBuffer(pem)
-⋮----
-// Bỏ khung PEM và giải mã khóa riêng PKCS#8 thành bytes cho Web Crypto.
-⋮----
-function base64UrlEncode(value)
-⋮----
-// JWT dùng base64url, không phải base64 có padding chuẩn.
-⋮----
-function base64UrlEncodeBytes(bytes)
-⋮----
-// Mã hóa bytes sang base64url và bỏ padding theo định dạng JWT.
-⋮----
-async function firebaseGet(databaseUrl, path, accessToken)
-⋮----
-// Đọc node Realtime Database bằng access token của service account.
-⋮----
-async function firebaseGetWithEtag(databaseUrl, path, accessToken)
-⋮----
-// Yêu cầu Firebase trả ETag để ghi có điều kiện, tránh cập nhật dựa trên snapshot cũ.
-⋮----
-async function firebaseQueryOrderByReference(databaseUrl, reference, accessToken)
-⋮----
-// Tìm các đơn theo paymentReference để hỗ trợ định dạng mã thanh toán cũ.
-⋮----
-async function firebaseQueryOrderByRefundReference(databaseUrl, reference, accessToken)
-⋮----
-// Tìm đơn đang gắn với mã hoàn tiền (hiện mã hoàn là mã đơn).
-⋮----
-async function firebaseQueryOrdersByPaymentMethod(databaseUrl, paymentMethod, accessToken)
-⋮----
-// Truy vấn đơn theo phương thức thanh toán cho các luồng đối soát liên quan.
-⋮----
-function getExpectedPaymentAmount(order)
-⋮----
-// Đơn cọc đối soát đúng tiền cọc; các đơn khác dùng tổng tiền phải thanh toán.
-⋮----
-function isRecentMomoOrder(order, now)
-⋮----
-// Giới hạn độ tuổi đơn MoMo để tránh gắn giao dịch cũ vào đơn không còn phù hợp.
-⋮----
-async function firebasePutIfMatch(databaseUrl, path, accessToken, etag, value)
-⋮----
-// PUT kèm ETag; HTTP 412 nghĩa là dữ liệu đã đổi và caller cần đọc lại để xử lý trùng.
-⋮----
-async function firebaseResponseError(operation, response)
-⋮----
-// Giới hạn nội dung lỗi Firebase được ghi log để tránh log response lớn/điều khiển dòng.
-⋮----
-function json(body, status = 200)
-⋮----
-// Chuẩn hóa JSON response để SePay nhận được HTTP status và thông điệp xử lý.
-````
-
-## File: functions/sepay-worker/test/index.test.js
-````javascript
-function signedRequest(
-  payload,
-  timestamp = Math.floor(Date.now() / 1000),
-  requestSecret = secret,
-)
-⋮----
-globalThis.fetch = async (input) =>
-⋮----
-globalThis.fetch = async (input, init = {}) =>
-````
-
-## File: functions/sepay-worker/package.json
-````json
-{
-  "name": "oishi-sepay-webhook",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "test": "node --test"
-  },
-  "devDependencies": {
-    "wrangler": "^4.0.0"
-  }
-}
-````
-
-## File: functions/sepay-worker/README.md
-````markdown
-# SePay webhook deployment
-
-## Where the processing code and configuration live
-
-- `src/index.js`: Worker endpoint; validates incoming/outgoing webhooks, matches store/order/amount, and updates Firebase. Incoming transfers are recorded as payments; outgoing transfers only confirm a refund already sent by the merchant.
-- `test/index.test.js`: mocked Worker tests for payment and refund reconciliation. Run with `npm test`.
-- `wrangler.toml`: Worker name, entry point, runtime date, Firebase database URL, and observability setting. Do not keep production secrets in this tracked file.
-- Cloudflare Secrets: `SEPAY_WEBHOOK_SECRETS_JSON`, optional `SEPAY_REFUND_WEBHOOK_SECRETS_JSON`, and `FIREBASE_SERVICE_ACCOUNT_JSON`; the Worker reads these values from its `env`.
-- SePay Dashboard: webhook URL, `storeId`, HMAC-SHA256 mode, and incoming/outgoing event selection are configured per store, not in the Android app.
-
-The Worker confirms incoming payments and outgoing manual refunds by the order ID in the transfer content or code. Both flows also require the connected store account, store, and exact amount to match Firebase. Refund transfers must use the order ID; separate refund codes are not accepted. Keep both credentials below out of the repository and Android app.
-
-1. In `functions/sepay-worker`, install dependencies and set Cloudflare secrets:
-
-   ```powershell
-   npm install
-   npx wrangler secret put SEPAY_WEBHOOK_SECRETS_JSON
-   npx wrangler secret put SEPAY_REFUND_WEBHOOK_SECRETS_JSON
-   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON
-   ```
-
-   `SEPAY_WEBHOOK_SECRETS_JSON` maps each Firebase store ID to the HMAC-SHA256 secret used by its incoming-payment webhook. Refunds use the same secret if the store has one shared secret; configure optional `SEPAY_REFUND_WEBHOOK_SECRETS_JSON` only when the outgoing-refund webhook has a different secret. Each value is a JSON object such as `{"storeId1":"secret-from-sepay"}`. `FIREBASE_SERVICE_ACCOUNT_JSON` is the complete JSON key for a Firebase service account with Realtime Database access. The Worker requests both the `userinfo.email` and `firebase.database` OAuth scopes. `FIREBASE_DATABASE_URL` is a non-secret Worker variable already set in `wrangler.toml`.
-
-2. Deploy the Worker:
-
-   ```powershell
-   npm run deploy
-   ```
-
-3. Publish the repository's `database.rules.json` to the Firebase Realtime Database. Without these rules, a signed-in app user could alter payment state directly.
-
-4. For each store, configure SePay webhooks with `POST`, HMAC-SHA256, both **incoming** and **outgoing** transfer events, and the URL `https://<worker-host>/webhook?storeId=<Firebase-store-id>`. Put the HMAC secret in `SEPAY_WEBHOOK_SECRETS_JSON`. Verify incoming and outgoing test events before relying on live orders.
-
-`BANKING` and `MOMO` orders are reconciled as incoming payments when SePay reports a transfer to the store's connected bank account and the order reference and exact amount match. Transfers sent directly to a MoMo wallet are not visible to SePay and cannot be auto-confirmed by this Worker. Payment and refund status plus the SePay transaction IDs are saved directly on each order; the Worker does not create separate transaction-history records. Customer-provided refund bank accounts remain in the access-restricted `refund_payment_details` node, which the app needs to generate the refund QR. For a paid order canceled by the store, the merchant manually transfers the exact refund amount from the SePay-connected store account and must include the order ID in the transfer description. The outgoing webhook marks the order `REFUNDED` only when the account, order ID, store, pending refund, and amount match. The merchant must still verify the beneficiary before sending: the SePay webhook payload does not include the beneficiary account number, so matching proves a debit with that reference and amount, not who received it.
-
-Run local Worker tests with `npm test`.
-````
-
-## File: functions/sepay-worker/wrangler.toml
-````toml
-name = "oishi-sepay-webhook"
-# Entry point của Cloudflare Worker xử lý webhook tiền vào và tiền ra.
-main = "src/index.js"
-# Ngày tương thích runtime Cloudflare Workers; cập nhật có kiểm soát khi cần tính năng mới.
-compatibility_date = "2026-11-04"
-
-[vars]
-# URL Realtime Database của project, không phải credential.
-FIREBASE_DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
-# Biến được Worker đọc làm secret dự phòng; không commit secret thật trong file này.
-# Hãy đặt bằng Cloudflare Secret (wrangler secret put SEPAY_MASTER_SECRET) thay vì [vars].
-SEPAY_MASTER_SECRET = "oishi_master_secret_2026"
-
-[observability]
-# Bật log/metrics quan sát Worker trong Cloudflare; không log payload có dữ liệu nhạy cảm.
-enabled = true
 ````
 
 ## File: gradle/wrapper/gradle-wrapper.properties
@@ -56154,122 +55615,6 @@ graph TD
 *Tài liệu được cập nhật tự động đồng bộ theo toàn bộ mã nguồn của dự án Oishi Food.*
 ````
 
-## File: HUONG_DAN_CHU_QUAN_THANH_TOAN_TU_DONG.md
-````markdown
-# Hướng Dẫn Tích Hợp Thanh Toán Chuyển Khoản & Hoàn Tiền Tự Động Qua SePay
-### (Chuẩn Tự Động Hóa 100% - Không Cần Gửi Mã Cho Admin)
-
-Tài liệu này hướng dẫn chi tiết quy trình thiết lập thanh toán chuyển khoản quét mã VietQR tự động xác nhận và cơ chế tự động hoàn tiền khi hủy đơn cho từng cửa hàng trong hệ sinh thái **Oishi Food**.
-
-Hệ thống đã được cấu hình **Mã khóa bảo mật dùng chung toàn sàn**, do đó chủ quán khi mở cửa hàng chỉ cần cấu hình đúng thông tin trên SePay là **hệ thống tự động kích hoạt ngay lập tức**, không cần gửi mã hay nhờ Admin hỗ trợ.
-
----
-
-## 1. Tổng quan luồng hoạt động
-
-```
-[Khách quét mã VietQR trên App] ──► Chuyển tiền vào STK Ngân hàng của Quán (Nội dung: OIxxxxxxxx)
-       ▼
-[SePay bắt biến động số dư] ──────► Gửi Webhook tới Cloudflare Worker Oishi (Kèm mã oishi_master_secret_2026)
-       ▼
-[Cloudflare Worker] ──────────────► Khớp mã chung, kiểm tra đúng STK quán & đúng số tiền đơn
-       ▼
-[Firebase Database] ──────────────► Tự động cập nhật: paymentStatus = "PAID", isPaid = true
-       ▼
-[App Khách & App Quán] ───────────► Màn hình nhảy tức thì: ĐÃ THANH TOÁN THÀNH CÔNG (sau 2 - 5 giây)
-```
-
----
-
-## 2. Các Bước Cài Đặt Dành Cho Chủ Quán (Chỉ 3 Bước)
-
-### Bước 1: Mở Quán trên App & Lấy `storeId`
-1. Cài đặt app dành cho quán: **`app-internal`**.
-2. Bấm **Đăng ký** tài khoản (chọn vai trò Quán), nhập mã OTP gửi về Email để kích hoạt.
-3. Đăng nhập vào app -> Vào mục **Hồ sơ quán**:
-   - Nhập chính xác: **Tên ngân hàng**, **Số tài khoản (STK)** và **Tên chủ tài khoản** nhận tiền thật của bạn (viết hoa không dấu, ví dụ: `NGUYEN VAN A`).
-4. Xem mã cửa hàng **`storeId`** của bạn:
-   - Hệ thống tự động đặt mã theo chuẩn: `store_<uid_của_bạn>` (hiển thị trong mục thông tin quán hoặc xem trong Firebase tại `users/{uid}/storeId`).
-   - *Ví dụ mẫu*: `store_abc123xyz`
-
----
-
-### Bước 2: Liên kết tài khoản Ngân hàng trên SePay
-1. Đăng nhập vào trang quản trị SePay: [https://my.sepay.vn/](https://my.sepay.vn/).
-2. Vào menu **Ngân hàng** ➔ Bấm **Kết nối tài khoản**.
-3. Chọn tài khoản ngân hàng của bạn ví dụ: MBbank
-4. Chọn loại tài khoản **cá nhân**
-5. Ấn **tiếp theo**
-6. Chọn **đã có tài khoản** rồi ấn **kết nối ngay**
-7. Nhập thông tin tài khoản gồm số tài khoản, tên chủ tài khoản, số cccd, số điện thoại rồi ấn **tiếp tục**
-8. Ấn **có, tôi đồng ý**
-9. Nhập mã OTP rồi ấn **liên kết API**
-10. Bật đồng bộ giao dịch, bật đồng bộ giao dịch tiền vào, đồng bộ giao dịch tiền ra rồi ấn **tiếp theo**
-
-* **Lưu ý**: Đảm bảo số tài khoản ngân hàng kích hoạt trên SePay phải trùng khớp 100% với số tài khoản bạn đã nhập trên App Quán ở Bước 1.
-
----
-
-### Bước 3: Tạo Webhook trên SePay (Kích hoạt tự động)
-1. Trên SePay, vào mục **Tích hợp Webhooks** ➔ Bấm nút **Tạo webhook đầu tiên**.
-2. Điền thông tin cấu hình như sau:
-   - **Tên webhook**: Đặt tên quán của bạn (ví dụ: `Oishi - Quán Của Tôi`).
-   - **URL nhận Webhook**: Điền link Worker của hệ thống kèm `storeId` của bạn:
-     ```text
-     https://oishi-sepay-webhook.hothivananh180206.workers.dev/webhook?storeId=<storeId_của_quán>
-     ```
-     *Ví dụ*: Nếu `storeId` của bạn là `store_abc123xyz`, URL sẽ là:
-     ```text
-     https://oishi-sepay-webhook.hothivananh180206.workers.dev/webhook?storeId=store_abc123xyz
-     ```
-   - **Loại giao dịch**: Chọn **Tất cả** (**Có tiền vào** và **Có tiền ra**).  
-     *(Tiền vào để tự động nhận tiền, Tiền ra để tự động hoàn tiền khi hủy đơn).*
-   - **Định dạng dữ liệu**: chọn **JSON** và bật **tự động gửi lại server trả lỗi** rồi ấn tiếp **tiếp theo**
-   - **Tài khoản ngân hàng**: chọn **tất cả tài khoản** rồi ấn **tiếp theo**
-   - **Kiểu bảo mật**: Chọn **HMAC-SHA256** và nhập **oishi_master_secret_2026**
-3. Bấm **Thêm**
-
-🎉 **HOÀN TẤT! Hệ thống tự động hoạt động ngay lập tức**:
-
----
-
-## 3. Quy Trình Hoàn Tiền Thật Khi Quán Hủy Đơn
-
-1. **Quán hủy đơn**: 
-   - Khi hết món hoặc bận, chủ quán bấm **Hủy đơn** trên App Quán (`app-internal`) và nhập lý do hủy.
-   - Nếu đơn hàng đã được thanh toán trước đó (`PAID` hoặc đã cọc 20%), hệ thống sẽ tự động chuyển trạng thái đơn sang **Đã hủy (`CANCELLED`)** và tính toán chính xác số tiền cần hoàn trả lại cho khách (`refundAmount`).
-
-2. **Khách cung cấp tài khoản nhận tiền hoàn**: 
-   - Trên App Khách (`app-customer`), tại chi tiết đơn hàng đã hủy, hệ thống sẽ hiện thông báo yêu cầu khách nhập thông tin ngân hàng nhận hoàn:
-     - Tên ngân hàng thụ hưởng (chọn từ danh sách ngân hàng Việt Nam).
-     - Số tài khoản (STK).
-     - Tên chủ tài khoản.
-   - Sau khi khách lưu thông tin, đơn hàng chuyển sang trạng thái chờ quán chuyển tiền: **`PENDING_REFUND`**.
-
-3. **Quán quét mã VietQR hoàn tiền tự động trên App Quán**:
-   - Chủ quán mở App Quán (`app-internal`), vào đơn hàng đã hủy và bấm nút **"Hoàn tiền"**.
-   - Ứng dụng tự động lấy thông tin STK của khách và tạo ngay **Mã QR VietQR hoàn tiền**:
-     - Đã điền sẵn số tài khoản, tên ngân hàng và số tiền cần hoàn.
-     - Đã tự động tạo cú pháp chuyển khoản chứa mã đơn hàng (ví dụ: `TenQuan HT OIxxxxxxxx`).
-   - Chủ quán chỉ cần dùng ứng dụng ngân hàng của mình (tài khoản đã kết nối SePay) để **quét mã QR** và bấm **Xác nhận chuyển tiền**.
-
-4. **SePay tự động bắt biến động tiền ra & đổi trạng thái đơn**:
-   - Ngay khi tiền chuyển đi từ tài khoản của quán, SePay phát hiện giao dịch **Tiền ra (`transferType: "out"`)**.
-   - SePay gửi Webhook về hệ thống để đối soát mã đơn hàng và số tiền hoàn.
-   - Hệ thống tự động cập nhật đơn hàng thành **Đã hoàn tiền (`REFUNDED`)**, lưu mã giao dịch hoàn tiền và đồng bộ thông báo hoàn tiền thành công lên màn hình của cả Khách và Quán.
-
----
-
-## 4. Bảng Xử Lý Sự Cố Thường Gặp (Troubleshooting)
-
-| Hiện tượng | Nguyên nhân | Cách khắc phục |
-| :--- | :--- | :--- |
-| **SePay báo lỗi 401 Unauthorized** | Nhập sai mã bí mật chung trên SePay. | Kiểm tra lại ô Secret Key/API Key trên SePay, điền chính xác: `oishi_master_secret_2026`. |
-| **SePay báo lỗi 400 Bad Request** | URL Webhook bị sai hoặc thiếu `?storeId=...`. | Kiểm tra lại URL Webhook, đảm bảo có đuôi `?storeId=store_...` của quán. |
-| **Chuyển tiền thành công nhưng đơn không nhảy PAID** | Số tài khoản nhận tiền trên SePay không khớp với STK nhập trong Hồ sơ quán trên app. | Vào mục Hồ sơ quán trên app kiểm tra và sửa lại STK cho trùng khớp 100% với tài khoản ngân hàng trên SePay. |
-| **Hoàn tiền không tự động đổi sang REFUNDED** | Quán khi chuyển tiền hoàn quên ghi mã đơn hàng `OI...` vào nội dung chuyển khoản. | Luôn ghi mã đơn hàng vào nội dung chuyển khoản để SePay nhận diện đúng đơn cần hoàn. |
-````
-
 ## File: local.properties.example
 ````
 # local.properties.example
@@ -56281,62 +55626,6 @@ sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
 twilioAccountSid=your_twilio_account_sid_here
 twilioAuthToken=your_twilio_auth_token_here
 twilioPhoneNumber=+1xxxxxxxxxx
-````
-
-## File: luồng trạng thái đơn và trạng thái hoàn tiền và trạng thái xác thực otp email.md
-````markdown
-# Luồng trạng thái đơn, hoàn tiền và xác thực OTP email
-
-## I. CÁC TRẠNG THÁI ĐƠN HÀNG (`Order.Status`)
-
-### 1. Giai đoạn thanh toán và chờ duyệt
-
-- **`AWAITING_PAYMENT` (Chờ thanh toán):** Khách chọn chuyển khoản VietQR nhưng giao dịch chưa được hệ thống xác nhận. Khi nhận được webhook hợp lệ và số tiền khớp, đơn chuyển sang `PENDING`.
-- **`PENDING` (Chờ quán duyệt):** Đơn đã gửi tới quán để tiếp nhận. Đơn COD vào trạng thái này ngay sau khi khách đặt; đơn trả trước vào đây sau khi hệ thống xác nhận thanh toán.
-
-### 2. Giai đoạn quán chế biến
-
-- **`PREPARING` (Đang chuẩn bị món):** Quán tiếp nhận đơn và bắt đầu làm món.
-- **`READY` (Món đã xong):** Quán xác nhận làm xong và đóng gói; đơn chờ shipper nhận đến lấy.
-
-### 3. Giai đoạn shipper giao hàng
-
-- **`ASSIGNED` (Đã có tài xế nhận):** Shipper đã bấm nhận đơn và được gán vào đơn.
-- **`ARRIVED_AT_SHOP` (Tài xế đã đến quán):** Shipper cập nhật đã đến quán để lấy món.
-- **`DELIVERING` (Đang giao hàng):** Quán đã bàn giao món cho shipper và shipper đang giao đến khách.
-- **`ARRIVED_AT_CUSTOMER` (Tài xế đã đến nơi):** Shipper cập nhật đã đến địa chỉ khách và chờ giao nhận.
-
-### 4. Giai đoạn hoàn tất
-
-- **`COMPLETED` (Giao hàng thành công):** Shipper xác minh Delivery Token/QR của khách và xác nhận hoàn tất giao nhận.
-
-## II. GIAI ĐOẠN SỰ CỐ, BOM HÀNG VÀ HỦY ĐƠN
-
-- **`CANCELLED` (Đã hủy đơn):** Đơn bị hủy theo luồng hủy hiện có, chẳng hạn quán không thể thực hiện đơn.
-- **`BOOM` (Khách không nhận hàng):** Ghi nhận sự cố khách không nhận đơn theo quy trình xử lý của shipper.
-- **`RETURNING_TO_STORE` (Đang trả món về quán):** Shipper đang mang món quay lại quán sau sự cố giao hàng.
-- **`RETURNED_TO_STORE` (Đã trả món tại quán):** Món đã được đưa lại quán và quy trình trả món được ghi nhận hoàn tất.
-
-## III. CÁC TRẠNG THÁI HOÀN TIỀN (`Order.RefundStatus`)
-
-Khi đơn `CANCELLED` hoặc `BOOM` có khoản tiền khách đã thanh toán cần trả lại, tiến trình hoàn tiền được theo dõi riêng bằng `refundStatus`. Hủy/bom đơn không tự có nghĩa là tiền đã được hoàn; chỉ chuyển sang `REFUNDED` khi hệ thống ghi nhận giao dịch hoàn thành công.
-
-- **`NONE`:** Chưa phát sinh yêu cầu hoàn tiền.
-- **`NOT_REQUIRED`:** Không cần hoàn tiền vì khách chưa thanh toán trước, ví dụ đơn COD chưa thu tiền.
-- **`PENDING_INFO`:** Chờ khách nhập thông tin ngân hàng nhận tiền hoàn, gồm tên chủ tài khoản và số tài khoản.
-- **`PENDING_REFUND`:** Khách đã cung cấp thông tin; quán kiểm tra người nhận, tạo mã QR và thực hiện chuyển khoản hoàn.
-- **`REFUNDED`:** SePay/hệ thống đã ghi nhận giao dịch chuyển tiền hoàn thành công.
-
-## IV. CÁC TRẠNG THÁI XÁC THỰC OTP EMAIL
-
-Trạng thái xác thực email được lưu tại `users/{uid}/emailVerified`. OTP được gửi và xác minh qua Supabase; Firebase Auth được dùng để tạo tài khoản và đăng nhập.
-
-- **Chưa xác thực — `emailVerified = false` hoặc chưa có giá trị:** Người dùng chưa xác minh OTP. Khi đăng ký, tài khoản Firebase chưa được tạo cho đến khi OTP hợp lệ. Khi đăng nhập tài khoản chưa xác minh, ứng dụng yêu cầu OTP trước khi hoàn tất đăng nhập.
-- **Đang chờ OTP:** Supabase đã nhận yêu cầu gửi mã đến email; người dùng cần nhập mã trong ứng dụng. Trạng thái chờ này không đồng nghĩa email đã xác thực.
-- **OTP sai hoặc hết hạn:** Ứng dụng báo lỗi, không cho hoàn tất xác thực và không đặt `emailVerified = true`.
-- **Đã xác thực — `emailVerified = true`:** OTP hợp lệ; ứng dụng hoàn tất đăng ký hoặc tiếp tục đăng nhập. Những lần đăng nhập sau không cần xác minh lại OTP.
-
-Template email Supabase cần hiển thị `{{ .Token }}` để người dùng nhận được mã OTP. Tài khoản shipper do quán tạo có `role = DRIVER`/`SHIPPER` và `storeId` không rỗng được miễn OTP theo luồng hiện tại.
 ````
 
 ## File: README.md
@@ -62728,10 +62017,6 @@ class ShopViewModel @Inject constructor(
         }
     }
 
-    fun cancelOrderByStore(orderId: String, storeId: String, reason: String, onResult: (Boolean, String) -> Unit) {
-        firebaseRepository.cancelOrderByStore(orderId, storeId, reason, onResult)
-    }
-
     fun dismissAlert() {
         _newOrderAlert.value = false
     }
@@ -64742,27 +64027,6 @@ class FoodOrderInternalApp : Application() {
     <string name="btn_login">Đăng nhập</string>
     <string name="empty_orders">Chưa có đơn hàng nào</string>
     <string name="empty_assigned">Chưa có đơn được gán</string>
-    <string name="store_cancel_dialog_title">Hủy đơn hàng?</string>
-    <string name="store_cancel_order_code">Mã đơn #%1$s</string>
-    <string name="store_cancel_paid_notice">Đơn đã thanh toán. Quán cần chuyển hoàn %1$s cho khách theo mã đơn hàng.</string>
-    <string name="store_cancel_unpaid_notice">Đơn chưa ghi nhận thanh toán nên sẽ không phát sinh yêu cầu hoàn tiền.</string>
-    <string name="store_cancel_reason_label">Lý do hủy đơn</string>
-    <string name="store_cancel_reason_prompt">Chọn lý do hủy đơn</string>
-    <string name="store_cancel_custom_reason_hint">Nhập lý do cụ thể</string>
-    <string name="store_cancel_dismiss">Quay lại</string>
-    <string name="store_cancel_confirm">Xác nhận hủy</string>
-    <string name="store_cancel_reason_required">Vui lòng chọn lý do hủy đơn.</string>
-    <string name="store_cancel_custom_reason_required">Vui lòng nhập lý do hủy đơn.</string>
-    <string-array name="store_cancel_reasons">
-        <item>@string/store_cancel_reason_prompt</item>
-        <item>Quán hết món hoặc hết nguyên liệu</item>
-        <item>Sự cố tại bếp (hỏng bếp, mất điện/gas, hỏng món)</item>
-        <item>Quán quá tải hoặc tạm ngưng nhận đơn</item>
-        <item>Chờ quá lâu không có tài xế nhận đơn (món bị nguội)</item>
-        <item>Không đáp ứng được yêu cầu/ghi chú của khách</item>
-        <item>Khách hàng liên hệ nhờ quán hủy</item>
-        <item>Lý do khác</item>
-    </string-array>
 </resources>
 ````
 
@@ -68298,13 +67562,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.Spinner
-import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -68318,7 +67576,6 @@ import com.chuyen_de_2.foodorder.customer.ui.complaint.ComplaintActivity
 import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
 import com.chuyen_de_2.foodorder.customer.ui.tracking.TrackingActivity
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -68340,21 +67597,6 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class OrderHistoryActivity : AppCompatActivity() {
-    private data class RefundBank(val name: String, val bin: String)
-
-    private val refundBanks = listOf(
-        RefundBank("MB Bank (Quân Đội)", "970422"),
-        RefundBank("Vietcombank (Ngoại Thương)", "970436"),
-        RefundBank("Techcombank (Kỹ Thương)", "970407"),
-        RefundBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
-        RefundBank("ACB (Á Châu)", "970416"),
-        RefundBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
-        RefundBank("Agribank (Nông Nghiệp)", "970405"),
-        RefundBank("TPBank (Tiên Phong)", "970423"),
-        RefundBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
-        RefundBank("VIB (Quốc Tế)", "970441"),
-        RefundBank("OCB (Phương Đông)", "970448")
-    )
 
     private lateinit var binding: ActivityOrderHistoryBinding
     private lateinit var adapter: OrderHistoryAdapter
@@ -68469,7 +67711,6 @@ class OrderHistoryActivity : AppCompatActivity() {
                 )
                 modal.show(supportFragmentManager, "IncidentProofModal")
             },
-            onRefundDetailsClick = { order -> showRefundAccountForm(order) },
             onCallClick = { phone ->
                 try {
                     val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
@@ -68482,102 +67723,6 @@ class OrderHistoryActivity : AppCompatActivity() {
 
         binding.rvOrders.layoutManager = LinearLayoutManager(this)
         binding.rvOrders.adapter = adapter
-    }
-
-    private fun showRefundAccountForm(order: Order) {
-        val customerId = firebaseAuth.currentUser?.uid
-        if (customerId.isNullOrBlank() ||
-            order.status != Order.Status.CANCELLED ||
-            order.refundStatus != Order.RefundStatus.PENDING_INFO
-        ) {
-            Toast.makeText(this, "Đơn hàng không còn ở trạng thái chờ nhập thông tin hoàn tiền.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val padding = (20 * resources.displayMetrics.density).toInt()
-        val form = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(padding, padding, padding, 0)
-        }
-        val bankSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(
-                this@OrderHistoryActivity,
-                android.R.layout.simple_spinner_dropdown_item,
-                refundBanks.map { it.name }
-            )
-        }
-        val accountNumber = EditText(this).apply {
-            hint = "Số tài khoản nhận hoàn"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setSingleLine(true)
-        }
-        val accountHolder = EditText(this).apply {
-            hint = "Tên chủ tài khoản"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
-            setSingleLine(true)
-        }
-        form.addView(TextView(this).apply { text = "Ngân hàng nhận tiền" })
-        form.addView(bankSpinner)
-        form.addView(accountNumber)
-        form.addView(accountHolder)
-
-        val detailsRef = FirebaseDatabase.getInstance()
-            .getReference("refund_payment_details")
-            .child(order.orderId)
-            .child("customerProvided")
-        detailsRef.get().addOnSuccessListener { snapshot ->
-                snapshot.child("accountNumber").getValue(String::class.java)?.let { accountNumber.setText(it) }
-                snapshot.child("accountHolder").getValue(String::class.java)?.let { accountHolder.setText(it) }
-            val savedBin = snapshot.child("bankBin").getValue(String::class.java).orEmpty()
-            refundBanks.indexOfFirst { it.bin == savedBin }.takeIf { it >= 0 }?.let(bankSpinner::setSelection)
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Thông tin nhận hoàn tiền")
-            .setMessage("Nhập đúng thông tin tài khoản ngân hàng của bạn. Quán sẽ dùng thông tin này để tạo mã QR hoàn tiền.")
-            .setView(form)
-            .setNegativeButton("Để sau", null)
-            .setPositiveButton("Lưu thông tin", null)
-            .create()
-            .also { dialog ->
-                dialog.setOnShowListener {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        val number = accountNumber.text.toString().trim()
-                        val holder = accountHolder.text.toString().trim().uppercase()
-                        val bank = refundBanks.getOrNull(bankSpinner.selectedItemPosition)
-                        if (number.length !in 6..24 || !number.all(Char::isDigit) || holder.isBlank() || bank == null) {
-                            Toast.makeText(this, "Vui lòng nhập đúng số tài khoản, tên chủ tài khoản và ngân hàng.", Toast.LENGTH_LONG).show()
-                            return@setOnClickListener
-                        }
-                        val values = mapOf(
-                            "bankName" to bank.name,
-                            "bankBin" to bank.bin,
-                            "accountNumber" to number,
-                            "accountHolder" to holder,
-                            "updatedAt" to System.currentTimeMillis()
-                        )
-                        detailsRef.setValue(values)
-                            .addOnSuccessListener {
-                                FirebaseDatabase.getInstance()
-                                    .getReference("orders")
-                                    .child(order.orderId)
-                                    .child("refundStatus")
-                                    .setValue(Order.RefundStatus.PENDING_REFUND)
-                                    .addOnSuccessListener {
-                                        Toast.makeText(this, "Đã lưu thông tin. Hoàn tiền đang chờ quán chuyển khoản.", Toast.LENGTH_LONG).show()
-                                        dialog.dismiss()
-                                    }
-                                    .addOnFailureListener {
-                                        Toast.makeText(this, "Đã lưu thông tin nhưng chưa cập nhật được trạng thái. Hãy thử lưu lại.", Toast.LENGTH_LONG).show()
-                                    }
-                            }
-                            .addOnFailureListener {
-                                Toast.makeText(this, "Không lưu được thông tin. Hãy thử lại hoặc kiểm tra quyền truy cập.", Toast.LENGTH_LONG).show()
-                            }
-                    }
-                }
-                dialog.show()
-            }
     }
 
     private fun setupTabs() {
@@ -68689,9 +67834,7 @@ class OrderHistoryActivity : AppCompatActivity() {
         if (countWarning > 0) {
             binding.layoutEmergencyWarningBanner.visibility = View.VISIBLE
             val warnOrder = orders.firstOrNull { isActiveWarningOrder(it) }
-            val code = warnOrder?.orderId?.let {
-                com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(it)
-            } ?: ""
+            val code = warnOrder?.orderId?.takeLast(6)?.uppercase() ?: ""
             binding.tvEmergencyWarningTitle.text = if (code.isNotBlank()) "Đơn #$code đang bị tài xế cảnh báo mất đơn!" else "Đơn hàng của bạn đang bị tài xế cảnh báo mất đơn!"
         } else {
             binding.layoutEmergencyWarningBanner.visibility = View.GONE
@@ -85321,9 +84464,6 @@ object QRCodeUtils {
         "driverId",
         "shopId",
         "storeId",
-        "paymentMethod",
-        "paymentReference",
-        "refundReference",
         "status",
         "orderStatus",
         "timestamp",
@@ -85331,69 +84471,7 @@ object QRCodeUtils {
       ],
       ".read": "auth != null",
       "$orderId": {
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.admin == true || (data.exists() && newData.child('paymentMethod').val() == data.child('paymentMethod').val() && newData.child('paymentReference').val() == data.child('paymentReference').val() && newData.child('paymentStatus').val() == data.child('paymentStatus').val() && newData.child('paidAt').val() == data.child('paidAt').val() && newData.child('sepayTransactionId').val() == data.child('sepayTransactionId').val() && newData.child('isPaid').val() == data.child('isPaid').val() && newData.child('isDepositPaid').val() == data.child('isDepositPaid').val()) || (!data.exists() && newData.child('paymentStatus').val() == 'UNPAID' && !newData.child('paidAt').exists() && (!newData.child('sepayTransactionId').exists() || newData.child('sepayTransactionId').val() == '') && (!newData.child('isPaid').exists() || newData.child('isPaid').val() == false) && (!newData.child('isDepositPaid').exists() || newData.child('isDepositPaid').val() == false)))",
-        "refundStatus": {
-          ".write": "auth != null && auth.uid == data.parent().child('customerId').val() && data.parent().child('status').val() == 'CANCELLED' && data.val() == 'PENDING_INFO' && newData.val() == 'PENDING_REFUND' && root.child('refund_payment_details').child($orderId).child('customerProvided').hasChildren(['bankName', 'bankBin', 'accountNumber', 'accountHolder', 'updatedAt'])",
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == 'NONE') || (auth != null && auth.uid == data.parent().child('customerId').val() && data.parent().child('status').val() == 'CANCELLED' && data.val() == 'PENDING_INFO' && newData.val() == 'PENDING_REFUND' && root.child('refund_payment_details').child($orderId).child('customerProvided').hasChildren(['bankName', 'bankBin', 'accountNumber', 'accountHolder', 'updatedAt'])) || (auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('shopId').val()) && ((newData.val() == 'PENDING_INFO' && (data.parent().child('status').val() == 'PENDING' || data.parent().child('status').val() == 'PREPARING' || data.parent().child('status').val() == 'READY') && newData.parent().child('status').val() == 'CANCELLED' && newData.parent().child('cancelledBy').val() == 'MERCHANT' && newData.parent().child('refundAmount').isNumber() && newData.parent().child('refundAmount').val() > 0 && (data.parent().child('paymentStatus').val() == 'PAID' || data.parent().child('isPaid').val() == true || data.parent().child('isDepositPaid').val() == true)) || (newData.val() == 'NOT_REQUIRED' && (data.parent().child('status').val() == 'PENDING' || data.parent().child('status').val() == 'PREPARING' || data.parent().child('status').val() == 'READY') && newData.parent().child('status').val() == 'CANCELLED' && newData.parent().child('cancelledBy').val() == 'MERCHANT' && newData.parent().child('refundAmount').val() == 0 && data.parent().child('paymentStatus').val() != 'PAID' && data.parent().child('isPaid').val() != true && data.parent().child('isDepositPaid').val() != true)))"
-        },
-        "refundReference": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == '') || (auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('shopId').val()) && (((!data.exists() || data.val() == '') && (newData.val() == $orderId || newData.val().matches(/^OI[A-Z0-9]{8}$/)) && (newData.parent().child('refundStatus').val() == 'PENDING_INFO' || newData.parent().child('refundStatus').val() == 'PENDING_REFUND') && newData.parent().child('status').val() == 'CANCELLED' && newData.parent().child('cancelledBy').val() == 'MERCHANT') || (data.val() == $orderId && newData.val() == data.val() && newData.parent().child('refundStatus').val() == 'REFUNDED')))"
-        },
-        "refundTransactionId": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == '')"
-        },
-        "refundedAt": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && !newData.exists())"
-        },
-        "refundedBy": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == '')"
-        },
-        "refundAmount": {
-          ".validate": "newData.val() == data.val() || (!data.exists() && newData.val() == 0) || (auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == newData.parent().child('shopId').val()) && ((newData.parent().child('refundStatus').val() == 'NOT_REQUIRED' && newData.val() == 0) || ((newData.parent().child('refundStatus').val() == 'PENDING_INFO' || newData.parent().child('refundStatus').val() == 'PENDING_REFUND') && ((newData.parent().child('paymentMode').val() == 'DEPOSIT' && newData.val() == newData.parent().child('depositAmount').val()) || (newData.parent().child('paymentMode').val() != 'DEPOSIT' && newData.val() == newData.parent().child('totalPayment').val()) || (newData.parent().child('paymentMode').val() != 'DEPOSIT' && newData.parent().child('totalPayment').val() == 0 && newData.val() == newData.parent().child('total').val())))))"
-        },
-        "paymentStatus": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.val() == 'UNPAID' && newData.val() == 'PAID'"
-        },
-        "paidAt": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentStatus').val() == 'UNPAID' && newData.isNumber()"
-        },
-        "status": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentStatus').val() == 'UNPAID' && data.val() == 'AWAITING_PAYMENT' && newData.val() == 'PENDING'"
-        },
-        "orderStatus": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentStatus').val() == 'UNPAID' && newData.val() == 'PENDING'"
-        },
-        "isPaid": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentMode').val() != 'DEPOSIT' && data.parent().child('paymentStatus').val() == 'UNPAID' && newData.val() == true"
-        },
-        "isDepositPaid": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && root.child('users').child(auth.uid).child('storeId').val() == data.parent().child('storeId').val() && data.parent().child('paymentMethod').val() == 'MOMO' && data.parent().child('paymentMode').val() == 'DEPOSIT' && data.parent().child('paymentStatus').val() == 'UNPAID' && newData.val() == true"
-        }
-      }
-    },
-    "refund_payment_details": {
-      "$orderId": {
-        ".read": "auth != null && (auth.uid == root.child('orders').child($orderId).child('customerId').val() || (((root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == root.child('orders').child($orderId).child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == root.child('orders').child($orderId).child('shopId').val())) || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.admin == true))",
-        ".write": false,
-        "customerProvided": {
-          ".write": "auth != null && auth.uid == root.child('orders').child($orderId).child('customerId').val() && root.child('orders').child($orderId).child('status').val() == 'CANCELLED' && root.child('orders').child($orderId).child('refundStatus').val() == 'PENDING_INFO'",
-          ".validate": "newData.hasChildren(['bankName', 'bankBin', 'accountNumber', 'accountHolder', 'updatedAt'])",
-          "bankName": {
-            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
-          },
-          "bankBin": {
-            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{6}$/)"
-          },
-          "accountNumber": {
-            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{6,24}$/)"
-          },
-          "accountHolder": {
-            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
-          },
-          "updatedAt": {
-            ".validate": "newData.isNumber()"
-          }
-        }
+        ".write": "auth != null"
       }
     },
     "tracking": {
@@ -90729,33 +89807,6 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- Ưu đãi điểm uy tín -->
-                    <LinearLayout
-                        android:id="@+id/llDiscountRow"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
-                        android:orientation="horizontal"
-                        android:visibility="gone">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Ưu đãi điểm uy tín (từ 95 điểm):"
-                            android:textColor="#059669"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/txtDiscount"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="-5.000 đ"
-                            android:textColor="#059669"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
@@ -92744,40 +91795,6 @@ class ShipperViewModel @Inject constructor(
                             android:textColor="#64748B"
                             android:textSize="11.5sp"
                             tools:text="📍 28 Tô Vĩnh Diện, TP. Thủ Đức" />
-
-                        <!-- Mã ID cửa hàng (Store ID) -->
-                        <LinearLayout
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:id="@+id/tvProfileStoreIdBadge"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:background="@drawable/bg_badge_blue"
-                                android:fontFamily="monospace"
-                                android:paddingHorizontal="6dp"
-                                android:paddingVertical="2dp"
-                                android:textColor="#0284C7"
-                                android:textSize="11sp"
-                                android:textStyle="bold"
-                                tools:text="ID: store_001" />
-
-                            <ImageButton
-                                android:id="@+id/btnCopyStoreId"
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:layout_marginStart="4dp"
-                                android:background="?attr/selectableItemBackgroundBorderless"
-                                android:contentDescription="Sao chép ID quán"
-                                android:padding="3dp"
-                                android:scaleType="fitCenter"
-                                android:src="@drawable/ic_copy"
-                                app:tint="#0284C7" />
-                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvProfileVerifiedBadge"
@@ -95869,7 +94886,6 @@ class OrderHistoryAdapter(
     private val onComplaintClick: (Order) -> Unit,
     private val onReorderClick: (Order) -> Unit,
     private val onViewProofClick: (Order) -> Unit,
-    private val onRefundDetailsClick: (Order) -> Unit,
     private val onCallClick: (String) -> Unit
 ) : ListAdapter<Order, OrderHistoryAdapter.OrderViewHolder>(DiffCallback) {
 
@@ -95895,7 +94911,7 @@ class OrderHistoryAdapter(
             val shopName = order.shopName.ifBlank { "Quán Ăn Oishi Food" }
             binding.tvShopName.text = shopName
 
-            val orderCode = "#ORD_OISHI_${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)}"
+            val orderCode = "#ORD_OISHI_${order.orderId.takeLast(6).uppercase()}"
             binding.tvOrderCodeMono.text = orderCode
 
             // Logo mini quán dạng emoji fallback
@@ -96144,15 +95160,7 @@ class OrderHistoryAdapter(
                         binding.tvAlertIcon.text = "✓"
                         binding.tvAlertTitle.text = "Đã nhận đơn"
                         binding.tvAlertCountdown.visibility = View.GONE
-                        binding.tvAlertMessage.text = if (
-                            order.paymentMode == Order.PaymentMode.DEPOSIT &&
-                            (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                                order.isDepositPaid)
-                        ) {
-                            "Quán đang chuẩn bị món. Bạn đã cọc ${order.depositAmount.toVndCurrency()}; còn ${order.remainAmount.toVndCurrency()} cần trả cho shipper khi giao."
-                        } else {
-                            "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
-                        }
+                        binding.tvAlertMessage.text = "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
 
                         binding.btnActionSecondary.visibility = View.VISIBLE
                         binding.btnActionSecondary.text = "📞 Gọi Quán"
@@ -96302,56 +95310,24 @@ class OrderHistoryAdapter(
                             }
                         }
                     } else {
-                        // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG HOẶC QUÁN HỦY
-                        val isCancelledByMerchant = order.cancelledBy.equals("MERCHANT", ignoreCase = true) ||
-                            order.cancelledBy.equals("STORE", ignoreCase = true) ||
-                            order.cancelReason.contains("Quán", ignoreCase = true)
-
-                        binding.tvOrderStatusBadge.text = if (isCancelledByMerchant) "✕ Quán đã hủy" else "✕ Đã bị hủy"
+                        // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG
+                        binding.tvOrderStatusBadge.text = "✕ Đã bị hủy"
                         binding.tvShipperInfo.visibility = View.GONE
 
                         binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = if (isCancelledByMerchant) "ℹ️" else "🚫"
-                        binding.tvAlertTitle.text = if (isCancelledByMerchant) "LÝ DO QUÁN HỦY ĐƠN:" else "LÝ DO HỦY ĐƠN HÀNG:"
+                        binding.tvAlertIcon.text = "🚫"
+                        binding.tvAlertTitle.text = "LÝ DO HỦY ĐƠN HÀNG:"
                         binding.tvAlertCountdown.visibility = View.GONE
-                        val cancellationMessage = order.cancelReason.ifBlank {
-                            if (isCancelledByMerchant) {
-                                "Quán không thể nhận đơn hoặc đã hết món."
-                            } else {
-                                order.note.ifBlank {
-                                    "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
-                                }
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            order.note.ifBlank {
+                                "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
                             }
                         }
-                        val refundMessage = when (order.refundStatus) {
-                            Order.RefundStatus.PENDING_INFO ->
-                                "\n\nHoàn tiền đang chờ bạn cung cấp thông tin tài khoản nhận: ${order.refundAmount.toVndCurrency()}."
-                            Order.RefundStatus.PENDING_REFUND -> {
-                                val orderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-                                    .ifBlank { order.orderId.trim() }
-                                "\n\nThông tin đã nhận. Hoàn tiền đang chờ quán chuyển khoản: ${order.refundAmount.toVndCurrency()} (Nội dung: Hoàn tiền $orderCode)."
-                            }
-                            Order.RefundStatus.REFUNDED ->
-                                "\n\nHệ thống đã ghi nhận giao dịch hoàn ${order.refundAmount.toVndCurrency()}."
-                            Order.RefundStatus.NOT_REQUIRED -> "\n\nĐơn chưa thanh toán nên không cần hoàn tiền."
-                            else -> ""
-                        }
-                        binding.tvAlertMessage.text = cancellationMessage + refundMessage
                     }
 
-                    if (order.refundStatus == Order.RefundStatus.PENDING_INFO) {
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "Cung cấp tài khoản nhận hoàn"
-                        binding.btnActionSecondary.setOnClickListener { onRefundDetailsClick(order) }
-                    } else if (order.refundStatus == Order.RefundStatus.PENDING_REFUND) {
-                        binding.btnActionSecondary.visibility = View.GONE
-                    } else if (isBombed) {
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "📄 Xem biên bản"
-                        binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
-                    } else {
-                        binding.btnActionSecondary.visibility = View.GONE
-                    }
+                    binding.btnActionSecondary.visibility = View.VISIBLE
+                    binding.btnActionSecondary.text = "📄 Xem biên bản"
+                    binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
 
                     binding.btnActionPrimary.text = "↺ Đặt lại món"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
@@ -97628,17 +96604,6 @@ class StoreProfileFragment : Fragment() {
         }
     }
 
-    private fun copyToClipboard(label: String, text: String) {
-        if (text.isBlank() || text == "Chưa có ID") {
-            Toast.makeText(requireContext(), "Chưa có $label để sao chép", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        val clip = android.content.ClipData.newPlainText(label, text)
-        clipboard.setPrimaryClip(clip)
-        Toast.makeText(requireContext(), "Đã sao chép $label: $text", Toast.LENGTH_SHORT).show()
-    }
-
     private fun displayStoreAvatar(avatarUrl: String) {
         if (avatarUrl.isNotBlank()) {
             binding.ivProfileStoreAvatar.visibility = View.VISIBLE
@@ -97664,17 +96629,6 @@ class StoreProfileFragment : Fragment() {
         displayStoreAvatar(store.effectiveImageUrl)
         binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
         binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
-
-        // Hiển thị ID Quán & gán sự kiện sao chép cho cấu hình SePay
-        val storeId = store.id.ifBlank { currentStoreId }.ifBlank { "Chưa có ID" }
-        binding.tvProfileStoreIdBadge.text = "ID: $storeId"
-        binding.tvProfileStoreIdBadge.setOnClickListener {
-            copyToClipboard("Mã quán (Store ID)", storeId)
-        }
-        binding.btnCopyStoreId.setOnClickListener {
-            copyToClipboard("Mã quán (Store ID)", storeId)
-        }
-
         binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
         binding.tvProfileCccd.text = store.cccdNumber.ifBlank { "Chưa cập nhật" }
         binding.tvProfilePhone.text = store.phone.ifBlank { "Chưa cập nhật" }
@@ -100429,45 +99383,32 @@ package com.chuyen_de_2.foodorder.internal.ui.shop
 import android.app.Dialog
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.drawable.Drawable
 import android.graphics.drawable.ColorDrawable
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Bundle
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
-import android.widget.ArrayAdapter
-import android.widget.ImageView
 import android.widget.ImageButton
-import android.widget.LinearLayout
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
-import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.GlideException
-import com.bumptech.glide.request.RequestListener
-import com.bumptech.glide.request.target.Target
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.DialogStoreCancelOrderBinding
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentOrderListBinding
-import com.google.android.gms.tasks.Tasks
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.FirebaseDatabase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -100505,7 +99446,6 @@ class OrderListFragment : Fragment() {
     private val viewModel: ShopViewModel by viewModels()
     private lateinit var adapter: OrderAdapter
     private var currentStoreId = ""
-    private var currentStoreName = ""
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -100581,8 +99521,7 @@ class OrderListFragment : Fragment() {
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
                 val currentB = _binding ?: return@collectLatest
                 if (store != null) {
-                    currentStoreName = store.name.trim()
-                    currentB.tvShopName.text = currentStoreName.ifBlank { "Quán của bạn" }
+                    currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
                     currentB.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
 
                     com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
@@ -100828,410 +99767,22 @@ class OrderListFragment : Fragment() {
      */
     private fun showOrderDetailDialog(order: Order) {
         val total = if (order.totalPayment > 0) order.totalPayment else order.total
-        val isDepositOrder = order.paymentMode == Order.PaymentMode.DEPOSIT
-        val isDepositPaid = isDepositOrder && (
-            order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                order.isPaid || order.isDepositPaid
-            )
-        val remainingAfterDeposit = order.remainAmount.takeIf { it > 0L }
-            ?: (total - order.depositAmount).coerceAtLeast(0L)
-        val amountDue = if (isDepositPaid) remainingAfterDeposit else order.depositAmount
-        val totalDetail = if (isDepositOrder) {
-            val depositLabel = if (isDepositPaid) "Tiền cọc đã trả" else "Tiền cọc cần thanh toán"
-            "Tổng tiền hóa đơn: ${total.toVndCurrency()}\n$depositLabel: ${order.depositAmount.toVndCurrency()}\nSố tiền cần thanh toán: ${amountDue.toVndCurrency()}"
-        } else {
-            "Tổng tiền hóa đơn: ${total.toVndCurrency()}\nSố tiền cần thanh toán: ${total.toVndCurrency()}"
-        }
         val dishes = if (order.items.isNotEmpty()) {
             order.items.values.joinToString("\n") { "• ${it.quantity}x ${it.name}" }
         } else {
             "• 1x Suất ăn tiêu chuẩn"
         }
-        val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-            order.isPaid || order.isDepositPaid
-        val payDetail = when {
-            isDepositOrder && isDepositPaid ->
-                "✅ Đã nhận cọc ${order.depositAmount.toVndCurrency()}"
-            isDepositOrder ->
-                "⏳ Chưa nhận cọc ${order.depositAmount.toVndCurrency()} • Chờ khách thanh toán cọc"
-            order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) ->
-                if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo" else "⏳ Chờ khách chuyển khoản Ví MoMo"
-            order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) ->
-                "✅ Đã thanh toán Ngân hàng (VietQR)"
+        val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val payDetail = when (order.paymentMethod.uppercase()) {
+            Order.PaymentMethod.MOMO -> if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo" else "⏳ Chờ khách chuyển khoản Ví MoMo"
+            Order.PaymentMethod.BANKING -> "✅ Đã thanh toán Ngân hàng (VietQR)"
             else -> "💵 Thu tiền mặt khi nhận (COD)"
         }
-        val refundDetail = when (order.refundStatus) {
-            Order.RefundStatus.PENDING_INFO ->
-                "\nHoàn tiền: CHỜ khách cung cấp thông tin nhận • ${order.refundAmount.toVndCurrency()}"
-            Order.RefundStatus.PENDING_REFUND ->
-                "\nHoàn tiền: CHỜ quán chuyển khoản • ${order.refundAmount.toVndCurrency()}\nNội dung chuyển khoản: ${refundTransferContent(order)}"
-            Order.RefundStatus.REFUNDED -> "\nSePay đã ghi nhận hoàn tiền • ${order.refundAmount.toVndCurrency()}"
-            Order.RefundStatus.NOT_REQUIRED -> "\nHoàn tiền: Không cần hoàn"
-            else -> ""
-        }
 
-        val dialog = AlertDialog.Builder(requireContext())
-            .setTitle("📋 Đơn Hàng #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)}")
-            .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\n$totalDetail\nThanh toán: $payDetail\nTrạng thái: ${order.status}$refundDetail")
-            .setNegativeButton("Đóng", null)
-
-        val canCancelByStore = order.effectiveStoreId == currentStoreId && (
-            order.status == Order.Status.PENDING ||
-                order.status == Order.Status.PREPARING ||
-                (order.status == Order.Status.READY && order.shipperId.isNullOrBlank() && order.driverId.isNullOrBlank())
-            )
-        when {
-            canCancelByStore -> dialog.setPositiveButton("Hủy đơn") { _, _ ->
-                promptStoreOrderCancellation(order)
-            }
-            order.status == Order.Status.CANCELLED &&
-                order.refundStatus in setOf(Order.RefundStatus.PENDING_INFO, Order.RefundStatus.PENDING_REFUND) &&
-                order.effectiveStoreId == currentStoreId -> dialog.setPositiveButton(
-                    "Kiểm tra / tạo mã QR hoàn tiền"
-                ) { _, _ ->
-                showRefundTransferDetails(order)
-            }
-            order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) &&
-            !isPaidOnline &&
-            order.status == Order.Status.AWAITING_PAYMENT -> dialog.setPositiveButton("Xác nhận đã nhận tiền") { _, _ ->
-                confirmMomoPayment(order)
-            }
-        }
-        dialog.show()
-    }
-
-    private fun promptStoreOrderCancellation(order: Order) {
-        val dialogBinding = DialogStoreCancelOrderBinding.inflate(layoutInflater)
-        val reasons = resources.getStringArray(R.array.store_cancel_reasons)
-        val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-            order.isPaid || order.isDepositPaid
-        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-        dialogBinding.tvCancelOrderCode.text = getString(R.string.store_cancel_order_code, shortCode)
-        dialogBinding.tvCancelPaymentNotice.text = if (isPaid) {
-            getString(R.string.store_cancel_paid_notice, getRefundAmount(order).toVndCurrency())
-        } else {
-            getString(R.string.store_cancel_unpaid_notice)
-        }
-        if (!isPaid) {
-            dialogBinding.tvCancelPaymentNotice.setTextColor(
-                ContextCompat.getColor(requireContext(), R.color.text_secondary)
-            )
-        }
-
-        dialogBinding.actvCancelReason.setAdapter(
-            ArrayAdapter(requireContext(), R.layout.item_store_cancel_reason, reasons)
-        )
-        dialogBinding.actvCancelReason.setText(reasons.first(), false)
-        dialogBinding.actvCancelReason.setOnItemClickListener { _, _, position, _ ->
-            val isCustomReason = position == reasons.lastIndex
-            dialogBinding.tilCustomCancelReason.visibility = if (isCustomReason) View.VISIBLE else View.GONE
-            dialogBinding.tilCancelReason.error = null
-            if (isCustomReason) dialogBinding.etCustomCancelReason.requestFocus()
-        }
-        dialogBinding.etCustomCancelReason.doAfterTextChanged {
-            dialogBinding.tilCustomCancelReason.error = null
-        }
-
-        val confirmation = AlertDialog.Builder(requireContext())
-            .setView(dialogBinding.root)
-            .create()
-
-        dialogBinding.btnCancelStoreCancellation.setOnClickListener { confirmation.dismiss() }
-        dialogBinding.btnConfirmStoreCancellation.setOnClickListener {
-            val selectedReason = dialogBinding.actvCancelReason.text?.toString()?.trim().orEmpty()
-            val reasonIndex = reasons.indexOf(selectedReason)
-            if (reasonIndex <= 0) {
-                dialogBinding.tilCancelReason.error = getString(R.string.store_cancel_reason_required)
-                return@setOnClickListener
-            }
-            val reason = if (reasonIndex == reasons.lastIndex) {
-                val customReason = dialogBinding.etCustomCancelReason.text?.toString()?.trim().orEmpty()
-                if (customReason.isEmpty()) {
-                    dialogBinding.tilCustomCancelReason.error =
-                        getString(R.string.store_cancel_custom_reason_required)
-                    return@setOnClickListener
-                }
-                customReason
-            } else {
-                selectedReason
-            }
-            confirmation.dismiss()
-            viewModel.cancelOrderByStore(order.orderId, currentStoreId, reason) { success, message ->
-                if (isAdded) {
-                    Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
-                    val refundAmount = getRefundAmount(order)
-                    if (success && refundAmount > 0) {
-                        showRefundTransferDetails(
-                            order.copy(
-                                status = Order.Status.CANCELLED,
-                                orderStatus = Order.Status.CANCELLED,
-                                refundStatus = Order.RefundStatus.PENDING_INFO,
-                                refundAmount = refundAmount,
-                                refundReference = order.orderId,
-                                refundReason = reason
-                            )
-                        )
-                    }
-                }
-            }
-        }
-        confirmation.setOnShowListener {
-            confirmation.window?.setBackgroundDrawableResource(android.R.color.transparent)
-            val width = (resources.displayMetrics.widthPixels -
-                (32 * resources.displayMetrics.density).toInt()).coerceAtLeast(0)
-            confirmation.window?.apply {
-                setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setGravity(Gravity.CENTER)
-            }
-        }
-        confirmation.show()
-    }
-
-    /**
-     * Tên chức năng: Lấy thông tin tài khoản ngân hàng hoàn tiền của Khách
-     * Cách hoạt động:
-     *   1. Kiểm tra đơn có trạng thái PENDING_REFUND (khách đã cung cấp STK nhận hoàn)
-     *   2. Đọc node Firebase: refund_payment_details/{orderId}/customerProvided
-     *   3. Nếu đủ thông tin → gọi showRefundTransferQr() để tạo mã QR chuyển tiền hoàn
-     * Luồng hướng tới: Quán ăn → nhấn "Hoàn tiền" → quét QR → chuyển khoản → SePay ghi nhận
-     */
-    private fun showRefundTransferDetails(order: Order) {
-        val database = FirebaseDatabase.getInstance()
-        val orderRef = database.getReference("orders").child(order.orderId)
-        val detailsRef = database.getReference("refund_payment_details")
-            .child(order.orderId)
-            .child("customerProvided")
-        Tasks.whenAllSuccess<DataSnapshot>(orderRef.get(), detailsRef.get())
-            .addOnSuccessListener results@{ snapshots ->
-                if (!isAdded) return@results
-                val orderSnapshot = snapshots[0]
-                val customerDetails = snapshots[1]
-                val latestOrder = orderSnapshot.getValue(Order::class.java)
-                if (latestOrder == null ||
-                    latestOrder.status != Order.Status.CANCELLED ||
-                    latestOrder.effectiveStoreId != currentStoreId
-                ) {
-                    Toast.makeText(requireContext(), "Không tải được đơn hàng để kiểm tra hoàn tiền.", Toast.LENGTH_LONG).show()
-                    return@results
-                }
-
-                val bankName = customerDetails.child("bankName").getValue(String::class.java).orEmpty()
-                val bankBin = customerDetails.child("bankBin").getValue(String::class.java).orEmpty()
-                val accountNumber = customerDetails.child("accountNumber").getValue(String::class.java).orEmpty()
-                val accountHolder = customerDetails.child("accountHolder").getValue(String::class.java).orEmpty()
-                if (bankName.isBlank() || bankBin.isBlank() || accountNumber.isBlank() || accountHolder.isBlank()) {
-                    val waitingForCustomer = latestOrder.refundStatus == Order.RefundStatus.PENDING_INFO
-                    AlertDialog.Builder(requireContext())
-                        .setTitle(if (waitingForCustomer) "Chờ khách cung cấp thông tin" else "Chưa tải đủ thông tin nhận hoàn")
-                        .setMessage(
-                            if (waitingForCustomer) {
-                                "Đơn hàng đã hủy. Khách cần nhập tài khoản nhận hoàn trước khi quán tạo mã QR chuyển tiền."
-                            } else {
-                                "Khách đã gửi thông tin nhưng dữ liệu chưa đầy đủ. Hãy kiểm tra lại sau."
-                            }
-                        )
-                        .setPositiveButton("Đóng", null)
-                        .show()
-                    return@results
-                }
-
-                val orderForRefund = latestOrder.copy(refundStatus = Order.RefundStatus.PENDING_REFUND)
-                if (latestOrder.refundStatus != Order.RefundStatus.PENDING_REFUND) {
-                    orderRef.child("refundStatus").setValue(Order.RefundStatus.PENDING_REFUND)
-                        .addOnFailureListener {
-                            if (isAdded) {
-                                Toast.makeText(
-                                    requireContext(),
-                                    "Không đồng bộ được trạng thái hoàn tiền; hãy kiểm tra kết nối sau khi chuyển khoản.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                }
-                showRefundTransferQr(orderForRefund, bankName, bankBin, accountNumber, accountHolder)
-            }
-            .addOnFailureListener {
-                if (isAdded) {
-                    Toast.makeText(
-                        requireContext(),
-                        "Không tải được trạng thái hoặc thông tin nhận hoàn. Hãy kiểm tra kết nối hoặc quyền truy cập.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-    }
-
-    /**
-     * Tên chức năng: Hiển thị mã QR VietQR để hoàn tiền cho Khách
-     * Cách hoạt động:
-     *   1. Tạo nội dung chuyển khoản hoàn tiền (refundTransferContent)
-     *   2. Ghép URL VietQR từ BIN ngân hàng + STK của Khách
-     *   3. Hiển thị Dialog có ảnh QR + thông tin chi tiết
-     *   4. Dùng Glide tải ảnh QR từ api.vietqr.io
-     * Luồng hướng tới: Quán quét QR → chuyển khoản → SePay ghi nhận vào refund_transactions
-     */
-    private fun showRefundTransferQr(
-        order: Order,
-        bankName: String,
-        bankBin: String,
-        accountNumber: String,
-        accountHolder: String,
-    ) {
-        // Kiểm tra số tiền hoàn hợp lệ (> 0) trước khi tạo QR
-        if (order.refundAmount <= 0L) {
-            Toast.makeText(requireContext(), "Số tiền hoàn không hợp lệ nên không thể tạo mã QR.", Toast.LENGTH_LONG).show()
-            return
-        }
-        // Lấy tổng hóa đơn thực tế (ưu tiên totalPayment, fallback total)
-        val invoiceTotal = order.totalPayment.takeIf { it > 0 } ?: order.total
-        // Tạo nội dung chuyển khoản hoàn tiền (không dấu, dạng: "OishiFood HT OI... huy don")
-        val memo = refundTransferContent(order)
-        // Ghép URL VietQR: api.vietqr.io/image/{BIN}-{STK}-{template}.jpg?amount=...&addInfo=...&accountName=...
-        // - BIN: mã định danh ngân hàng (6 chữ số) của tài khoản KHÁCH nhận hoàn
-        // - accountNumber: STK của Khách (do khách nhập trên app-customer)
-        // - amount: số tiền hoàn (VNĐ)
-        // - addInfo: nội dung CK để SePay nhận diện đây là giao dịch hoàn tiền
-        val qrUrl = "https://api.vietqr.io/image/$bankBin-$accountNumber-qLrkX2P.jpg" +
-            "?amount=${order.refundAmount}&addInfo=${Uri.encode(memo)}&accountName=${Uri.encode(accountHolder)}"
-        val details = buildString {
-            append("Tên khách hàng: ${order.customerName.ifBlank { "Chưa có dữ liệu" }}")
-            append("\nSố tài khoản nhận: $accountNumber")
-            append("\nNgân hàng nhận: $bankName")
-            append("\nSố tiền hoàn: ${order.refundAmount.toVndCurrency()}")
-            append("\nTổng hóa đơn: ${invoiceTotal.toVndCurrency()}")
-            append("\nLý do hoàn: ${order.refundReason.ifBlank { order.cancelReason.ifBlank { "Không có lý do" } }}")
-            append("\nNội dung chuyển khoản: $memo")
-        }
-        val density = resources.displayMetrics.density
-        val content = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding((20 * density).toInt(), 0, (20 * density).toInt(), (12 * density).toInt())
-        }
-        val qrImage = ImageView(requireContext()).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                (280 * density).toInt(),
-                (280 * density).toInt()
-            )
-            contentDescription = "Mã QR chuyển khoản hoàn tiền"
-            scaleType = ImageView.ScaleType.FIT_CENTER
-        }
-        content.addView(qrImage)
-        content.addView(TextView(requireContext()).apply {
-            text = "$details\n\nQuét mã bằng ứng dụng ngân hàng và kiểm tra đúng người nhận, số tiền trước khi chuyển."
-            setPadding(0, (8 * density).toInt(), 0, 0)
-        })
         AlertDialog.Builder(requireContext())
-            .setTitle("Quét mã để hoàn tiền")
-            .setView(content)
+            .setTitle("📋 Đơn Hàng #${order.orderId.takeLast(6).uppercase()}")
+            .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\nTổng thanh toán: ${total.toVndCurrency()}\nThanh toán: $payDetail\nTrạng thái: ${order.status}")
             .setPositiveButton("Đóng", null)
-            .show()
-        Glide.with(this)
-            .load(qrUrl)
-            .listener(object : RequestListener<Drawable> {
-                override fun onLoadFailed(
-                    e: GlideException?,
-                    model: Any?,
-                    target: Target<Drawable>,
-                    isFirstResource: Boolean
-                ): Boolean {
-                    if (isAdded) {
-                        Toast.makeText(requireContext(), "Không tải được mã QR. Kiểm tra kết nối rồi thử lại.", Toast.LENGTH_LONG).show()
-                    }
-                    return false
-                }
-
-                override fun onResourceReady(
-                    resource: Drawable,
-                    model: Any,
-                    target: Target<Drawable>?,
-                    dataSource: com.bumptech.glide.load.DataSource,
-                    isFirstResource: Boolean
-                ): Boolean = false
-            })
-            .into(qrImage)
-    }
-
-    private fun refundTransferContent(order: Order): String {
-        val orderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-            .ifBlank { order.orderId.trim() }
-        return "Hoàn tiền $orderCode"
-    }
-
-    private fun getRefundAmount(order: Order): Long {
-        val paid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-            order.isPaid || order.isDepositPaid
-        if (!paid) return 0L
-        return if (order.paymentMode == Order.PaymentMode.DEPOSIT) {
-            order.depositAmount
-        } else {
-            order.totalPayment.takeIf { it > 0 } ?: order.total
-        }
-    }
-
-    /**
-     * Tên chức năng: Quán xác nhận thủ công đã nhận tiền MoMo
-     * Cách hoạt động:
-     *   - Dùng khi SePay không tự ghi nhận được (ví dụ: khách chuyển qua app MoMo tới MoMo)
-     *   - Quán kiểm tra lịch sử giao dịch MoMo thực tế, rồi nhấn "Đã nhận tiền"
-     *   - Ghi trực tiếp lên Firebase: paymentStatus=PAID, status=PENDING
-     * Chú ý: Nếu SePay đã tự động ghi nhận (webhook hoạt động tốt), hàm này không cần thiết.
-     */
-    private fun confirmMomoPayment(order: Order) {
-        // Kiểm tra bảo vệ: chỉ cho phép xác nhận nếu đúng quán, đúng phương thức MOMO,
-        // chưa PAID và đang chờ thanh toán (AWAITING_PAYMENT)
-        if (
-            currentStoreId.isBlank() ||
-            (order.storeId.ifBlank { order.shopId }) != currentStoreId ||
-            !order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) ||
-            order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-            order.status != Order.Status.AWAITING_PAYMENT
-        ) {
-            Toast.makeText(requireContext(), "Đơn MoMo không còn ở trạng thái chờ xác nhận.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // Hiển thị dialog xác nhận — yêu cầu quán kiểm tra thực tế trước khi bấm
-        AlertDialog.Builder(requireContext())
-            .setTitle("Xác nhận đã nhận thanh toán?")
-            .setMessage("Chỉ xác nhận khi đã kiểm tra giao dịch MoMo thực tế và số tiền khớp với đơn hàng.")
-            .setNegativeButton("Kiểm tra lại", null)
-            .setPositiveButton("Đã nhận tiền") { _, _ ->
-                // Chuẩn bị map cập nhật Firebase (tương tự SePay worker)
-                val updates = mutableMapOf<String, Any>(
-                    "paymentStatus" to Order.PaymentStatus.PAID, // Đánh dấu đã thanh toán
-                    "paidAt" to System.currentTimeMillis(),       // Thời điểm xác nhận (Unix ms)
-                    "status" to Order.Status.PENDING,            // Chuyển đơn vào hàng đợi
-                    "orderStatus" to Order.Status.PENDING         // Đồng bộ field legacy
-                )
-                // Phân biệt chế độ DEPOSIT (cọc 20%) và thanh toán toàn bộ
-                if (order.paymentMode == Order.PaymentMode.DEPOSIT) {
-                    updates["isDepositPaid"] = true  // Đã cọc 20%
-                } else {
-                    updates["isPaid"] = true           // Đã thanh toán 100%
-                }
-
-                // Ghi cập nhật lên Firebase Realtime Database node orders/{orderId}
-                FirebaseDatabase.getInstance()
-                    .getReference("orders")
-                    .child(order.orderId)         // Chọn đúng node đơn hàng
-                    .updateChildren(updates)      // Partial update (chỉ ghi các field thay đổi)
-                    .addOnSuccessListener {
-                        if (isAdded) {
-                            Toast.makeText(requireContext(), "Đã xác nhận thanh toán MoMo.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                    .addOnFailureListener { error ->
-                        // Lỗi mạng hoặc quyền Firebase → thông báo lý do thất bại
-                        if (isAdded) {
-                            Toast.makeText(
-                                requireContext(),
-                                "Không thể xác nhận thanh toán: ${error.message ?: "lỗi Firebase"}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-            }
             .show()
     }
 
@@ -101267,7 +99818,7 @@ class OrderListFragment : Fragment() {
         val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Chưa cập nhật địa chỉ" } }
         val driver = order.shipperName.ifBlank { "Chưa có tài xế" }
         val driverPhone = order.shipperPhone.ifBlank { "" }
-        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
+        val shortCode = order.orderId.takeLast(6).uppercase()
 
         tvSubHeader.text = "#ORD_OISHI_$shortCode • Ghi nhận hệ thống"
 
@@ -107620,14 +106171,14 @@ data class Order(
     @SerializedName("paymentStatus")
     var paymentStatus: String = PaymentStatus.UNPAID,
 
-    @SerializedName("paymentReference")
-    val paymentReference: String = "",
-
-    @SerializedName("sepayTransactionId")
-    var sepayTransactionId: String = "",
-
     @SerializedName("paidAt")
     var paidAt: Long? = null,
+
+    @SerializedName("momoOrderId")
+    var momoOrderId: String = "",
+
+    @SerializedName("momoRequestId")
+    var momoRequestId: String = "",
 
     @SerializedName("status")
     var status: String = Status.PENDING,
@@ -107664,36 +106215,6 @@ data class Order(
 
     @SerializedName("cancelReason")
     val cancelReason: String = "",
-
-    @SerializedName("cancelledBy")
-    val cancelledBy: String = "",
-
-    @SerializedName("cancelledAt")
-    val cancelledAt: Long? = null,
-
-    @SerializedName("refundStatus")
-    val refundStatus: String = RefundStatus.NONE,
-
-    @SerializedName("refundAmount")
-    val refundAmount: Long = 0,
-
-    @SerializedName("refundReference")
-    val refundReference: String = "",
-
-    @SerializedName("refundReason")
-    val refundReason: String = "",
-
-    @SerializedName("refundRequestedAt")
-    val refundRequestedAt: Long? = null,
-
-    @SerializedName("refundedAt")
-    val refundedAt: Long? = null,
-
-    @SerializedName("refundTransactionId")
-    val refundTransactionId: String = "",
-
-    @SerializedName("refundedBy")
-    val refundedBy: String = "",
 
     @SerializedName("riskReason")
     val riskReason: String = "",
@@ -107745,9 +106266,7 @@ data class Order(
 
     @get:Exclude
     val orderCode: String
-        get() = if (orderId.isNotBlank()) {
-            "#ORD_OISHI_${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}"
-        } else ""
+        get() = if (orderId.isNotBlank()) "#ORD_OISHI_${orderId.takeLast(6).uppercase()}" else ""
 
     /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
     object Status {
@@ -107801,14 +106320,6 @@ data class Order(
     object PaymentStatus {
         const val UNPAID = "UNPAID"
         const val PAID = "PAID"
-    }
-
-    object RefundStatus {
-        const val NONE = "NONE"
-        const val NOT_REQUIRED = "NOT_REQUIRED"
-        const val PENDING_INFO = "PENDING_INFO"
-        const val PENDING_REFUND = "PENDING_REFUND"
-        const val REFUNDED = "REFUNDED"
     }
 }
 
@@ -108812,7 +107323,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.ImageView
 import android.widget.EditText
@@ -108953,7 +107463,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupUI() {
-        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)
+        val shortCode = if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
         binding.tvHeaderOrderCode.text = "#ORD_$shortCode"
         binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Quán đang kiểm tra món ăn"
         val tokenText = "TOKEN_OISHI_$shortCode"
@@ -109041,7 +107551,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         if (itemsList.isEmpty()) {
             val state = DishRatingState(
                 dishId = "general_${currentOrderId}",
-                dishName = "Đơn món ăn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)}",
+                dishName = "Đơn món ăn #${currentOrderId.takeLast(6).uppercase()}",
                 specText = "Đã giao thành công",
                 rating = 5
             )
@@ -109386,7 +107896,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun updateStatusStep(status: String) {
-        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)
+        val shortCode = currentOrderId.takeLast(6).uppercase()
         val primaryColor = ContextCompat.getColor(this, R.color.primary)
         val mutedColor = ContextCompat.getColor(this, R.color.text_secondary)
         val greenColor = ContextCompat.getColor(this, R.color.status_completed)
@@ -109561,39 +108071,19 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             Order.Status.CANCELLED, Order.Status.BOOM -> {
-                val isCancelledByMerchant = currentOrder?.cancelledBy.equals("MERCHANT", ignoreCase = true) ||
-                    currentOrder?.cancelledBy.equals("STORE", ignoreCase = true) ||
-                    currentOrder?.cancelReason.orEmpty().contains("Quán", ignoreCase = true)
-                val isBombed = status == Order.Status.BOOM ||
-                    currentOrder?.cancelReason.orEmpty().contains("bom", ignoreCase = true) ||
-                    currentOrder?.riskReason.orEmpty().contains("bom", ignoreCase = true)
-
                 binding.lblStatusIcon.text = "🚫"
-                if (isCancelledByMerchant) {
-                    binding.lblStatusHeadline.text = "Quán đã hủy đơn hàng"
-                    binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
-                    binding.lblStatusSub.text = "Rất tiếc, quán không thể thực hiện đơn hàng này"
-                    binding.lblDetailIcon.text = "ℹ️"
-                    val reasonText = currentOrder?.cancelReason?.ifBlank { "Quán không thể nhận đơn hoặc đã hết món." }
-                        ?: "Quán không thể nhận đơn hoặc đã hết món."
-                    binding.lblDetailDesc.text = reasonText
-                    binding.boxCustomerCancelledNotice.isVisible = false
-                    binding.boxWarningActiveOnOrder.isVisible = false
-                    binding.btnHeaderWarn.isVisible = false
-                } else {
-                    binding.lblStatusHeadline.text = if (isBombed) "Đơn hàng đã bị hủy (Bom hàng)" else "Đơn hàng đã bị hủy"
-                    binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
-                    binding.lblStatusSub.text = if (isBombed) "Đơn hàng gặp sự cố không nhận món" else "Đơn hàng đã bị hủy"
-                    binding.lblDetailIcon.text = "⚠️"
-                    val reasonText = currentOrder?.cancelReason?.ifBlank { null }
-                        ?: currentOrder?.riskReason?.ifBlank { null }
-                        ?: "Đơn hàng đã chính thức bị hủy. Tiền món đang được xử lý hoàn trả theo chính sách Oishi Food."
-                    binding.lblDetailDesc.text = reasonText
-                    binding.boxCustomerCancelledNotice.isVisible = true
-                    binding.lblCancelReason.text = "Lý do: $reasonText"
-                    binding.boxWarningActiveOnOrder.isVisible = false
-                    binding.btnHeaderWarn.isVisible = isBombed
-                }
+                binding.lblStatusHeadline.text = "Đơn hàng đã bị hủy"
+                binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
+                binding.lblStatusSub.text = "Đơn hàng gặp sự cố giao hàng hoặc bom hàng"
+                binding.lblDetailIcon.text = "⚠️"
+                val reasonText = currentOrder?.cancelReason?.ifBlank { null }
+                    ?: currentOrder?.riskReason?.ifBlank { null }
+                    ?: "Đơn hàng đã chính thức bị hủy. Tiền món đang được xử lý hoàn trả theo chính sách Oishi Food."
+                binding.lblDetailDesc.text = reasonText
+                binding.boxCustomerCancelledNotice.isVisible = true
+                binding.lblCancelReason.text = "Lý do: $reasonText"
+                binding.boxWarningActiveOnOrder.isVisible = false
+                binding.btnHeaderWarn.isVisible = true
                 binding.ratingCard.isVisible = false
                 binding.qrCodeWrapper.isVisible = false
                 binding.tokenPill.isVisible = false
@@ -109698,41 +108188,29 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         if (order.items.isNotEmpty()) {
             for ((_, item) in order.items) {
+                val rowView = LayoutInflater.from(this).inflate(
+                    android.R.layout.simple_list_item_2,
+                    container,
+                    false
+                )
+                val text1 = rowView.findViewById<TextView>(android.R.id.text1)
+                val text2 = rowView.findViewById<TextView>(android.R.id.text2)
+
+                text1.text = "${item.quantity}x ${item.name}"
+                text1.textSize = 12f
+                text1.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+
                 val subtotal = if (item.itemSubtotal > 0) item.itemSubtotal else item.price * item.quantity
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply {
-                        bottomMargin = (6 * resources.displayMetrics.density).toInt()
-                    }
-                }
-                val itemName = TextView(this).apply {
-                    text = "${item.quantity}x ${item.name}"
-                    textSize = 12f
-                    setTextColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_primary))
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                }
-                val itemPrice = TextView(this).apply {
-                    text = subtotal.toVndCurrency()
-                    textSize = 12f
-                    setTextColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_primary))
-                    gravity = android.view.Gravity.END
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-                }
-                row.addView(itemName)
-                row.addView(itemPrice)
-                container.addView(row)
+                text2.text = subtotal.toVndCurrency()
+                text2.textSize = 12f
+                text2.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+
+                container.addView(rowView)
             }
         } else {
             // Hiển thị fallback nếu đơn không có item danh sách con
             val fallbackTv = TextView(this).apply {
-                text = "1x Đơn món ăn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)}"
+                text = "1x Đơn món ăn #${currentOrderId.takeLast(6).uppercase()}"
                 textSize = 12f
                 setTextColor(ContextCompat.getColor(context, R.color.text_primary))
             }
@@ -109742,10 +108220,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Phí giao hàng
         val shippingFee = if (order.shippingFee > 0) order.shippingFee else 15000L
         binding.txtShippingFee.text = shippingFee.toVndCurrency()
-        binding.llDiscountRow.visibility = if (order.discount > 0L) View.VISIBLE else View.GONE
-        if (order.discount > 0L) {
-            binding.txtDiscount.text = "-${order.discount.toVndCurrency()}"
-        }
 
         // Tổng tiền
         val totalAmount = if (order.totalPayment > 0) order.totalPayment else if (order.total > 0) order.total else 50000L
@@ -109753,22 +108227,9 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Hình thức thanh toán
         val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
-        val depositPaymentText = if (isPaid && order.paymentMode == Order.PaymentMode.DEPOSIT) {
-            "Đã cọc ${order.depositAmount.toVndCurrency()} • Còn thu ${order.remainAmount.toVndCurrency()}"
-        } else {
-            ""
-        }
         val payMethodStr = when (order.paymentMethod.uppercase()) {
-            Order.PaymentMethod.MOMO -> if (isPaid) {
-                if (depositPaymentText.isNotBlank()) "Ví MoMo ($depositPaymentText)" else "Ví điện tử MoMo (Đã chuyển khoản)"
-            } else {
-                "Ví điện tử MoMo (Chờ chuyển khoản)"
-            }
-            Order.PaymentMethod.BANKING -> if (depositPaymentText.isNotBlank()) {
-                "Chuyển khoản Ngân hàng ($depositPaymentText)"
-            } else {
-                "Chuyển khoản Ngân hàng (Đã thanh toán)"
-            }
+            Order.PaymentMethod.MOMO -> if (isPaid) "Ví điện tử MoMo (Đã chuyển khoản)" else "Ví điện tử MoMo (Chờ chuyển khoản)"
+            Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
             else -> "Tiền mặt khi nhận món (COD)"
         }
         binding.txtB9PayMode.text = "💳 Hình thức: $payMethodStr"
@@ -112740,7 +111201,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -112838,16 +111298,13 @@ class FirebaseRepository @Inject constructor(
 
     /**
      * Tạo đơn hàng mới
-     * Bank-transfer orders (VietQR and MoMo QR) use an uppercase ID for reconciliation.
+     * API Contract: POST orders/ (SDK push)
      * Auth: Phải có Role CUSTOMER
      */
     suspend fun createOrder(order: Order): Result<String> {
         return try {
-            val ordersRef = database.getReference("orders")
-            val usesBankTransfer = order.paymentMethod == Order.PaymentMethod.BANKING ||
-                order.paymentMethod == Order.PaymentMethod.MOMO
-            var orderId = generateShortOrderId()
-            var ref = ordersRef.child(orderId)
+            val ref = database.getReference("orders").push()
+            val orderId = ref.key ?: return Result.failure(Exception("Không tạo được order ID"))
 
             val now = System.currentTimeMillis()
             val targetStoreId = order.storeId.ifBlank { order.shopId }
@@ -112877,7 +111334,7 @@ class FirebaseRepository @Inject constructor(
                 } catch (_: Exception) {}
             }
 
-            var orderWithId = order.copy(
+            val orderWithId = order.copy(
                 orderId = orderId,
                 storeId = targetStoreId,
                 shopId = targetStoreId,
@@ -112890,58 +111347,16 @@ class FirebaseRepository @Inject constructor(
                 total = targetTotal,
                 status = targetStatus,
                 orderStatus = targetStatus,
-                paymentReference = if (usesBankTransfer) {
-                    orderId
-                } else {
-                    order.paymentReference
-                },
                 createdAt = targetTimestamp,
                 timestamp = targetTimestamp
             )
-            var attempts = 0
-            while (!writeOrderIfAbsent(ref, orderWithId)) {
-                if (++attempts >= 8) {
-                    throw IllegalStateException("Không tạo được mã đơn duy nhất sau nhiều lần thử.")
-                }
-                orderId = generateShortOrderId()
-                ref = ordersRef.child(orderId)
-                orderWithId = orderWithId.copy(
-                    orderId = orderId,
-                    paymentReference = if (usesBankTransfer) orderId else order.paymentReference
-                )
-            }
+            // Ghi tức thời vào cache cục bộ + đẩy qua WebSocket không chặn UI bởi độ trễ ACK
+            ref.setValue(orderWithId)
 
             Result.success(orderId)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
-
-    private fun generateShortOrderId(): String =
-        "OI${UUID.randomUUID().toString().replace("-", "").takeLast(8).uppercase()}"
-
-    private suspend fun writeOrderIfAbsent(
-        orderRef: com.google.firebase.database.DatabaseReference,
-        order: Order
-    ): Boolean {
-        val result = kotlinx.coroutines.CompletableDeferred<Boolean>()
-        orderRef.runTransaction(object : Transaction.Handler {
-            override fun doTransaction(currentData: MutableData): Transaction.Result {
-                if (currentData.value != null) return Transaction.abort()
-                currentData.value = order
-                return Transaction.success(currentData)
-            }
-
-            override fun onComplete(
-                error: DatabaseError?,
-                committed: Boolean,
-                currentData: DataSnapshot?
-            ) {
-                if (error != null) result.completeExceptionally(error.toException())
-                else result.complete(committed)
-            }
-        }, false)
-        return result.await()
     }
 
     /** Lắng nghe tất cả đơn hàng (dùng cho Shop Dashboard) */
@@ -113100,123 +111515,6 @@ class FirebaseRepository @Inject constructor(
         })
     }
 
-    fun cancelOrderByStore(
-        orderId: String,
-        storeId: String,
-        reason: String,
-        onResult: (Boolean, String) -> Unit
-    ) {
-        // Không chạy transaction nếu thiếu khóa đơn, cửa hàng hoặc lý do hủy.
-        if (orderId.isBlank() || storeId.isBlank() || reason.isBlank()) {
-            onResult(false, "Thiếu thông tin đơn hàng hoặc lý do hủy.")
-            return
-        }
-
-        // Transaction kiểm tra và cập nhật cùng lúc để hai thao tác đồng thời không hủy sai đơn/trạng thái.
-        database.getReference("orders").child(orderId).runTransaction(object : Transaction.Handler {
-            override fun doTransaction(currentData: MutableData): Transaction.Result {
-                // Đơn không còn trong DB thì hủy transaction, không tạo dữ liệu mới.
-                if (currentData.value == null) return Transaction.abort()
-                // Hỗ trợ cấu trúc mới dùng storeId và dữ liệu cũ dùng shopId.
-                val orderStoreId = currentData.child("storeId").getValue(String::class.java)
-                    .orEmpty()
-                    .ifBlank { currentData.child("shopId").getValue(String::class.java).orEmpty() }
-                // Đọc trạng thái chuẩn; orderStatus là field dự phòng cho dữ liệu cũ.
-                val status = currentData.child("status").getValue(String::class.java)
-                    .orEmpty()
-                    .ifBlank { currentData.child("orderStatus").getValue(String::class.java).orEmpty() }
-                // Chỉ các trạng thái này có thể bị quán hủy; READY không hủy nếu shipper đã được gán.
-                val cancellableStatuses = setOf(
-                    Order.Status.PENDING,
-                    Order.Status.PREPARING,
-                    Order.Status.READY
-                )
-                // Tương thích cả tên shipperId và driverId ở các phiên bản dữ liệu khác nhau.
-                val assignedDriver = currentData.child("shipperId").getValue(String::class.java)
-                    .orEmpty()
-                    .ifBlank { currentData.child("driverId").getValue(String::class.java).orEmpty() }
-                // Chặn cửa hàng khác hủy, trạng thái không hợp lệ, hoặc đơn READY đã có shipper.
-                if (
-                    orderStoreId != storeId ||
-                    status !in cancellableStatuses ||
-                    (status == Order.Status.READY && assignedDriver.isNotBlank())
-                ) {
-                    return Transaction.abort()
-                }
-
-                // Xác định đã nhận tiền từ trạng thái chuẩn hoặc các cờ thanh toán cũ.
-                val paymentStatus = currentData.child("paymentStatus").getValue(String::class.java).orEmpty()
-                val isPaid = paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                    currentData.child("isPaid").getValue(Boolean::class.java) == true ||
-                    currentData.child("isDepositPaid").getValue(Boolean::class.java) == true
-                // Hoàn theo đúng loại thanh toán: cọc chỉ hoàn khoản cọc; trả đủ hoàn tổng tiền đã thanh toán.
-                val paymentMode = currentData.child("paymentMode").getValue(String::class.java).orEmpty()
-                // Chỉ tạo yêu cầu hoàn nếu đơn đã nhận tiền: đơn DEPOSIT hoàn depositAmount, đơn thanh toán đủ hoàn totalPayment (dự phòng total).
-                // Đây chỉ là ghi metadata vào đơn, không gọi ngân hàng/SePay để chuyển tiền; nếu số tiền hoàn không hợp lệ thì hủy transaction.
-                val refundAmount = if (!isPaid) {
-                    0L
-                } else if (paymentMode == Order.PaymentMode.DEPOSIT) {
-                    currentData.child("depositAmount").getValue(Long::class.java) ?: 0L
-                } else {
-                    val totalPayment = currentData.child("totalPayment").getValue(Long::class.java) ?: 0L
-                    totalPayment.takeIf { it > 0L }
-                        ?: currentData.child("total").getValue(Long::class.java)
-                        ?: 0L
-                }
-                // Không đánh dấu đã hủy đơn đã trả tiền nếu không tính được số tiền hoàn dương.
-                if (isPaid && refundAmount <= 0L) return Transaction.abort()
-                // Dùng cùng thời điểm cho các field thời gian trong lần cập nhật này.
-                val now = System.currentTimeMillis()
-
-                // Lưu trạng thái hủy và lý do để cả màn hình mới/cũ đọc nhất quán.
-                currentData.child("status").value = Order.Status.CANCELLED
-                currentData.child("orderStatus").value = Order.Status.CANCELLED
-                currentData.child("cancelReason").value = reason.trim()
-                currentData.child("cancelledBy").value = "MERCHANT"
-                currentData.child("cancelledAt").value = now
-                // Có khoản cần hoàn thì đặt PENDING_INFO để luồng phía khách chờ thông tin nhận tiền;
-                // sau khi có thông tin, quán tạo QR/chuyển khoản hoàn và hệ thống cập nhật trạng thái ở luồng riêng.
-                // Chưa trả tiền thì không cần hoàn; đã trả thì chờ khách gửi thông tin nhận tiền.
-                currentData.child("refundStatus").value = if (refundAmount > 0) {
-                    Order.RefundStatus.PENDING_INFO
-                } else {
-                    Order.RefundStatus.NOT_REQUIRED
-                }
-                // Ghi số tiền/lý do cần hoàn để app khách và quán tiếp tục luồng hoàn tiền.
-                currentData.child("refundAmount").value = refundAmount
-                currentData.child("refundReason").value = reason.trim()
-                if (refundAmount > 0) {
-                    // Dùng mã đơn làm tham chiếu để Worker ghép webhook tiền ra với đúng đơn.
-                    currentData.child("refundReference").value =
-                        com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
-                }
-                // Không có yêu cầu hoàn thì bỏ thời điểm yêu cầu; luôn cập nhật thời điểm sửa đơn.
-                currentData.child("refundRequestedAt").value = if (refundAmount > 0) now else null
-                currentData.child("updatedAt").value = now
-                return Transaction.success(currentData)
-            }
-
-            override fun onComplete(error: DatabaseError?, committed: Boolean, snapshot: DataSnapshot?) {
-                // Chỉ báo thành công nếu Firebase commit transaction; phản hồi nêu rõ có cần hoàn tiền không.
-                if (committed) {
-                    val refundStatus = snapshot?.child("refundStatus")?.getValue(String::class.java)
-                    val refundAmount = snapshot?.child("refundAmount")?.getValue(Long::class.java) ?: 0L
-                    onResult(
-                        true,
-                        if (refundStatus == Order.RefundStatus.PENDING_INFO) {
-                            "Đã hủy đơn. Khách cần cung cấp thông tin nhận hoàn tiền."
-                        } else {
-                            "Đã hủy đơn. Đơn này không cần hoàn tiền."
-                        }
-                    )
-                } else {
-                    // Báo lỗi Firebase hoặc cho biết đơn không còn đủ điều kiện (ví dụ đã đổi trạng thái).
-                    onResult(false, error?.message ?: "Đơn không còn đủ điều kiện để quán hủy.")
-                }
-            }
-        }, false)
-    }
-
     /**
      * Shipper hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán)
      */
@@ -113318,7 +111616,7 @@ class FirebaseRepository @Inject constructor(
                         ?: userSnap?.child("trustScore")?.getValue(Long::class.java)
                         ?: 100L
 
-                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
+                    val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
                     val statsUpdates = mutableMapOf<String, Any>()
                     var scoreChange = 0
                     var logReason = ""
@@ -113618,19 +111916,15 @@ class FirebaseRepository @Inject constructor(
                     }
                 }
             }
-            // 2. Kiểm tra stores bằng index merchantId / ownerId (luôn đối chiếu đúng uid)
+            // 2. Kiểm tra stores bằng index merchantId / ownerId
             val byMerchant = try { database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await() } catch (_: Exception) { null }
-            val matchedMerchantKey = byMerchant?.children?.firstOrNull {
-                it.child("merchantId").getValue(String::class.java) == uid
-            }?.key
+            val matchedMerchantKey = byMerchant?.children?.firstOrNull { it.child("merchantId").getValue(String::class.java) == uid }?.key
             if (!matchedMerchantKey.isNullOrBlank()) {
                 try { database.getReference("users").child(uid).child("storeId").setValue(matchedMerchantKey) } catch (_: Exception) {}
                 return matchedMerchantKey
             }
             val byOwner = try { database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await() } catch (_: Exception) { null }
-            val matchedOwnerKey = byOwner?.children?.firstOrNull {
-                it.child("ownerId").getValue(String::class.java) == uid
-            }?.key
+            val matchedOwnerKey = byOwner?.children?.firstOrNull { it.child("ownerId").getValue(String::class.java) == uid }?.key
             if (!matchedOwnerKey.isNullOrBlank()) {
                 try { database.getReference("users").child(uid).child("storeId").setValue(matchedOwnerKey) } catch (_: Exception) {}
                 return matchedOwnerKey

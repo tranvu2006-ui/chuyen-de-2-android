@@ -249,17 +249,6 @@ class StoreProfileFragment : Fragment() {
         }
     }
 
-    private fun copyToClipboard(label: String, text: String) {
-        if (text.isBlank() || text == "Chưa có ID") {
-            Toast.makeText(requireContext(), "Chưa có $label để sao chép", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        val clip = android.content.ClipData.newPlainText(label, text)
-        clipboard.setPrimaryClip(clip)
-        Toast.makeText(requireContext(), "Đã sao chép $label: $text", Toast.LENGTH_SHORT).show()
-    }
-
     private fun displayStoreAvatar(avatarUrl: String) {
         if (avatarUrl.isNotBlank()) {
             binding.ivProfileStoreAvatar.visibility = View.VISIBLE
@@ -285,17 +274,6 @@ class StoreProfileFragment : Fragment() {
         displayStoreAvatar(store.effectiveImageUrl)
         binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
         binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
-
-        // Hiển thị ID Quán & gán sự kiện sao chép cho cấu hình SePay
-        val storeId = store.id.ifBlank { currentStoreId }.ifBlank { "Chưa có ID" }
-        binding.tvProfileStoreIdBadge.text = "ID: $storeId"
-        binding.tvProfileStoreIdBadge.setOnClickListener {
-            copyToClipboard("Mã quán (Store ID)", storeId)
-        }
-        binding.btnCopyStoreId.setOnClickListener {
-            copyToClipboard("Mã quán (Store ID)", storeId)
-        }
-
         binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
         binding.tvProfileCccd.text = store.cccdNumber.ifBlank { "Chưa cập nhật" }
         binding.tvProfilePhone.text = store.phone.ifBlank { "Chưa cập nhật" }

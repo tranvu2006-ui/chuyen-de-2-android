@@ -25,7 +25,6 @@ class OrderHistoryAdapter(
     private val onComplaintClick: (Order) -> Unit,
     private val onReorderClick: (Order) -> Unit,
     private val onViewProofClick: (Order) -> Unit,
-    private val onRefundDetailsClick: (Order) -> Unit,
     private val onCallClick: (String) -> Unit
 ) : ListAdapter<Order, OrderHistoryAdapter.OrderViewHolder>(DiffCallback) {
 
@@ -51,7 +50,7 @@ class OrderHistoryAdapter(
             val shopName = order.shopName.ifBlank { "Quán Ăn Oishi Food" }
             binding.tvShopName.text = shopName
 
-            val orderCode = "#ORD_OISHI_${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)}"
+            val orderCode = "#ORD_OISHI_${order.orderId.takeLast(6).uppercase()}"
             binding.tvOrderCodeMono.text = orderCode
 
             // Logo mini quán dạng emoji fallback
@@ -300,15 +299,7 @@ class OrderHistoryAdapter(
                         binding.tvAlertIcon.text = "✓"
                         binding.tvAlertTitle.text = "Đã nhận đơn"
                         binding.tvAlertCountdown.visibility = View.GONE
-                        binding.tvAlertMessage.text = if (
-                            order.paymentMode == Order.PaymentMode.DEPOSIT &&
-                            (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                                order.isDepositPaid)
-                        ) {
-                            "Quán đang chuẩn bị món. Bạn đã cọc ${order.depositAmount.toVndCurrency()}; còn ${order.remainAmount.toVndCurrency()} cần trả cho shipper khi giao."
-                        } else {
-                            "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
-                        }
+                        binding.tvAlertMessage.text = "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
 
                         binding.btnActionSecondary.visibility = View.VISIBLE
                         binding.btnActionSecondary.text = "📞 Gọi Quán"
@@ -458,56 +449,24 @@ class OrderHistoryAdapter(
                             }
                         }
                     } else {
-                        // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG HOẶC QUÁN HỦY
-                        val isCancelledByMerchant = order.cancelledBy.equals("MERCHANT", ignoreCase = true) ||
-                            order.cancelledBy.equals("STORE", ignoreCase = true) ||
-                            order.cancelReason.contains("Quán", ignoreCase = true)
-
-                        binding.tvOrderStatusBadge.text = if (isCancelledByMerchant) "✕ Quán đã hủy" else "✕ Đã bị hủy"
+                        // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG
+                        binding.tvOrderStatusBadge.text = "✕ Đã bị hủy"
                         binding.tvShipperInfo.visibility = View.GONE
 
                         binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = if (isCancelledByMerchant) "ℹ️" else "🚫"
-                        binding.tvAlertTitle.text = if (isCancelledByMerchant) "LÝ DO QUÁN HỦY ĐƠN:" else "LÝ DO HỦY ĐƠN HÀNG:"
+                        binding.tvAlertIcon.text = "🚫"
+                        binding.tvAlertTitle.text = "LÝ DO HỦY ĐƠN HÀNG:"
                         binding.tvAlertCountdown.visibility = View.GONE
-                        val cancellationMessage = order.cancelReason.ifBlank {
-                            if (isCancelledByMerchant) {
-                                "Quán không thể nhận đơn hoặc đã hết món."
-                            } else {
-                                order.note.ifBlank {
-                                    "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
-                                }
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            order.note.ifBlank {
+                                "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
                             }
                         }
-                        val refundMessage = when (order.refundStatus) {
-                            Order.RefundStatus.PENDING_INFO ->
-                                "\n\nHoàn tiền đang chờ bạn cung cấp thông tin tài khoản nhận: ${order.refundAmount.toVndCurrency()}."
-                            Order.RefundStatus.PENDING_REFUND -> {
-                                val orderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-                                    .ifBlank { order.orderId.trim() }
-                                "\n\nThông tin đã nhận. Hoàn tiền đang chờ quán chuyển khoản: ${order.refundAmount.toVndCurrency()} (Nội dung: Hoàn tiền $orderCode)."
-                            }
-                            Order.RefundStatus.REFUNDED ->
-                                "\n\nHệ thống đã ghi nhận giao dịch hoàn ${order.refundAmount.toVndCurrency()}."
-                            Order.RefundStatus.NOT_REQUIRED -> "\n\nĐơn chưa thanh toán nên không cần hoàn tiền."
-                            else -> ""
-                        }
-                        binding.tvAlertMessage.text = cancellationMessage + refundMessage
                     }
 
-                    if (order.refundStatus == Order.RefundStatus.PENDING_INFO) {
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "Cung cấp tài khoản nhận hoàn"
-                        binding.btnActionSecondary.setOnClickListener { onRefundDetailsClick(order) }
-                    } else if (order.refundStatus == Order.RefundStatus.PENDING_REFUND) {
-                        binding.btnActionSecondary.visibility = View.GONE
-                    } else if (isBombed) {
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "📄 Xem biên bản"
-                        binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
-                    } else {
-                        binding.btnActionSecondary.visibility = View.GONE
-                    }
+                    binding.btnActionSecondary.visibility = View.VISIBLE
+                    binding.btnActionSecondary.text = "📄 Xem biên bản"
+                    binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
 
                     binding.btnActionPrimary.text = "↺ Đặt lại món"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)

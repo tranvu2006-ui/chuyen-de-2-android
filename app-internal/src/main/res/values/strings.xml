@@ -7,25 +7,4 @@
     <string name="btn_login">Đăng nhập</string>
     <string name="empty_orders">Chưa có đơn hàng nào</string>
     <string name="empty_assigned">Chưa có đơn được gán</string>
-    <string name="store_cancel_dialog_title">Hủy đơn hàng?</string>
-    <string name="store_cancel_order_code">Mã đơn #%1$s</string>
-    <string name="store_cancel_paid_notice">Đơn đã thanh toán. Quán cần chuyển hoàn %1$s cho khách theo mã đơn hàng.</string>
-    <string name="store_cancel_unpaid_notice">Đơn chưa ghi nhận thanh toán nên sẽ không phát sinh yêu cầu hoàn tiền.</string>
-    <string name="store_cancel_reason_label">Lý do hủy đơn</string>
-    <string name="store_cancel_reason_prompt">Chọn lý do hủy đơn</string>
-    <string name="store_cancel_custom_reason_hint">Nhập lý do cụ thể</string>
-    <string name="store_cancel_dismiss">Quay lại</string>
-    <string name="store_cancel_confirm">Xác nhận hủy</string>
-    <string name="store_cancel_reason_required">Vui lòng chọn lý do hủy đơn.</string>
-    <string name="store_cancel_custom_reason_required">Vui lòng nhập lý do hủy đơn.</string>
-    <string-array name="store_cancel_reasons">
-        <item>@string/store_cancel_reason_prompt</item>
-        <item>Quán hết món hoặc hết nguyên liệu</item>
-        <item>Sự cố tại bếp (hỏng bếp, mất điện/gas, hỏng món)</item>
-        <item>Quán quá tải hoặc tạm ngưng nhận đơn</item>
-        <item>Chờ quá lâu không có tài xế nhận đơn (món bị nguội)</item>
-        <item>Không đáp ứng được yêu cầu/ghi chú của khách</item>
-        <item>Khách hàng liên hệ nhờ quán hủy</item>
-        <item>Lý do khác</item>
-    </string-array>
 </resources>

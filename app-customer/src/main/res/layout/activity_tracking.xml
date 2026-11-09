@@ -963,33 +963,6 @@
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <!-- Ưu đãi điểm uy tín -->
-                    <LinearLayout
-                        android:id="@+id/llDiscountRow"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
-                        android:orientation="horizontal"
-                        android:visibility="gone">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Ưu đãi điểm uy tín (từ 95 điểm):"
-                            android:textColor="#059669"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/txtDiscount"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="-5.000 đ"
-                            android:textColor="#059669"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"

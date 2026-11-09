@@ -41,7 +41,7 @@ class DriverActiveOrdersAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(order: Order) {
-            val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
+            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
             binding.tvActiveOrderCode.text = "#ORD_OISHI_$shortCode"
 
             val ch = bindingAdapterPosition + 1
@@ -57,14 +57,26 @@ class DriverActiveOrdersAdapter(
 
             val isCod = order.paymentMethod.equals("COD", ignoreCase = true)
             val totalPayment = if (order.totalPayment > 0) order.totalPayment else (order.total + fee)
-            if (isCod) {
+            val isDepositPaid = order.paymentMode == Order.PaymentMode.DEPOSIT &&
+                (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
+                    order.isDepositPaid)
+            if (isDepositPaid) {
+                binding.tvActivePaymentBadge.text =
+                    "⚡ Đã thu cọc ${order.depositAmount.toVndCurrency()} • thu ${order.remainAmount.toVndCurrency()} khi giao"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#B45309"))
+            } else if (isCod) {
                 binding.tvActivePaymentBadge.text = "💵 Thu COD: ${totalPayment.toVndCurrency()}"
                 binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
                 binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#D97706"))
-            } else {
-                binding.tvActivePaymentBadge.text = "✓ Đã thanh toán online"
+            } else if (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid) {
+                binding.tvActivePaymentBadge.text = "✓ Đã thanh toán online đủ"
                 binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#F0FDF4"))
                 binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#15803D"))
+            } else {
+                binding.tvActivePaymentBadge.text = "⏳ Chưa xác nhận thanh toán"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#D97706"))
             }
 
             val isReturningToStore = order.status == Order.Status.RETURNING_TO_STORE

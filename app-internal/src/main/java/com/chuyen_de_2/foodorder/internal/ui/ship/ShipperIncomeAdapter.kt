@@ -38,7 +38,7 @@ class ShipperIncomeAdapter : RecyclerView.Adapter<ShipperIncomeAdapter.TripViewH
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(order: Order) {
-            val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
+            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
             binding.tvTripOrderCode.text = "#ORD_OISHI_$shortCode"
 
             val fee = if (order.shippingFee > 0) order.shippingFee else 25000L

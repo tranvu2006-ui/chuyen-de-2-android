@@ -19,6 +19,7 @@ gson = "2.11.0"
 firebaseBom = "33.8.0"
 playServicesMaps = "19.0.0"
 playServicesLocation = "21.3.0"
+playServicesAuth = "21.3.0"
 glide = "4.16.0"
 googleServices = "4.4.2"
 googleCrashlytics = "3.0.2"
@@ -75,6 +76,7 @@ firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics
 # Google Play Services
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 
 # Image Loading
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }

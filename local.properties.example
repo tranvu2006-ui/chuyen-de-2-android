@@ -1,0 +1,9 @@
+# local.properties.example
+# Copy file này thành `local.properties` ở thư mục gốc và điền thông tin của bạn
+
+sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
+
+# Cấu hình Twilio SMS OTP (Tùy chọn: chỉ cần khi muốn test gửi SMS thật qua Twilio)
+twilioAccountSid=your_twilio_account_sid_here
+twilioAuthToken=your_twilio_auth_token_here
+twilioPhoneNumber=+1xxxxxxxxxx

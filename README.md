@@ -1,6 +1,10 @@
 # OISHI FOOD PLATFORM - HỆ SINH THÁI ĐẶT MÓN 4 ACTOR
 > **Đồ Án Chuyên Đề 2 • Nền Tảng Đặt & Giao Món Trực Tuyến Đa Nền Tảng TP.HCM**
 
+Hướng dẫn chủ quán cấu hình thanh toán tự động: [HUONG_DAN_CHU_QUAN_THANH_TOAN_TU_DONG.md](HUONG_DAN_CHU_QUAN_THANH_TOAN_TU_DONG.md).
+
+Hướng dẫn kiểm thử xác thực email, thanh toán tự động và hoàn tiền: [HUONG_DAN_KIEM_THU_XAC_THUC_THANH_TOAN_HOAN_TIEN.md](HUONG_DAN_KIEM_THU_XAC_THUC_THANH_TOAN_HOAN_TIEN.md).
+
 Tài liệu chi tiết toàn bộ chức năng của 4 Actor đã được tổng hợp tại:  
 👉 **[CHUC_NANG_4_ACTORS.md](file:///c:/Users/Fuck/Downloads/chuyende2/CHUC_NANG_4_ACTORS.md)**
 

@@ -3,14 +3,14 @@
     "project_number": "15744841309",
     "firebase_url": "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "chuyen-de-2-2f0bc",
-    "storage_bucket": "chuyen-de-2-2f0bc.firebasedatabase.app"
+    "storage_bucket": "chuyen-de-2-2f0bc.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:15744841309:android:61dbaa864317f0b118bfb4",
+        "mobilesdk_app_id": "1:15744841309:android:c3e22f3ec49b334e18bfb4",
         "android_client_info": {
-          "package_name": "com.chuyen_de_2.foodorder"
+          "package_name": "com.chuyen_de_2.foodorder.customer"
         }
       },
       "oauth_client": [],
@@ -27,9 +27,9 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:15744841309:android:c3e22f3ec49b334e18bfb4",
+        "mobilesdk_app_id": "1:15744841309:android:b054822452a1c3fd18bfb4",
         "android_client_info": {
-          "package_name": "com.chuyen_de_2.foodorder.customer"
+          "package_name": "com.chuyen_de_2.foodorder.internal"
         }
       },
       "oauth_client": [],

@@ -658,7 +658,7 @@
                                 android:src="@drawable/ic_check_circle_green"
                                 app:tint="@color/primary" />
                         </LinearLayout>
-                        <!-- Kênh 2: Ví Điện Tử MoMo -->
+
                         <LinearLayout
                             android:id="@+id/cardChannelMomo"
                             android:layout_width="match_parent"
@@ -700,7 +700,7 @@
                                     android:id="@+id/tvChannelMomoName"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Ví Điện Tử MoMo (Quét Mã MoMo QR)"
+                                    android:text="Ví điện tử MoMo"
                                     android:textColor="#0F172A"
                                     android:textSize="13.5sp"
                                     android:textStyle="bold" />
@@ -709,7 +709,7 @@
                                     android:id="@+id/tvChannelMomoSub"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Tự động kiểm tra giao dịch chuyển khoản 24/7"
+                                    android:text="Quán xác nhận giao dịch thủ công"
                                     android:textColor="#64748B"
                                     android:textSize="11.5sp" />
                             </LinearLayout>
@@ -722,7 +722,6 @@
                                 android:visibility="gone"
                                 app:tint="#A50064" />
                         </LinearLayout>
-
                     </LinearLayout>
 
                     <!-- Khung thông tin Chuyển khoản ngân hàng / Ví MoMo -->
@@ -916,7 +915,7 @@
                             android:textSize="13sp" />
                     </LinearLayout>
 
-                    <!-- Giảm giá Voucher (b8.html) -->
+                    <!-- Ưu đãi điểm uy tín -->
                     <LinearLayout
                         android:id="@+id/layoutVoucherDiscount"
                         android:layout_width="match_parent"
@@ -929,7 +928,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Giảm giá Voucher"
+                            android:text="Ưu đãi điểm uy tín (từ 95 điểm)"
                             android:textColor="@color/primary"
                             android:textSize="13sp"
                             android:textStyle="bold" />

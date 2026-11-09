@@ -19,12 +19,13 @@ object QRCodeUtils {
         val message: String
     )
 
-    /**
-     * Lấy mã rút gọn 6 ký tự in hoa của đơn hàng (VD: "88291A")
-     */
+    /** Returns the stable short order code: OI plus the final eight characters. */
     fun getShortOrderCode(orderId: String): String {
         val clean = orderId.trim()
-        return if (clean.length > 6) clean.takeLast(6).uppercase() else clean.uppercase()
+            .uppercase()
+        if (clean.startsWith("OI") && clean.length <= 10) return clean
+        val suffix = clean.takeLast(8)
+        return "OI$suffix"
     }
 
     /**
@@ -113,7 +114,7 @@ object QRCodeUtils {
                     message = "✓ Mã QR hợp lệ! Khớp đơn hàng #ORD-$expectedShortCode ($tokenToShow)"
                 )
             } else {
-                val otherCode = scannedShortCode.ifBlank { scannedOrderId.takeLast(6).uppercase() }
+                val otherCode = scannedShortCode.ifBlank { getShortOrderCode(scannedOrderId) }
                 QrVerifyResult(
                     isValid = false,
                     matchedToken = scannedToken.ifBlank { raw },
@@ -152,21 +153,22 @@ object QRCodeUtils {
         }
     }
 
-    /**
-     * Tạo chuỗi dữ liệu QR chuyển tiền nội bộ Ví MoMo chuẩn (2|99|phone|name||0|0|amount|note|transfer_myqr).
-     * Khi quét bằng App MoMo thật sẽ mở đúng màn hình "Chuyển tiền đến Ví MoMo" (không bị nhảy sang "Đến ngân hàng" báo lỗi tài khoản không hợp lệ).
-     */
     fun buildMomoQrPayload(
         phone: String,
         receiverName: String,
         amount: Long,
         transferSyntax: String
     ): String {
-        val cleanPhone = phone.replace(Regex("[^0-9]"), "").ifBlank { "0988888888" }
-        val cleanName = removeAccents(receiverName).replace(Regex("[^A-Za-z0-9 ]"), " ").trim().uppercase().ifBlank { "OISHI FOOD" }
-        val cleanNote = removeAccents(transferSyntax).replace(Regex("[^A-Za-z0-9 ]"), " ").trim().uppercase().ifBlank { "OISHI" }
-        val safeAmount = amount.coerceAtLeast(0L)
-        return "2|99|$cleanPhone|$cleanName||0|0|$safeAmount|$cleanNote|transfer_myqr"
+        val cleanPhone = phone.replace(Regex("[^0-9]"), "")
+        val cleanName = removeAccents(receiverName)
+            .replace(Regex("[^A-Za-z0-9 ]"), " ")
+            .trim()
+            .uppercase()
+        val cleanNote = removeAccents(transferSyntax)
+            .replace(Regex("[^A-Za-z0-9 ]"), " ")
+            .trim()
+            .uppercase()
+        return "2|99|$cleanPhone|$cleanName||0|0|${amount.coerceAtLeast(0L)}|$cleanNote|transfer_myqr"
     }
 
     private fun removeAccents(input: String): String {

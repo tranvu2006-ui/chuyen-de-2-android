@@ -44,7 +44,9 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.tvChatShopName.text = storeName
-        val orderCode = if (orderId.isNotBlank()) "#${orderId.takeLast(6).uppercase()}" else ""
+        val orderCode = if (orderId.isNotBlank()) {
+            "#${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}"
+        } else ""
         binding.tvFirstShopMessage.text =
             "Dạ $storeName xin chào bạn! Đơn $orderCode của bạn đang được quán tiếp nhận. Bạn cần dặn dò thêm về món (đá, đường, ống hút...) cứ nhắn cho quán nhé! ❤️"
 

@@ -154,7 +154,7 @@ class NotificationActivity : AppCompatActivity() {
     }
 
     private fun createNotificationFromOrder(order: Order): NotificationItem {
-        val shortId = if (order.orderId.length > 6) order.orderId.takeLast(6) else order.orderId
+        val shortId = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
         val shopName = if (order.shopName.isNotBlank()) order.shopName else "Quán ăn"
 
         return when (order.status) {

@@ -18,6 +18,7 @@ import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperIncomeFragment
 import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperProfileFragment
 import com.chuyen_de_2.foodorder.internal.ui.shop.MenuManageFragment
 import com.chuyen_de_2.foodorder.internal.ui.shop.OrderListFragment
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -54,6 +55,14 @@ class DashboardActivity : AppCompatActivity() {
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            startActivity(Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
+
         InsetUtils.initEdgeToEdge(this, true)
         binding = ActivityDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)

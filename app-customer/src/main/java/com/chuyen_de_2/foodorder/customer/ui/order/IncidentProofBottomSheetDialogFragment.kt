@@ -55,7 +55,7 @@ class IncidentProofBottomSheetDialogFragment : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.tvModalOrderCode.text = "#ORD_OISHI_${orderId.takeLast(6).uppercase()} • Ghi nhận hệ thống"
+        binding.tvModalOrderCode.text = "#ORD_OISHI_${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)} • Ghi nhận hệ thống"
         binding.tvModalReason.text = reason
         binding.tvModalDriverInfo.text = driverName
         binding.tvModalDriverNotes.text = "\"$notes\""

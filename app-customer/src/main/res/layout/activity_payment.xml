@@ -333,7 +333,7 @@
                             android:id="@+id/tvTransferSyntax"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="OISHI 0988888888"
+                            android:text="OI0123456789ABCDEF"
                             android:textColor="@color/brand_blue"
                             android:textSize="12.5sp"
                             android:textStyle="bold" />
@@ -386,7 +386,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="1. Mở ứng dụng Ngân hàng và chọn chức năng Quét QR.&#10;2. Quét mã QR ở trên hoặc chuyển khoản theo đúng số tài khoản và cú pháp.&#10;3. Bấm xác nhận &quot;Tôi đã chuyển khoản xong&quot; bên dưới để hoàn tất."
+                        android:text="1. Mở ứng dụng Ngân hàng và chọn chức năng Quét QR.\n2. Quét mã QR ở trên hoặc chuyển khoản theo đúng số tài khoản và cú pháp.\n3. Hệ thống sẽ tự động cập nhật đơn hàng sau khi VietQR xác nhận giao dịch."
                         android:textColor="#475569"
                         android:textSize="11.5sp" />
                 </LinearLayout>
@@ -430,22 +430,11 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:layout_weight="1"
-                android:text="🔄 Đang tự động chờ tín hiệu chuyển khoản từ MoMo... (Tự động chuyển trạng thái ngay khi chuyển xong)"
+                android:text="Đang chờ xác nhận giao dịch VietQR..."
                 android:textColor="#0284C7"
                 android:textSize="12.5sp"
                 android:textStyle="bold" />
         </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnConfirmPaid"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:backgroundTint="#10B981"
-            android:text="Tôi Đã Chuyển Khoản Xong"
-            android:textColor="@color/white"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:cornerRadius="12dp" />
 
         <TextView
             android:id="@+id/btnCancelToHome"

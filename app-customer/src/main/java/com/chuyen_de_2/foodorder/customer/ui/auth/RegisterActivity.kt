@@ -1,25 +1,28 @@
 package com.chuyen_de_2.foodorder.customer.ui.auth
 
-import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.text.InputFilter
+import android.text.InputType
 import android.view.View
+import android.view.WindowManager
+import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityRegisterBinding
-import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
- * Tên chức năng: Màn Hình Đăng Ký Tài Khoản Khách Hàng (Customer Registration)
- * Cách hoạt động:
- *  - Thu thập thông tin cá nhân: Họ tên, Số điện thoại, Email, Mật khẩu và xác nhận mật khẩu.
- *  - Cho phép chọn vai trò đăng ký (Khách hàng, Đối tác quán, Tài xế).
- *  - Tạo tài khoản trên Firebase Authentication và ghi nhận thông tin vào Firestore collection `users`.
- * Luồng hướng tới:
- *  - Đăng ký thành công -> Điều hướng ngay vào màn hình chính [HomeActivity] (xóa stack).
- *  - Bấm "Đã có tài khoản" -> Đóng màn hình quay về [LoginActivity].
+ * Màn hình đăng ký tài khoản khách hàng, tích hợp luồng xác thực mã OTP qua Email.
  */
 @AndroidEntryPoint
 class RegisterActivity : AppCompatActivity() {
@@ -27,68 +30,201 @@ class RegisterActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRegisterBinding
     private val viewModel: AuthViewModel by viewModels()
 
-    /**
-     * Tên chức năng: Khởi tạo View đăng ký
-     * Cách hoạt động: Áp dụng Insets, thiết lập lắng nghe sự kiện nút bấm và ViewModel.
-     * Luồng hướng tới: Hiển thị form đăng ký.
-     */
+    private var pendingRegistration: ((String) -> Unit)? = null
+    private var pendingTarget = ""
+    private var otpSent = false
+    private var isTargetVerified = false
+    private var otpDialog: AlertDialog? = null
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRegisterBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         InsetUtils.setLightStatusBar(this, true)
-
+        checkNotificationPermission()
         setupUI()
         observeViewModel()
     }
 
-    /**
-     * Tên chức năng: Xử lý sự kiện gửi form đăng ký
-     * Cách hoạt động: Lấy dữ liệu từ các trường EditText và RadioGroup chọn Role, gửi sang [AuthViewModel.register].
-     * Luồng hướng tới: Kích hoạt xử lý trên Firebase Auth.
-     */
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     private fun setupUI() {
         binding.btnRegister.setOnClickListener {
             val name = binding.etName.text.toString().trim()
             val phone = binding.etPhone.text.toString().trim()
             val email = binding.etEmail.text.toString().trim()
-            val password = binding.etPassword.text.toString().trim()
-            val confirmPassword = binding.etConfirmPassword.text.toString().trim()
+            val password = binding.etPassword.text.toString()
+            val confirmPassword = binding.etConfirmPassword.text.toString()
             val role = when (binding.rgRole.checkedRadioButtonId) {
-                com.chuyen_de_2.foodorder.customer.R.id.rbMerchant -> com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT
-                com.chuyen_de_2.foodorder.customer.R.id.rbDriver -> com.chuyen_de_2.foodorder.core.data.model.User.Role.DRIVER
-                else -> com.chuyen_de_2.foodorder.core.data.model.User.Role.CUSTOMER
+                R.id.rbMerchant -> User.Role.MERCHANT
+                R.id.rbDriver -> User.Role.DRIVER
+                else -> User.Role.CUSTOMER
             }
-            viewModel.register(name, email, password, confirmPassword, role, phone)
+
+            if (name.isBlank() || email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Vui lòng nhập họ tên, email và mật khẩu", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            if (password != confirmPassword || password.length < 6) {
+                Toast.makeText(
+                    this,
+                    if (password != confirmPassword) "Mật khẩu không khớp" else "Mật khẩu phải ít nhất 6 ký tự",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+
+            pendingRegistration = { vEmail ->
+                viewModel.register(
+                    name = name,
+                    email = email,
+                    password = password,
+                    confirmPassword = confirmPassword,
+                    role = role,
+                    phone = phone,
+                    verifiedEmail = vEmail
+                )
+            }
+
+            if (pendingTarget.equals(email, ignoreCase = true)) {
+                if (otpSent) showOtpDialog() else viewModel.requestEmailOtp(email)
+                return@setOnClickListener
+            }
+            otpSent = false
+            isTargetVerified = false
+            pendingTarget = email
+            viewModel.requestEmailOtp(email)
         }
 
-        binding.tvLogin.setOnClickListener {
-            finish()
-        }
+        binding.tvLogin.setOnClickListener { finish() }
     }
 
-    /**
-     * Tên chức năng: Lắng nghe kết quả đăng ký từ ViewModel
-     * Cách hoạt động: Hiển thị trạng thái tải và điều hướng sang [HomeActivity] khi thành công.
-     * Luồng hướng tới: [HomeActivity].
-     */
     private fun observeViewModel() {
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
             binding.btnRegister.isEnabled = !isLoading
         }
 
+        viewModel.otpRequestResult.observe(this) { result ->
+            result.onSuccess {
+                otpSent = true
+                val dialog = otpDialog
+                if (dialog?.isShowing == true) {
+                    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).isEnabled = true
+                    dialog.setMessage("Mã mới đã gửi đến $pendingTarget. Nhập mã mới nhất.")
+                    Toast.makeText(this, "Đã gửi lại mã OTP!", Toast.LENGTH_SHORT).show()
+                } else {
+                    showOtpDialog()
+                }
+            }.onFailure { error ->
+                otpDialog?.takeIf { it.isShowing }
+                    ?.getButton(AlertDialog.BUTTON_NEUTRAL)?.isEnabled = true
+                Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
+                if (otpSent && otpDialog?.isShowing != true && !isTargetVerified) {
+                    showOtpDialog()
+                }
+            }
+        }
+
+        viewModel.otpVerifyResult.observe(this) { result ->
+            result.onSuccess { verifiedValue ->
+                isTargetVerified = true
+                pendingRegistration?.invoke(verifiedValue)
+                    ?: Toast.makeText(this, "Vui lòng bấm Đăng ký lại để hoàn tất", Toast.LENGTH_LONG).show()
+            }.onFailure { error ->
+                val message = error.message.orEmpty()
+                val userMessage = if (
+                    message.contains("expired", ignoreCase = true) ||
+                    message.contains("invalid", ignoreCase = true) ||
+                    message.contains("token", ignoreCase = true)
+                ) {
+                    "Mã OTP sai hoặc hết hạn. Chọn “Gửi mã mới” rồi nhập mã mới nhất."
+                } else {
+                    message.ifBlank { "Không xác minh được mã OTP" }
+                }
+                Toast.makeText(this, userMessage, Toast.LENGTH_LONG).show()
+                if (pendingRegistration != null) showOtpDialog()
+            }
+        }
+
         viewModel.registerResult.observe(this) { result ->
             result.onSuccess {
-                Toast.makeText(this, "Đăng ký thành công!", Toast.LENGTH_SHORT).show()
-                startActivity(Intent(this, HomeActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                })
+                resetOtpState()
+                Toast.makeText(
+                    this,
+                    "Đã xác minh thành công! Tài khoản đã được tạo, bạn có thể đăng nhập.",
+                    Toast.LENGTH_LONG
+                ).show()
                 finish()
             }.onFailure { error ->
+                resetOtpState()
                 Toast.makeText(this, error.message ?: "Đăng ký thất bại", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    /**
+     * Hiển thị hộp thoại nhập mã OTP 6 số qua Email.
+     */
+    private fun showOtpDialog() {
+        val target = binding.etEmail.text?.toString()?.trim().orEmpty()
+        val codeInput = EditText(this).apply {
+            hint = "Nhập mã OTP 6 chữ số"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter.LengthFilter(6))
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+        }
+        val title = "Xác nhận Email"
+        val message = "Nhập mã OTP đã gửi đến $target"
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setView(codeInput)
+            .setPositiveButton("Xác nhận", null)
+            .setNeutralButton("Gửi mã mới", null)
+            .setNegativeButton("Hủy", null)
+            .create()
+        otpDialog = dialog
+        dialog.setOnDismissListener {
+            if (otpDialog === dialog) otpDialog = null
+        }
+        dialog.setOnShowListener {
+            codeInput.requestFocus()
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                it.isEnabled = false
+                codeInput.text?.clear()
+                viewModel.requestEmailOtp(target)
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val code = codeInput.text.toString().trim()
+                if (!code.matches(Regex("\\d{6}"))) {
+                    codeInput.error = "Mã OTP phải gồm đúng 6 chữ số"
+                } else {
+                    dialog.dismiss()
+                    viewModel.verifyEmailOtp(target, code)
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun resetOtpState() {
+        pendingRegistration = null
+        pendingTarget = ""
+        otpSent = false
+        isTargetVerified = false
     }
 }

@@ -46,7 +46,13 @@ data class User(
     val fcmToken: String = "",
 
     @SerializedName("storeId")
-    val storeId: String = ""
+    val storeId: String = "",
+
+    @SerializedName("emailVerified")
+    val emailVerified: Boolean = false,
+
+    @SerializedName("phoneVerified")
+    val phoneVerified: Boolean = false
 ) {
     /** Role constants — RBAC phân quyền 4 Actors */
     object Role {

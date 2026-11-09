@@ -32,7 +32,7 @@ class OrderAdapter(
 
         fun bind(order: Order) {
             val context = binding.root.context
-            val shortCode = order.orderId.takeLast(6).uppercase()
+            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
             binding.tvOrderCode.text = "#ORD_OISHI_$shortCode"
 
             // 1. Danh sách món ăn
@@ -41,9 +41,13 @@ class OrderAdapter(
             } else {
                 "• 1x Suất ăn đặt trực tiếp"
             }
-            val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid
+            val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
+                order.isPaid || order.isDepositPaid
             val payText = when {
-                order.paymentMode == Order.PaymentMode.DEPOSIT -> "⚡ Đã cọc 20%: ${order.depositAmount.toVndCurrency()} (Còn thu: ${order.remainAmount.toVndCurrency()})"
+                order.paymentMode == Order.PaymentMode.DEPOSIT && isPaidOnline ->
+                    "⚡ ĐÃ CỌC ${order.depositAmount.toVndCurrency()} • CÒN THU ${order.remainAmount.toVndCurrency()} KHI GIAO"
+                order.paymentMode == Order.PaymentMode.DEPOSIT ->
+                    "⏳ CHƯA XÁC NHẬN CỌC ${order.depositAmount.toVndCurrency()}"
                 order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
                     if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo"
                     else "⏳ Chờ khách chuyển khoản Ví MoMo (Chưa chuyển)"
@@ -52,8 +56,18 @@ class OrderAdapter(
                 else -> "💵 Thu tiền mặt khi nhận (COD)"
             }
 
-            when (order.paymentMethod.uppercase()) {
-                Order.PaymentMethod.MOMO -> {
+            when {
+                order.paymentMode == Order.PaymentMode.DEPOSIT && isPaidOnline -> {
+                    binding.tvPaymentStatusBadge.text = "⚡ Đã cọc • còn thu khi giao"
+                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                    binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                }
+                order.paymentMode == Order.PaymentMode.DEPOSIT -> {
+                    binding.tvPaymentStatusBadge.text = "⏳ Chờ xác nhận cọc"
+                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
+                }
+                order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
                     if (isPaidOnline) {
                         binding.tvPaymentStatusBadge.text = "✅ Đã chuyển MoMo"
                         binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
@@ -64,7 +78,7 @@ class OrderAdapter(
                         binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
                     }
                 }
-                Order.PaymentMethod.BANKING -> {
+                order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
                     binding.tvPaymentStatusBadge.text = "✅ Đã thanh toán Ngân hàng"
                     binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
                     binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)

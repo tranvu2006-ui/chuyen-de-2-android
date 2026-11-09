@@ -110,7 +110,7 @@ class ShipperFragment : Fragment() {
             onAcceptOrder = { order ->
                 viewModel.acceptOrder(order.orderId) { success, msg ->
                     if (success) {
-                        Toast.makeText(requireContext(), "🛵 Đã nhận đơn #${order.orderId.takeLast(6).uppercase()} thành công!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), "🛵 Đã nhận đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)} thành công!", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
                     }
@@ -240,7 +240,7 @@ class ShipperFragment : Fragment() {
      */
     private fun showCancelModal(order: Order) {
         val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
-        val shortCode = if (order.orderId.length > 5) order.orderId.takeLast(6).uppercase() else order.orderId
+        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
         dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn #ORD_OISHI_$shortCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
 
         val reasons = arrayOf(

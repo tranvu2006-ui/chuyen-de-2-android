@@ -79,7 +79,7 @@ class LocationForegroundService : Service() {
 
         return NotificationCompat.Builder(this, Constants.CHANNEL_ID_TRACKING)
             .setContentTitle("🛵 Đang giao hàng")
-            .setContentText("GPS đang hoạt động — Đơn #${orderId.takeLast(6)}")
+            .setContentText("GPS đang hoạt động — Đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

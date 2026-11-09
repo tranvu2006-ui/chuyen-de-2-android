@@ -11,6 +11,22 @@ android {
 
     defaultConfig {
         minSdk = 26
+        // Cho phép thay project Supabase bằng Gradle property; fallback giữ project hiện tại.
+        val supabaseUrl = providers.gradleProperty("supabaseUrl")
+            .orElse("https://niynxugrtceotpvaoiru.supabase.co")
+            .get()
+        // Chỉ dùng publishable/anon key ở Android; tuyệt đối không dùng service_role/secret key trong binary.
+        val supabaseAnonKey = providers.gradleProperty("supabaseAnonKey")
+            .orElse("sb_publishable_FVBFb_yxt1oXxACNWC6A9Q_6z60kBIF")
+            .get()
+        // Sinh BuildConfig để EmailOtpApi gọi Supabase Auth REST API trong app.
+        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -65,5 +81,6 @@ dependencies {
     // Google Play Services
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
+    implementation(libs.play.services.auth)
     implementation(libs.zxing.core)
 }

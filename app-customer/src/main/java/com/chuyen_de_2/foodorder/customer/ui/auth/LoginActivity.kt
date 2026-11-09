@@ -2,12 +2,17 @@ package com.chuyen_de_2.foodorder.customer.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputFilter
+import android.text.InputType
 import android.view.View
+import android.view.WindowManager
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityLoginBinding
@@ -32,6 +37,9 @@ class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
     private val viewModel: AuthViewModel by viewModels()
+    private var pendingOtpEmail = ""
+    private var pendingOtpPassword = ""
+    private var loginOtpDialog: AlertDialog? = null
 
     /**
      * Tên chức năng: Khởi tạo màn hình và kiểm tra phiên đăng nhập
@@ -49,7 +57,7 @@ class LoginActivity : AppCompatActivity() {
         observeViewModel()
 
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
-        if (isLogout) {
+        if (isLogout || (savedInstanceState == null && viewModel.isLoggedIn)) {
             viewModel.logout()
         } else if (viewModel.isLoggedIn) {
             checkRoleAndRoute()
@@ -97,9 +105,74 @@ class LoginActivity : AppCompatActivity() {
                 Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
                 checkRoleAndRoute()
             }.onFailure { error ->
-                Toast.makeText(this, error.message ?: "Đăng nhập thất bại", Toast.LENGTH_LONG).show()
+                if (error is EmailOtpRequiredException) {
+                    showLoginOtpDialog()
+                } else {
+                    Toast.makeText(this, error.message ?: "Đăng nhập thất bại", Toast.LENGTH_LONG).show()
+                }
             }
         }
+
+        viewModel.otpRequestResult.observe(this) { result ->
+            result.onSuccess {
+                Toast.makeText(this, "Đã gửi mã OTP đến email.", Toast.LENGTH_SHORT).show()
+            }.onFailure { error ->
+                Toast.makeText(this, error.message ?: "Không gửi được mã OTP.", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        viewModel.loginOtpResult.observe(this) { result ->
+            result.onSuccess {
+                loginOtpDialog?.dismiss()
+                loginOtpDialog = null
+                Toast.makeText(this, "Xác minh email và đăng nhập thành công.", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                Toast.makeText(this, error.message ?: "Mã OTP không hợp lệ.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun showLoginOtpDialog() {
+        if (loginOtpDialog?.isShowing == true) return
+        pendingOtpEmail = binding.etEmail.text.toString().trim()
+        pendingOtpPassword = binding.etPassword.text.toString().trim()
+        val codeInput = EditText(this).apply {
+            hint = "Nhập mã OTP 6 chữ số"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter.LengthFilter(6))
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Xác minh email")
+            .setMessage("Tài khoản chưa xác minh. Nhập mã OTP đã gửi đến $pendingOtpEmail.")
+            .setView(codeInput)
+            .setPositiveButton("Xác nhận", null)
+            .setNeutralButton("Gửi lại mã", null)
+            .setNegativeButton("Hủy", null)
+            .create()
+        loginOtpDialog = dialog
+        dialog.setOnDismissListener {
+            if (loginOtpDialog === dialog) loginOtpDialog = null
+            pendingOtpPassword = ""
+        }
+        dialog.setOnShowListener {
+            codeInput.requestFocus()
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                codeInput.text?.clear()
+                viewModel.requestEmailOtp(pendingOtpEmail)
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val code = codeInput.text.toString().trim()
+                if (!code.matches(Regex("\\d{6}"))) {
+                    codeInput.error = "Mã OTP phải gồm đúng 6 chữ số"
+                } else {
+                    viewModel.verifyLoginOtp(pendingOtpEmail, pendingOtpPassword, code)
+                }
+            }
+        }
+        dialog.show()
     }
 
     /**

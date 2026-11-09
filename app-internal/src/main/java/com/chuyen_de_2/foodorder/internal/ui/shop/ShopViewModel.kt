@@ -211,6 +211,10 @@ class ShopViewModel @Inject constructor(
         }
     }
 
+    fun cancelOrderByStore(orderId: String, storeId: String, reason: String, onResult: (Boolean, String) -> Unit) {
+        firebaseRepository.cancelOrderByStore(orderId, storeId, reason, onResult)
+    }
+
     fun dismissAlert() {
         _newOrderAlert.value = false
     }

@@ -249,7 +249,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Bấm '+ Thêm TX' ở góc phải để thêm tài xế nội bộ"
+                    android:text="Bấm &#x27;+ Thêm TX&#x27; ở góc phải để thêm tài xế nội bộ"
                     android:textColor="#94A3B8"
                     android:textSize="12sp" />
             </LinearLayout>

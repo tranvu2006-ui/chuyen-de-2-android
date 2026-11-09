@@ -67,6 +67,9 @@ data class Order(
     @SerializedName("shippingFee")
     val shippingFee: Long = 0,
 
+    @SerializedName("discount")
+    val discount: Long = 0,
+
     @SerializedName("totalPayment")
     val totalPayment: Long = 0,
 
@@ -91,14 +94,14 @@ data class Order(
     @SerializedName("paymentStatus")
     var paymentStatus: String = PaymentStatus.UNPAID,
 
+    @SerializedName("paymentReference")
+    val paymentReference: String = "",
+
+    @SerializedName("sepayTransactionId")
+    var sepayTransactionId: String = "",
+
     @SerializedName("paidAt")
     var paidAt: Long? = null,
-
-    @SerializedName("momoOrderId")
-    var momoOrderId: String = "",
-
-    @SerializedName("momoRequestId")
-    var momoRequestId: String = "",
 
     @SerializedName("status")
     var status: String = Status.PENDING,
@@ -135,6 +138,36 @@ data class Order(
 
     @SerializedName("cancelReason")
     val cancelReason: String = "",
+
+    @SerializedName("cancelledBy")
+    val cancelledBy: String = "",
+
+    @SerializedName("cancelledAt")
+    val cancelledAt: Long? = null,
+
+    @SerializedName("refundStatus")
+    val refundStatus: String = RefundStatus.NONE,
+
+    @SerializedName("refundAmount")
+    val refundAmount: Long = 0,
+
+    @SerializedName("refundReference")
+    val refundReference: String = "",
+
+    @SerializedName("refundReason")
+    val refundReason: String = "",
+
+    @SerializedName("refundRequestedAt")
+    val refundRequestedAt: Long? = null,
+
+    @SerializedName("refundedAt")
+    val refundedAt: Long? = null,
+
+    @SerializedName("refundTransactionId")
+    val refundTransactionId: String = "",
+
+    @SerializedName("refundedBy")
+    val refundedBy: String = "",
 
     @SerializedName("riskReason")
     val riskReason: String = "",
@@ -186,7 +219,9 @@ data class Order(
 
     @get:Exclude
     val orderCode: String
-        get() = if (orderId.isNotBlank()) "#ORD_OISHI_${orderId.takeLast(6).uppercase()}" else ""
+        get() = if (orderId.isNotBlank()) {
+            "#ORD_OISHI_${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}"
+        } else ""
 
     /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
     object Status {
@@ -240,6 +275,14 @@ data class Order(
     object PaymentStatus {
         const val UNPAID = "UNPAID"
         const val PAID = "PAID"
+    }
+
+    object RefundStatus {
+        const val NONE = "NONE"
+        const val NOT_REQUIRED = "NOT_REQUIRED"
+        const val PENDING_INFO = "PENDING_INFO"
+        const val PENDING_REFUND = "PENDING_REFUND"
+        const val REFUNDED = "REFUNDED"
     }
 }
 

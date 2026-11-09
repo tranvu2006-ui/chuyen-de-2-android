@@ -11,25 +11,70 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
+class EmailOtpRequiredException : Exception("Email chưa được xác minh. Vui lòng nhập mã OTP đã gửi đến email.")
+
 /**
  * Repository xử lý xác thực — Firebase Authentication
- * Hỗ trợ: Login Email/Password, Register, Get current user, Get user role
+ * Hỗ trợ: Login Email/Password, Register, Supabase Email OTP
  */
 @Singleton
 class AuthRepository @Inject constructor(
     private val auth: FirebaseAuth,
-    private val database: FirebaseDatabase
+    private val database: FirebaseDatabase,
+    private val emailOtpApi: EmailOtpApi
 ) {
     /** Đăng nhập bằng Email/Password (kiểm tra khóa tài khoản từ Admin & tự động đồng bộ Gmail/Hồ sơ lên Realtime DB) */
     suspend fun login(email: String, password: String): Result<FirebaseUser> {
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng nhập thất bại"))
-
+            firebaseUser.reload().await()
             val userRef = database.getReference("users").child(firebaseUser.uid)
+            val verificationState = if (firebaseUser.isEmailVerified) {
+                null
+            } else {
+                try {
+                    userRef.get().await()
+                } catch (error: Exception) {
+                    auth.signOut()
+                    throw error
+                }
+            }
+            val emailVerifiedByOtp = verificationState
+                ?.child("emailVerified")
+                ?.getValue(Boolean::class.java) == true ||
+                verificationState
+                    ?.child("registrationVerified")
+                    ?.getValue(Boolean::class.java) == true
+            val isStoreCreatedDriver = verificationState
+                ?.child("role")
+                ?.getValue(String::class.java)
+                .orEmpty()
+                .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER) &&
+                !verificationState
+                    ?.child("storeId")
+                    ?.getValue(String::class.java)
+                    .isNullOrBlank()
+            // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
+            // Ngoại lệ: tài khoản DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
+            // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
+            if (!firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
+                try {
+                    emailOtpApi.requestCode(email.trim())
+                } catch (error: Exception) {
+                    auth.signOut()
+                    return Result.failure(
+                        Exception("Không gửi được mã OTP xác minh email.", error)
+                    )
+                }
+                auth.signOut()
+                return Result.failure(EmailOtpRequiredException())
+            }
+
             try { userRef.keepSynced(true) } catch (_: Exception) {}
 
             // Ưu tiên đọc trực tiếp từ Firebase Server qua REST API với idToken mới để vượt qua SQLite Persistence Cache cũ
@@ -116,8 +161,8 @@ class AuthRepository @Inject constructor(
                     "role" to resolvedRole,
                     "roleId" to resolvedRoleId,
                     "status" to User.Status.ACTIVE,
+                    "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp),
                     "isActive" to true,
-                    "active" to true,
                     "lockReason" to null,
                     "suspendedReason" to null
                 )
@@ -144,15 +189,88 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    /** Đăng ký tài khoản mới và phân loại lưu vào Firebase DB theo Actor */
+    /**
+     * Gửi yêu cầu mã OTP 6 số đến email đăng ký thông qua dịch vụ Supabase Auth.
+     */
+    suspend fun requestEmailOtp(email: String): Result<String> {
+        return try {
+            // Chuẩn hóa khoảng trắng trước khi gửi email lên Supabase.
+            emailOtpApi.requestCode(email.trim())
+            // Thành công ở đây nghĩa là Supabase nhận yêu cầu gửi mã, chưa phải tài khoản Firebase đã được tạo.
+            Result.success("")
+        } catch (error: Exception) {
+            // Giữ lỗi để ViewModel/UI hiển thị và không cho đi tiếp như thể gửi mã thành công.
+            Result.failure(error)
+        }
+    }
+
+    /**
+     * Xác thực mã OTP người dùng nhập với email đăng ký.
+     * Trả về Result chứa email đã xác thực thành công.
+     */
+    suspend fun verifyEmailOtp(email: String, code: String): Result<String> {
+        return try {
+            // Xác minh thật qua Supabase; kết quả chứa email được máy chủ xác nhận.
+            Result.success(emailOtpApi.verifyCode(email.trim(), code.trim()))
+        } catch (error: Exception) {
+            // OTP sai/hết hạn hoặc lỗi mạng phải chặn đăng ký và trả lỗi về UI.
+            Result.failure(error)
+        }
+    }
+
+    /**
+     * Hoàn tất lần đăng nhập đầu bằng OTP: xác minh mã ở Supabase, xác nhận mật khẩu với Firebase,
+     * lưu cờ xác minh cho đúng hồ sơ rồi chạy lại kiểm tra đăng nhập/tài khoản như bình thường.
+     */
+    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> {
+        return try {
+            val verifiedEmail = emailOtpApi.verifyCode(email.trim(), code.trim())
+            if (!verifiedEmail.equals(email.trim(), ignoreCase = true)) {
+                return Result.failure(Exception("Email OTP không khớp với tài khoản đăng nhập."))
+            }
+
+            val credential = auth.signInWithEmailAndPassword(email.trim(), password).await()
+            val firebaseUser = credential.user
+                ?: return Result.failure(Exception("Không xác định được tài khoản Firebase."))
+            if (!firebaseUser.email.equals(verifiedEmail, ignoreCase = true)) {
+                auth.signOut()
+                return Result.failure(Exception("Email OTP không khớp với tài khoản Firebase."))
+            }
+
+            database.getReference("users")
+                .child(firebaseUser.uid)
+                .child("emailVerified")
+                .setValue(true)
+                .await()
+
+            Result.success(login(email.trim(), password).getOrThrow())
+        } catch (error: Exception) {
+            auth.signOut()
+            Result.failure<FirebaseUser>(error)
+        }
+    }
+
+
+
+    /** Đăng ký tài khoản mới sau khi OTP email đã được xác nhận và phân loại theo Actor */
     suspend fun register(
         name: String,
         email: String,
         password: String,
         role: String = User.Role.CUSTOMER,
-        phone: String = ""
+        phone: String = "",
+        verifiedEmail: String = ""
     ): Result<FirebaseUser> {
         return try {
+            // Chỉ cho tạo Firebase account nếu bước OTP trước đó xác nhận đúng chính email đăng ký.
+            val isEmailVerified = verifiedEmail.isNotBlank() && verifiedEmail.equals(email.trim(), ignoreCase = true)
+            val normalizedPhone = phone.trim()
+
+            // Chặn gọi register mà không có kết quả xác minh email hợp lệ.
+            if (!isEmailVerified) {
+                return Result.failure(Exception("Bạn cần xác thực Email bằng mã OTP trước khi tạo tài khoản."))
+            }
+            // Firebase Auth vẫn là hệ thống tài khoản đăng nhập chính; Supabase chỉ xác minh OTP trong luồng đăng ký.
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng ký thất bại"))
 
@@ -191,10 +309,12 @@ class AuthRepository @Inject constructor(
                 role = normalizedRole,
                 name = name.trim(),
                 email = email.trim(),
-                phone = phone.trim(),
+                phone = normalizedPhone,
                 status = User.Status.ACTIVE,
                 isActive = true,
-                storeId = assignedStoreId
+                storeId = assignedStoreId,
+                emailVerified = isEmailVerified,
+                phoneVerified = false
             )
             database.getReference("users")
                 .child(firebaseUser.uid)
@@ -210,7 +330,7 @@ class AuthRepository @Inject constructor(
                         "uid" to firebaseUser.uid,
                         "name" to name.trim(),
                         "email" to email.trim(),
-                        "phone" to phone.trim(),
+                        "phone" to normalizedPhone,
                         "trustScore" to 100,
                         "totalOrders" to 0,
                         "completedOrders" to 0,
@@ -230,7 +350,7 @@ class AuthRepository @Inject constructor(
                         storeId = assignedStoreId,
                         driverCode = randomCode,
                         name = name.trim(),
-                        phone = phone.trim(),
+                        phone = normalizedPhone,
                         vehiclePlate = "59P1-${(100..999).random()}.${(10..99).random()}",
                         ratingAvg = 5.0f,
                         dutyStatus = Driver.DutyStatus.AVAILABLE
@@ -247,7 +367,7 @@ class AuthRepository @Inject constructor(
                         merchantId = firebaseUser.uid,
                         name = if (name.isNotBlank()) name.trim() else "Quán Ăn Mới",
                         ownerName = name.trim(),
-                        phone = phone.trim(),
+                        phone = normalizedPhone,
                         address = "",
                         district = "",
                         storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
@@ -268,6 +388,7 @@ class AuthRepository @Inject constructor(
                 }
             }
 
+            auth.signOut()
             Result.success(firebaseUser)
         } catch (e: Exception) {
             Result.failure(e)
@@ -682,7 +803,6 @@ class AuthRepository @Inject constructor(
                             mapOf(
                                 "status" to User.Status.ACTIVE,
                                 "isActive" to true,
-                                "active" to true,
                                 "lockReason" to null,
                                 "suspendedReason" to null
                             )

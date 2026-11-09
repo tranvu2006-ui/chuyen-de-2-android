@@ -174,6 +174,7 @@ class CheckoutViewModel @Inject constructor(
                         total = finalPayment,
                         subtotalAmount = cart.totalAmount,
                         shippingFee = shippingFee,
+                        discount = discount,
                         totalPayment = finalPayment,
                         paymentMethod = paymentMethod,
                         paymentMode = paymentMode,

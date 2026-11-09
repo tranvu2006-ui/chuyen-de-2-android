@@ -9,6 +9,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel xác thực cho app nội bộ (Chủ quán/Tài xế), hỗ trợ xác minh qua Email.
+ */
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository
@@ -20,8 +23,60 @@ class AuthViewModel @Inject constructor(
     private val _registerResult = MutableLiveData<Result<String>>()
     val registerResult: LiveData<Result<String>> = _registerResult
 
+    private val _otpRequestResult = MutableLiveData<Result<String>>()
+    val otpRequestResult: LiveData<Result<String>> = _otpRequestResult
+
+    private val _otpVerifyResult = MutableLiveData<Result<String>>()
+    val otpVerifyResult: LiveData<Result<String>> = _otpVerifyResult
+
+    private val _loginOtpResult = MutableLiveData<Result<String>>()
+    val loginOtpResult: LiveData<Result<String>> = _loginOtpResult
+
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
+
+    /**
+     * Yêu cầu gửi mã OTP xác thực qua Email cho tài khoản nội bộ (Chủ quán/Tài xế).
+     */
+    fun requestEmailOtp(email: String) {
+        if (email.isBlank()) {
+            _otpRequestResult.value = Result.failure(Exception("Vui lòng nhập email"))
+            return
+        }
+        _isLoading.value = true
+        viewModelScope.launch {
+            _otpRequestResult.value = authRepository.requestEmailOtp(email)
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Xác minh mã OTP 6 số của tài khoản nội bộ (Chủ quán/Tài xế).
+     */
+    fun verifyEmailOtp(email: String, code: String) {
+        if (!code.matches(Regex("\\d{6}"))) {
+            _otpVerifyResult.value = Result.failure(Exception("Mã OTP phải gồm đúng 6 chữ số"))
+            return
+        }
+        _isLoading.value = true
+        viewModelScope.launch {
+            _otpVerifyResult.value = authRepository.verifyEmailOtp(email, code)
+            _isLoading.value = false
+        }
+    }
+
+    fun verifyLoginOtp(email: String, password: String, code: String) {
+        if (!code.matches(Regex("\\d{6}"))) {
+            _loginOtpResult.value = Result.failure(Exception("Mã OTP phải gồm đúng 6 chữ số"))
+            return
+        }
+        _isLoading.value = true
+        viewModelScope.launch {
+            _loginOtpResult.value = authRepository.verifyLoginOtp(email, password, code)
+                .map { it.uid }
+            _isLoading.value = false
+        }
+    }
 
     fun login(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
@@ -37,7 +92,15 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun register(name: String, email: String, pass: String, confirmPass: String, role: String, phone: String = "") {
+    fun register(
+        name: String,
+        email: String,
+        pass: String,
+        confirmPass: String,
+        role: String,
+        phone: String = "",
+        verifiedEmail: String = ""
+    ) {
         if (name.isBlank() || email.isBlank() || pass.isBlank()) {
             _registerResult.value = Result.failure(Exception("Vui lòng điền đầy đủ các thông tin bắt buộc"))
             return
@@ -53,7 +116,14 @@ class AuthViewModel @Inject constructor(
 
         _isLoading.value = true
         viewModelScope.launch {
-            val result = authRepository.register(name, email, pass, role, phone)
+            val result = authRepository.register(
+                name = name,
+                email = email,
+                password = pass,
+                role = role,
+                phone = phone,
+                verifiedEmail = verifiedEmail
+            )
             _registerResult.value = result.map { it.uid }
             _isLoading.value = false
         }

@@ -105,20 +105,22 @@
                     android:textStyle="bold"
                     tools:text="45.000₫" />
 
-                <!-- Nút cộng tròn nhỏ -->
+                <!-- Nút cộng tròn màu cam nổi bật sắc nét -->
                 <FrameLayout
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="@drawable/bg_badge_orange">
+                    android:id="@+id/btnAddDish"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_btn_add_hot_dish"
+                    android:clickable="true"
+                    android:elevation="2dp"
+                    android:focusable="true">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
                         android:layout_gravity="center"
-                        android:text="+"
-                        android:textColor="@color/white"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:contentDescription="Thêm món"
+                        android:src="@drawable/ic_add_white" />
                 </FrameLayout>
             </LinearLayout>
         </LinearLayout>

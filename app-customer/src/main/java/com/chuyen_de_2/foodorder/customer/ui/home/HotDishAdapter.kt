@@ -82,6 +82,13 @@ class HotDishAdapter(
                     onClick(dish)
                 }.start()
             }
+
+            binding.btnAddDish.setOnClickListener {
+                it.animate().scaleX(0.85f).scaleY(0.85f).setDuration(80).withEndAction {
+                    it.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
+                    onClick(dish)
+                }.start()
+            }
         }
     }
 

@@ -11,6 +11,8 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
@@ -44,16 +46,32 @@ class LoginActivity : AppCompatActivity() {
     private val viewModel: AuthViewModel by viewModels()
 
     /**
-     * Tên chức năng: Khởi tạo màn hình đăng nhập nội bộ
+     * Tên chức năng: Khởi tạo màn hình và kiểm tra phiên làm việc (Session Check)
      * Cách hoạt động:
-     *  - Xóa phiên Firebase đã lưu khi mở app để luôn yêu cầu nhập email và mật khẩu.
-     * Luồng hướng tới: Người dùng đăng nhập thủ công rồi mới vào [DashboardActivity].
+     *  - Kiểm tra Intent cờ LOGOUT để đăng xuất nếu có yêu cầu.
+     *  - Nếu đã đăng nhập, gọi checkAccountActiveStatus() trên Firebase để đảm bảo tài khoản chưa bị Admin khóa.
+     * Luồng hướng tới: Vào [DashboardActivity] nếu hợp lệ hoặc hiển thị Dialog nếu bị khóa.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (savedInstanceState == null && authRepository.isLoggedIn) {
+        val isLogout = intent.getBooleanExtra("LOGOUT", false)
+        if (isLogout) {
             authRepository.logout()
+        } else if (authRepository.isLoggedIn) {
+            lifecycleScope.launch {
+                val statusCheck = authRepository.checkAccountActiveStatus()
+                if (statusCheck.isFailure) {
+                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                    AlertDialog.Builder(this@LoginActivity)
+                        .setTitle("🔒 Tài khoản bị khóa")
+                        .setMessage(reason)
+                        .setPositiveButton("Đóng", null)
+                        .show()
+                } else {
+                    navigateToDashboard()
+                }
+            }
         }
 
         binding = ActivityLoginInternalBinding.inflate(layoutInflater)
@@ -63,6 +81,14 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("LOGOUT", false)) {
+            authRepository.logout()
+        }
     }
 
     /**

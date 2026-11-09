@@ -340,6 +340,99 @@ class FirebaseRepository @Inject constructor(
     /**
      * Shipper hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán)
      */
+    fun cancelOrderByStore(
+        orderId: String,
+        storeId: String,
+        reason: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        if (orderId.isBlank() || storeId.isBlank() || reason.isBlank()) {
+            onResult(false, "Thiếu thông tin đơn hàng hoặc lý do hủy.")
+            return
+        }
+
+        database.getReference("orders").child(orderId).runTransaction(object : Transaction.Handler {
+            override fun doTransaction(currentData: MutableData): Transaction.Result {
+                if (currentData.value == null) return Transaction.abort()
+                val orderStoreId = currentData.child("storeId").getValue(String::class.java)
+                    .orEmpty()
+                    .ifBlank { currentData.child("shopId").getValue(String::class.java).orEmpty() }
+                val status = currentData.child("status").getValue(String::class.java)
+                    .orEmpty()
+                    .ifBlank { currentData.child("orderStatus").getValue(String::class.java).orEmpty() }
+                val cancellableStatuses = setOf(
+                    Order.Status.PENDING,
+                    Order.Status.PREPARING,
+                    Order.Status.READY
+                )
+                val assignedDriver = currentData.child("shipperId").getValue(String::class.java)
+                    .orEmpty()
+                    .ifBlank { currentData.child("driverId").getValue(String::class.java).orEmpty() }
+                if (
+                    orderStoreId != storeId ||
+                    status !in cancellableStatuses ||
+                    (status == Order.Status.READY && assignedDriver.isNotBlank())
+                ) {
+                    return Transaction.abort()
+                }
+
+                val paymentStatus = currentData.child("paymentStatus").getValue(String::class.java).orEmpty()
+                val isPaid = paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
+                    currentData.child("isPaid").getValue(Boolean::class.java) == true ||
+                    currentData.child("isDepositPaid").getValue(Boolean::class.java) == true
+                val paymentMode = currentData.child("paymentMode").getValue(String::class.java).orEmpty()
+                val refundAmount = if (!isPaid) {
+                    0L
+                } else if (paymentMode == Order.PaymentMode.DEPOSIT) {
+                    currentData.child("depositAmount").getValue(Long::class.java) ?: 0L
+                } else {
+                    val totalPayment = currentData.child("totalPayment").getValue(Long::class.java) ?: 0L
+                    totalPayment.takeIf { it > 0L }
+                        ?: currentData.child("total").getValue(Long::class.java)
+                        ?: 0L
+                }
+                if (isPaid && refundAmount <= 0L) return Transaction.abort()
+                val now = System.currentTimeMillis()
+
+                currentData.child("status").value = Order.Status.CANCELLED
+                currentData.child("orderStatus").value = Order.Status.CANCELLED
+                currentData.child("cancelReason").value = reason.trim()
+                currentData.child("cancelledBy").value = "MERCHANT"
+                currentData.child("cancelledAt").value = now
+                currentData.child("refundStatus").value = if (refundAmount > 0) {
+                    Order.RefundStatus.PENDING_INFO
+                } else {
+                    Order.RefundStatus.NOT_REQUIRED
+                }
+                currentData.child("refundAmount").value = refundAmount
+                currentData.child("refundReason").value = reason.trim()
+                if (refundAmount > 0) {
+                    currentData.child("refundReference").value =
+                        com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
+                }
+                currentData.child("refundRequestedAt").value = if (refundAmount > 0) now else null
+                currentData.child("updatedAt").value = now
+                return Transaction.success(currentData)
+            }
+
+            override fun onComplete(error: DatabaseError?, committed: Boolean, snapshot: DataSnapshot?) {
+                if (committed) {
+                    val refundStatus = snapshot?.child("refundStatus")?.getValue(String::class.java)
+                    onResult(
+                        true,
+                        if (refundStatus == Order.RefundStatus.PENDING_INFO) {
+                            "Đã hủy đơn. Khách cần cung cấp thông tin nhận hoàn tiền."
+                        } else {
+                            "Đã hủy đơn. Đơn này không cần hoàn tiền."
+                        }
+                    )
+                } else {
+                    onResult(false, error?.message ?: "Đơn không còn đủ điều kiện để quán hủy.")
+                }
+            }
+        }, false)
+    }
+
     fun unassignShipper(
         orderId: String,
         onResult: (Boolean, String) -> Unit

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.ImageView
 import android.widget.EditText
@@ -145,7 +146,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupUI() {
-        val shortCode = if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
+        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)
         binding.tvHeaderOrderCode.text = "#ORD_$shortCode"
         binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Quán đang kiểm tra món ăn"
         val tokenText = "TOKEN_OISHI_$shortCode"
@@ -233,7 +234,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         if (itemsList.isEmpty()) {
             val state = DishRatingState(
                 dishId = "general_${currentOrderId}",
-                dishName = "Đơn món ăn #${currentOrderId.takeLast(6).uppercase()}",
+                dishName = "Đơn món ăn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)}",
                 specText = "Đã giao thành công",
                 rating = 5
             )
@@ -578,7 +579,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun updateStatusStep(status: String) {
-        val shortCode = currentOrderId.takeLast(6).uppercase()
+        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)
         val primaryColor = ContextCompat.getColor(this, R.color.primary)
         val mutedColor = ContextCompat.getColor(this, R.color.text_secondary)
         val greenColor = ContextCompat.getColor(this, R.color.status_completed)
@@ -753,19 +754,39 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             Order.Status.CANCELLED, Order.Status.BOOM -> {
+                val isCancelledByMerchant = currentOrder?.cancelledBy.equals("MERCHANT", ignoreCase = true) ||
+                    currentOrder?.cancelledBy.equals("STORE", ignoreCase = true) ||
+                    currentOrder?.cancelReason.orEmpty().contains("Quán", ignoreCase = true)
+                val isBombed = status == Order.Status.BOOM ||
+                    currentOrder?.cancelReason.orEmpty().contains("bom", ignoreCase = true) ||
+                    currentOrder?.riskReason.orEmpty().contains("bom", ignoreCase = true)
+
                 binding.lblStatusIcon.text = "🚫"
-                binding.lblStatusHeadline.text = "Đơn hàng đã bị hủy"
-                binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
-                binding.lblStatusSub.text = "Đơn hàng gặp sự cố giao hàng hoặc bom hàng"
-                binding.lblDetailIcon.text = "⚠️"
-                val reasonText = currentOrder?.cancelReason?.ifBlank { null }
-                    ?: currentOrder?.riskReason?.ifBlank { null }
-                    ?: "Đơn hàng đã chính thức bị hủy. Tiền món đang được xử lý hoàn trả theo chính sách Oishi Food."
-                binding.lblDetailDesc.text = reasonText
-                binding.boxCustomerCancelledNotice.isVisible = true
-                binding.lblCancelReason.text = "Lý do: $reasonText"
-                binding.boxWarningActiveOnOrder.isVisible = false
-                binding.btnHeaderWarn.isVisible = true
+                if (isCancelledByMerchant) {
+                    binding.lblStatusHeadline.text = "Quán đã hủy đơn hàng"
+                    binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
+                    binding.lblStatusSub.text = "Rất tiếc, quán không thể thực hiện đơn hàng này"
+                    binding.lblDetailIcon.text = "ℹ️"
+                    val reasonText = currentOrder?.cancelReason?.ifBlank { "Quán không thể nhận đơn hoặc đã hết món." }
+                        ?: "Quán không thể nhận đơn hoặc đã hết món."
+                    binding.lblDetailDesc.text = reasonText
+                    binding.boxCustomerCancelledNotice.isVisible = false
+                    binding.boxWarningActiveOnOrder.isVisible = false
+                    binding.btnHeaderWarn.isVisible = false
+                } else {
+                    binding.lblStatusHeadline.text = if (isBombed) "Đơn hàng đã bị hủy (Bom hàng)" else "Đơn hàng đã bị hủy"
+                    binding.lblStatusHeadline.setTextColor(ContextCompat.getColor(this, R.color.error))
+                    binding.lblStatusSub.text = if (isBombed) "Đơn hàng gặp sự cố không nhận món" else "Đơn hàng đã bị hủy"
+                    binding.lblDetailIcon.text = "⚠️"
+                    val reasonText = currentOrder?.cancelReason?.ifBlank { null }
+                        ?: currentOrder?.riskReason?.ifBlank { null }
+                        ?: "Đơn hàng đã chính thức bị hủy. Tiền món đang được xử lý hoàn trả theo chính sách Oishi Food."
+                    binding.lblDetailDesc.text = reasonText
+                    binding.boxCustomerCancelledNotice.isVisible = true
+                    binding.lblCancelReason.text = "Lý do: $reasonText"
+                    binding.boxWarningActiveOnOrder.isVisible = false
+                    binding.btnHeaderWarn.isVisible = isBombed
+                }
                 binding.ratingCard.isVisible = false
                 binding.qrCodeWrapper.isVisible = false
                 binding.tokenPill.isVisible = false
@@ -870,29 +891,41 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         if (order.items.isNotEmpty()) {
             for ((_, item) in order.items) {
-                val rowView = LayoutInflater.from(this).inflate(
-                    android.R.layout.simple_list_item_2,
-                    container,
-                    false
-                )
-                val text1 = rowView.findViewById<TextView>(android.R.id.text1)
-                val text2 = rowView.findViewById<TextView>(android.R.id.text2)
-
-                text1.text = "${item.quantity}x ${item.name}"
-                text1.textSize = 12f
-                text1.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
-
                 val subtotal = if (item.itemSubtotal > 0) item.itemSubtotal else item.price * item.quantity
-                text2.text = subtotal.toVndCurrency()
-                text2.textSize = 12f
-                text2.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
-
-                container.addView(rowView)
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = (6 * resources.displayMetrics.density).toInt()
+                    }
+                }
+                val itemName = TextView(this).apply {
+                    text = "${item.quantity}x ${item.name}"
+                    textSize = 12f
+                    setTextColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_primary))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val itemPrice = TextView(this).apply {
+                    text = subtotal.toVndCurrency()
+                    textSize = 12f
+                    setTextColor(ContextCompat.getColor(this@TrackingActivity, R.color.text_primary))
+                    gravity = android.view.Gravity.END
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+                row.addView(itemName)
+                row.addView(itemPrice)
+                container.addView(row)
             }
         } else {
             // Hiển thị fallback nếu đơn không có item danh sách con
             val fallbackTv = TextView(this).apply {
-                text = "1x Đơn món ăn #${currentOrderId.takeLast(6).uppercase()}"
+                text = "1x Đơn món ăn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)}"
                 textSize = 12f
                 setTextColor(ContextCompat.getColor(context, R.color.text_primary))
             }
@@ -902,6 +935,10 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Phí giao hàng
         val shippingFee = if (order.shippingFee > 0) order.shippingFee else 15000L
         binding.txtShippingFee.text = shippingFee.toVndCurrency()
+        binding.llDiscountRow.visibility = if (order.discount > 0L) View.VISIBLE else View.GONE
+        if (order.discount > 0L) {
+            binding.txtDiscount.text = "-${order.discount.toVndCurrency()}"
+        }
 
         // Tổng tiền
         val totalAmount = if (order.totalPayment > 0) order.totalPayment else if (order.total > 0) order.total else 50000L
@@ -909,9 +946,22 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Hình thức thanh toán
         val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val depositPaymentText = if (isPaid && order.paymentMode == Order.PaymentMode.DEPOSIT) {
+            "Đã cọc ${order.depositAmount.toVndCurrency()} • Còn thu ${order.remainAmount.toVndCurrency()}"
+        } else {
+            ""
+        }
         val payMethodStr = when (order.paymentMethod.uppercase()) {
-            Order.PaymentMethod.MOMO -> if (isPaid) "Ví điện tử MoMo (Đã chuyển khoản)" else "Ví điện tử MoMo (Chờ chuyển khoản)"
-            Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
+            Order.PaymentMethod.MOMO -> if (isPaid) {
+                if (depositPaymentText.isNotBlank()) "Ví MoMo ($depositPaymentText)" else "Ví điện tử MoMo (Đã chuyển khoản)"
+            } else {
+                "Ví điện tử MoMo (Chờ chuyển khoản)"
+            }
+            Order.PaymentMethod.BANKING -> if (depositPaymentText.isNotBlank()) {
+                "Chuyển khoản Ngân hàng ($depositPaymentText)"
+            } else {
+                "Chuyển khoản Ngân hàng (Đã thanh toán)"
+            }
             else -> "Tiền mặt khi nhận món (COD)"
         }
         binding.txtB9PayMode.text = "💳 Hình thức: $payMethodStr"

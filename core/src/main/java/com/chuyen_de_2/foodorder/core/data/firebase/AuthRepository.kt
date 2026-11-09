@@ -11,6 +11,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -75,126 +77,138 @@ class AuthRepository @Inject constructor(
                 return Result.failure(EmailOtpRequiredException())
             }
 
-            try { userRef.keepSynced(true) } catch (_: Exception) {}
-
-            // Ưu tiên đọc trực tiếp từ Firebase Server qua REST API với idToken mới để vượt qua SQLite Persistence Cache cũ
-            val freshJson = fetchFreshUserJsonFromServer(firebaseUser.uid)
-            val userSnap = try { userRef.get().await() } catch (_: Exception) { null }
-
-            val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
-            val isAdminEmail = actualEmail.equals("admin@gmail.com", ignoreCase = true)
-
-            if (!isAdminEmail) {
-                if (freshJson != null) {
-                    val status = freshJson.optString("status", "ACTIVE").uppercase()
-                    val isActive = when {
-                        freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
-                        freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
-                        else -> true
-                    }
-                    if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
-                        val reason = freshJson.optString("lockReason", "").ifBlank {
-                            freshJson.optString("suspendedReason", "").ifBlank { "Vi phạm quy định nền tảng" }
-                        }
-                        try { auth.signOut() } catch (_: Exception) {}
-                        return Result.failure(Exception("Tài khoản đã bị khóa bởi Admin: $reason"))
-                    }
-                } else if (userSnap != null && userSnap.exists()) {
-                    val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
-                    val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
-                        ?: userSnap.child("active").getValue(Boolean::class.java)
-                        ?: true
-                    if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
-                        val reason = userSnap.child("lockReason").getValue(String::class.java)
-                            ?: userSnap.child("suspendedReason").getValue(String::class.java)
-                            ?: "Vi phạm quy định nền tảng"
-                        try { auth.signOut() } catch (_: Exception) {}
-                        return Result.failure(Exception("Tài khoản đã bị khóa bởi Admin: $reason"))
-                    }
-                }
-            }
-
-            // Đồng bộ Gmail & thông tin định danh từ Firebase Auth vào users/{uid} để Admin Dashboard nhận diện chính xác
-            try {
-                val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
-                val dbEmail = freshJson?.optString("email", "")?.takeIf { it.isNotBlank() }
-                    ?: userSnap?.child("email")?.getValue(String::class.java).orEmpty()
-                val dbName = freshJson?.optString("name", "")?.takeIf { it.isNotBlank() }
-                    ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
-                val dbPhone = freshJson?.optString("phone", "")?.takeIf { it.isNotBlank() }
-                    ?: userSnap?.child("phone")?.getValue(String::class.java).orEmpty()
-                val rawDbRole = freshJson?.optString("role", "")?.takeIf { it.isNotBlank() }
-                    ?: userSnap?.child("role")?.getValue(String::class.java).orEmpty()
-                val rawDbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
-                    ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
-
-                val (dbRole, dbStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
-                    uid = firebaseUser.uid,
-                    email = actualEmail,
-                    currentRole = rawDbRole,
-                    currentStoreId = rawDbStoreId
-                )
-
-                val wasCorruptedMock = dbEmail == "mai.tran@oishifood.vn" && !actualEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
-                val resolvedRole = when {
-                    actualEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
-                    dbRole.isNotBlank() -> dbRole.uppercase()
-                    actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
-                    actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                    else -> User.Role.CUSTOMER
-                }
-                val resolvedRoleId = when (resolvedRole) {
-                    User.Role.ADMIN -> 1
-                    User.Role.MERCHANT, User.Role.MANAGER -> 3
-                    User.Role.DRIVER, User.Role.SHIPPER -> 4
-                    else -> 2
-                }
-                val resolvedName = if (dbName.isNotBlank() && !wasCorruptedMock) {
-                    dbName
-                } else {
-                    firebaseUser.displayName?.takeIf { it.isNotBlank() } ?: actualEmail.substringBefore("@")
-                }
-                val resolvedPhone = if (dbPhone.isNotBlank() && !wasCorruptedMock) {
-                    dbPhone
-                } else {
-                    firebaseUser.phoneNumber.orEmpty()
-                }
-
-                val syncUpdates = mutableMapOf<String, Any?>(
-                    "uid" to firebaseUser.uid,
-                    "email" to actualEmail,
-                    "name" to resolvedName,
-                    "phone" to resolvedPhone,
-                    "role" to resolvedRole,
-                    "roleId" to resolvedRoleId,
-                    "storeId" to dbStoreId,
-                    "status" to User.Status.ACTIVE,
-                    "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp),
-                    "isActive" to true,
-                    "lockReason" to null,
-                    "suspendedReason" to null
-                )
-                userRef.updateChildren(syncUpdates).await()
-
-                if (resolvedRole == User.Role.CUSTOMER) {
-                    val custUpdates = mutableMapOf<String, Any>(
-                        "customerId" to firebaseUser.uid,
-                        "uid" to firebaseUser.uid,
-                        "email" to actualEmail,
-                        "name" to resolvedName,
-                        "status" to User.Status.ACTIVE
-                    )
-                    if (resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
-                    database.getReference("customers").child(firebaseUser.uid).updateChildren(custUpdates)
-                } else if ((resolvedRole == User.Role.MERCHANT || resolvedRole == User.Role.MANAGER) && dbStoreId.isNotBlank()) {
-                    database.getReference("stores").child(dbStoreId).child("email").setValue(actualEmail)
-                }
-            } catch (_: Exception) {}
-
-            Result.success(firebaseUser)
+            val user = completePostLogin(firebaseUser, email, emailVerifiedByOtp)
+            Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Quy trình hậu đăng nhập: kiểm tra trạng thái khóa từ Admin và đồng bộ hồ sơ vào Realtime DB.
+     */
+    private suspend fun completePostLogin(
+        firebaseUser: FirebaseUser,
+        email: String,
+        emailVerifiedByOtp: Boolean
+    ): FirebaseUser {
+        val userRef = database.getReference("users").child(firebaseUser.uid)
+        try { userRef.keepSynced(true) } catch (_: Exception) {}
+
+        // Ưu tiên đọc trực tiếp từ Firebase Server qua REST API với idToken mới để vượt qua SQLite Persistence Cache cũ
+        val freshJson = fetchFreshUserJsonFromServer(firebaseUser.uid)
+        val userSnap = try { userRef.get().await() } catch (_: Exception) { null }
+
+        val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
+        val isAdminEmail = actualEmail.equals("admin@gmail.com", ignoreCase = true)
+
+        if (!isAdminEmail) {
+            if (freshJson != null) {
+                val status = freshJson.optString("status", "ACTIVE").uppercase()
+                val isActive = when {
+                    freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
+                    freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
+                    else -> true
+                }
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = freshJson.optString("lockReason", "").ifBlank {
+                        freshJson.optString("suspendedReason", "").ifBlank { "Vi phạm quy định nền tảng" }
+                    }
+                    try { auth.signOut() } catch (_: Exception) {}
+                    throw Exception("Tài khoản đã bị khóa bởi Admin: $reason")
+                }
+            } else if (userSnap != null && userSnap.exists()) {
+                val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
+                val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
+                    ?: userSnap.child("active").getValue(Boolean::class.java)
+                    ?: true
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = userSnap.child("lockReason").getValue(String::class.java)
+                        ?: userSnap.child("suspendedReason").getValue(String::class.java)
+                        ?: "Vi phạm quy định nền tảng"
+                    try { auth.signOut() } catch (_: Exception) {}
+                    throw Exception("Tài khoản đã bị khóa bởi Admin: $reason")
+                }
+            }
+        }
+
+        // Đồng bộ Gmail & thông tin định danh từ Firebase Auth vào users/{uid} để Admin Dashboard nhận diện chính xác
+        try {
+            val dbEmail = freshJson?.optString("email", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("email")?.getValue(String::class.java).orEmpty()
+            val dbName = freshJson?.optString("name", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+            val dbPhone = freshJson?.optString("phone", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("phone")?.getValue(String::class.java).orEmpty()
+            val rawDbRole = freshJson?.optString("role", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("role")?.getValue(String::class.java).orEmpty()
+            val rawDbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
+
+            val (dbRole, dbStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
+                uid = firebaseUser.uid,
+                email = actualEmail,
+                currentRole = rawDbRole,
+                currentStoreId = rawDbStoreId
+            )
+
+            val wasCorruptedMock = dbEmail == "mai.tran@oishifood.vn" && !actualEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
+            val resolvedRole = when {
+                actualEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
+                dbRole.isNotBlank() -> dbRole.uppercase()
+                actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
+                actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
+                else -> User.Role.CUSTOMER
+            }
+            val resolvedRoleId = when (resolvedRole) {
+                User.Role.ADMIN -> 1
+                User.Role.MERCHANT, User.Role.MANAGER -> 3
+                User.Role.DRIVER, User.Role.SHIPPER -> 4
+                else -> 2
+            }
+            val resolvedName = if (dbName.isNotBlank() && !wasCorruptedMock) {
+                dbName
+            } else {
+                firebaseUser.displayName?.takeIf { it.isNotBlank() } ?: actualEmail.substringBefore("@")
+            }
+            val resolvedPhone = if (dbPhone.isNotBlank() && !wasCorruptedMock) {
+                dbPhone
+            } else {
+                firebaseUser.phoneNumber.orEmpty()
+            }
+
+            val syncUpdates = mutableMapOf<String, Any?>(
+                "uid" to firebaseUser.uid,
+                "email" to actualEmail,
+                "name" to resolvedName,
+                "phone" to resolvedPhone,
+                "role" to resolvedRole,
+                "roleId" to resolvedRoleId,
+                "storeId" to dbStoreId,
+                "status" to User.Status.ACTIVE,
+                "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp),
+                "isActive" to true,
+                "lockReason" to null,
+                "suspendedReason" to null
+            )
+            userRef.updateChildren(syncUpdates).await()
+
+            if (resolvedRole == User.Role.CUSTOMER) {
+                val custUpdates = mutableMapOf<String, Any>(
+                    "customerId" to firebaseUser.uid,
+                    "uid" to firebaseUser.uid,
+                    "email" to actualEmail,
+                    "name" to resolvedName,
+                    "status" to User.Status.ACTIVE
+                )
+                if (resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
+                database.getReference("customers").child(firebaseUser.uid).updateChildren(custUpdates)
+            } else if ((resolvedRole == User.Role.MERCHANT || resolvedRole == User.Role.MANAGER) && dbStoreId.isNotBlank()) {
+                database.getReference("stores").child(dbStoreId).child("email").setValue(actualEmail)
+            }
+        } catch (_: Exception) {}
+
+        return firebaseUser
     }
 
     /**
@@ -227,34 +241,78 @@ class AuthRepository @Inject constructor(
     }
 
     /**
-     * Hoàn tất lần đăng nhập đầu bằng OTP: xác minh mã ở Supabase, xác nhận mật khẩu với Firebase,
-     * lưu cờ xác minh cho đúng hồ sơ rồi chạy lại kiểm tra đăng nhập/tài khoản như bình thường.
+     * Xác thực đăng nhập bằng OTP: Chạy song song kiểm tra OTP trên Supabase và đăng nhập Firebase
+     * giúp giảm tối đa độ trễ mạng (giảm từ 2 lần round-trip nối tiếp xuống còn 1 lần song song).
      */
-    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> {
+    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> =
+        coroutineScope {
+            try {
+                val cleanEmail = email.trim()
+                val cleanCode = code.trim()
+
+                // Chạy đồng thời xác thực OTP Supabase và đăng nhập Firebase
+                val otpDeferred = async { emailOtpApi.verifyCode(cleanEmail, cleanCode) }
+                val authDeferred = async { auth.signInWithEmailAndPassword(cleanEmail, password).await() }
+
+                val verifiedEmail = try {
+                    otpDeferred.await()
+                } catch (e: Exception) {
+                    try { auth.signOut() } catch (_: Exception) {}
+                    throw e
+                }
+
+                val authResult = try {
+                    authDeferred.await()
+                } catch (e: Exception) {
+                    throw e
+                }
+
+                val firebaseUser = authResult.user
+                    ?: throw Exception("Không xác định được tài khoản Firebase.")
+
+                if (!cleanEmail.equals(verifiedEmail, ignoreCase = true) ||
+                    !cleanEmail.equals(firebaseUser.email.orEmpty(), ignoreCase = true)) {
+                    auth.signOut()
+                    throw Exception("Email OTP không khớp với tài khoản Firebase.")
+                }
+
+                val userRef = database.getReference("users").child(firebaseUser.uid)
+                val markVerifiedDeferred = async {
+                    try {
+                        userRef.child("emailVerified").setValue(true).await()
+                    } catch (_: Exception) {}
+                }
+
+                val user = completePostLogin(firebaseUser, cleanEmail, emailVerifiedByOtp = true)
+                markVerifiedDeferred.await()
+                Result.success(user)
+            } catch (error: Exception) {
+                try { auth.signOut() } catch (_: Exception) {}
+                Result.failure(error)
+            }
+        }
+
+    /** Đăng ký tài khoản kèm xác thực mã OTP 6 số từ Supabase trong cùng một quy trình mượt mà */
+    suspend fun registerWithOtp(
+        name: String,
+        email: String,
+        password: String,
+        role: String = User.Role.CUSTOMER,
+        phone: String = "",
+        otpCode: String
+    ): Result<FirebaseUser> {
         return try {
-            val verifiedEmail = emailOtpApi.verifyCode(email.trim(), code.trim())
-            if (!verifiedEmail.equals(email.trim(), ignoreCase = true)) {
-                return Result.failure(Exception("Email OTP không khớp với tài khoản đăng nhập."))
-            }
-
-            val credential = auth.signInWithEmailAndPassword(email.trim(), password).await()
-            val firebaseUser = credential.user
-                ?: return Result.failure(Exception("Không xác định được tài khoản Firebase."))
-            if (!firebaseUser.email.equals(verifiedEmail, ignoreCase = true)) {
-                auth.signOut()
-                return Result.failure(Exception("Email OTP không khớp với tài khoản Firebase."))
-            }
-
-            database.getReference("users")
-                .child(firebaseUser.uid)
-                .child("emailVerified")
-                .setValue(true)
-                .await()
-
-            Result.success(login(email.trim(), password).getOrThrow())
-        } catch (error: Exception) {
-            auth.signOut()
-            Result.failure<FirebaseUser>(error)
+            val verifiedEmail = emailOtpApi.verifyCode(email.trim(), otpCode.trim())
+            register(
+                name = name,
+                email = email,
+                password = password,
+                role = role,
+                phone = phone,
+                verifiedEmail = verifiedEmail
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

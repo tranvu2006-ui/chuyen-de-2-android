@@ -62,7 +62,21 @@ class RegisterActivity : AppCompatActivity() {
         }
         binding.etPassword.doAfterTextChanged { binding.tilPassword.error = null }
         binding.etConfirmPassword.doAfterTextChanged { binding.tilConfirmPassword.error = null }
-        binding.etOtp.doAfterTextChanged { binding.tilOtp.error = null }
+        binding.etOtp.doAfterTextChanged { s ->
+            binding.tilOtp.error = null
+            val code = s?.toString()?.trim().orEmpty()
+            if (code.length == 6 && code.all { it.isDigit() }) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
+                val name = binding.etName.text?.toString()?.trim().orEmpty()
+                val email = binding.etEmail.text?.toString()?.trim().orEmpty()
+                val password = binding.etPassword.text?.toString().orEmpty()
+                val confirmPassword = binding.etConfirmPassword.text?.toString().orEmpty()
+                if (name.isNotBlank() && email.isNotBlank() && password.length >= 6 && password == confirmPassword) {
+                    binding.btnRegister.performClick()
+                }
+            }
+        }
 
         // 1. Nút "Lấy mã" OTP kế bên ô nhập mã
         binding.btnGetOtp.setOnClickListener {
@@ -122,19 +136,15 @@ class RegisterActivity : AppCompatActivity() {
             }
 
             currentOtpEmail = email
-            pendingRegistration = { vEmail ->
-                viewModel.register(
-                    name = name,
-                    email = email,
-                    password = password,
-                    confirmPassword = confirmPassword,
-                    role = role,
-                    phone = phone,
-                    verifiedEmail = vEmail
-                )
-            }
-
-            viewModel.verifyEmailOtp(email, otpCode)
+            viewModel.registerWithOtp(
+                name = name,
+                email = email,
+                password = password,
+                confirmPassword = confirmPassword,
+                role = role,
+                phone = phone,
+                otpCode = otpCode
+            )
         }
 
         binding.tvLogin.setOnClickListener { finish() }

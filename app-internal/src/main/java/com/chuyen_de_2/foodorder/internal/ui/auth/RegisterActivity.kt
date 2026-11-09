@@ -121,19 +121,15 @@ class RegisterActivity : AppCompatActivity() {
             }
 
             currentOtpEmail = email
-            pendingRegistration = { vEmail ->
-                viewModel.register(
-                    name = name,
-                    email = email,
-                    pass = password,
-                    confirmPass = confirmPassword,
-                    role = User.Role.MERCHANT,
-                    phone = phone,
-                    verifiedEmail = vEmail
-                )
-            }
-
-            viewModel.verifyEmailOtp(email, otpCode)
+            viewModel.registerWithOtp(
+                name = name,
+                email = email,
+                pass = password,
+                confirmPass = confirmPassword,
+                role = User.Role.MERCHANT,
+                phone = phone,
+                otpCode = otpCode
+            )
         }
 
         binding.tvBackToLogin.setOnClickListener { finish() }

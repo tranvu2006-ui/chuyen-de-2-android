@@ -79,8 +79,18 @@ class LoginActivity : AppCompatActivity() {
         binding.etPassword.doAfterTextChanged {
             binding.tilPassword.error = null
         }
-        binding.etOtp.doAfterTextChanged {
+        binding.etOtp.doAfterTextChanged { s ->
             binding.tilOtp.error = null
+            val code = s?.toString()?.trim().orEmpty()
+            if (code.length == 6 && code.all { it.isDigit() }) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
+                val email = binding.etEmail.text?.toString()?.trim().orEmpty()
+                val password = binding.etPassword.text?.toString().orEmpty()
+                if (email.isNotBlank() && password.isNotBlank()) {
+                    binding.btnLogin.performClick()
+                }
+            }
         }
 
         // Nút "Lấy mã" kế bên ô nhập OTP

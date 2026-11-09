@@ -128,4 +128,44 @@ class AuthViewModel @Inject constructor(
             _isLoading.value = false
         }
     }
+    fun registerWithOtp(
+        name: String,
+        email: String,
+        pass: String,
+        confirmPass: String,
+        role: String,
+        phone: String = "",
+        otpCode: String
+    ) {
+        if (name.isBlank() || email.isBlank() || pass.isBlank()) {
+            _registerResult.value = Result.failure(Exception("Vui lòng điền đầy đủ các thông tin bắt buộc"))
+            return
+        }
+        if (pass.length < 6) {
+            _registerResult.value = Result.failure(Exception("Mật khẩu phải có ít nhất 6 ký tự"))
+            return
+        }
+        if (pass != confirmPass) {
+            _registerResult.value = Result.failure(Exception("Mật khẩu xác nhận không khớp"))
+            return
+        }
+        if (!otpCode.matches(Regex("\\d{6}"))) {
+            _registerResult.value = Result.failure(Exception("Mã OTP phải gồm đúng 6 chữ số"))
+            return
+        }
+
+        _isLoading.value = true
+        viewModelScope.launch {
+            val result = authRepository.registerWithOtp(
+                name = name,
+                email = email,
+                password = pass,
+                role = role,
+                phone = phone,
+                otpCode = otpCode
+            )
+            _registerResult.value = result.map { it.uid }
+            _isLoading.value = false
+        }
+    }
 }

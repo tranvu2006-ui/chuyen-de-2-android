@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -121,16 +120,13 @@ class FirebaseRepository @Inject constructor(
 
     /**
      * Tạo đơn hàng mới
-     * Bank-transfer orders (VietQR and MoMo QR) use an uppercase ID for reconciliation.
+     * API Contract: POST orders/ (SDK push)
      * Auth: Phải có Role CUSTOMER
      */
     suspend fun createOrder(order: Order): Result<String> {
         return try {
-            val ordersRef = database.getReference("orders")
-            val usesBankTransfer = order.paymentMethod == Order.PaymentMethod.BANKING ||
-                order.paymentMethod == Order.PaymentMethod.MOMO
-            var orderId = generateShortOrderId()
-            var ref = ordersRef.child(orderId)
+            val ref = database.getReference("orders").push()
+            val orderId = ref.key ?: return Result.failure(Exception("Không tạo được order ID"))
 
             val now = System.currentTimeMillis()
             val targetStoreId = order.storeId.ifBlank { order.shopId }
@@ -160,7 +156,7 @@ class FirebaseRepository @Inject constructor(
                 } catch (_: Exception) {}
             }
 
-            var orderWithId = order.copy(
+            val orderWithId = order.copy(
                 orderId = orderId,
                 storeId = targetStoreId,
                 shopId = targetStoreId,
@@ -173,58 +169,16 @@ class FirebaseRepository @Inject constructor(
                 total = targetTotal,
                 status = targetStatus,
                 orderStatus = targetStatus,
-                paymentReference = if (usesBankTransfer) {
-                    orderId
-                } else {
-                    order.paymentReference
-                },
                 createdAt = targetTimestamp,
                 timestamp = targetTimestamp
             )
-            var attempts = 0
-            while (!writeOrderIfAbsent(ref, orderWithId)) {
-                if (++attempts >= 8) {
-                    throw IllegalStateException("Không tạo được mã đơn duy nhất sau nhiều lần thử.")
-                }
-                orderId = generateShortOrderId()
-                ref = ordersRef.child(orderId)
-                orderWithId = orderWithId.copy(
-                    orderId = orderId,
-                    paymentReference = if (usesBankTransfer) orderId else order.paymentReference
-                )
-            }
+            // Ghi tức thời vào cache cục bộ + đẩy qua WebSocket không chặn UI bởi độ trễ ACK
+            ref.setValue(orderWithId)
 
             Result.success(orderId)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
-
-    private fun generateShortOrderId(): String =
-        "OI${UUID.randomUUID().toString().replace("-", "").takeLast(8).uppercase()}"
-
-    private suspend fun writeOrderIfAbsent(
-        orderRef: com.google.firebase.database.DatabaseReference,
-        order: Order
-    ): Boolean {
-        val result = kotlinx.coroutines.CompletableDeferred<Boolean>()
-        orderRef.runTransaction(object : Transaction.Handler {
-            override fun doTransaction(currentData: MutableData): Transaction.Result {
-                if (currentData.value != null) return Transaction.abort()
-                currentData.value = order
-                return Transaction.success(currentData)
-            }
-
-            override fun onComplete(
-                error: DatabaseError?,
-                committed: Boolean,
-                currentData: DataSnapshot?
-            ) {
-                if (error != null) result.completeExceptionally(error.toException())
-                else result.complete(committed)
-            }
-        }, false)
-        return result.await()
     }
 
     /** Lắng nghe tất cả đơn hàng (dùng cho Shop Dashboard) */
@@ -383,123 +337,6 @@ class FirebaseRepository @Inject constructor(
         })
     }
 
-    fun cancelOrderByStore(
-        orderId: String,
-        storeId: String,
-        reason: String,
-        onResult: (Boolean, String) -> Unit
-    ) {
-        // Không chạy transaction nếu thiếu khóa đơn, cửa hàng hoặc lý do hủy.
-        if (orderId.isBlank() || storeId.isBlank() || reason.isBlank()) {
-            onResult(false, "Thiếu thông tin đơn hàng hoặc lý do hủy.")
-            return
-        }
-
-        // Transaction kiểm tra và cập nhật cùng lúc để hai thao tác đồng thời không hủy sai đơn/trạng thái.
-        database.getReference("orders").child(orderId).runTransaction(object : Transaction.Handler {
-            override fun doTransaction(currentData: MutableData): Transaction.Result {
-                // Đơn không còn trong DB thì hủy transaction, không tạo dữ liệu mới.
-                if (currentData.value == null) return Transaction.abort()
-                // Hỗ trợ cấu trúc mới dùng storeId và dữ liệu cũ dùng shopId.
-                val orderStoreId = currentData.child("storeId").getValue(String::class.java)
-                    .orEmpty()
-                    .ifBlank { currentData.child("shopId").getValue(String::class.java).orEmpty() }
-                // Đọc trạng thái chuẩn; orderStatus là field dự phòng cho dữ liệu cũ.
-                val status = currentData.child("status").getValue(String::class.java)
-                    .orEmpty()
-                    .ifBlank { currentData.child("orderStatus").getValue(String::class.java).orEmpty() }
-                // Chỉ các trạng thái này có thể bị quán hủy; READY không hủy nếu shipper đã được gán.
-                val cancellableStatuses = setOf(
-                    Order.Status.PENDING,
-                    Order.Status.PREPARING,
-                    Order.Status.READY
-                )
-                // Tương thích cả tên shipperId và driverId ở các phiên bản dữ liệu khác nhau.
-                val assignedDriver = currentData.child("shipperId").getValue(String::class.java)
-                    .orEmpty()
-                    .ifBlank { currentData.child("driverId").getValue(String::class.java).orEmpty() }
-                // Chặn cửa hàng khác hủy, trạng thái không hợp lệ, hoặc đơn READY đã có shipper.
-                if (
-                    orderStoreId != storeId ||
-                    status !in cancellableStatuses ||
-                    (status == Order.Status.READY && assignedDriver.isNotBlank())
-                ) {
-                    return Transaction.abort()
-                }
-
-                // Xác định đã nhận tiền từ trạng thái chuẩn hoặc các cờ thanh toán cũ.
-                val paymentStatus = currentData.child("paymentStatus").getValue(String::class.java).orEmpty()
-                val isPaid = paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                    currentData.child("isPaid").getValue(Boolean::class.java) == true ||
-                    currentData.child("isDepositPaid").getValue(Boolean::class.java) == true
-                // Hoàn theo đúng loại thanh toán: cọc chỉ hoàn khoản cọc; trả đủ hoàn tổng tiền đã thanh toán.
-                val paymentMode = currentData.child("paymentMode").getValue(String::class.java).orEmpty()
-                // Chỉ tạo yêu cầu hoàn nếu đơn đã nhận tiền: đơn DEPOSIT hoàn depositAmount, đơn thanh toán đủ hoàn totalPayment (dự phòng total).
-                // Đây chỉ là ghi metadata vào đơn, không gọi ngân hàng/SePay để chuyển tiền; nếu số tiền hoàn không hợp lệ thì hủy transaction.
-                val refundAmount = if (!isPaid) {
-                    0L
-                } else if (paymentMode == Order.PaymentMode.DEPOSIT) {
-                    currentData.child("depositAmount").getValue(Long::class.java) ?: 0L
-                } else {
-                    val totalPayment = currentData.child("totalPayment").getValue(Long::class.java) ?: 0L
-                    totalPayment.takeIf { it > 0L }
-                        ?: currentData.child("total").getValue(Long::class.java)
-                        ?: 0L
-                }
-                // Không đánh dấu đã hủy đơn đã trả tiền nếu không tính được số tiền hoàn dương.
-                if (isPaid && refundAmount <= 0L) return Transaction.abort()
-                // Dùng cùng thời điểm cho các field thời gian trong lần cập nhật này.
-                val now = System.currentTimeMillis()
-
-                // Lưu trạng thái hủy và lý do để cả màn hình mới/cũ đọc nhất quán.
-                currentData.child("status").value = Order.Status.CANCELLED
-                currentData.child("orderStatus").value = Order.Status.CANCELLED
-                currentData.child("cancelReason").value = reason.trim()
-                currentData.child("cancelledBy").value = "MERCHANT"
-                currentData.child("cancelledAt").value = now
-                // Có khoản cần hoàn thì đặt PENDING_INFO để luồng phía khách chờ thông tin nhận tiền;
-                // sau khi có thông tin, quán tạo QR/chuyển khoản hoàn và hệ thống cập nhật trạng thái ở luồng riêng.
-                // Chưa trả tiền thì không cần hoàn; đã trả thì chờ khách gửi thông tin nhận tiền.
-                currentData.child("refundStatus").value = if (refundAmount > 0) {
-                    Order.RefundStatus.PENDING_INFO
-                } else {
-                    Order.RefundStatus.NOT_REQUIRED
-                }
-                // Ghi số tiền/lý do cần hoàn để app khách và quán tiếp tục luồng hoàn tiền.
-                currentData.child("refundAmount").value = refundAmount
-                currentData.child("refundReason").value = reason.trim()
-                if (refundAmount > 0) {
-                    // Dùng mã đơn làm tham chiếu để Worker ghép webhook tiền ra với đúng đơn.
-                    currentData.child("refundReference").value =
-                        com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
-                }
-                // Không có yêu cầu hoàn thì bỏ thời điểm yêu cầu; luôn cập nhật thời điểm sửa đơn.
-                currentData.child("refundRequestedAt").value = if (refundAmount > 0) now else null
-                currentData.child("updatedAt").value = now
-                return Transaction.success(currentData)
-            }
-
-            override fun onComplete(error: DatabaseError?, committed: Boolean, snapshot: DataSnapshot?) {
-                // Chỉ báo thành công nếu Firebase commit transaction; phản hồi nêu rõ có cần hoàn tiền không.
-                if (committed) {
-                    val refundStatus = snapshot?.child("refundStatus")?.getValue(String::class.java)
-                    val refundAmount = snapshot?.child("refundAmount")?.getValue(Long::class.java) ?: 0L
-                    onResult(
-                        true,
-                        if (refundStatus == Order.RefundStatus.PENDING_INFO) {
-                            "Đã hủy đơn. Khách cần cung cấp thông tin nhận hoàn tiền."
-                        } else {
-                            "Đã hủy đơn. Đơn này không cần hoàn tiền."
-                        }
-                    )
-                } else {
-                    // Báo lỗi Firebase hoặc cho biết đơn không còn đủ điều kiện (ví dụ đã đổi trạng thái).
-                    onResult(false, error?.message ?: "Đơn không còn đủ điều kiện để quán hủy.")
-                }
-            }
-        }, false)
-    }
-
     /**
      * Shipper hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán)
      */
@@ -601,7 +438,7 @@ class FirebaseRepository @Inject constructor(
                         ?: userSnap?.child("trustScore")?.getValue(Long::class.java)
                         ?: 100L
 
-                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
+                    val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
                     val statsUpdates = mutableMapOf<String, Any>()
                     var scoreChange = 0
                     var logReason = ""
@@ -903,13 +740,13 @@ class FirebaseRepository @Inject constructor(
             }
             // 2. Kiểm tra stores bằng index merchantId / ownerId
             val byMerchant = try { database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await() } catch (_: Exception) { null }
-            val matchedMerchantKey = byMerchant?.children?.firstOrNull()?.key
+            val matchedMerchantKey = byMerchant?.children?.firstOrNull { it.child("merchantId").getValue(String::class.java) == uid }?.key
             if (!matchedMerchantKey.isNullOrBlank()) {
                 try { database.getReference("users").child(uid).child("storeId").setValue(matchedMerchantKey) } catch (_: Exception) {}
                 return matchedMerchantKey
             }
             val byOwner = try { database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await() } catch (_: Exception) { null }
-            val matchedOwnerKey = byOwner?.children?.firstOrNull()?.key
+            val matchedOwnerKey = byOwner?.children?.firstOrNull { it.child("ownerId").getValue(String::class.java) == uid }?.key
             if (!matchedOwnerKey.isNullOrBlank()) {
                 try { database.getReference("users").child(uid).child("storeId").setValue(matchedOwnerKey) } catch (_: Exception) {}
                 return matchedOwnerKey
@@ -1261,32 +1098,91 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Lưu / cập nhật danh mục nền tảng lên Firebase */
+    /** Lưu / cập nhật danh mục nền tảng lên Firebase kèm cơ chế tự động chen vị trí & đẩy các danh mục phía sau lên +1 */
     suspend fun saveCategory(category: com.chuyen_de_2.foodorder.core.data.model.Category, desc: String = ""): Result<Unit> {
         return try {
-            val id = category.categoryId.ifBlank { "cat-${System.currentTimeMillis()}" }
+            val targetId = category.categoryId.ifBlank { "cat-${System.currentTimeMillis()}" }
+            val targetOrder = category.displayOrder.coerceAtLeast(1)
             val finalDesc = if (desc.isNotBlank()) desc else category.description
-            val map = mapOf<String, Any>(
-                "id" to id,
-                "categoryId" to id,
+
+            // 1. Đọc danh sách tất cả các danh mục hiện có trên Firebase
+            val snapshot = database.getReference("categories").get().await()
+            val existingList = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Category>()
+            for (child in snapshot.children) {
+                val id = child.key ?: continue
+                if (id == targetId) continue // Bỏ qua danh mục đang thao tác (kể cả khi chỉnh sửa)
+
+                val name = child.child("categoryName").getValue(String::class.java)
+                    ?: child.child("name").getValue(String::class.java) ?: ""
+                val icon = child.child("iconUrl").getValue(String::class.java)
+                    ?: child.child("icon").getValue(String::class.java) ?: ""
+                val d = child.child("description").getValue(String::class.java)
+                    ?: child.child("desc").getValue(String::class.java) ?: ""
+                val order = child.child("displayOrder").getValue(Int::class.java) ?: 99
+                val active = child.child("isActive").getValue(Boolean::class.java)
+                    ?: (child.child("status").getValue(String::class.java) != "HIDDEN")
+
+                existingList.add(
+                    com.chuyen_de_2.foodorder.core.data.model.Category(
+                        categoryId = id,
+                        categoryName = name,
+                        iconUrl = icon,
+                        displayOrder = order,
+                        isActive = active,
+                        description = d
+                    )
+                )
+            }
+
+            // Sắp xếp các danh mục hiện tại theo thứ tự hiển thị tăng dần
+            existingList.sortWith(compareBy({ it.displayOrder }, { it.categoryName }))
+
+            // 2. Tính toán cập nhật số thứ tự: Nếu có mục có thứ tự >= targetOrder, tự động đẩy lên
+            val updates = mutableMapOf<String, Any>()
+            var lastAssignedOrder = targetOrder
+
+            for (otherCat in existingList) {
+                if (otherCat.displayOrder < targetOrder) {
+                    continue
+                }
+
+                // Nếu số thứ tự của danh mục khác nhỏ hơn hoặc bằng lastAssignedOrder -> phải đẩy lên tiếp theo
+                val newOrder = if (otherCat.displayOrder <= lastAssignedOrder) {
+                    lastAssignedOrder + 1
+                } else {
+                    otherCat.displayOrder
+                }
+
+                lastAssignedOrder = newOrder
+
+                if (newOrder != otherCat.displayOrder) {
+                    updates["categories/${otherCat.categoryId}/displayOrder"] = newOrder
+                    updates["categories/${otherCat.categoryId}/updatedAt"] = System.currentTimeMillis()
+                    updates["menus/categories/${otherCat.categoryId}/displayOrder"] = newOrder
+                    updates["menus/categories/${otherCat.categoryId}/updatedAt"] = System.currentTimeMillis()
+                }
+            }
+
+            // 3. Đóng gói danh mục mục tiêu cần lưu
+            val targetMap = mapOf<String, Any>(
+                "id" to targetId,
+                "categoryId" to targetId,
                 "name" to category.categoryName,
                 "categoryName" to category.categoryName,
                 "icon" to "",
                 "iconUrl" to category.iconUrl,
                 "desc" to finalDesc,
                 "description" to finalDesc,
-                "displayOrder" to category.displayOrder,
+                "displayOrder" to targetOrder,
                 "isActive" to category.isActive,
                 "status" to (if (category.isActive) "ACTIVE" else "HIDDEN"),
                 "updatedAt" to System.currentTimeMillis()
             )
-            val updates = mapOf<String, Any>(
-                "categories/$id" to map,
-                "categories/$id" to map
-            )
-            try { database.getReference("menus/categories").child(id).removeValue() } catch (_: Exception) {}
-            if (false) mapOf(1 to 1
-            )
+
+            updates["categories/$targetId"] = targetMap
+            updates["menus/categories/$targetId"] = targetMap
+
+            // 4. Lưu đồng thời nguyên khối (atomic) lên Firebase Realtime Database
             database.reference.updateChildren(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -1295,7 +1191,6 @@ class FirebaseRepository @Inject constructor(
     }
 
     /** Xóa danh mục nền tảng khỏi Firebase */
-    /** Bật / tắt hiển thị danh mục trên ứng dụng Khách */
     suspend fun toggleCategoryActive(categoryId: String, isActive: Boolean): Result<Unit> {
         return try {
             val status = if (isActive) "ACTIVE" else "HIDDEN"
@@ -2093,7 +1988,44 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Phán quyết xử lý khiếu nại và áp dụng 3 mức chế tài vi phạm (Cảnh báo, Ẩn tạm thời, Khóa tài khoản) */
+    /** Lấy chi tiết 1 khiếu nại theo ID */
+    suspend fun getComplaint(complaintId: String): com.chuyen_de_2.foodorder.core.data.model.Complaint? {
+        return try {
+            val snap = database.getReference("complaints").child(complaintId).get().await()
+            val c = snap.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+            if (c != null && c.complaintId.isBlank()) {
+                c.copy(complaintId = snap.key ?: complaintId)
+            } else {
+                c
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Lắng nghe 1 khiếu nại cụ thể theo thời gian thực */
+    fun observeComplaint(complaintId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Complaint?> = callbackFlow {
+        val ref = database.getReference("complaints").child(complaintId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val c = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+                val finalComplaint = if (c != null && c.complaintId.isBlank()) {
+                    c.copy(complaintId = snapshot.key ?: complaintId)
+                } else {
+                    c
+                }
+                trySend(finalComplaint)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Phán quyết xử lý khiếu nại và áp dụng 3 mức chế tài vi phạm (hỗ trợ phạt ngược người gửi khi báo cáo sai sự thật) */
     suspend fun resolveComplaint(
         complaintId: String,
         status: String,
@@ -2104,19 +2036,47 @@ class FirebaseRepository @Inject constructor(
         targetId: String = "",
         customerId: String = "",
         driverId: String = "",
-        orderId: String = ""
+        orderId: String = "",
+        isCounterPenalty: Boolean = false,
+        counterPenaltyTier: String = "NONE"
     ): Result<Unit> {
         return try {
             val resolvedAt = System.currentTimeMillis()
+            val effectiveCounterPenalty = if (isCounterPenalty) counterPenaltyTier else "NONE"
+            val trustDeducted = when {
+                !isCounterPenalty -> 0
+                effectiveCounterPenalty == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.WARN -> 10
+                effectiveCounterPenalty == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.HIDE -> 30
+                effectiveCounterPenalty == com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK -> 50
+                else -> 0
+            }
             val updates = mutableMapOf<String, Any?>(
                 "status" to status,
-                "penaltyApplied" to penaltyApplied,
+                "penaltyApplied" to if (isCounterPenalty) "NONE" else penaltyApplied,
                 "adminNote" to adminNote,
+                "isComplainantPenalized" to isCounterPenalty,
+                "counterPenaltyApplied" to effectiveCounterPenalty,
+                "counterPenaltyReason" to if (isCounterPenalty) adminNote else "",
+                "trustScoreDeducted" to trustDeducted,
                 "resolvedAt" to resolvedAt
             )
             database.getReference("complaints").child(complaintId).updateChildren(updates).await()
 
-            if (status.equals(com.chuyen_de_2.foodorder.core.data.model.Complaint.ComplaintStatus.RESOLVED, ignoreCase = true) && penaltyApplied != "NONE") {
+            // 1. Phạt ngược người gửi khiếu nại (Khách hàng báo cáo sai / vu khống / lạm dụng)
+            if (isCounterPenalty && customerId.isNotBlank()) {
+                when (effectiveCounterPenalty) {
+                    com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.WARN -> {
+                        deductCustomerTrustScore(customerId, 10, "Phạt báo cáo sai sự thật đơn #$orderId: $adminNote", orderId)
+                    }
+                    com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.HIDE -> {
+                        deductCustomerTrustScore(customerId, 30, "Phạt nặng vu khống / lạm dụng khiếu nại đơn #$orderId: $adminNote", orderId)
+                    }
+                    com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.LOCK -> {
+                        deductCustomerTrustScore(customerId, 50, "Khóa tài khoản do lạm dụng khiếu nại đơn #$orderId: $adminNote", orderId)
+                        updateUserStatus(customerId, "LOCKED", false, "Tài khoản bị khóa vĩnh viễn do vu khống / lạm dụng hệ thống khiếu nại: $adminNote")
+                    }
+                }
+            } else if (status.equals(com.chuyen_de_2.foodorder.core.data.model.Complaint.ComplaintStatus.RESOLVED, ignoreCase = true) && penaltyApplied != "NONE") {
                 val effectiveStoreId = storeId.ifBlank { if (targetType == com.chuyen_de_2.foodorder.core.data.model.Complaint.TargetType.STORE) targetId else "" }
                 val effectiveCustomerId = customerId.ifBlank { if (targetType == com.chuyen_de_2.foodorder.core.data.model.Complaint.TargetType.CUSTOMER) targetId else "" }
                 val effectiveDriverId = driverId.ifBlank { if (targetType == com.chuyen_de_2.foodorder.core.data.model.Complaint.TargetType.DRIVER) targetId else "" }
@@ -2162,7 +2122,7 @@ class FirebaseRepository @Inject constructor(
                 try {
                     val orderUpdates = mapOf<String, Any>(
                         "complaintStatus" to status,
-                        "complaintPenalty" to penaltyApplied,
+                        "complaintPenalty" to if (isCounterPenalty) effectiveCounterPenalty else penaltyApplied,
                         "complaintNote" to adminNote
                     )
                     database.getReference("orders").child(orderId).updateChildren(orderUpdates).await()
@@ -2173,6 +2133,30 @@ class FirebaseRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /** Lắng nghe danh sách khiếu nại do 1 khách hàng cụ thể gửi */
+    fun observeCustomerComplaints(customerId: String): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Complaint>> = callbackFlow {
+        val ref = database.getReference("complaints")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Complaint>()
+                for (child in snapshot.children) {
+                    val c = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Complaint::class.java)
+                    if (c != null && c.customerId == customerId) {
+                        val cId = if (c.complaintId.isBlank()) child.key ?: "" else c.complaintId
+                        list.add(c.copy(complaintId = cId))
+                    }
+                }
+                trySend(list.sortedByDescending { it.createdAt })
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
     }
 
     private suspend fun deductCustomerTrustScore(customerId: String, amount: Int, reason: String, orderId: String = "") {
@@ -2651,6 +2635,8 @@ class FirebaseRepository @Inject constructor(
                 "status" to finalStatus,
                 "avatarUrl" to effectiveAvatar,
                 "photoUrl" to effectiveAvatar,
+                "avatar" to effectiveAvatar,
+                "profileImage" to effectiveAvatar,
                 "storeId" to user.storeId,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
@@ -2676,6 +2662,8 @@ class FirebaseRepository @Inject constructor(
                 "active" to isUnlocked,
                 "avatarUrl" to effectiveAvatar,
                 "photoUrl" to effectiveAvatar,
+                "avatar" to effectiveAvatar,
+                "profileImage" to effectiveAvatar,
                 "trustScore" to clampedScore,
                 "completedOrders" to completedOrders,
                 "boomOrders" to boomOrders,
@@ -2696,6 +2684,8 @@ class FirebaseRepository @Inject constructor(
                         "dutyStatus" to if (isUnlocked) "OFFLINE" else "LOCKED",
                         "avatarUrl" to effectiveAvatar,
                         "photoUrl" to effectiveAvatar,
+                        "avatar" to effectiveAvatar,
+                        "profileImage" to effectiveAvatar,
                         "name" to user.name,
                         "phone" to user.phone
                     )

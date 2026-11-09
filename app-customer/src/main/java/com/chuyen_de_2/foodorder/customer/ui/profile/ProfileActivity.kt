@@ -31,6 +31,7 @@ import com.chuyen_de_2.foodorder.customer.databinding.DialogEditProfileBinding
 import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
 import com.chuyen_de_2.foodorder.customer.ui.checkout.SelectLocationActivity
 import com.chuyen_de_2.foodorder.customer.ui.complaint.ComplaintActivity
+import com.chuyen_de_2.foodorder.customer.ui.complaint.CustomerComplaintTrackingActivity
 import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryActivity
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.firebase.auth.FirebaseAuth
@@ -238,9 +239,9 @@ class ProfileActivity : AppCompatActivity() {
             startActivity(Intent(this, OrderHistoryActivity::class.java))
         }
 
-        // Gửi khiếu nại
+        // Trung tâm khiếu nại & Theo dõi xử lý
         binding.btnComplaint.setOnClickListener {
-            startActivity(Intent(this, ComplaintActivity::class.java))
+            startActivity(Intent(this, CustomerComplaintTrackingActivity::class.java))
         }
 
         // Quản lý Sổ địa chỉ nhận hàng

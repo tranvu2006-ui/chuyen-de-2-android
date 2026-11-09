@@ -35,8 +35,12 @@ class AdminAuthViewModel @Inject constructor(
         viewModelScope.launch {
             _authState.value = AdminAuthState.Loading
             val currentEmail = authRepository.currentUser?.email.orEmpty().trim()
+            val isAdmin = currentEmail.equals("admin@gmail.com", ignoreCase = true)
             val role = authRepository.getUserRole()
-            if (role == User.Role.ADMIN && currentEmail.equals("admin@gmail.com", ignoreCase = true)) {
+            if (isAdmin || role == User.Role.ADMIN) {
+                if (isAdmin) {
+                    authRepository.setUserRole(User.Role.ADMIN)
+                }
                 val userResult = authRepository.getCurrentUserData()
                 val user = userResult.getOrNull() ?: User(
                     uid = authRepository.currentUser?.uid.orEmpty(),
@@ -76,8 +80,12 @@ class AdminAuthViewModel @Inject constructor(
                 return@launch
             }
 
+            // Đồng bộ chắc chắn vai trò ADMIN trong database cho admin@gmail.com
+            authRepository.setUserRole(User.Role.ADMIN)
+
             val role = authRepository.getUserRole()
-            if (role != User.Role.ADMIN) {
+            val isAdmin = trimmedEmail.equals("admin@gmail.com", ignoreCase = true)
+            if (role != User.Role.ADMIN && !isAdmin) {
                 authRepository.logout()
                 _authState.value = AdminAuthState.Error(
                     "Từ chối truy cập: Tài khoản '$trimmedEmail' không thuộc nhóm quyền QUẢN TRỊ VIÊN (ADMIN)."

@@ -464,6 +464,14 @@ class HomeActivity : AppCompatActivity() {
             layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
             adapter = hotDishAdapter
         }
+
+        binding.btnHotBestSeller.setOnClickListener {
+            viewModel.switchHotTab(HomeViewModel.HotTab.BEST_SELLER)
+        }
+
+        binding.btnHotFavorite.setOnClickListener {
+            viewModel.switchHotTab(HomeViewModel.HotTab.FAVORITE)
+        }
     }
 
     /**
@@ -509,10 +517,6 @@ class HomeActivity : AppCompatActivity() {
         binding.btnFilterToggle.setOnClickListener {
             showAdvancedFilterBottomSheet()
         }
-
-        binding.chipRate5.setOnClickListener { toggleQuickRating(5) }
-        binding.chipRate4.setOnClickListener { toggleQuickRating(4) }
-        binding.chipRate3.setOnClickListener { toggleQuickRating(3) }
 
         syncFilterUI()
     }
@@ -703,23 +707,7 @@ class HomeActivity : AppCompatActivity() {
             binding.tvFilterBadge.visibility = View.GONE
         }
 
-        val is5Active = Math.abs(viewModel.currentMinRating - 4.8f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
-        val is4Active = Math.abs(viewModel.currentMinRating - 4.0f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
-        val is3Active = Math.abs(viewModel.currentMinRating - 3.0f) < 0.05f && Math.abs(viewModel.currentMaxRating - 5.0f) < 0.05f
 
-        fun updateQuickChipStyle(tv: TextView, isActive: Boolean) {
-            if (isActive) {
-                tv.setBackgroundResource(R.drawable.bg_quick_chip_active)
-                tv.setTextColor(ContextCompat.getColor(this, R.color.primary))
-            } else {
-                tv.setBackgroundResource(R.drawable.bg_quick_chip)
-                tv.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
-            }
-        }
-
-        updateQuickChipStyle(binding.chipRate5, is5Active)
-        updateQuickChipStyle(binding.chipRate4, is4Active)
-        updateQuickChipStyle(binding.chipRate3, is3Active)
 
         updateFilterIndicator()
     }
@@ -869,11 +857,28 @@ class HomeActivity : AppCompatActivity() {
             binding.tvEmpty.visibility = if (dishes.isEmpty()) View.VISIBLE else View.GONE
         }
 
+        viewModel.currentHotTab.observe(this) { tab ->
+            val isBestSeller = tab == HomeViewModel.HotTab.BEST_SELLER
+            binding.btnHotBestSeller.apply {
+                setBackgroundResource(if (isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
+                setTextColor(ContextCompat.getColor(this@HomeActivity, if (isBestSeller) R.color.primary else R.color.text_secondary))
+                setTypeface(null, if (isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
+            binding.btnHotFavorite.apply {
+                setBackgroundResource(if (!isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
+                setTextColor(ContextCompat.getColor(this@HomeActivity, if (!isBestSeller) R.color.primary else R.color.text_secondary))
+                setTypeface(null, if (!isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
+        }
+
         viewModel.hotDishes.observe(this) { hotDishes ->
             hotDishAdapter.submitList(hotDishes)
             val hasHot = hotDishes.isNotEmpty()
             binding.layoutHotDishesHeader.visibility = if (hasHot) View.VISIBLE else View.GONE
             binding.rvHotDishes.visibility = if (hasHot) View.VISIBLE else View.GONE
+            if (hasHot) {
+                binding.rvHotDishes.scrollToPosition(0)
+            }
         }
 
         viewModel.isLoading.observe(this) { isLoading ->

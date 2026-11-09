@@ -2,17 +2,13 @@ package com.chuyen_de_2.foodorder.customer.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
-import android.text.InputFilter
-import android.text.InputType
+import android.os.CountDownTimer
 import android.view.View
-import android.view.WindowManager
-import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityLoginBinding
@@ -21,31 +17,16 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
 /**
- * Tên chức năng: Màn Hình Đăng Nhập Khách Hàng (Customer Login Screen)
- * Cách hoạt động:
- *  - Thu thập Email và Mật khẩu khách hàng, thực hiện xác thực qua Firebase Authentication.
- *  - Kiểm tra trạng thái tài khoản (ACTIVE / LOCKED); nếu bị Admin khóa sẽ hiển thị hộp thoại cảnh báo.
- *  - Đối soát vai trò (Role): Nếu tài khoản có vai trò Quán (MERCHANT) hoặc Tài xế (DRIVER), gợi ý mở ứng dụng `com.chuyen_de_2.foodorder.internal`.
- *  - Nếu là tài khoản Khách hàng thông thường, điều hướng vào màn hình trang chủ [HomeActivity].
- * Luồng hướng tới:
- *  - Đăng nhập thành công -> Chuyển vào [HomeActivity].
- *  - Bấm "Đăng ký" -> Chuyển sang [RegisterActivity].
- *  - Tài khoản Quán/Shipper -> Điều hướng mở ứng dụng đối tác nội bộ qua Package Manager.
+ * Màn hình đăng nhập khách hàng, bắt buộc xác thực mã OTP qua Email trực tiếp trên form (inline OTP).
  */
 @AndroidEntryPoint
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
     private val viewModel: AuthViewModel by viewModels()
-    private var pendingOtpEmail = ""
-    private var pendingOtpPassword = ""
-    private var loginOtpDialog: AlertDialog? = null
 
-    /**
-     * Tên chức năng: Khởi tạo màn hình và kiểm tra phiên đăng nhập
-     * Cách hoạt động: Thiết lập giao diện, bắt sự kiện và kiểm tra trạng thái đăng nhập sẵn có.
-     * Luồng hướng tới: Tự động vào [HomeActivity] nếu phiên còn hiệu lực.
-     */
+    private var otpCountDownTimer: CountDownTimer? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLoginBinding.inflate(layoutInflater)
@@ -71,16 +52,66 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Tên chức năng: Cấu hình sự kiện nút Đăng nhập và Đăng ký
-     * Cách hoạt động: Lấy thông tin email/mật khẩu và kích hoạt [AuthViewModel.login].
-     * Luồng hướng tới: Gửi dữ liệu xác thực tới Firebase.
-     */
     private fun setupUI() {
+        binding.etEmail.doAfterTextChanged {
+            binding.tilEmail.error = null
+            binding.tilOtp.error = null
+        }
+        binding.etPassword.doAfterTextChanged {
+            binding.tilPassword.error = null
+        }
+        binding.etOtp.doAfterTextChanged { s ->
+            binding.tilOtp.error = null
+            val code = s?.toString()?.trim().orEmpty()
+            if (code.length == 6 && code.all { it.isDigit() }) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
+                val email = binding.etEmail.text?.toString()?.trim().orEmpty()
+                val password = binding.etPassword.text?.toString().orEmpty()
+                if (email.isNotBlank() && password.isNotBlank()) {
+                    binding.btnLogin.performClick()
+                }
+            }
+        }
+
+        // Nút "Lấy mã" kế bên ô nhập OTP
+        binding.btnGetOtp.setOnClickListener {
+            val email = binding.etEmail.text.toString().trim()
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
+                binding.etEmail.requestFocus()
+                return@setOnClickListener
+            }
+            binding.tilEmail.error = null
+            binding.tilOtp.error = null
+            binding.btnGetOtp.isEnabled = false
+            binding.btnGetOtp.text = "Đang gửi..."
+            viewModel.requestEmailOtp(email)
+        }
+
+        // Nút "Đăng nhập" — Bắt buộc phải có cả Email, Mật khẩu và Mã OTP
         binding.btnLogin.setOnClickListener {
             val email = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString().trim()
-            viewModel.login(email, password)
+            val otp = binding.etOtp.text.toString().trim()
+
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
+                binding.etEmail.requestFocus()
+                return@setOnClickListener
+            }
+            if (password.isBlank()) {
+                binding.tilPassword.error = "Vui lòng nhập mật khẩu"
+                binding.etPassword.requestFocus()
+                return@setOnClickListener
+            }
+            if (otp.length != 6 || !otp.all { it.isDigit() }) {
+                binding.tilOtp.error = "Vui lòng bấm 'Lấy mã' và nhập mã OTP 6 số để đăng nhập"
+                binding.etOtp.requestFocus()
+                return@setOnClickListener
+            }
+
+            viewModel.verifyLoginOtp(email, password, otp)
         }
 
         binding.tvRegister.setOnClickListener {
@@ -88,181 +119,87 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Tên chức năng: Lắng nghe trạng thái kết quả đăng nhập từ ViewModel
-     * Cách hoạt động: Hiển thị thanh tiến trình ProgressBar và xử lý thành công / thất bại.
-     * Luồng hướng tới: Khi thành công, gọi [checkRoleAndRoute].
-     */
     private fun observeViewModel() {
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
             binding.btnLogin.isEnabled = !isLoading
         }
 
-        viewModel.loginResult.observe(this) { result ->
-            result.onSuccess {
-                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                checkRoleAndRoute()
-            }.onFailure { error ->
-                if (error is EmailOtpRequiredException) {
-                    showLoginOtpDialog()
-                } else {
-                    Toast.makeText(this, error.message ?: "Đăng nhập thất bại", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
         viewModel.otpRequestResult.observe(this) { result ->
             result.onSuccess {
-                Toast.makeText(this, "Đã gửi mã OTP đến email.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Đã gửi mã OTP đến email. Vui lòng kiểm tra hộp thư!", Toast.LENGTH_LONG).show()
+                startOtpCountdown()
+                binding.etOtp.requestFocus()
             }.onFailure { error ->
+                binding.btnGetOtp.isEnabled = true
+                binding.btnGetOtp.text = "Lấy mã"
                 Toast.makeText(this, error.message ?: "Không gửi được mã OTP.", Toast.LENGTH_LONG).show()
             }
         }
 
         viewModel.loginOtpResult.observe(this) { result ->
             result.onSuccess {
-                loginOtpDialog?.dismiss()
-                loginOtpDialog = null
-                Toast.makeText(this, "Xác minh email và đăng nhập thành công.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
                 checkRoleAndRoute()
             }.onFailure { error ->
-                Toast.makeText(this, error.message ?: "Mã OTP không hợp lệ.", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun showLoginOtpDialog() {
-        if (loginOtpDialog?.isShowing == true) return
-        pendingOtpEmail = binding.etEmail.text.toString().trim()
-        pendingOtpPassword = binding.etPassword.text.toString().trim()
-        val codeInput = EditText(this).apply {
-            hint = "Nhập mã OTP 6 chữ số"
-            inputType = InputType.TYPE_CLASS_NUMBER
-            filters = arrayOf(InputFilter.LengthFilter(6))
-            textAlignment = View.TEXT_ALIGNMENT_CENTER
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Xác minh email")
-            .setMessage("Tài khoản chưa xác minh. Nhập mã OTP đã gửi đến $pendingOtpEmail.")
-            .setView(codeInput)
-            .setPositiveButton("Xác nhận", null)
-            .setNeutralButton("Gửi lại mã", null)
-            .setNegativeButton("Hủy", null)
-            .create()
-        loginOtpDialog = dialog
-        dialog.setOnDismissListener {
-            if (loginOtpDialog === dialog) loginOtpDialog = null
-            pendingOtpPassword = ""
-        }
-        dialog.setOnShowListener {
-            codeInput.requestFocus()
-            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                codeInput.text?.clear()
-                viewModel.requestEmailOtp(pendingOtpEmail)
-            }
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val code = codeInput.text.toString().trim()
-                if (!code.matches(Regex("\\d{6}"))) {
-                    codeInput.error = "Mã OTP phải gồm đúng 6 chữ số"
+                val msg = error.message.orEmpty()
+                val userMsg = if (
+                    msg.contains("password", ignoreCase = true) ||
+                    msg.contains("credential", ignoreCase = true) ||
+                    msg.contains("mật khẩu", ignoreCase = true)
+                ) {
+                    binding.tilPassword.error = "Mật khẩu không chính xác"
+                    "Mật khẩu không chính xác"
+                } else if (
+                    msg.contains("token", ignoreCase = true) ||
+                    msg.contains("otp", ignoreCase = true) ||
+                    msg.contains("expired", ignoreCase = true) ||
+                    msg.contains("invalid", ignoreCase = true)
+                ) {
+                    binding.tilOtp.error = "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                    "Mã OTP không đúng hoặc đã hết hạn"
                 } else {
-                    viewModel.verifyLoginOtp(pendingOtpEmail, pendingOtpPassword, code)
+                    msg.ifBlank { "Đăng nhập thất bại" }
                 }
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
             }
         }
-        dialog.show()
     }
 
-    /**
-     * Tên chức năng: Kiểm tra trạng thái kích hoạt tài khoản và điều hướng vai trò
-     * Cách hoạt động:
-     *  - Kiểm tra xem tài khoản có bị khóa không via `checkAccountActiveStatus()`.
-     *  - Đọc quyền (Role) của người dùng để điều hướng ứng dụng phù hợp (Customer -> Home; Merchant/Shipper -> Gợi ý mở App Internal).
-     * Luồng hướng tới: [navigateToHome] hoặc [showInternalRoleDialog].
-     */
+    private fun startOtpCountdown() {
+        otpCountDownTimer?.cancel()
+        binding.btnGetOtp.isEnabled = false
+        otpCountDownTimer = object : CountDownTimer(60_000L, 1_000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val sec = millisUntilFinished / 1000
+                binding.btnGetOtp.text = "${sec}s"
+            }
+
+            override fun onFinish() {
+                binding.btnGetOtp.isEnabled = true
+                binding.btnGetOtp.text = "Gửi lại"
+            }
+        }.start()
+    }
+
     private fun checkRoleAndRoute() {
-        binding.progressBar.visibility = View.VISIBLE
         lifecycleScope.launch {
-            val statusCheck = viewModel.checkAccountActiveStatus()
-            if (statusCheck.isFailure) {
-                binding.progressBar.visibility = View.GONE
-                val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                AlertDialog.Builder(this@LoginActivity)
-                    .setTitle("🔒 Tài khoản bị khóa")
-                    .setMessage(reason)
-                    .setPositiveButton("Đóng", null)
-                    .show()
-                return@launch
+            val role = viewModel.getUserRole()
+            if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
+                val intent = Intent(this@LoginActivity, HomeActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+                startActivity(intent)
+                finish()
+            } else {
+                Toast.makeText(this@LoginActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
+                viewModel.logout()
             }
-
-            binding.progressBar.visibility = View.GONE
-            // Vào thẳng Trang chủ Khách hàng, không chặn popup đối với tài khoản Cửa hàng / Tài xế
-            navigateToHome()
         }
     }
 
-    /**
-     * Tên chức năng: Hộp thoại gợi ý chuyển đổi ứng dụng cho Đối tác
-     * Cách hoạt động: Khi phát hiện tài khoản đối tác mở nhầm app khách hàng, hiển thị Dialog hỗ trợ mở nhanh app Oishi Internal.
-     * Luồng hướng tới: Mở Package `com.chuyen_de_2.foodorder.internal` hoặc tiếp tục xem với vai trò Khách.
-     */
-    private fun showInternalRoleDialog(roleName: String, isShop: Boolean) {
-        val appName = if (isShop) "Quán Ăn (Merchant)" else "Tài Xế (Shipper)"
-        val featureDesc = if (isShop) "Quản lý Đơn hàng & Thực đơn" else "Nhận cuốc giao hàng & Định vị GPS"
-
-        AlertDialog.Builder(this)
-            .setTitle("🏪 Tài khoản $roleName")
-            .setMessage(
-                "Bạn đang đăng nhập bằng tài khoản $roleName trên ứng dụng Khách hàng (Oishi Customer).\n\n" +
-                "Giao diện $featureDesc nằm ở ứng dụng Cửa hàng & Tài xế (Oishi Internal).\n\n" +
-                "Bạn có muốn chuyển sang ứng dụng Oishi Internal ngay bây giờ không?"
-            )
-            .setPositiveButton("Mở App Quán (Oishi Internal)") { _, _ ->
-                val launchIntent = packageManager.getLaunchIntentForPackage("com.chuyen_de_2.foodorder.internal")
-                if (launchIntent != null) {
-                    startActivity(launchIntent)
-                    finish()
-                } else {
-                    showAppNotInstalledDialog(appName)
-                }
-            }
-            .setNegativeButton("Xem như Khách") { _, _ ->
-                navigateToHome()
-            }
-            .setNeutralButton("Đăng xuất") { _, _ ->
-                viewModel.logout()
-            }
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun showAppNotInstalledDialog(appName: String) {
-        AlertDialog.Builder(this)
-            .setTitle("⚠️ Chưa cài đặt Oishi Internal")
-            .setMessage(
-                "Ứng dụng Oishi Internal ($appName) chưa được cài đặt trên thiết bị.\n\n" +
-                "👉 Hướng dẫn mở giao diện Cửa hàng trên Android Studio:\n" +
-                "1. Nhìn lên thanh công cụ phía trên của Android Studio (cạnh nút Run ▶️ màu xanh).\n" +
-                "2. Nhấn vào danh sách module (đang chọn 'app-customer') và đổi sang 'app-internal'.\n" +
-                "3. Bấm Run (▶️) để cài đặt và mở ứng dụng Quán / Shipper!"
-            )
-            .setPositiveButton("Tiếp tục xem như Khách") { _, _ ->
-                navigateToHome()
-            }
-            .setNegativeButton("Đăng xuất") { _, _ ->
-                viewModel.logout()
-            }
-            .show()
-    }
-
-    /**
-     * Tên chức năng: Điều hướng vào Trang chủ Khách hàng
-     * Cách hoạt động: Khởi chạy [HomeActivity] và đóng màn hình Đăng nhập.
-     * Luồng hướng tới: [HomeActivity].
-     */
-    private fun navigateToHome() {
-        startActivity(Intent(this, HomeActivity::class.java))
-        finish()
+    override fun onDestroy() {
+        super.onDestroy()
+        otpCountDownTimer?.cancel()
     }
 }

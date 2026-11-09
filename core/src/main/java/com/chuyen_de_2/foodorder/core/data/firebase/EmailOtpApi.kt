@@ -3,6 +3,7 @@ package com.chuyen_de_2.foodorder.core.data.firebase
 import com.chuyen_de_2.foodorder.core.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -18,10 +19,13 @@ import javax.inject.Singleton
 @Singleton
 class EmailOtpApi @Inject constructor() {
 
-    // Dùng timeout hữu hạn để đăng ký không chờ vô hạn khi mạng/Supabase gặp sự cố.
+    // Tối ưu hóa OkHttpClient với ConnectionPool dùng lại socket HTTPS, HTTP/2 và timeout linh hoạt
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     /**
@@ -80,14 +84,15 @@ class EmailOtpApi @Inject constructor() {
         val request = Request.Builder()
             .url("$baseUrl$path")
             .header("apikey", apiKey)
+            .header("Accept", "application/json")
             .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
         // Đóng response tự động; đọc body một lần để parse response thành công hoặc lỗi.
         client.newCall(request).execute().use { response ->
             val responseText = response.body?.string().orEmpty()
-            // Supabase phải trả JSON; response sai định dạng được báo lỗi rõ, không giả thành OTP hợp lệ.
+            // Supabase trả JSON hoặc rỗng khi 200 OK
             val result = try {
-                JSONObject(responseText)
+                if (responseText.isBlank()) JSONObject() else JSONObject(responseText)
             } catch (error: Exception) {
                 throw IllegalStateException("Máy chủ OTP trả về dữ liệu không hợp lệ.", error)
             }

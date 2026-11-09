@@ -18,6 +18,7 @@ import android.os.Looper
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -2071,10 +2072,11 @@ class DeliveryTripActivity : AppCompatActivity() {
         fun renderCallProofState(base64: String) {
             if (base64.isNotBlank()) {
                 repBinding.cardCallProofPreview.visibility = View.VISIBLE
-                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadEvidenceImage(
                     repBinding.ivCallProofPreview,
                     base64,
-                    R.drawable.ic_camera
+                    placeholderResId = R.drawable.ic_camera,
+                    cornerDp = 8
                 )
                 repBinding.ivCallProofIcon.setImageResource(R.drawable.ic_check_circle)
                 repBinding.ivCallProofIcon.setColorFilter(ContextCompat.getColor(this, R.color.brand_green))
@@ -2086,16 +2088,61 @@ class DeliveryTripActivity : AppCompatActivity() {
         fun renderMsgProofState(base64: String) {
             if (base64.isNotBlank()) {
                 repBinding.cardMsgProofPreview.visibility = View.VISIBLE
-                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadEvidenceImage(
                     repBinding.ivMsgProofPreview,
                     base64,
-                    R.drawable.ic_camera
+                    placeholderResId = R.drawable.ic_camera,
+                    cornerDp = 8
                 )
                 repBinding.ivMsgProofIcon.setImageResource(R.drawable.ic_check_circle)
                 repBinding.ivMsgProofIcon.setColorFilter(ContextCompat.getColor(this, R.color.brand_green))
                 repBinding.tvMsgProofText.text = "✓ Đã tải ảnh nhắn tin"
                 repBinding.tvMsgProofText.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
             }
+        }
+
+        fun showIncidentProofZoom(base64: String) {
+            if (base64.isBlank()) return
+            val zoomDialog = android.app.Dialog(this)
+            val container = android.widget.FrameLayout(this).apply {
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                setBackgroundColor(Color.parseColor("#E6000000"))
+            }
+            val iv = ImageView(this).apply {
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.CENTER
+                )
+                adjustViewBounds = true
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(24, 48, 24, 48)
+            }
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadEvidenceImage(iv, base64, cornerDp = 0)
+            container.addView(iv)
+            val btnClose = ImageView(this).apply {
+                val size = (36 * resources.displayMetrics.density).toInt()
+                layoutParams = android.widget.FrameLayout.LayoutParams(size, size, android.view.Gravity.TOP or android.view.Gravity.END).apply {
+                    setMargins(24, 40, 24, 0)
+                }
+                setImageResource(R.drawable.ic_close)
+                setColorFilter(Color.WHITE)
+                setOnClickListener { zoomDialog.dismiss() }
+            }
+            container.addView(btnClose)
+            zoomDialog.setContentView(container)
+            zoomDialog.window?.let { win ->
+                win.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            }
+            zoomDialog.show()
+        }
+
+        repBinding.cardCallProofPreview.setOnClickListener {
+            showIncidentProofZoom(callProofBase64)
+        }
+        repBinding.cardMsgProofPreview.setOnClickListener {
+            showIncidentProofZoom(msgProofBase64)
         }
 
         renderCallProofState(callProofBase64)

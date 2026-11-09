@@ -210,6 +210,9 @@
             android:textColorHint="@color/text_secondary"
             app:boxBackgroundColor="@color/white"
             app:boxStrokeColor="@color/primary"
+            app:helperText="Nếu thứ tự bị trùng, hệ thống tự động chen vào và đẩy các mục sau xuống"
+            app:helperTextEnabled="true"
+            app:helperTextTextColor="@color/text_muted"
             app:hintTextColor="@color/primary">
 
             <com.google.android.material.textfield.TextInputEditText

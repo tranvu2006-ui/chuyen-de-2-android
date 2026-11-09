@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream
 
 class AddEditCategoryDialogFragment(
     private val categoryToEdit: Category? = null,
+    private val defaultOrder: Int = 1,
     private val onSave: (Category) -> Unit
 ) : DialogFragment() {
 
@@ -107,6 +108,7 @@ class AddEditCategoryDialogFragment(
             }
         } else {
             binding.tvDialogTitle.text = "Thêm Danh Mục Mới"
+            binding.etCatOrder.setText(defaultOrder.toString())
             uploadedBase64Icon = ""
             updateIconPreview("")
         }

@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F8FAFC">
 
+    <!-- Top AppBar -->
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
@@ -13,21 +14,31 @@
         android:background="@color/white"
         app:elevation="1dp">
 
+        <!-- System Status Bar Spacer -->
+        <View
+            android:id="@+id/viewStatusBar"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:background="@color/white" />
+
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            app:navigationIcon="@drawable/ic_arrow_left"
+            app:navigationIconTint="@color/text_primary"
             app:title="Gửi Khiếu Nại Đơn Hàng"
             app:titleTextColor="@color/text_primary"
-            app:navigationIcon="@drawable/ic_arrow_left"
-            app:navigationIconTint="@color/text_primary" />
+            app:subtitle="Trung tâm giải quyết tranh chấp 24/7"
+            app:subtitleTextColor="@color/text_secondary" />
     </com.google.android.material.appbar.AppBarLayout>
 
+    <!-- Scrollable Content -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:paddingBottom="40dp"
+        android:paddingBottom="100dp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <LinearLayout
@@ -36,50 +47,14 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Banner Cảnh báo & Bảo vệ quyền lợi (Chuẩn b12.html) -->
+            <!-- 1. CHỌN ĐƠN HÀNG CẦN KHIẾU NẠI (Chuẩn b12.html) -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="#FFFBEB"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#FDE68A"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="14dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="⚖️"
-                        android:textSize="24sp" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_weight="1"
-                        android:text="Admin Oishi Food xử lý khiếu nại công bằng trong 24h. Quán vi phạm có thể bị Cảnh báo, Ẩn tìm kiếm hoặc Khóa vĩnh viễn."
-                        android:textColor="#92400E"
-                        android:textSize="12sp"
-                        android:lineSpacingExtra="2dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card Nhập Thông Tin -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="14dp"
                 app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
+                app:cardElevation="0dp"
                 app:strokeColor="#E2E8F0"
                 app:strokeWidth="1dp">
 
@@ -87,22 +62,52 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:padding="16dp">
 
-                    <!-- Mã Đơn Hàng -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="MÃ ĐƠN HÀNG KHIẾU NẠI *"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <com.google.android.material.textfield.TextInputLayout
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:layout_marginBottom="14dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📦 Chọn Đơn Hàng Cần Khiếu Nại *"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/btnToggleManualInput"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="?attr/selectableItemBackground"
+                            android:paddingHorizontal="6dp"
+                            android:paddingVertical="2dp"
+                            android:text="Nhập mã đơn"
+                            android:textColor="@color/brand_blue"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Order Selector Spinner -->
+                    <Spinner
+                        android:id="@+id/spinnerOrders"
+                        android:layout_width="match_parent"
+                        android:layout_height="46dp"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_spinner"
+                        android:paddingHorizontal="12dp" />
+
+                    <!-- Manual Input Box (Hiện khi bấm nhập mã đơn) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilManualOrderId"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone"
                         app:boxStrokeColor="@color/primary"
                         app:hintEnabled="false">
 
@@ -110,26 +115,148 @@
                             android:id="@+id/etOrderId"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="Ví dụ: -Oabcdef12345"
                             android:fontFamily="monospace"
-                            android:textSize="14sp" />
+                            android:hint="Nhập mã đơn, ví dụ: -Oabcdef12345"
+                            android:textSize="13sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Lý Do Khiếu Nại -->
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <!-- Khung Preview Thông Tin Đơn Hàng (Chuẩn order-preview b12.html) -->
+                    <LinearLayout
+                        android:id="@+id/orderPreviewBox"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="LÝ DO KHIẾU NẠI CHÍNH *"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_order_preview_box"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🏪"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/tvPreviewStoreName"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:layout_weight="1"
+                                android:textColor="@color/text_primary"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold"
+                                tools:text="Quán bị khiếu nại: Quán Ốc Đêm 77" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvPreviewOrderItems"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="5dp"
+                            android:textColor="#334155"
+                            android:textSize="12sp"
+                            android:lineSpacingExtra="2dp"
+                            tools:text="🍲 Món đặt: 1x Sò huyết cháy tỏi, 1x Ốc hương rang muối" />
+
+                        <TextView
+                            android:id="@+id/tvPreviewDriverInfo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11.5sp"
+                            tools:text="🛵 Shipper phụ trách: TX-12 Trần Quốc Bảo" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/tvPreviewTotalAmount"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:textColor="@color/primary"
+                                android:textSize="12.5sp"
+                                android:textStyle="bold"
+                                tools:text="Tổng tiền: 185.000 đ" />
+
+                            <TextView
+                                android:id="@+id/tvPreviewOrderStatus"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_badge_green"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="2dp"
+                                android:textColor="@color/brand_green"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                tools:text="ĐÃ GIAO HÀNG" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 2. PHÂN LOẠI VẤN ĐỀ GẶP PHẢI (LÝ DO & MÔ TẢ) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E2E8F0"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="⚠️ Phân Loại Vấn Đề Gặp Phải *"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvPriorityBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_badge_red"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp"
+                            android:text="Ưu tiên: Cao 🔴"
+                            android:textColor="@color/danger"
+                            android:textSize="10.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <Spinner
                         android:id="@+id/spinnerReason"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
-                        android:layout_marginTop="6dp"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginTop="10dp"
                         android:background="@drawable/bg_spinner"
                         android:paddingHorizontal="12dp" />
 
@@ -137,8 +264,9 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="MÔ TẢ CHI TIẾT SỰ VIỆC *"
-                        android:textColor="@color/text_primary"
+                        android:layout_marginTop="14dp"
+                        android:text="Mô tả chi tiết sự việc *"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
@@ -146,128 +274,237 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:layout_marginBottom="14dp"
                         app:boxStrokeColor="@color/primary"
                         app:hintEnabled="false">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etDescription"
                             android:layout_width="match_parent"
-                            android:layout_height="120dp"
+                            android:layout_height="110dp"
                             android:gravity="top|start"
-                            android:hint="Mô tả cụ thể món ăn bị giao sai, nguội lạnh, hoặc thái độ tài xế..."
+                            android:hint="Vui lòng nêu rõ tình trạng để Ban Quản Trị Oishi Food kiểm tra và bảo vệ quyền lợi cho bạn..."
                             android:inputType="textMultiLine"
+                            android:lineSpacingExtra="3dp"
                             android:textSize="13sp" />
                     </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
-                    <!-- Chọn ảnh bằng chứng từ thư viện máy -->
+            <!-- 3. HÌNH ẢNH MINH CHỨNG (Chuẩn upload-box b12.html) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E2E8F0"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="ẢNH BẰNG CHỨNG HIỆN TRƯỜNG (Tùy chọn)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp"
+                        android:text="📷 Hình Ảnh Minh Chứng (Tùy chọn)"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13.5sp"
                         android:textStyle="bold" />
 
+                    <!-- Upload Box Placeholder (Nét đứt chuẩn b12.html khi chưa có ảnh) -->
                     <LinearLayout
+                        android:id="@+id/layoutUploadBoxPlaceholder"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:background="@drawable/bg_search_bar_modern"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:padding="10dp">
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_dashed_upload_box"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="20dp">
 
                         <com.google.android.material.card.MaterialCardView
-                            android:id="@+id/cardEvidencePreview"
-                            android:layout_width="60dp"
-                            android:layout_height="60dp"
-                            app:cardCornerRadius="8dp"
+                            android:layout_width="52dp"
+                            android:layout_height="52dp"
+                            app:cardBackgroundColor="#EFF6FF"
+                            app:cardCornerRadius="26dp"
                             app:cardElevation="0dp"
-                            app:strokeColor="@color/border"
+                            app:strokeColor="#BFDBFE"
+                            app:strokeWidth="1dp">
+
+                            <ImageView
+                                android:layout_width="26dp"
+                                android:layout_height="26dp"
+                                android:layout_gravity="center"
+                                android:contentDescription="Tải ảnh minh chứng"
+                                android:src="@drawable/ic_camera"
+                                app:tint="@color/brand_blue" />
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Bấm để tải ảnh chụp món ăn / hóa đơn"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Chụp rõ phần đồ ăn có vấn đề hoặc bill thanh toán từ thư viện"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <!-- Evidence Preview Container (Hiện ra khi đã chọn ảnh) -->
+                    <LinearLayout
+                        android:id="@+id/layoutEvidencePreviewContainer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="match_parent"
+                            android:layout_height="180dp"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="#CBD5E1"
                             app:strokeWidth="1dp">
 
                             <ImageView
                                 android:id="@+id/ivEvidencePreview"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:scaleType="centerCrop"
-                                android:src="@drawable/ic_camera"
-                                app:tint="@color/text_muted" />
+                                android:contentDescription="Ảnh minh chứng khiếu nại"
+                                android:scaleType="centerCrop" />
                         </com.google.android.material.card.MaterialCardView>
 
                         <LinearLayout
-                            android:layout_width="0dp"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
+                            android:layout_marginTop="10dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
 
                             <TextView
                                 android:id="@+id/tvEvidenceStatus"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="✓ Đã đính kèm ảnh minh chứng"
+                                android:textColor="@color/brand_green"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnChangeEvidenceImage"
+                                style="@style/Widget.Material3.Button.TonalButton"
                                 android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Chỉ chọn ảnh trực tiếp từ thư viện điện thoại"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11.5sp" />
+                                android:layout_height="36dp"
+                                android:backgroundTint="#EFF6FF"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"
+                                android:paddingHorizontal="10dp"
+                                android:text="Đổi ảnh"
+                                android:textColor="@color/brand_blue"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold"
+                                app:cornerRadius="8dp"
+                                app:icon="@drawable/ic_camera"
+                                app:iconSize="15dp"
+                                app:iconTint="@color/brand_blue" />
 
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="6dp"
-                                android:orientation="horizontal">
-
-                                <com.google.android.material.button.MaterialButton
-                                    android:id="@+id/btnPickEvidenceImage"
-                                    style="@style/Widget.Material3.Button.TonalButton"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="34dp"
-                                    android:backgroundTint="#EFF6FF"
-                                    android:insetTop="0dp"
-                                    android:insetBottom="0dp"
-                                    android:paddingHorizontal="10dp"
-                                    android:text="Chọn ảnh từ máy"
-                                    android:textColor="@color/brand_blue"
-                                    android:textSize="11.5sp"
-                                    android:textStyle="bold"
-                                    app:cornerRadius="8dp"
-                                    app:icon="@drawable/ic_image"
-                                    app:iconSize="14dp"
-                                    app:iconTint="@color/brand_blue" />
-
-                                <com.google.android.material.button.MaterialButton
-                                    android:id="@+id/btnClearEvidenceImage"
-                                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="34dp"
-                                    android:layout_marginStart="6dp"
-                                    android:insetTop="0dp"
-                                    android:insetBottom="0dp"
-                                    android:paddingHorizontal="6dp"
-                                    android:text="Xóa ảnh"
-                                    android:textAllCaps="false"
-                                    android:textColor="@color/danger"
-                                    android:textSize="11sp" />
-                            </LinearLayout>
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnClearEvidenceImage"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="36dp"
+                                android:layout_marginStart="4dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"
+                                android:paddingHorizontal="8dp"
+                                android:text="Xóa ảnh"
+                                android:textAllCaps="false"
+                                android:textColor="@color/danger"
+                                android:textSize="11.5sp"
+                                app:icon="@drawable/ic_trash"
+                                app:iconSize="15dp"
+                                app:iconTint="@color/danger" />
                         </LinearLayout>
                     </LinearLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Submit Button -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSubmitComplaint"
+            <!-- 4. KHUNG CHẾ TÀI XỬ PHẠT CỦA ADMIN (Chuẩn penalty-info-box b12.html) -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="Gửi Khiếu Nại Lên Hệ Thống "
-                android:textColor="@color/white"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                app:backgroundTint="@color/primary"
-                app:cornerRadius="14dp" />
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_penalty_callout"
+                android:orientation="horizontal"
+                android:padding="14dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="top"
+                    android:layout_marginTop="1dp"
+                    android:contentDescription="Chế tài xử phạt"
+                    android:src="@drawable/ic_shield_alert"
+                    app:tint="#DC2626" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:lineSpacingExtra="3dp"
+                    android:text="Quy trình xử phạt của Admin: Khiếu nại của bạn sẽ được gửi thẳng vào cổng Quản Trị Khiếu Nại (admin.html). Nếu đối tượng vi phạm, Ban Quản Trị sẽ áp dụng ngay 1 trong 3 chế tài: Cảnh báo, Ẩn gian hàng / Giới hạn quyền hoặc Khóa tài khoản vĩnh viễn."
+                    android:textColor="#991B1B"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
+
+    <!-- Bottom Action Bar Cố Định (Chuẩn b12.html) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@color/white"
+        android:elevation="8dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="18dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubmitComplaint"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="Gửi Khiếu Nại Lên Ban Quản Trị"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            app:backgroundTint="@color/primary"
+            app:cornerRadius="12dp"
+            app:elevation="2dp"
+            app:icon="@drawable/ic_shield_alert"
+            app:iconGravity="textStart"
+            app:iconPadding="10dp"
+            app:iconSize="20dp"
+            app:iconTint="@color/white" />
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

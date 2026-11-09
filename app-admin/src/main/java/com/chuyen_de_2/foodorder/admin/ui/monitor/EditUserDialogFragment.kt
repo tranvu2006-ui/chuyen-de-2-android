@@ -38,6 +38,7 @@ class EditUserDialogFragment(
     private var isAvatarResetToDefault = false
 
     private val pickAvatarLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        val ctx = context ?: return@registerForActivityResult
         uri ?: return@registerForActivityResult
         val base64 = uriToBase64(uri)
         if (!base64.isNullOrBlank()) {
@@ -45,11 +46,16 @@ class EditUserDialogFragment(
             isAvatarResetToDefault = false
             updateAvatarPreview(currentAvatar)
             binding.tvAvatarStatusHint.text = "✓ Đã chọn ảnh mới từ thư viện"
+            binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
+            android.widget.Toast.makeText(ctx, "📷 Đã cập nhật ảnh đại diện mới!", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            android.widget.Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun uriToBase64(uri: Uri): String? {
-        return ImagePickerUtils.compressUriToBase64(requireContext(), uri, maxDimension = 400, quality = 85)
+        val ctx = context ?: return null
+        return ImagePickerUtils.compressUriToBase64(ctx, uri, maxDimension = 260, quality = 80)
     }
 
     private val roleOptions = listOf(
@@ -218,6 +224,12 @@ class EditUserDialogFragment(
         binding.cardUserAvatarContainer.setOnClickListener {
             pickAvatarLauncher.launch("image/*")
         }
+        binding.ivUserAvatarPreview.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        binding.ivDialogUserAvatar.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
         binding.btnQuickPickAvatar.setOnClickListener {
             pickAvatarLauncher.launch("image/*")
         }
@@ -226,9 +238,11 @@ class EditUserDialogFragment(
         }
 
         binding.btnResetAvatarDefault.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
             isAvatarResetToDefault = true
             currentAvatar = ""
             updateAvatarPreview("")
+            android.widget.Toast.makeText(ctx, "Đã đặt lại icon mặc định", android.widget.Toast.LENGTH_SHORT).show()
         }
 
         // Đồng bộ giữa Switch Kích hoạt và Spinner Trạng thái

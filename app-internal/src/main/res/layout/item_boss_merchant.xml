@@ -73,14 +73,38 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
-            <ImageButton
-                android:id="@+id/btnDeleteMerchantItem"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Xóa"
-                android:src="@drawable/ic_trash"
-                app:tint="#EF4444" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end|center_vertical"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvMerchantStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_green"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:text="🟢 Hoạt động"
+                    android:textColor="#15803D"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnToggleLockMerchant"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="4dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingHorizontal="6dp"
+                    android:text="🔒 Khóa"
+                    android:textColor="#EF4444"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Divider -->

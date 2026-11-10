@@ -111,7 +111,7 @@ class BossDashboardActivity : AppCompatActivity() {
         merchantAdapter = BossMerchantAdapter(
             onAssignBranchClick = { merchant -> showAssignBranchToMerchantDialog(merchant) },
             onUnassignBranchClick = { merchant -> unassignMerchant(merchant) },
-            onDeleteMerchantClick = { merchant -> confirmDeleteMerchant(merchant) }
+            onToggleLockMerchantClick = { merchant -> confirmToggleLockMerchant(merchant) }
         )
         binding.rvBossMerchants.layoutManager = LinearLayoutManager(this)
         binding.rvBossMerchants.adapter = merchantAdapter
@@ -405,13 +405,15 @@ class BossDashboardActivity : AppCompatActivity() {
             val merchants = firebaseRepository.getMerchantsForBoss(currentBossUid).firstOrNull().orEmpty()
 
             for (merchant in merchants) {
+                val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
                 val rb = RadioButton(this@BossDashboardActivity).apply {
                     id = View.generateViewId()
-                    text = "👤 ${merchant.name} (${merchant.email})"
-                    setTextColor(Color.parseColor("#0F172A"))
+                    text = if (isLocked) "🔒 ${merchant.name} (${merchant.email}) [Đã khóa]" else "👤 ${merchant.name} (${merchant.email})"
+                    setTextColor(if (isLocked) Color.parseColor("#94A3B8") else Color.parseColor("#0F172A"))
                     textSize = 14f
                     setPadding(0, 16, 0, 16)
                     tag = merchant
+                    isEnabled = !isLocked
                     if (merchant.uid == store.merchantId) {
                         isChecked = true
                         selectedUid = merchant.uid
@@ -499,6 +501,12 @@ class BossDashboardActivity : AppCompatActivity() {
      * Dialog phân công chi nhánh cho một Quản lý (Merchant) được chọn từ danh sách Quản lý
      */
     private fun showAssignBranchToMerchantDialog(merchant: User) {
+        val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+        if (isLocked) {
+            Toast.makeText(this, "Tài khoản quản lý này đang bị khóa, không thể phân công chi nhánh!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val dialogBinding = DialogAssignBranchToMerchantBinding.inflate(layoutInflater)
@@ -591,17 +599,29 @@ class BossDashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * Xóa tài khoản Quản lý khỏi chuỗi
+     * Khóa hoặc Mở khóa tài khoản Quản lý (thay thế xóa tài khoản)
      */
-    private fun confirmDeleteMerchant(merchant: User) {
+    private fun confirmToggleLockMerchant(merchant: User) {
+        val isCurrentlyLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+        val shouldLock = !isCurrentlyLocked
+
+        val title = if (shouldLock) "🔒 Khóa Tài Khoản Quản Lý" else "🔓 Mở Khóa Tài Khoản Quản Lý"
+        val message = if (shouldLock) {
+            "Bạn có chắc muốn KHÓA tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nQuản lý này sẽ bị gỡ khỏi chi nhánh (nếu có) và không thể đăng nhập vào ứng dụng."
+        } else {
+            "Bạn có chắc muốn MỞ KHÓA cho tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nSau khi mở khóa, quản lý này có thể đăng nhập và được phân công lại vào chi nhánh."
+        }
+        val positiveBtn = if (shouldLock) "Khóa tài khoản" else "Mở khóa"
+
         AlertDialog.Builder(this)
-            .setTitle("🗑️ Xóa Quản Lý")
-            .setMessage("Bạn có chắc chắn muốn xóa tài khoản quản lý '${merchant.name}' (${merchant.email}) khỏi chuỗi không?")
-            .setPositiveButton("Xóa") { _, _ ->
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(positiveBtn) { _, _ ->
                 lifecycleScope.launch {
-                    val result = firebaseRepository.deleteMerchantByBoss(merchant.uid, merchant.storeId)
+                    val result = firebaseRepository.toggleMerchantLockByBoss(merchant, shouldLock)
                     result.onSuccess {
-                        Toast.makeText(this@BossDashboardActivity, "✓ Đã xóa tài khoản quản lý!", Toast.LENGTH_SHORT).show()
+                        val msg = if (shouldLock) "✓ Đã khóa tài khoản quản lý '${merchant.name}'!" else "✓ Đã mở khóa cho quản lý '${merchant.name}'!"
+                        Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
                     }.onFailure { err ->
                         Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
                     }

@@ -3104,6 +3104,26 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Khóa hoặc Mở khóa tài khoản Merchant bởi Boss */
+    suspend fun toggleMerchantLockByBoss(merchant: User, shouldLock: Boolean): Result<Unit> {
+        return try {
+            val status = if (shouldLock) User.Status.LOCKED else User.Status.ACTIVE
+            val reason = if (shouldLock) "Tài khoản Quản lý đã bị Chủ chuỗi (Boss) tạm khóa." else ""
+
+            // Nếu khóa -> tự động gỡ khỏi chi nhánh đang phụ trách
+            if (shouldLock && merchant.storeId.isNotBlank()) {
+                database.getReference("stores").child(merchant.storeId).updateChildren(
+                    mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
+                ).await()
+                database.getReference("users").child(merchant.uid).child("storeId").setValue("").await()
+            }
+
+            updateUserStatus(merchant.uid, status, !shouldLock, reason)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Xóa tài khoản Merchant do Boss quản lý */
     suspend fun deleteMerchantByBoss(merchantUid: String, storeId: String = ""): Result<Unit> {
         return try {

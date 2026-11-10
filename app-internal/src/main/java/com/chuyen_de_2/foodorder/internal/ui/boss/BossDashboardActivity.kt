@@ -105,11 +105,18 @@ class BossDashboardActivity : AppCompatActivity() {
         }
 
         binding.btnBossBusinessProfile.setOnClickListener {
-            startActivity(Intent(this, BossBusinessProfileActivity::class.java))
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            lifecycleScope.launch {
+                val storeId = firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
+                val intent = Intent(this@BossDashboardActivity, com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
+                    putExtra("STORE_ID", storeId)
+                }
+                startActivity(intent)
+            }
         }
 
         binding.cardMissingBankAlert.setOnClickListener {
-            startActivity(Intent(this, BossBusinessProfileActivity::class.java))
+            binding.btnBossBusinessProfile.performClick()
         }
 
         binding.btnBossLogout.setOnClickListener {

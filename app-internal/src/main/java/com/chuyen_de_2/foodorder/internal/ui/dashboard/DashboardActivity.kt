@@ -146,11 +146,49 @@ class DashboardActivity : AppCompatActivity() {
 
     /**
      * Xử lý tài khoản BOSSMERCHANT:
+     * - Nếu chưa xác minh thông tin kinh doanh & STK -> Chuyển sang StoreVerificationActivity có sẵn của app.
      * - Kiểm tra Session chi nhánh đang chọn. Nếu chưa chọn -> Chuyển sang BossDashboardActivity.
      * - Nếu đã chọn -> Đồng bộ storeId để các Fragment chạy mượt mà và hiển thị banner đổi chi nhánh.
      */
     private fun handleBossRoleAndProceed() {
         lifecycleScope.launch {
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            if (uid.isNotBlank()) {
+                val storeId = firebaseRepository.resolveStoreIdForUser(uid)
+                if (storeId.isNotBlank()) {
+                    val store = firebaseRepository.getStoreOnce(storeId)
+                    val isComplete = store != null && (store.isVerified || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
+                    if (store == null || !isComplete || store.address.isBlank()) {
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "⚠️ Vui lòng hoàn tất thông tin kinh doanh, CCCD và STK ngân hàng trước khi bắt đầu!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                            putExtra("STORE_ID", storeId)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        startActivity(intent)
+                        finish()
+                        return@launch
+                    }
+                } else {
+                    val newStoreId = "store_${uid}"
+                    Toast.makeText(
+                        this@DashboardActivity,
+                        "👑 Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & STK ngân hàng nhận tiền.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                        putExtra("STORE_ID", newStoreId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                    return@launch
+                }
+            }
+
             val prefs = getSharedPreferences("boss_session", android.content.Context.MODE_PRIVATE)
             val intentStoreId = intent.getStringExtra("STORE_ID")
             val selectedBranchId = if (!intentStoreId.isNullOrBlank()) {
@@ -166,7 +204,6 @@ class DashboardActivity : AppCompatActivity() {
                 return@launch
             }
 
-            val uid = authRepository.currentUser?.uid.orEmpty()
             if (uid.isNotBlank()) {
                 firebaseRepository.setActiveStoreForBoss(uid, selectedBranchId)
             }

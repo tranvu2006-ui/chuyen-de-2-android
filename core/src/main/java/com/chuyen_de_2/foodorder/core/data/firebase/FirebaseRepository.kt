@@ -3167,6 +3167,17 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Đánh dấu một store thuộc quyền sở hữu của Boss */
+    suspend fun markStoreOwnedByBoss(bossUid: String, storeId: String): Result<Unit> {
+        return try {
+            database.getReference("stores").child(storeId).child("bossId").setValue(bossUid).await()
+            database.getReference("boss_stores").child(bossUid).child(storeId).setValue(true).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Xóa chi nhánh active để Boss quay về màn hình quản lý chi nhánh */
     suspend fun clearActiveStoreForBoss(bossUid: String): Result<Unit> {
         return try {

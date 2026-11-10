@@ -105,7 +105,18 @@ class DashboardActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val extraSpacing = (10 * density).toInt()
         val topPadding = (if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)) + extraSpacing
-        binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
+        if (binding.bossBranchBanner.visibility == android.view.View.VISIBLE) {
+            val sHeight = if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)
+            binding.bossBranchBanner.setPadding(
+                (14 * density).toInt(),
+                sHeight + (6 * density).toInt(),
+                (14 * density).toInt(),
+                (8 * density).toInt()
+            )
+            binding.fragmentContainer.setPadding(0, 0, 0, 0)
+        } else {
+            binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
+        }
         binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
         binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
     }
@@ -134,9 +145,58 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     /**
+     * Xử lý tài khoản BOSSMERCHANT:
+     * - Kiểm tra Session chi nhánh đang chọn. Nếu chưa chọn -> Chuyển sang BossDashboardActivity.
+     * - Nếu đã chọn -> Đồng bộ storeId để các Fragment chạy mượt mà và hiển thị banner đổi chi nhánh.
+     */
+    private fun handleBossRoleAndProceed() {
+        lifecycleScope.launch {
+            val prefs = getSharedPreferences("boss_session", android.content.Context.MODE_PRIVATE)
+            val intentStoreId = intent.getStringExtra("STORE_ID")
+            val selectedBranchId = if (!intentStoreId.isNullOrBlank()) {
+                prefs.edit().putString("selected_branch_store_id", intentStoreId).apply()
+                intentStoreId
+            } else {
+                prefs.getString("selected_branch_store_id", null)
+            }
+
+            if (selectedBranchId.isNullOrBlank()) {
+                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
+                finish()
+                return@launch
+            }
+
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            if (uid.isNotBlank()) {
+                firebaseRepository.setActiveStoreForBoss(uid, selectedBranchId)
+            }
+
+            val store = firebaseRepository.getStoreOnce(selectedBranchId)
+            val branchName = store?.name?.ifBlank { "Chi nhánh #$selectedBranchId" } ?: "Chi nhánh #$selectedBranchId"
+
+            binding.bossBranchBanner.visibility = android.view.View.VISIBLE
+            binding.tvBossBranchTitle.text = "👑 Đang quản lý: $branchName"
+            binding.btnBackToBossBranches.setOnClickListener {
+                prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
+                if (uid.isNotBlank()) {
+                    lifecycleScope.launch {
+                        firebaseRepository.clearActiveStoreForBoss(uid)
+                    }
+                }
+                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
+                finish()
+            }
+
+            applyWindowPadding()
+            setupMerchantNavigation()
+        }
+    }
+
+    /**
      * Tên chức năng: Tải và đối soát vai trò tài khoản (Role Dispatcher)
      * Cách hoạt động:
      *  - Truy vấn Firestore lấy role hiện tại của user.
+     *  - Nếu là Boss: Quản lý chuỗi chi nhánh tại [handleBossRoleAndProceed].
      *  - Nếu là Quán ăn: Kiểm tra xác minh hồ sơ quán.
      *  - Nếu là Tài xế: Thiết lập menu shipper.
      *  - Nếu tài khoản mới chưa có role: Hiển thị Dialog kích hoạt vai trò tương ứng ngay lập tức.
@@ -147,6 +207,9 @@ class DashboardActivity : AppCompatActivity() {
             val role = authRepository.getUserRole()?.trim()?.uppercase()
 
             when (role) {
+                User.Role.BOSSMERCHANT, "BOSS" -> {
+                    handleBossRoleAndProceed()
+                }
                 User.Role.MANAGER, User.Role.MERCHANT, "SHOP", "STORE" -> {
                     checkMerchantVerificationAndProceed()
                 }

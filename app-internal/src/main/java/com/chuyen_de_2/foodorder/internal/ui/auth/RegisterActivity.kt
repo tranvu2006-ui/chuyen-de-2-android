@@ -126,7 +126,7 @@ class RegisterActivity : AppCompatActivity() {
                 email = email,
                 pass = password,
                 confirmPass = confirmPassword,
-                role = User.Role.MERCHANT,
+                role = User.Role.BOSSMERCHANT,
                 phone = phone,
                 otpCode = otpCode
             )

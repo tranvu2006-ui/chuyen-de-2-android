@@ -54,10 +54,11 @@ data class User(
     @SerializedName("phoneVerified")
     val phoneVerified: Boolean = false
 ) {
-    /** Role constants — RBAC phân quyền 4 Actors */
+    /** Role constants — RBAC phân quyền 4 Actors + Boss */
     object Role {
         const val ADMIN = "ADMIN"
         const val CUSTOMER = "CUSTOMER"
+        const val BOSSMERCHANT = "BOSSMERCHANT"
         const val MERCHANT = "MERCHANT"
         const val MANAGER = "MANAGER"
         const val DRIVER = "DRIVER"

@@ -728,15 +728,21 @@ class FirebaseRepository @Inject constructor(
             // 1. Kiểm tra users/{uid}/storeId và xác thực store đó có thực sự thuộc về uid này không
             val userSnap = database.getReference("users").child(uid).get().await()
             val userStoreId = userSnap.child("storeId").getValue(String::class.java)
+            val userRole = userSnap.child("role").getValue(String::class.java).orEmpty().uppercase()
             if (!userStoreId.isNullOrBlank()) {
                 val sSnap = database.getReference("stores").child(userStoreId).get().await()
                 if (sSnap.exists()) {
                     val mId = sSnap.child("merchantId").getValue(String::class.java)
                         ?: sSnap.child("ownerId").getValue(String::class.java)
-                    if (mId == uid) {
+                    val bId = sSnap.child("bossId").getValue(String::class.java).orEmpty()
+                    if (mId == uid || bId == uid || userRole == User.Role.BOSSMERCHANT) {
                         return userStoreId
                     }
                 }
+            }
+            if (userRole == User.Role.BOSSMERCHANT) {
+                // Với Boss, nếu chưa chọn chi nhánh cụ thể thì trả về rỗng, không tự ý gán quán linh tinh
+                return ""
             }
             // 2. Kiểm tra stores bằng index merchantId / ownerId
             val byMerchant = try { database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await() } catch (_: Exception) { null }
@@ -2972,6 +2978,185 @@ class FirebaseRepository @Inject constructor(
             try { database.getReference("orders").child("system_countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
             try { database.getReference("delivery_time_frames").child("countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
             try { database.getReference("system_config").child("delivery_countdown").updateChildren(updates).await() } catch (_: Exception) {}
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lấy danh sách chi nhánh do BOSSMERCHANT quản lý (Realtime Flow) */
+    fun getStoresByBoss(bossUid: String): Flow<List<Store>> = callbackFlow {
+        if (bossUid.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val storesRef = database.getReference("stores")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<Store>()
+                for (child in snapshot.children) {
+                    val store = child.getValue(Store::class.java)?.copy(id = child.key.orEmpty())
+                    if (store != null) {
+                        val bId = child.child("bossId").getValue(String::class.java).orEmpty()
+                        val mId = child.child("merchantId").getValue(String::class.java)
+                            ?: child.child("ownerId").getValue(String::class.java).orEmpty()
+                        if (bId == bossUid || (bId.isBlank() && mId == bossUid)) {
+                            list.add(store)
+                        }
+                    }
+                }
+                trySend(list)
+            }
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        storesRef.addValueEventListener(listener)
+        awaitClose { storesRef.removeEventListener(listener) }
+    }
+
+    /** Tạo chi nhánh mới cho BOSSMERCHANT */
+    suspend fun createBranchStore(
+        bossUid: String,
+        storeName: String,
+        address: String,
+        district: String = "",
+        phone: String = ""
+    ): Result<String> {
+        return try {
+            val storeRef = database.getReference("stores").push()
+            val newStoreId = storeRef.key ?: "store_${System.currentTimeMillis()}"
+            val newStore = Store(
+                id = newStoreId,
+                bossId = bossUid,
+                merchantId = "",
+                merchantName = "",
+                name = storeName.trim(),
+                address = address.trim(),
+                district = district.trim(),
+                phone = phone.trim(),
+                storeStatus = Store.StoreStatus.OPEN,
+                isVerified = true,
+                ratingAvg = 5.0f,
+                deliveryTime = "20-30 phút",
+                category = "Món chính",
+                imageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400"
+            )
+            storeRef.setValue(newStore).await()
+            database.getReference("boss_stores").child(bossUid).child(newStoreId).setValue(true).await()
+            Result.success(newStoreId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Gán tài khoản MERCHANT cho một Chi nhánh (hoặc gỡ nếu merchantUid rỗng) */
+    suspend fun assignMerchantToStore(storeId: String, merchantUid: String?, merchantName: String = ""): Result<Unit> {
+        return try {
+            val storeRef = database.getReference("stores").child(storeId)
+            val updates = mutableMapOf<String, Any?>(
+                "merchantId" to (merchantUid ?: ""),
+                "ownerId" to (merchantUid ?: ""),
+                "merchantName" to merchantName
+            )
+            storeRef.updateChildren(updates).await()
+
+            if (!merchantUid.isNullOrBlank()) {
+                database.getReference("users").child(merchantUid).updateChildren(
+                    mapOf("storeId" to storeId, "role" to User.Role.MERCHANT, "roleId" to 3)
+                ).await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lấy danh sách các tài khoản MERCHANT để Boss gán vào quán */
+    fun getMerchantsForBoss(bossUid: String): Flow<List<User>> = callbackFlow {
+        val usersRef = database.getReference("users")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<User>()
+                for (child in snapshot.children) {
+                    val role = child.child("role").getValue(String::class.java).orEmpty().uppercase()
+                    val bId = child.child("bossId").getValue(String::class.java).orEmpty()
+                    if (role == User.Role.MERCHANT || role == User.Role.MANAGER) {
+                        if (bId.isBlank() || bId == bossUid) {
+                            child.getValue(User::class.java)?.let { list.add(it) }
+                        }
+                    }
+                }
+                trySend(list)
+            }
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        usersRef.addValueEventListener(listener)
+        awaitClose { usersRef.removeEventListener(listener) }
+    }
+
+    /** Tạo tài khoản MERCHANT trực tiếp bởi Boss */
+    suspend fun createMerchantByBoss(
+        bossUid: String,
+        email: String,
+        name: String,
+        phone: String,
+        storeId: String = ""
+    ): Result<User> {
+        return try {
+            val newUid = "merchant_${System.currentTimeMillis()}"
+            val updates = mutableMapOf<String, Any>(
+                "uid" to newUid,
+                "name" to name.trim(),
+                "email" to email.trim(),
+                "phone" to phone.trim(),
+                "role" to User.Role.MERCHANT,
+                "roleId" to 3,
+                "storeId" to storeId,
+                "bossId" to bossUid,
+                "status" to User.Status.ACTIVE,
+                "isActive" to true,
+                "emailVerified" to true
+            )
+            database.getReference("users").child(newUid).setValue(updates).await()
+            if (storeId.isNotBlank()) {
+                assignMerchantToStore(storeId, newUid, name.trim())
+            }
+            val merchantUser = User(
+                uid = newUid,
+                name = name.trim(),
+                email = email.trim(),
+                phone = phone.trim(),
+                role = User.Role.MERCHANT,
+                roleId = 3,
+                storeId = storeId,
+                status = User.Status.ACTIVE,
+                isActive = true,
+                emailVerified = true
+            )
+            Result.success(merchantUser)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Thiết lập chi nhánh đang active trên Realtime DB cho Boss */
+    suspend fun setActiveStoreForBoss(bossUid: String, storeId: String): Result<Unit> {
+        return try {
+            database.getReference("users").child(bossUid).child("storeId").setValue(storeId).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa chi nhánh active để Boss quay về màn hình quản lý chi nhánh */
+    suspend fun clearActiveStoreForBoss(bossUid: String): Result<Unit> {
+        return try {
+            database.getReference("users").child(bossUid).child("storeId").setValue("").await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

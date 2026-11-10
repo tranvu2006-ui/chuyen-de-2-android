@@ -43,6 +43,11 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
 
+        <activity
+            android:name=".ui.auth.OtpVerificationActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
+
         <!-- Main -->
         <activity
             android:name=".ui.home.HomeActivity"

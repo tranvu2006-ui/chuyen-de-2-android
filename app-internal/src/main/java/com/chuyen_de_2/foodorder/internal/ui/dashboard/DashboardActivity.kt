@@ -157,11 +157,11 @@ class DashboardActivity : AppCompatActivity() {
                 val storeId = firebaseRepository.resolveStoreIdForUser(uid)
                 if (storeId.isNotBlank()) {
                     val store = firebaseRepository.getStoreOnce(storeId)
-                    val isComplete = store != null && (store.isVerified || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
-                    if (store == null || !isComplete || store.address.isBlank()) {
+                    val isComplete = store != null && (store.isVerified || (store.cccdNumber.isNotBlank() && store.bankAccountNumber.isNotBlank()))
+                    if (store == null || !isComplete) {
                         Toast.makeText(
                             this@DashboardActivity,
-                            "⚠️ Vui lòng hoàn tất thông tin kinh doanh, CCCD và STK ngân hàng trước khi bắt đầu!",
+                            "⚠️ Vui lòng hoàn tất thông tin CCCD và STK ngân hàng trước khi bắt đầu!",
                             Toast.LENGTH_LONG
                         ).show()
                         val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
@@ -325,11 +325,11 @@ class DashboardActivity : AppCompatActivity() {
                 val storeId = firebaseRepository.resolveStoreIdForUser(uid)
                 if (storeId.isNotBlank()) {
                     val store = firebaseRepository.getStoreOnce(storeId)
-                    val isComplete = store != null && (store.isVerified || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
-                    if (store == null || !isComplete || store.address.isBlank()) {
+                    val isComplete = store != null && (store.isVerified || (store.cccdNumber.isNotBlank() && store.bankAccountNumber.isNotBlank()))
+                    if (store == null || !isComplete) {
                         Toast.makeText(
                             this@DashboardActivity,
-                            "⚠️ Vui lòng hoàn tất phiếu địa chỉ và xác minh thông tin quán trước khi nhận đơn!",
+                            "⚠️ Vui lòng hoàn tất phiếu xác minh CCCD và STK ngân hàng trước khi nhận đơn!",
                             Toast.LENGTH_LONG
                         ).show()
                         val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {

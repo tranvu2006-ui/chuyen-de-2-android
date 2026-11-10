@@ -21,15 +21,31 @@
             android:textSize="17sp"
             android:textStyle="bold" />
 
-        <!-- Khu vực Ảnh Món Ăn -->
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- 1. Khu vực Ảnh Món Ăn (Bắt buộc) -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="Hình ảnh món ăn:"
-            android:textColor="@color/text_secondary"
-            android:textSize="11.5sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Hình ảnh món ăn:"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="(* Bắt buộc)"
+                android:textColor="#DC2626"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -39,12 +55,13 @@
             android:orientation="horizontal">
 
             <com.google.android.material.card.MaterialCardView
-                android:layout_width="86dp"
-                android:layout_height="86dp"
-                app:cardCornerRadius="12dp"
+                android:id="@+id/cardDishPreview"
+                android:layout_width="92dp"
+                android:layout_height="92dp"
+                app:cardCornerRadius="14dp"
                 app:cardElevation="1dp"
                 app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+                app:strokeWidth="1.5dp">
 
                 <ImageView
                     android:id="@+id/ivDishPreview"
@@ -59,7 +76,7 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
+                android:layout_marginStart="14dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
@@ -67,36 +84,49 @@
                     android:id="@+id/btnPickDishImage"
                     style="@style/Widget.Internal.Button"
                     android:layout_width="match_parent"
-                    android:layout_height="38dp"
+                    android:layout_height="40dp"
                     android:backgroundTint="@color/brand_blue"
                     android:text="Tải ảnh từ thiết bị"
                     android:textColor="@color/white"
-                    android:textSize="11.5sp"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/btnClearDishImage"
+                    android:id="@+id/tvImageStatusNotice"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:paddingVertical="4dp"
-                    android:text="Đặt lại ảnh mặc định"
-                    android:textColor="@color/text_secondary"
+                    android:layout_marginTop="5dp"
+                    android:text="Chưa có ảnh (bắt buộc tải ảnh)"
+                    android:textColor="#DC2626"
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
 
-
-
-        <!-- Tên Món -->
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- 2. Tên Món Ăn (Giới hạn 60 ký tự) -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Tên món ăn / đồ uống:"
-            android:textColor="@color/text_secondary"
-            android:textSize="11.5sp"
-            android:textStyle="bold" />
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Tên món ăn / đồ uống (*):"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDishNameCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0/60"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
 
         <EditText
             android:id="@+id/etDishName"
@@ -106,20 +136,39 @@
             android:background="@drawable/bg_card_rounded"
             android:hint="Ví dụ: Trà Xí Muội Ô Long"
             android:inputType="textCapWords"
+            android:maxLength="60"
             android:paddingHorizontal="12dp"
             android:textColor="@color/text_primary"
             android:textColorHint="@color/text_secondary"
             android:textSize="13sp" />
 
-        <!-- Giá Bán -->
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- 3. Giá Bán (Giới hạn 10 ký tự, preview số tiền) -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Giá bán (VNĐ):"
-            android:textColor="@color/text_secondary"
-            android:textSize="11.5sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Giá bán (VNĐ) (*):"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvPriceFormatted"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text=""
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <EditText
             android:id="@+id/etDishPrice"
@@ -127,14 +176,15 @@
             android:layout_height="44dp"
             android:layout_marginTop="4dp"
             android:background="@drawable/bg_card_rounded"
-            android:hint="28000"
+            android:hint="Ví dụ: 28000"
             android:inputType="number"
+            android:maxLength="10"
             android:paddingHorizontal="12dp"
             android:textColor="@color/text_primary"
             android:textColorHint="@color/text_secondary"
             android:textSize="13sp" />
 
-        <!-- 1. Danh Mục Của Quán -->
+        <!-- 4. Danh Mục Của Quán -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -171,7 +221,7 @@
             android:background="@drawable/bg_card_rounded"
             android:paddingHorizontal="8dp" />
 
-        <!-- 2. Danh Mục Của Nền Tảng -->
+        <!-- 5. Danh Mục Của Nền Tảng -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -189,15 +239,31 @@
             android:background="@drawable/bg_card_rounded"
             android:paddingHorizontal="8dp" />
 
-        <!-- Chỗ Ghi Chú / Mô Tả Món -->
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- 6. Ghi Chú / Mô Tả Món (Giới hạn 200 ký tự) -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Ghi chú / Mô tả món ăn (Tùy chọn):"
-            android:textColor="@color/text_secondary"
-            android:textSize="11.5sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Ghi chú / Mô tả món ăn (Tùy chọn):"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDishDescCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0/200"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
 
         <EditText
             android:id="@+id/etDishDescription"
@@ -206,8 +272,9 @@
             android:layout_marginTop="4dp"
             android:background="@drawable/bg_card_rounded"
             android:gravity="top|start"
-            android:hint="Ví dụ: Vị ngọt thanh, 70% đường 50% đá, ăn kèm hành phi và mỡ hành..."
+            android:hint="Ví dụ: Vị ngọt thanh, 70% đường 50% đá, ăn kèm hành phi và mỡ hành... (Tối đa 200 ký tự)"
             android:inputType="textMultiLine|textCapSentences"
+            android:maxLength="200"
             android:minLines="2"
             android:maxLines="4"
             android:padding="10dp"

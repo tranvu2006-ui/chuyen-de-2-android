@@ -23,7 +23,9 @@ class FoodOrderCustomerApp : Application() {
         super.onCreate()
 
         // Phương án 1: Firebase Offline Persistence (Section 13 - doc-adr)
-        FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).setPersistenceEnabled(true)
+        try {
+            FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).setPersistenceEnabled(true)
+        } catch (_: Exception) {}
 
         // Tạo Notification Channels (Android 8.0+)
         createNotificationChannels()

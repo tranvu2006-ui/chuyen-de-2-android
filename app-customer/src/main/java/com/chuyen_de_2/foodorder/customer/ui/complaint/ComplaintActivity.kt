@@ -69,7 +69,7 @@ class ComplaintActivity : AppCompatActivity() {
             binding.layoutUploadBoxPlaceholder.visibility = View.GONE
             binding.layoutEvidencePreviewContainer.visibility = View.VISIBLE
             ImageLoadUtils.loadEvidenceImage(binding.ivEvidencePreview, base64, cornerDp = 12)
-            Toast.makeText(this, "✓ Đã đính kèm ảnh minh chứng thành công!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Đã đính kèm ảnh minh chứng thành công!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(this, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", Toast.LENGTH_SHORT).show()
         }

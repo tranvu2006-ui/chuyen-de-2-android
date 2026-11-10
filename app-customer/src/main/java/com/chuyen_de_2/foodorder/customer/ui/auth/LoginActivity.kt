@@ -185,17 +185,20 @@ class LoginActivity : AppCompatActivity() {
 
     private fun checkRoleAndRoute() {
         lifecycleScope.launch {
-            val role = viewModel.getUserRole()
-            if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
-                val intent = Intent(this@LoginActivity, HomeActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            try {
+                val role = viewModel.getUserRole()
+                if (isFinishing || isDestroyed) return@launch
+                if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
+                    val intent = Intent(this@LoginActivity, HomeActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                } else {
+                    Toast.makeText(this@LoginActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
+                    viewModel.logout()
                 }
-                startActivity(intent)
-                finish()
-            } else {
-                Toast.makeText(this@LoginActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
-                viewModel.logout()
-            }
+            } catch (_: Exception) {}
         }
     }
 

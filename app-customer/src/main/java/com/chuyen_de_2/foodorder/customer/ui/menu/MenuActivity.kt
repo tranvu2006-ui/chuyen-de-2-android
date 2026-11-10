@@ -347,7 +347,7 @@ class MenuActivity : AppCompatActivity() {
         adapter.notifyDataSetChanged()
 
         val currentQty = viewModel.getItemQuantity(dish.id)
-        Toast.makeText(this, "✓ Đã chọn: ${dish.name} (x$currentQty)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Đã chọn: ${dish.name} (x$currentQty)", Toast.LENGTH_SHORT).show()
     }
 
     private fun showDishOptionBottomSheet(dish: Dish) {

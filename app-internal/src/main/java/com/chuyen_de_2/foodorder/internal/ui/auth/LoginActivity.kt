@@ -40,17 +40,20 @@ class LoginActivity : AppCompatActivity() {
             authRepository.logout()
         } else if (authRepository.isLoggedIn) {
             lifecycleScope.launch {
-                val statusCheck = authRepository.checkAccountActiveStatus()
-                if (statusCheck.isFailure) {
-                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                    AlertDialog.Builder(this@LoginActivity)
-                        .setTitle("🔒 Tài khoản bị khóa")
-                        .setMessage(reason)
-                        .setPositiveButton("Đóng", null)
-                        .show()
-                } else {
-                    navigateToDashboard()
-                }
+                try {
+                    val statusCheck = authRepository.checkAccountActiveStatus()
+                    if (isFinishing || isDestroyed) return@launch
+                    if (statusCheck.isFailure) {
+                        val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                        AlertDialog.Builder(this@LoginActivity)
+                            .setTitle("Tài khoản bị khóa")
+                            .setMessage(reason)
+                            .setPositiveButton("Đóng", null)
+                            .show()
+                    } else {
+                        navigateToDashboard()
+                    }
+                } catch (_: Exception) {}
             }
         }
 

@@ -195,7 +195,7 @@ object AccountLockWatcher {
 
         try {
             val dialog = AlertDialog.Builder(activity)
-                .setTitle("🚫 TÀI KHOẢN ĐÃ BỊ KHÓA")
+                .setTitle("TÀI KHOẢN ĐÃ BỊ KHÓA")
                 .setMessage("Tài khoản của bạn đã bị Quản trị viên khóa ngay lập tức.\n\nLý do: $reason\n\nVui lòng liên hệ Admin qua email admin@gmail.com để được giải quyết.")
                 .setCancelable(false)
                 .setPositiveButton("Đăng xuất & Thoát") { d, _ ->

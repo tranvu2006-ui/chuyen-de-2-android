@@ -45,9 +45,9 @@ class EditUserDialogFragment(
             currentAvatar = base64
             isAvatarResetToDefault = false
             updateAvatarPreview(currentAvatar)
-            binding.tvAvatarStatusHint.text = "✓ Đã chọn ảnh mới từ thư viện"
+            binding.tvAvatarStatusHint.text = "Đã chọn ảnh mới từ thư viện"
             binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
-            android.widget.Toast.makeText(ctx, "📷 Đã cập nhật ảnh đại diện mới!", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(ctx, "Đã cập nhật ảnh đại diện mới!", android.widget.Toast.LENGTH_SHORT).show()
         } else {
             android.widget.Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", android.widget.Toast.LENGTH_SHORT).show()
         }

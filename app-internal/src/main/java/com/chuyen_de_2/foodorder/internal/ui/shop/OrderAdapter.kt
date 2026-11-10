@@ -24,7 +24,8 @@ class OrderAdapter(
     private val onDetailClick: (Order) -> Unit,
     private val onChatCustomerClick: (Order) -> Unit,
     private val onCallDriverClick: (String) -> Unit,
-    private val onWarningDetailClick: (Order) -> Unit
+    private val onWarningDetailClick: (Order) -> Unit,
+    private val onCancelClick: ((Order) -> Unit)? = null
 ) : ListAdapter<Order, OrderAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(private val binding: ItemOrderBinding) :
@@ -125,6 +126,11 @@ class OrderAdapter(
             // Click Listeners
             binding.btnMainAction.setOnClickListener { onActionClick(order) }
             binding.btnDetail.setOnClickListener { onDetailClick(order) }
+            binding.btnCancelOrder.setOnClickListener { onCancelClick?.invoke(order) }
+            val canCancel = order.status == Order.Status.PENDING ||
+                order.status == Order.Status.PREPARING ||
+                (order.status == Order.Status.READY && order.shipperId.isNullOrBlank())
+            binding.btnCancelOrder.visibility = if (canCancel) View.VISIBLE else View.GONE
             binding.btnChatCustomer.text = "Nhắn Khách"
             binding.btnChatCustomer.tag = order.orderId
             binding.btnChatCustomer.setOnClickListener { onChatCustomerClick(order) }

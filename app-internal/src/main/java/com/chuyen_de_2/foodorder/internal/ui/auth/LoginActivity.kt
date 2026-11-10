@@ -27,6 +27,12 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginInternalBinding
     private var otpCountDownTimer: CountDownTimer? = null
 
+    private val smsPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        doNavigateToDashboard()
+    }
+
     @Inject
     lateinit var authRepository: AuthRepository
 

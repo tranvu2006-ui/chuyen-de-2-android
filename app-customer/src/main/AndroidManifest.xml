@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Môn Di Động 2: Lắng nghe SMS biến động số dư ngân hàng xác nhận thanh toán -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
 
     <!-- Cho phép kiểm tra và mở ứng dụng Quán & Shipper (Oishi Internal) -->
     <queries>
@@ -118,6 +121,15 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- [Di Động 2] BroadcastReceiver xử lý SMS ngân hàng tự động đổi trạng thái đơn hàng -->
+        <receiver
+            android:name="com.chuyen_de_2.foodorder.core.receiver.BankSmsReceiver"
+            android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

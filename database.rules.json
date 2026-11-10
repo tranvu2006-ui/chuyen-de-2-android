@@ -117,6 +117,9 @@
         "driverId",
         "shopId",
         "storeId",
+        "paymentMethod",
+        "paymentReference",
+        "refundReference",
         "status",
         "orderStatus",
         "timestamp",
@@ -124,7 +127,68 @@
       ],
       ".read": "auth != null",
       "$orderId": {
-        ".write": "auth != null"
+        ".write": "auth != null",
+        "refundStatus": {
+          ".write": "auth != null"
+        },
+        "refundReference": {
+          ".write": "auth != null"
+        },
+        "refundTransactionId": {
+          ".write": "auth != null"
+        },
+        "refundedAt": {
+          ".write": "auth != null"
+        },
+        "refundedBy": {
+          ".write": "auth != null"
+        },
+        "refundAmount": {
+          ".write": "auth != null"
+        },
+        "paymentStatus": {
+          ".write": "auth != null"
+        },
+        "paidAt": {
+          ".write": "auth != null"
+        },
+        "status": {
+          ".write": "auth != null"
+        },
+        "orderStatus": {
+          ".write": "auth != null"
+        },
+        "isPaid": {
+          ".write": "auth != null"
+        },
+        "isDepositPaid": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "refund_payment_details": {
+      "$orderId": {
+        ".read": "auth != null && (auth.uid == root.child('orders').child($orderId).child('customerId').val() || (((root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER') && (root.child('users').child(auth.uid).child('storeId').val() == root.child('orders').child($orderId).child('storeId').val() || root.child('users').child(auth.uid).child('storeId').val() == root.child('orders').child($orderId).child('shopId').val())) || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.admin == true))",
+        ".write": false,
+        "customerProvided": {
+          ".write": "auth != null && auth.uid == root.child('orders').child($orderId).child('customerId').val() && root.child('orders').child($orderId).child('status').val() == 'CANCELLED' && root.child('orders').child($orderId).child('refundStatus').val() == 'PENDING_INFO'",
+          ".validate": "newData.hasChildren(['bankName', 'bankBin', 'accountNumber', 'accountHolder', 'updatedAt'])",
+          "bankName": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+          },
+          "bankBin": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{6}$/)"
+          },
+          "accountNumber": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{6,24}$/)"
+          },
+          "accountHolder": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          }
+        }
       }
     },
     "tracking": {

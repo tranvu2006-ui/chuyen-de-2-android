@@ -27,6 +27,12 @@ class LoginActivity : AppCompatActivity() {
 
     private var otpCountDownTimer: CountDownTimer? = null
 
+    private val smsPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        navigateToHome()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLoginBinding.inflate(layoutInflater)
@@ -40,9 +46,8 @@ class LoginActivity : AppCompatActivity() {
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
         if (isLogout) {
             viewModel.logout()
-        } else if (viewModel.isLoggedIn) {
-            checkRoleAndRoute()
         }
+        // Giữ ở màn hình Đăng nhập để người dùng chủ động đăng nhập, không tự động nhảy vào Trang chủ
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -200,6 +205,43 @@ class LoginActivity : AppCompatActivity() {
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    private fun requestSmsPermissionOrNavigate() {
+        val permissions = arrayOf(
+            android.Manifest.permission.RECEIVE_SMS,
+            android.Manifest.permission.READ_SMS
+        )
+        val missing = permissions.filter {
+            androidx.core.content.ContextCompat.checkSelfPermission(this, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        val prefs = getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+        val hasAsked = prefs.getBoolean("sms_permission_asked", false)
+
+        if (missing.isNotEmpty() && !hasAsked) {
+            prefs.edit().putBoolean("sms_permission_asked", true).apply()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Cấp quyền tự động bắt SMS")
+                .setMessage("Ứng dụng cần quyền nhận và đọc SMS để tự động xác nhận chuyển khoản thanh toán VietQR và hoàn tiền đơn hàng.")
+                .setPositiveButton("Cấp quyền") { _, _ ->
+                    smsPermissionLauncher.launch(missing.toTypedArray())
+                }
+                .setNegativeButton("Để sau") { _, _ ->
+                    navigateToHome()
+                }
+                .setCancelable(false)
+                .show()
+        } else {
+            navigateToHome()
+        }
+    }
+
+    private fun navigateToHome() {
+        val intent = Intent(this@LoginActivity, HomeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
     }
 
     override fun onDestroy() {

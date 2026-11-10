@@ -72,6 +72,8 @@ class PaymentActivity : AppCompatActivity() {
         InsetUtils.applyToolbarInsets(binding.toolbar)
         InsetUtils.applyNavigationBarPadding(binding.bottomBar)
 
+        checkSmsPermission()
+
         orderId = intent.getStringExtra(Constants.EXTRA_ORDER_ID) ?: ""
         val shopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: ""
         shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Quán Ăn Oishi"
@@ -142,22 +144,31 @@ class PaymentActivity : AppCompatActivity() {
                 }
         }
 
-        binding.layoutAutoVerifyBox.visibility = View.VISIBLE
-        binding.pbAutoVerify.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = if (isMomoChannel) {
-            "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-        } else {
-            "Đang chờ xác nhận giao dịch VietQR..."
-        }
-
         binding.btnCancelToHome.setOnClickListener { navigateHome() }
         binding.btnHomeNav.setOnClickListener { navigateHome() }
     }
 
+    private fun checkSmsPermission() {
+        val permissions = arrayOf(
+            android.Manifest.permission.RECEIVE_SMS,
+            android.Manifest.permission.READ_SMS
+        )
+        val missingPermissions = permissions.filter {
+            androidx.core.content.ContextCompat.checkSelfPermission(this, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (missingPermissions.isNotEmpty()) {
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this,
+                missingPermissions.toTypedArray(),
+                101
+            )
+        }
+    }
+
     /**
      * BƯỚC QUAN TRỌNG: Lắng nghe biến động Realtime từ Firebase Database.
-     * Khi khách chuyển khoản (VietQR hoặc MoMo) -> SePay Webhook nhận tiền -> Cập nhật paymentStatus = "PAID".
-     * Hàm này ngay lập tức phát hiện và tự động chuyển trang mà khách không cần bấm nút nào!
+     * Khi khách chuyển khoản -> BankSmsReceiver (máy Quán) bắt SMS biến động số dư -> Cập nhật paymentStatus = "PAID".
+     * Bộ lắng nghe này phát hiện và tự động chuyển trang OrderSuccessActivity.
      */
     private fun observeOrderPaymentRealtime() {
         if (orderId.isBlank()) return
@@ -227,6 +238,9 @@ class PaymentActivity : AppCompatActivity() {
         finish()
     }
 
+    /**
+     * Cài đặt Toolbar: thay đổi tiêu đề theo kênh thanh toán (MoMo / Đặt Cọc / Thanh Toán 100%).
+     */
     private fun setupToolbar(paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL) {
         if (isMomoChannel) {
             binding.toolbar.title = "Quét Mã Ví MoMo"
@@ -276,8 +290,7 @@ class PaymentActivity : AppCompatActivity() {
 
             if (currentAccountNum.isBlank()) {
                 binding.pbQrLoading.visibility = View.GONE
-                binding.tvAutoVerifyStatus.text =
-                    "Quán chưa cập nhật số điện thoại ví MoMo để nhận thanh toán."
+                Toast.makeText(this, "Quán chưa cập nhật số điện thoại ví MoMo để nhận thanh toán.", Toast.LENGTH_SHORT).show()
                 return
             }
 
@@ -334,7 +347,7 @@ class PaymentActivity : AppCompatActivity() {
         // ── BƯỚC 2: Ghép URL VietQR hoàn chỉnh ─────────────────────────────────────
         // Cấu trúc: https://api.vietqr.io/image/{BIN}-{STK}-{template}.jpg?amount=...&addInfo=...&accountName=...
         // - amount: số tiền VNĐ (không có dấu phẩy)
-        // - addInfo: cú pháp đơn hàng để SePay nhận diện và tự xác nhận thanh toán
+        // - addInfo: cú pháp đơn hàng để BroadcastReceiver (Di Động 2) hoặc Quán nhận diện đối soát
         // - accountName: tên chủ tài khoản hiển thị trên app ngân hàng
         val qrUrl = "https://api.vietqr.io/image/${cleanBankBin}-${cleanAccountNo}-qLrkX2P.jpg?amount=$amount&addInfo=$encodedSyntax&accountName=$encodedAccountName"
 
@@ -374,7 +387,6 @@ class PaymentActivity : AppCompatActivity() {
     ) {
         momoQrJob?.cancel()
         binding.pbQrLoading.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = "Đang tạo mã thanh toán MoMo..."
         momoQrJob = lifecycleScope.launch {
             val result = MomoPaymentGatewayClient.generateRealMomoQr(
                 momoPhone = phone,
@@ -394,17 +406,19 @@ class PaymentActivity : AppCompatActivity() {
                         darkColorHex = "#A50064"
                     )
                 )
-                binding.tvAutoVerifyStatus.text = if (result.isSuccess) {
-                    "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-                } else {
-                    result.message
+                if (!result.isSuccess) {
+                    Toast.makeText(this@PaymentActivity, result.message, Toast.LENGTH_SHORT).show()
                 }
             } else {
-                binding.tvAutoVerifyStatus.text = "Không tạo được mã MoMo: ${result.message}"
+                Toast.makeText(this@PaymentActivity, "Không tạo được mã MoMo: ${result.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    /**
+     * Đếm ngược 30 phút từ thời điểm tạo đơn.
+     * Hết giờ → tự động hủy đơn (handleExpiredOrder).
+     */
     private fun startCountdownTimer(orderId: String, createdAt: Long) {
         val now = System.currentTimeMillis()
         val orderCreated = if (createdAt > 0L) createdAt else now
@@ -431,6 +445,9 @@ class PaymentActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * Xử lý đơn hàng hết hạn 30 phút: ghi Firebase status = CANCELLED và quay về màn hình chính.
+     */
     private fun handleExpiredOrder(orderId: String) {
         if (orderId.isNotBlank()) {
             val cancelUpdates = mapOf<String, Any>(
@@ -445,6 +462,7 @@ class PaymentActivity : AppCompatActivity() {
         navigateHome()
     }
 
+    /** Sao chép text (số tài khoản, nội dung chuyển khoản) vào Clipboard và hiện Toast xác nhận. */
     private fun copyToClipboard(label: String, text: String) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText(label, text)

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.supervisorScope
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -269,30 +270,57 @@ class AuthRepository @Inject constructor(
      * Xác thực đăng nhập bằng OTP: Chạy song song kiểm tra OTP trên Supabase và đăng nhập Firebase
      * giúp giảm tối đa độ trễ mạng (giảm từ 2 lần round-trip nối tiếp xuống còn 1 lần song song).
      */
-    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> =
-        coroutineScope {
-            try {
-                val cleanEmail = email.trim()
-                val cleanCode = code.trim()
+    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> {
+        return try {
+            val cleanEmail = email.trim().lowercase()
+            val cleanCode = code.trim()
 
-                // Chạy đồng thời xác thực OTP Supabase và đăng nhập Firebase
-                val otpDeferred = async { emailOtpApi.verifyCode(cleanEmail, cleanCode) }
-                val authDeferred = async { auth.signInWithEmailAndPassword(cleanEmail, password).await() }
+            supervisorScope {
+                val otpDeferred = async {
+                    runCatching { emailOtpApi.verifyCode(cleanEmail, cleanCode) }
+                }
+                val authDeferred = async {
+                    runCatching { auth.signInWithEmailAndPassword(cleanEmail, password).await() }
+                }
 
-                val verifiedEmail = try {
-                    otpDeferred.await()
-                } catch (e: Exception) {
+                val otpRes = otpDeferred.await()
+                val authRes = authDeferred.await()
+
+                if (otpRes.isFailure) {
                     try { auth.signOut() } catch (_: Exception) {}
-                    throw e
+                    val rawMsg = otpRes.exceptionOrNull()?.message.orEmpty()
+                    val userMsg = if (
+                        rawMsg.contains("expired", ignoreCase = true) ||
+                        rawMsg.contains("invalid", ignoreCase = true) ||
+                        rawMsg.contains("token", ignoreCase = true) ||
+                        rawMsg.contains("otp", ignoreCase = true)
+                    ) {
+                        "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                    } else {
+                        rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
+                    }
+                    throw Exception(userMsg)
                 }
 
-                val authResult = try {
-                    authDeferred.await()
-                } catch (e: Exception) {
-                    throw e
+                if (authRes.isFailure) {
+                    val rawMsg = authRes.exceptionOrNull()?.message.orEmpty()
+                    val userMsg = if (
+                        rawMsg.contains("password", ignoreCase = true) ||
+                        rawMsg.contains("credential", ignoreCase = true) ||
+                        rawMsg.contains("mật khẩu", ignoreCase = true)
+                    ) {
+                        "Mật khẩu không chính xác."
+                    } else if (rawMsg.contains("no user", ignoreCase = true) || rawMsg.contains("user-not-found", ignoreCase = true)) {
+                        "Không tìm thấy tài khoản với email này."
+                    } else {
+                        rawMsg.ifBlank { "Đăng nhập thất bại." }
+                    }
+                    throw Exception(userMsg)
                 }
 
-                val firebaseUser = authResult.user
+                val verifiedEmail = otpRes.getOrNull().orEmpty()
+                val authResult = authRes.getOrNull()
+                val firebaseUser = authResult?.user
                     ?: throw Exception("Không xác định được tài khoản Firebase.")
 
                 if (!cleanEmail.equals(verifiedEmail, ignoreCase = true) ||
@@ -302,20 +330,18 @@ class AuthRepository @Inject constructor(
                 }
 
                 val userRef = database.getReference("users").child(firebaseUser.uid)
-                val markVerifiedDeferred = async {
-                    try {
-                        userRef.child("emailVerified").setValue(true).await()
-                    } catch (_: Exception) {}
-                }
+                try {
+                    userRef.child("emailVerified").setValue(true).await()
+                } catch (_: Exception) {}
 
                 val user = completePostLogin(firebaseUser, cleanEmail, emailVerifiedByOtp = true)
-                markVerifiedDeferred.await()
                 Result.success(user)
-            } catch (error: Exception) {
-                try { auth.signOut() } catch (_: Exception) {}
-                Result.failure(error)
             }
+        } catch (error: Exception) {
+            try { auth.signOut() } catch (_: Exception) {}
+            Result.failure(error)
         }
+    }
 
     /** Đăng ký tài khoản kèm xác thực mã OTP 6 số từ Supabase trong cùng một quy trình mượt mà */
     suspend fun registerWithOtp(
@@ -327,10 +353,27 @@ class AuthRepository @Inject constructor(
         otpCode: String
     ): Result<FirebaseUser> {
         return try {
-            val verifiedEmail = emailOtpApi.verifyCode(email.trim(), otpCode.trim())
+            val cleanEmail = email.trim().lowercase()
+            val cleanOtp = otpCode.trim()
+            val verifiedEmail = try {
+                emailOtpApi.verifyCode(cleanEmail, cleanOtp)
+            } catch (e: Exception) {
+                val rawMsg = e.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
+                }
+                throw Exception(userMsg)
+            }
             register(
                 name = name,
-                email = email,
+                email = cleanEmail,
                 password = password,
                 role = role,
                 phone = phone,

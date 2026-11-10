@@ -45,8 +45,13 @@ class AuthViewModel @Inject constructor(
         }
         _isLoading.value = true
         viewModelScope.launch {
-            _otpRequestResult.value = authRepository.requestEmailOtp(email)
-            _isLoading.value = false
+            try {
+                _otpRequestResult.value = authRepository.requestEmailOtp(email)
+            } catch (e: Exception) {
+                _otpRequestResult.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -60,8 +65,13 @@ class AuthViewModel @Inject constructor(
         }
         _isLoading.value = true
         viewModelScope.launch {
-            _otpVerifyResult.value = authRepository.verifyEmailOtp(email, code)
-            _isLoading.value = false
+            try {
+                _otpVerifyResult.value = authRepository.verifyEmailOtp(email, code)
+            } catch (e: Exception) {
+                _otpVerifyResult.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -72,9 +82,14 @@ class AuthViewModel @Inject constructor(
         }
         _isLoading.value = true
         viewModelScope.launch {
-            _loginOtpResult.value = authRepository.verifyLoginOtp(email, password, code)
-                .map { it.uid }
-            _isLoading.value = false
+            try {
+                _loginOtpResult.value = authRepository.verifyLoginOtp(email, password, code)
+                    .map { it.uid }
+            } catch (e: Exception) {
+                _loginOtpResult.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -86,9 +101,14 @@ class AuthViewModel @Inject constructor(
 
         _isLoading.value = true
         viewModelScope.launch {
-            val result = authRepository.login(email, password)
-            _loginResult.value = result.map { it.uid }
-            _isLoading.value = false
+            try {
+                val result = authRepository.login(email, password)
+                _loginResult.value = result.map { it.uid }
+            } catch (e: Exception) {
+                _loginResult.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -156,16 +176,21 @@ class AuthViewModel @Inject constructor(
 
         _isLoading.value = true
         viewModelScope.launch {
-            val result = authRepository.registerWithOtp(
-                name = name,
-                email = email,
-                password = pass,
-                role = role,
-                phone = phone,
-                otpCode = otpCode
-            )
-            _registerResult.value = result.map { it.uid }
-            _isLoading.value = false
+            try {
+                val result = authRepository.registerWithOtp(
+                    name = name,
+                    email = email,
+                    password = pass,
+                    role = role,
+                    phone = phone,
+                    otpCode = otpCode
+                )
+                _registerResult.value = result.map { it.uid }
+            } catch (e: Exception) {
+                _registerResult.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 }

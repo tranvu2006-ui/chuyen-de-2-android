@@ -98,7 +98,7 @@ class LoginActivity : AppCompatActivity() {
             binding.tilOtp.error = null
             binding.btnGetOtp.isEnabled = false
             binding.btnGetOtp.text = "Đang gửi..."
-            viewModel.requestEmailOtp(email)
+            viewModel.requestLoginOtp(email)
         }
 
         // Nút "Đăng nhập"
@@ -172,7 +172,12 @@ class LoginActivity : AppCompatActivity() {
             }.onFailure { error ->
                 binding.btnGetOtp.isEnabled = true
                 binding.btnGetOtp.text = "Lấy mã"
-                Toast.makeText(this, error.message ?: "Không gửi được mã OTP.", Toast.LENGTH_LONG).show()
+                val errorMsg = error.message.orEmpty()
+                if (errorMsg.contains("chưa được đăng ký", ignoreCase = true)) {
+                    binding.tilEmail.error = errorMsg
+                    binding.etEmail.requestFocus()
+                }
+                Toast.makeText(this, errorMsg.ifBlank { "Không gửi được mã OTP." }, Toast.LENGTH_LONG).show()
             }
         }
 
@@ -233,15 +238,24 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun updateOtpSessionUI(email: String) {
-        val hasSession = OtpSessionManager.isSessionValid(this, email)
+        val cleanEmail = email.trim().lowercase()
+        val isAdmin = cleanEmail == "admin@gmail.com"
+        val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, cleanEmail)
         if (hasSession) {
-            val remainingHours = OtpSessionManager.getRemainingHours(this, email)
+            val remainingHours = OtpSessionManager.getRemainingHours(this, cleanEmail)
             binding.layoutOtp.visibility = View.GONE
             binding.layoutOtpSessionNotice.visibility = View.VISIBLE
-            binding.tvOtpSessionNotice.text = "Email đã được xác minh OTP trên thiết bị (còn hạn ${remainingHours}h). Bỏ qua bước nhập OTP."
+            if (isAdmin) {
+                binding.tvOtpSessionNotice.text = "Tài khoản Quản trị viên (admin@gmail.com) được miễn xác thực OTP."
+                binding.tvReVerifyOtp.visibility = View.GONE
+            } else {
+                binding.tvOtpSessionNotice.text = "Email đã được xác minh OTP trên thiết bị (còn hạn ${remainingHours}h). Bỏ qua bước nhập OTP."
+                binding.tvReVerifyOtp.visibility = View.VISIBLE
+            }
         } else {
             binding.layoutOtp.visibility = View.VISIBLE
             binding.layoutOtpSessionNotice.visibility = View.GONE
+            binding.tvReVerifyOtp.visibility = View.VISIBLE
         }
     }
 

@@ -1,10 +1,10 @@
 package com.chuyen_de_2.foodorder.internal.ui.auth
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.CountDownTimer
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,12 +14,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityRegisterInternalBinding
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
- * Màn hình đăng ký đối tác (Chủ quán/Tài xế), tích hợp xác thực mã OTP trực tiếp trên giao diện (inline OTP).
+ * Màn hình nhập thông tin đăng ký đối tác (Chủ quán/Tài xế).
+ * Không còn ô nhập OTP trên form. Sau khi bấm "Đăng Ký Đối Tác", hệ thống sẽ chuyển sang
+ * màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
  */
 @AndroidEntryPoint
 class RegisterActivity : AppCompatActivity() {
@@ -27,13 +28,24 @@ class RegisterActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRegisterInternalBinding
     private val viewModel: AuthViewModel by viewModels()
 
-    private var otpCountDownTimer: CountDownTimer? = null
-    private var pendingRegistration: ((String) -> Unit)? = null
-    private var currentOtpEmail = ""
+    private var pendingName = ""
+    private var pendingPhone = ""
+    private var pendingEmail = ""
+    private var pendingPassword = ""
+    private var pendingConfirmPassword = ""
+    private val pendingRole = User.Role.MERCHANT
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
+
+    private val otpVerificationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            finish()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,7 +56,6 @@ class RegisterActivity : AppCompatActivity() {
         checkNotificationPermission()
         setupUI()
         observeViewModel()
-        updateOtpSessionUI(binding.etRegisterEmail.text?.toString().orEmpty())
     }
 
     private fun checkNotificationPermission() {
@@ -58,47 +69,17 @@ class RegisterActivity : AppCompatActivity() {
     private fun setupUI() {
         binding.etRegisterName.doAfterTextChanged { binding.tilRegisterName.error = null }
         binding.etRegisterPhone.doAfterTextChanged { binding.tilRegisterPhone.error = null }
-        binding.etRegisterEmail.doAfterTextChanged {
-            binding.tilRegisterEmail.error = null
-            binding.tilRegisterOtp.error = null
-            val email = it?.toString()?.trim().orEmpty()
-            updateOtpSessionUI(email)
-        }
-
-        binding.tvReVerifyOtp.setOnClickListener {
-            val email = binding.etRegisterEmail.text?.toString()?.trim().orEmpty()
-            OtpSessionManager.clearSession(this, email)
-            updateOtpSessionUI(email)
-            binding.etRegisterOtp.requestFocus()
-        }
+        binding.etRegisterEmail.doAfterTextChanged { binding.tilRegisterEmail.error = null }
         binding.etRegisterPassword.doAfterTextChanged { binding.tilRegisterPassword.error = null }
         binding.etRegisterConfirmPassword.doAfterTextChanged { binding.tilRegisterConfirmPassword.error = null }
-        binding.etRegisterOtp.doAfterTextChanged { binding.tilRegisterOtp.error = null }
 
-        // Nút "Lấy mã" kế bên ô nhập mã OTP
-        binding.btnGetRegisterOtp.setOnClickListener {
-            val email = binding.etRegisterEmail.text.toString().trim()
-            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                binding.tilRegisterEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
-                binding.etRegisterEmail.requestFocus()
-                return@setOnClickListener
-            }
-            binding.tilRegisterEmail.error = null
-            binding.tilRegisterOtp.error = null
-            currentOtpEmail = email
-            binding.btnGetRegisterOtp.isEnabled = false
-            binding.btnGetRegisterOtp.text = "Đang gửi..."
-            viewModel.requestEmailOtp(email)
-        }
-
-        // Nút "Đăng ký"
+        // Nút "Đăng ký đối tác"
         binding.btnSubmitRegister.setOnClickListener {
             val name = binding.etRegisterName.text.toString().trim()
             val phone = binding.etRegisterPhone.text.toString().trim()
             val email = binding.etRegisterEmail.text.toString().trim()
             val password = binding.etRegisterPassword.text.toString()
             val confirmPassword = binding.etRegisterConfirmPassword.text.toString()
-            val otpCode = binding.etRegisterOtp.text.toString().trim()
 
             if (name.isBlank()) {
                 binding.tilRegisterName.error = "Vui lòng nhập họ tên"
@@ -125,128 +106,47 @@ class RegisterActivity : AppCompatActivity() {
                 binding.etRegisterConfirmPassword.requestFocus()
                 return@setOnClickListener
             }
-            currentOtpEmail = email
-            val hasSession = OtpSessionManager.isSessionValid(this, email)
-            if (hasSession) {
-                // Email đã có phiên xác minh OTP hợp lệ trong 24h -> Bỏ qua OTP, đăng ký thẳng
-                viewModel.register(
-                    name = name,
-                    email = email,
-                    pass = password,
-                    confirmPass = confirmPassword,
-                    role = User.Role.MERCHANT,
-                    phone = phone
-                )
-            } else {
-                if (otpCode.length != 6 || !otpCode.all { it.isDigit() }) {
-                    binding.tilRegisterOtp.error = "Vui lòng bấm 'Lấy mã' và nhập đúng 6 chữ số OTP"
-                    binding.etRegisterOtp.requestFocus()
-                    return@setOnClickListener
-                }
-                viewModel.registerWithOtp(
-                    name = name,
-                    email = email,
-                    pass = password,
-                    confirmPass = confirmPassword,
-                    role = User.Role.MERCHANT,
-                    phone = phone,
-                    otpCode = otpCode
-                )
-            }
+
+            pendingName = name
+            pendingPhone = phone
+            pendingEmail = email
+            pendingPassword = password
+            pendingConfirmPassword = confirmPassword
+
+            binding.progressBarRegister.visibility = View.VISIBLE
+            binding.btnSubmitRegister.isEnabled = false
+            binding.btnSubmitRegister.text = "Đang gửi mã xác thực..."
+
+            // Gửi OTP qua email và kiểm tra tài khoản đã tồn tại hay chưa
+            viewModel.requestEmailOtp(email)
         }
 
         binding.tvBackToLogin.setOnClickListener { finish() }
     }
 
     private fun observeViewModel() {
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBarRegister.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.btnSubmitRegister.isEnabled = !isLoading
-        }
-
         viewModel.otpRequestResult.observe(this) { result ->
+            binding.progressBarRegister.visibility = View.GONE
+            binding.btnSubmitRegister.isEnabled = true
+            binding.btnSubmitRegister.text = "Đăng Ký Đối Tác"
+
             result.onSuccess {
-                Toast.makeText(this, "Đã gửi mã OTP đến $currentOtpEmail. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
-                startOtpCountdown()
-                binding.etRegisterOtp.requestFocus()
+                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                val intent = Intent(this, OtpVerificationActivity::class.java).apply {
+                    putExtra(OtpVerificationActivity.EXTRA_NAME, pendingName)
+                    putExtra(OtpVerificationActivity.EXTRA_EMAIL, pendingEmail)
+                    putExtra(OtpVerificationActivity.EXTRA_PASSWORD, pendingPassword)
+                    putExtra(OtpVerificationActivity.EXTRA_CONFIRM_PASSWORD, pendingConfirmPassword)
+                    putExtra(OtpVerificationActivity.EXTRA_PHONE, pendingPhone)
+                    putExtra(OtpVerificationActivity.EXTRA_ROLE, pendingRole)
+                }
+                otpVerificationLauncher.launch(intent)
             }.onFailure { error ->
-                binding.btnGetRegisterOtp.isEnabled = true
-                binding.btnGetRegisterOtp.text = "Lấy mã"
                 val msg = error.message ?: "Không gửi được mã OTP"
                 binding.tilRegisterEmail.error = msg
+                binding.etRegisterEmail.requestFocus()
                 Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
             }
         }
-
-        viewModel.otpVerifyResult.observe(this) { result ->
-            result.onSuccess { verifiedValue ->
-                binding.tilRegisterOtp.error = null
-                pendingRegistration?.invoke(verifiedValue)
-            }.onFailure { error ->
-                val message = error.message.orEmpty()
-                val userMessage = if (
-                    message.contains("expired", ignoreCase = true) ||
-                    message.contains("invalid", ignoreCase = true) ||
-                    message.contains("token", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
-                } else {
-                    message.ifBlank { "Mã OTP không hợp lệ" }
-                }
-                binding.tilRegisterOtp.error = userMessage
-                binding.etRegisterOtp.requestFocus()
-                Toast.makeText(this, userMessage, Toast.LENGTH_LONG).show()
-            }
-        }
-
-        viewModel.registerResult.observe(this) { result ->
-            result.onSuccess {
-                otpCountDownTimer?.cancel()
-                val email = binding.etRegisterEmail.text.toString().trim()
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(
-                    this,
-                    "Đăng ký đối tác thành công! Bạn có thể đăng nhập ngay.",
-                    Toast.LENGTH_LONG
-                ).show()
-                finish()
-            }.onFailure { error ->
-                Toast.makeText(this, error.message ?: "Đăng ký thất bại", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun updateOtpSessionUI(email: String) {
-        val hasSession = OtpSessionManager.isSessionValid(this, email)
-        if (hasSession) {
-            val remainingHours = OtpSessionManager.getRemainingHours(this, email)
-            binding.layoutRegisterOtp.visibility = View.GONE
-            binding.layoutOtpSessionNotice.visibility = View.VISIBLE
-            binding.tvOtpSessionNotice.text = "Email đã được xác minh OTP trên thiết bị (còn hạn ${remainingHours}h). Bỏ qua bước nhập OTP."
-        } else {
-            binding.layoutRegisterOtp.visibility = View.VISIBLE
-            binding.layoutOtpSessionNotice.visibility = View.GONE
-        }
-    }
-
-    private fun startOtpCountdown() {
-        otpCountDownTimer?.cancel()
-        binding.btnGetRegisterOtp.isEnabled = false
-        otpCountDownTimer = object : CountDownTimer(60_000L, 1_000L) {
-            override fun onTick(millisUntilFinished: Long) {
-                val sec = millisUntilFinished / 1000
-                binding.btnGetRegisterOtp.text = "${sec}s"
-            }
-
-            override fun onFinish() {
-                binding.btnGetRegisterOtp.isEnabled = true
-                binding.btnGetRegisterOtp.text = "Gửi lại"
-            }
-        }.start()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        otpCountDownTimer?.cancel()
     }
 }

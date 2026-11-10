@@ -19,6 +19,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 class EmailOtpRequiredException : Exception("Email chưa được xác minh. Vui lòng nhập mã OTP đã gửi đến email.")
+class EmailNotRegisteredException(message: String = "Email chưa được đăng ký tài khoản. Vui lòng đăng ký trước!") : Exception(message)
 
 /**
  * Repository xử lý xác thực — Firebase Authentication
@@ -28,7 +29,8 @@ class EmailOtpRequiredException : Exception("Email chưa được xác minh. Vui
 class AuthRepository @Inject constructor(
     private val auth: FirebaseAuth,
     private val database: FirebaseDatabase,
-    private val emailOtpApi: EmailOtpApi
+    private val emailOtpApi: EmailOtpApi,
+    private val firebaseAuthChecker: FirebaseAuthChecker
 ) {
     /** Đăng nhập bằng Email/Password (kiểm tra khóa tài khoản từ Admin & tự động đồng bộ Gmail/Hồ sơ lên Realtime DB) */
     suspend fun login(email: String, password: String): Result<FirebaseUser> {
@@ -70,10 +72,13 @@ class AuthRepository @Inject constructor(
                         ?.getValue(String::class.java)
                         .isNullOrBlank()
                 )
+            val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
+            val isAdminEmail = actualEmail.equals("admin@gmail.com", ignoreCase = true)
+
             // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
-            // Ngoại lệ: tài khoản DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
+            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com) và DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
             // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
-            if (!firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
+            if (!isAdminEmail && !firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
                 try {
                     emailOtpApi.requestCode(email.trim())
                 } catch (error: Exception) {
@@ -89,7 +94,7 @@ class AuthRepository @Inject constructor(
             val user = completePostLogin(
                 firebaseUser = firebaseUser,
                 email = email,
-                emailVerifiedByOtp = emailVerifiedByOtp || isStoreCreatedDriver,
+                emailVerifiedByOtp = emailVerifiedByOtp || isStoreCreatedDriver || isAdminEmail,
                 isStoreCreatedDriver = isStoreCreatedDriver
             )
             Result.success(user)
@@ -238,16 +243,48 @@ class AuthRepository @Inject constructor(
     }
 
     /**
+     * Gửi yêu cầu mã OTP 6 số đến email đăng nhập.
+     * Kiểm tra xem email đã được đăng ký trên Firebase chưa:
+     * - Nếu chưa đăng ký: từ chối gửi OTP và trả lỗi EmailNotRegisteredException!
+     * - Nếu đã đăng ký: gửi OTP qua Supabase Auth.
+     */
+    suspend fun requestLoginOtp(email: String): Result<String> {
+        return try {
+            val cleanEmail = email.trim().lowercase()
+            if (cleanEmail.isBlank()) {
+                return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
+            }
+            if (cleanEmail == "admin@gmail.com") {
+                return Result.failure(Exception("Tài khoản Quản trị viên (admin@gmail.com) được miễn xác thực OTP. Bạn có thể đăng nhập ngay."))
+            }
+            val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
+            if (!isRegistered) {
+                return Result.failure(EmailNotRegisteredException("Email chưa được đăng ký tài khoản. Vui lòng đăng ký trước!"))
+            }
+            emailOtpApi.requestCode(cleanEmail)
+            Result.success("")
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
+    /**
      * Gửi yêu cầu mã OTP 6 số đến email đăng ký thông qua dịch vụ Supabase Auth.
+     * Kiểm tra nếu email đã đăng ký thì thông báo chuyển sang đăng nhập.
      */
     suspend fun requestEmailOtp(email: String): Result<String> {
         return try {
-            // Chuẩn hóa khoảng trắng trước khi gửi email lên Supabase.
-            emailOtpApi.requestCode(email.trim())
-            // Thành công ở đây nghĩa là Supabase nhận yêu cầu gửi mã, chưa phải tài khoản Firebase đã được tạo.
+            val cleanEmail = email.trim().lowercase()
+            if (cleanEmail.isBlank()) {
+                return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
+            }
+            val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
+            if (isRegistered) {
+                return Result.failure(Exception("Email này đã được đăng ký tài khoản. Vui lòng đăng nhập!"))
+            }
+            emailOtpApi.requestCode(cleanEmail)
             Result.success("")
         } catch (error: Exception) {
-            // Giữ lỗi để ViewModel/UI hiển thị và không cho đi tiếp như thể gửi mã thành công.
             Result.failure(error)
         }
     }

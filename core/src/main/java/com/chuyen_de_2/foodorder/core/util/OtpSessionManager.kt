@@ -9,6 +9,7 @@ import android.content.SharedPreferences
  * Yêu cầu:
  * - Xác minh OTP 1 lần từ bất kể login hay register từ 1 gmail đồng nhất thì lưu lại trên thiết bị.
  * - Những lần sau trong vòng 24h sẽ bỏ qua bước OTP đối với email này.
+ * - Tài khoản Quản trị viên (admin@gmail.com) luôn được miễn xác thực OTP.
  * - Nếu người dùng nhập 1 gmail khác, hoặc phiên 24h đã hết hạn, bắt buộc phải xác minh lại OTP và tạo session mới cho gmail đó.
  */
 object OtpSessionManager {
@@ -27,10 +28,12 @@ object OtpSessionManager {
 
     /**
      * Kiểm tra xem email này có phiên xác minh OTP hợp lệ (chưa quá 24h) trên thiết bị không.
+     * Tài khoản admin@gmail.com luôn được miễn OTP.
      */
     fun isSessionValid(context: Context, email: String): Boolean {
         val cleanEmail = normalizeEmail(email)
         if (cleanEmail.isBlank()) return false
+        if (cleanEmail == "admin@gmail.com") return true
         val verifiedAt = getPrefs(context).getLong(KEY_PREFIX + cleanEmail, 0L)
         if (verifiedAt <= 0L) return false
         val elapsed = System.currentTimeMillis() - verifiedAt
@@ -53,6 +56,7 @@ object OtpSessionManager {
      */
     fun getRemainingHours(context: Context, email: String): Int {
         val cleanEmail = normalizeEmail(email)
+        if (cleanEmail == "admin@gmail.com") return 24
         val verifiedAt = getPrefs(context).getLong(KEY_PREFIX + cleanEmail, 0L)
         if (verifiedAt <= 0L) return 0
         val remainingMs = SESSION_DURATION_MS - (System.currentTimeMillis() - verifiedAt)
@@ -67,6 +71,7 @@ object OtpSessionManager {
      */
     fun clearSession(context: Context, email: String) {
         val cleanEmail = normalizeEmail(email)
+        if (cleanEmail == "admin@gmail.com") return
         getPrefs(context).edit()
             .remove(KEY_PREFIX + cleanEmail)
             .apply()

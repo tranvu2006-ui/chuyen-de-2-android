@@ -3126,8 +3126,18 @@ class FirebaseRepository @Inject constructor(
             }
             val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
             val secondaryDatabase = FirebaseDatabase.getInstance(secondaryApp)
-            val authResult = secondaryAuth.createUserWithEmailAndPassword(email.trim(), password.trim()).await()
-            val merchantUid = authResult.user?.uid ?: return Result.failure(Exception("Không lấy được UID của quản lý mới"))
+            val merchantUid = try {
+                val authResult = secondaryAuth.createUserWithEmailAndPassword(email.trim(), password.trim()).await()
+                authResult.user?.uid
+            } catch (_: com.google.firebase.auth.FirebaseAuthUserCollisionException) {
+                // Email đã được tạo trên Auth trong lần thử trước, đăng nhập vào để hoàn tất lưu thông tin DB
+                try {
+                    val signResult = secondaryAuth.signInWithEmailAndPassword(email.trim(), password.trim()).await()
+                    signResult.user?.uid
+                } catch (_: Exception) {
+                    return Result.failure(Exception("Email '$email' đã được đăng ký trên hệ thống. Vui lòng nhập đúng mật khẩu đã tạo hoặc dùng email khác."))
+                }
+            } ?: return Result.failure(Exception("Không lấy được UID của quản lý mới"))
 
             val updates = mutableMapOf<String, Any>(
                 "uid" to merchantUid,

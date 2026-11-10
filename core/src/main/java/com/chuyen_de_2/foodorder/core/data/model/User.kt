@@ -52,31 +52,7 @@ data class User(
     val emailVerified: Boolean = false,
 
     @SerializedName("phoneVerified")
-    val phoneVerified: Boolean = false,
-
-    @SerializedName("ownerName")
-    val ownerName: String = "",
-
-    @SerializedName("cccdNumber")
-    val cccdNumber: String = "",
-
-    @SerializedName("businessLicense")
-    val businessLicense: String = "",
-
-    @SerializedName("bankName")
-    val bankName: String = "",
-
-    @SerializedName("bankAccountNumber")
-    val bankAccountNumber: String = "",
-
-    @SerializedName("bankAccountName")
-    val bankAccountName: String = "",
-
-    @SerializedName("bankBin")
-    val bankBin: String = "",
-
-    @SerializedName("isBusinessVerified")
-    val isBusinessVerified: Boolean = false
+    val phoneVerified: Boolean = false
 ) {
     /** Role constants — RBAC phân quyền 4 Actors + Boss */
     object Role {

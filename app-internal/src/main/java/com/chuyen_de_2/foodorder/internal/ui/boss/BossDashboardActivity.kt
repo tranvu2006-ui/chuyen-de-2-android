@@ -73,9 +73,13 @@ class BossDashboardActivity : AppCompatActivity() {
 
     private fun observeBusinessProfile() {
         lifecycleScope.launch {
-            firebaseRepository.getBossBusinessProfile(currentBossUid).collect { user ->
-                val hasBank = user != null && user.isBusinessVerified && user.bankAccountNumber.isNotBlank()
+            val storeId = firebaseRepository.resolveStoreIdForUser(currentBossUid)
+            if (storeId.isNotBlank()) {
+                val store = firebaseRepository.getStoreOnce(storeId)
+                val hasBank = store != null && store.bankAccountNumber.isNotBlank() && store.cccdNumber.isNotBlank()
                 binding.cardMissingBankAlert.visibility = if (hasBank) View.GONE else View.VISIBLE
+            } else {
+                binding.cardMissingBankAlert.visibility = View.VISIBLE
             }
         }
     }

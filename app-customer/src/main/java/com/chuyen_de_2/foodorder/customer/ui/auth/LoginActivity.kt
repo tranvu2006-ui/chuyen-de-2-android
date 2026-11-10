@@ -11,6 +11,7 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityLoginBinding
 import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
 import dagger.hilt.android.AndroidEntryPoint
@@ -36,6 +37,7 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
+        updateOtpSessionUI(binding.etEmail.text?.toString().orEmpty())
 
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
         if (isLogout) {
@@ -57,6 +59,8 @@ class LoginActivity : AppCompatActivity() {
         binding.etEmail.doAfterTextChanged {
             binding.tilEmail.error = null
             binding.tilOtp.error = null
+            val email = it?.toString()?.trim().orEmpty()
+            updateOtpSessionUI(email)
         }
         binding.etPassword.doAfterTextChanged {
             binding.tilPassword.error = null
@@ -75,6 +79,13 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
+        binding.tvReVerifyOtp.setOnClickListener {
+            val email = binding.etEmail.text?.toString()?.trim().orEmpty()
+            OtpSessionManager.clearSession(this, email)
+            updateOtpSessionUI(email)
+            binding.etOtp.requestFocus()
+        }
+
         // Nút "Lấy mã" kế bên ô nhập OTP
         binding.btnGetOtp.setOnClickListener {
             val email = binding.etEmail.text.toString().trim()
@@ -90,11 +101,10 @@ class LoginActivity : AppCompatActivity() {
             viewModel.requestEmailOtp(email)
         }
 
-        // Nút "Đăng nhập" — Bắt buộc phải có cả Email, Mật khẩu và Mã OTP
+        // Nút "Đăng nhập"
         binding.btnLogin.setOnClickListener {
             val email = binding.etEmail.text.toString().trim()
             val password = binding.etPassword.text.toString().trim()
-            val otp = binding.etOtp.text.toString().trim()
 
             if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
@@ -106,13 +116,20 @@ class LoginActivity : AppCompatActivity() {
                 binding.etPassword.requestFocus()
                 return@setOnClickListener
             }
-            if (otp.length != 6 || !otp.all { it.isDigit() }) {
-                binding.tilOtp.error = "Vui lòng bấm 'Lấy mã' và nhập mã OTP 6 số để đăng nhập"
-                binding.etOtp.requestFocus()
-                return@setOnClickListener
-            }
 
-            viewModel.verifyLoginOtp(email, password, otp)
+            if (OtpSessionManager.isSessionValid(this, email)) {
+                // Email này đã có phiên xác minh OTP hợp lệ trong 24h -> Bỏ qua OTP, đăng nhập thẳng
+                viewModel.login(email, password)
+            } else {
+                // Chưa xác minh hoặc phiên 24h đã hết hạn -> Bắt buộc nhập OTP 6 số
+                val otp = binding.etOtp.text.toString().trim()
+                if (otp.length != 6 || !otp.all { it.isDigit() }) {
+                    binding.tilOtp.error = "Vui lòng bấm 'Lấy mã' và nhập mã OTP 6 số để đăng nhập"
+                    binding.etOtp.requestFocus()
+                    return@setOnClickListener
+                }
+                viewModel.verifyLoginOtp(email, password, otp)
+            }
         }
 
         binding.tvRegister.setOnClickListener {
@@ -138,8 +155,35 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
+        viewModel.loginResult.observe(this) { result ->
+            result.onSuccess {
+                val email = binding.etEmail.text.toString().trim()
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                val msg = error.message.orEmpty()
+                val userMsg = if (
+                    msg.contains("password", ignoreCase = true) ||
+                    msg.contains("credential", ignoreCase = true) ||
+                    msg.contains("mật khẩu", ignoreCase = true)
+                ) {
+                    binding.tilPassword.error = "Mật khẩu không chính xác"
+                    "Mật khẩu không chính xác"
+                } else if (msg.contains("no user", ignoreCase = true) || msg.contains("user-not-found", ignoreCase = true)) {
+                    binding.tilEmail.error = "Không tìm thấy tài khoản với email này"
+                    "Không tìm thấy tài khoản với email này"
+                } else {
+                    msg.ifBlank { "Đăng nhập thất bại" }
+                }
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+
         viewModel.loginOtpResult.observe(this) { result ->
             result.onSuccess {
+                val email = binding.etEmail.text.toString().trim()
+                OtpSessionManager.markEmailVerified(this, email)
                 Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
                 checkRoleAndRoute()
             }.onFailure { error ->
@@ -164,6 +208,19 @@ class LoginActivity : AppCompatActivity() {
                 }
                 Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    private fun updateOtpSessionUI(email: String) {
+        val hasSession = OtpSessionManager.isSessionValid(this, email)
+        if (hasSession) {
+            val remainingHours = OtpSessionManager.getRemainingHours(this, email)
+            binding.layoutOtp.visibility = View.GONE
+            binding.layoutOtpSessionNotice.visibility = View.VISIBLE
+            binding.tvOtpSessionNotice.text = "Email đã được xác minh OTP trên thiết bị (còn hạn ${remainingHours}h). Bỏ qua bước nhập OTP."
+        } else {
+            binding.layoutOtp.visibility = View.VISIBLE
+            binding.layoutOtpSessionNotice.visibility = View.GONE
         }
     }
 

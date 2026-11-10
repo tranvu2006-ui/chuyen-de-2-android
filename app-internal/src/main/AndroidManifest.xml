@@ -80,6 +80,13 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
 
+        <!-- Màn hình Hồ sơ Kinh doanh, Pháp lý & STK Ngân hàng dành riêng cho BOSSMERCHANT -->
+        <activity
+            android:name=".ui.boss.BossBusinessProfileActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
         <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
         <activity
             android:name=".ui.ship.DeliveryTripActivity"

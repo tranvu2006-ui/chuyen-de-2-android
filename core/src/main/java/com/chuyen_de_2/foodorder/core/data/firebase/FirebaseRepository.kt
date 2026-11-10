@@ -3025,6 +3025,14 @@ class FirebaseRepository @Inject constructor(
         phone: String = ""
     ): Result<String> {
         return try {
+            val bossSnap = try { database.getReference("users").child(bossUid).get().await() } catch (_: Exception) { null }
+            val bOwnerName = bossSnap?.child("ownerName")?.getValue(String::class.java).orEmpty()
+            val bCccd = bossSnap?.child("cccdNumber")?.getValue(String::class.java).orEmpty()
+            val bBankName = bossSnap?.child("bankName")?.getValue(String::class.java).orEmpty().ifBlank { "MB Bank" }
+            val bBankAcc = bossSnap?.child("bankAccountNumber")?.getValue(String::class.java).orEmpty()
+            val bBankAccName = bossSnap?.child("bankAccountName")?.getValue(String::class.java).orEmpty()
+            val bBankBin = bossSnap?.child("bankBin")?.getValue(String::class.java).orEmpty().ifBlank { "970422" }
+
             val storeRef = database.getReference("stores").push()
             val newStoreId = storeRef.key ?: "store_${System.currentTimeMillis()}"
             val newStore = Store(
@@ -3036,6 +3044,12 @@ class FirebaseRepository @Inject constructor(
                 address = address.trim(),
                 district = district.trim(),
                 phone = phone.trim(),
+                ownerName = bOwnerName,
+                cccdNumber = bCccd,
+                bankName = bBankName,
+                bankAccountNumber = bBankAcc,
+                bankAccountName = bBankAccName,
+                bankBin = bBankBin,
                 storeStatus = Store.StoreStatus.OPEN,
                 isVerified = true,
                 ratingAvg = 5.0f,
@@ -3161,5 +3175,73 @@ class FirebaseRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /** Cập nhật thông tin kinh doanh, giấy phép và STK ngân hàng của BOSSMERCHANT */
+    suspend fun updateBossBusinessProfile(
+        bossUid: String,
+        ownerName: String,
+        cccdNumber: String,
+        businessLicense: String,
+        bankName: String,
+        bankAccountNumber: String,
+        bankAccountName: String,
+        bankBin: String
+    ): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "ownerName" to ownerName.trim(),
+                "cccdNumber" to cccdNumber.trim(),
+                "businessLicense" to businessLicense.trim(),
+                "bankName" to bankName.trim(),
+                "bankAccountNumber" to bankAccountNumber.trim(),
+                "bankAccountName" to bankAccountName.trim(),
+                "bankBin" to bankBin.trim(),
+                "isBusinessVerified" to true
+            )
+            database.getReference("users").child(bossUid).updateChildren(updates).await()
+
+            // Đồng bộ sang tất cả các chi nhánh hiện có của Boss để nhận tiền đối soát
+            val storesSnap = try { database.getReference("stores").get().await() } catch (_: Exception) { null }
+            if (storesSnap != null) {
+                val storeBankUpdates = mapOf<String, Any>(
+                    "ownerName" to ownerName.trim(),
+                    "cccdNumber" to cccdNumber.trim(),
+                    "bankName" to bankName.trim(),
+                    "bankAccountNumber" to bankAccountNumber.trim(),
+                    "bankAccountName" to bankAccountName.trim(),
+                    "bankBin" to bankBin.trim()
+                )
+                for (child in storesSnap.children) {
+                    val bId = child.child("bossId").getValue(String::class.java).orEmpty()
+                    if (bId == bossUid) {
+                        try { child.ref.updateChildren(storeBankUpdates).await() } catch (_: Exception) {}
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lấy thông tin kinh doanh của Boss (Realtime Flow) */
+    fun getBossBusinessProfile(bossUid: String): Flow<User?> = callbackFlow {
+        if (bossUid.isBlank()) {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
+        val ref = database.getReference("users").child(bossUid)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                trySend(snapshot.getValue(User::class.java))
+            }
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
     }
 }

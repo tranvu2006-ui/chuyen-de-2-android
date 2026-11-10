@@ -68,6 +68,16 @@ class BossDashboardActivity : AppCompatActivity() {
         currentBossUid = currentUser.uid
         setupUI()
         observeBranches()
+        observeBusinessProfile()
+    }
+
+    private fun observeBusinessProfile() {
+        lifecycleScope.launch {
+            firebaseRepository.getBossBusinessProfile(currentBossUid).collect { user ->
+                val hasBank = user != null && user.isBusinessVerified && user.bankAccountNumber.isNotBlank()
+                binding.cardMissingBankAlert.visibility = if (hasBank) View.GONE else View.VISIBLE
+            }
+        }
     }
 
     private fun setupUI() {
@@ -92,6 +102,14 @@ class BossDashboardActivity : AppCompatActivity() {
 
         binding.btnCreateMerchant.setOnClickListener {
             showCreateMerchantDialog()
+        }
+
+        binding.btnBossBusinessProfile.setOnClickListener {
+            startActivity(Intent(this, BossBusinessProfileActivity::class.java))
+        }
+
+        binding.cardMissingBankAlert.setOnClickListener {
+            startActivity(Intent(this, BossBusinessProfileActivity::class.java))
         }
 
         binding.btnBossLogout.setOnClickListener {

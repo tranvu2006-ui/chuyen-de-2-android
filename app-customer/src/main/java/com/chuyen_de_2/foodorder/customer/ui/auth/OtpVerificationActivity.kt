@@ -11,6 +11,7 @@ import androidx.core.widget.doAfterTextChanged
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityOtpVerificationBinding
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -125,20 +126,29 @@ class OtpVerificationActivity : AppCompatActivity() {
 
         viewModel.otpRequestResult.observe(this) { result ->
             result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, email)
                 Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
-                startCountdown()
+                startCountdown(60_000L)
                 binding.etOtp.requestFocus()
             }.onFailure { error ->
-                isResendEnabled = true
-                binding.btnResendOtp.isEnabled = true
-                binding.btnResendOtp.text = "Gửi lại"
-                Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
+                    startCountdown(if (remaining > 0L) remaining else 30_000L)
+                } else {
+                    isResendEnabled = true
+                    binding.btnResendOtp.isEnabled = true
+                    binding.btnResendOtp.text = "Gửi lại ngay"
+                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
+                }
             }
         }
 
         viewModel.registerResult.observe(this) { result ->
             result.onSuccess {
                 countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
                 OtpSessionManager.markEmailVerified(this, email)
                 Toast.makeText(
                     this,
@@ -166,13 +176,27 @@ class OtpVerificationActivity : AppCompatActivity() {
         }
     }
 
-    private fun startCountdown() {
+    private fun startCountdown(durationMs: Long = -1L) {
         countDownTimer?.cancel()
+        val remainingMs = if (durationMs >= 0L) {
+            durationMs
+        } else {
+            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+            if (cooldown > 0L) cooldown else 0L
+        }
+
+        if (remainingMs <= 0L) {
+            isResendEnabled = true
+            binding.btnResendOtp.isEnabled = true
+            binding.btnResendOtp.text = "Gửi lại ngay"
+            return
+        }
+
         isResendEnabled = false
         binding.btnResendOtp.isEnabled = false
-        countDownTimer = object : CountDownTimer(60_000L, 1_000L) {
+        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
             override fun onTick(millisUntilFinished: Long) {
-                val sec = millisUntilFinished / 1000
+                val sec = (millisUntilFinished + 999) / 1000
                 binding.btnResendOtp.text = "Gửi lại (${sec}s)"
             }
 

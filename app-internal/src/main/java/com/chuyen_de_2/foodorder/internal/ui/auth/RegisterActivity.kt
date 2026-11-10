@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityRegisterInternalBinding
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -109,19 +110,39 @@ class RegisterActivity : AppCompatActivity() {
 
             pendingName = name
             pendingPhone = phone
-            pendingEmail = email
+            pendingEmail = email.lowercase()
             pendingPassword = password
             pendingConfirmPassword = confirmPassword
+
+            // Nếu mã OTP đã gửi cho email này trước đó và vẫn còn hiệu lực (trong vòng 10 phút),
+            // chuyển thẳng sang màn hình xác minh mà không cần gọi gửi lại (tránh lỗi cooldown).
+            if (RegistrationOtpManager.hasValidPendingOtp(this, pendingEmail)) {
+                Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                openOtpVerificationActivity()
+                return@setOnClickListener
+            }
 
             binding.progressBarRegister.visibility = View.VISIBLE
             binding.btnSubmitRegister.isEnabled = false
             binding.btnSubmitRegister.text = "Đang gửi mã xác thực..."
 
             // Gửi OTP qua email và kiểm tra tài khoản đã tồn tại hay chưa
-            viewModel.requestEmailOtp(email)
+            viewModel.requestEmailOtp(pendingEmail)
         }
 
         binding.tvBackToLogin.setOnClickListener { finish() }
+    }
+
+    private fun openOtpVerificationActivity() {
+        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
+            putExtra(OtpVerificationActivity.EXTRA_NAME, pendingName)
+            putExtra(OtpVerificationActivity.EXTRA_EMAIL, pendingEmail)
+            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, pendingPassword)
+            putExtra(OtpVerificationActivity.EXTRA_CONFIRM_PASSWORD, pendingConfirmPassword)
+            putExtra(OtpVerificationActivity.EXTRA_PHONE, pendingPhone)
+            putExtra(OtpVerificationActivity.EXTRA_ROLE, pendingRole)
+        }
+        otpVerificationLauncher.launch(intent)
     }
 
     private fun observeViewModel() {
@@ -131,21 +152,22 @@ class RegisterActivity : AppCompatActivity() {
             binding.btnSubmitRegister.text = "Đăng Ký Đối Tác"
 
             result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
                 Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                val intent = Intent(this, OtpVerificationActivity::class.java).apply {
-                    putExtra(OtpVerificationActivity.EXTRA_NAME, pendingName)
-                    putExtra(OtpVerificationActivity.EXTRA_EMAIL, pendingEmail)
-                    putExtra(OtpVerificationActivity.EXTRA_PASSWORD, pendingPassword)
-                    putExtra(OtpVerificationActivity.EXTRA_CONFIRM_PASSWORD, pendingConfirmPassword)
-                    putExtra(OtpVerificationActivity.EXTRA_PHONE, pendingPhone)
-                    putExtra(OtpVerificationActivity.EXTRA_ROLE, pendingRole)
-                }
-                otpVerificationLauncher.launch(intent)
+                openOtpVerificationActivity()
             }.onFailure { error ->
-                val msg = error.message ?: "Không gửi được mã OTP"
-                binding.tilRegisterEmail.error = msg
-                binding.etRegisterEmail.requestFocus()
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    // Supabase báo rate limit / cooldown nghĩa là mã OTP đã gửi trong vòng 60s trước vẫn còn hiệu lực
+                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                    openOtpVerificationActivity()
+                } else {
+                    val msg = error.message ?: "Không gửi được mã OTP"
+                    binding.tilRegisterEmail.error = msg
+                    binding.etRegisterEmail.requestFocus()
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

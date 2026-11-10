@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityRegisterBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -44,6 +45,7 @@ class RegisterActivity : AppCompatActivity() {
         checkNotificationPermission()
         setupUI()
         observeViewModel()
+        updateOtpSessionUI(binding.etEmail.text?.toString().orEmpty())
     }
 
     private fun checkNotificationPermission() {
@@ -59,6 +61,15 @@ class RegisterActivity : AppCompatActivity() {
         binding.etEmail.doAfterTextChanged {
             binding.tilEmail.error = null
             binding.tilOtp.error = null
+            val email = it?.toString()?.trim().orEmpty()
+            updateOtpSessionUI(email)
+        }
+
+        binding.tvReVerifyOtp.setOnClickListener {
+            val email = binding.etEmail.text?.toString()?.trim().orEmpty()
+            OtpSessionManager.clearSession(this, email)
+            updateOtpSessionUI(email)
+            binding.etOtp.requestFocus()
         }
         binding.etPassword.doAfterTextChanged { binding.tilPassword.error = null }
         binding.etConfirmPassword.doAfterTextChanged { binding.tilConfirmPassword.error = null }
@@ -129,22 +140,34 @@ class RegisterActivity : AppCompatActivity() {
                 binding.etConfirmPassword.requestFocus()
                 return@setOnClickListener
             }
-            if (otpCode.length != 6 || !otpCode.all { it.isDigit() }) {
-                binding.tilOtp.error = "Vui lòng bấm 'Lấy mã' và nhập đúng 6 chữ số OTP"
-                binding.etOtp.requestFocus()
-                return@setOnClickListener
-            }
-
             currentOtpEmail = email
-            viewModel.registerWithOtp(
-                name = name,
-                email = email,
-                password = password,
-                confirmPassword = confirmPassword,
-                role = role,
-                phone = phone,
-                otpCode = otpCode
-            )
+            val hasSession = OtpSessionManager.isSessionValid(this, email)
+            if (hasSession) {
+                // Email đã có phiên xác minh OTP hợp lệ trong 24h -> Bỏ qua OTP, đăng ký thẳng
+                viewModel.register(
+                    name = name,
+                    email = email,
+                    password = password,
+                    confirmPassword = confirmPassword,
+                    role = role,
+                    phone = phone
+                )
+            } else {
+                if (otpCode.length != 6 || !otpCode.all { it.isDigit() }) {
+                    binding.tilOtp.error = "Vui lòng bấm 'Lấy mã' và nhập đúng 6 chữ số OTP"
+                    binding.etOtp.requestFocus()
+                    return@setOnClickListener
+                }
+                viewModel.registerWithOtp(
+                    name = name,
+                    email = email,
+                    password = password,
+                    confirmPassword = confirmPassword,
+                    role = role,
+                    phone = phone,
+                    otpCode = otpCode
+                )
+            }
         }
 
         binding.tvLogin.setOnClickListener { finish() }
@@ -194,6 +217,8 @@ class RegisterActivity : AppCompatActivity() {
         viewModel.registerResult.observe(this) { result ->
             result.onSuccess {
                 otpCountDownTimer?.cancel()
+                val email = binding.etEmail.text.toString().trim()
+                OtpSessionManager.markEmailVerified(this, email)
                 Toast.makeText(
                     this,
                     "Đăng ký và xác thực thành công! Bạn có thể đăng nhập ngay.",
@@ -203,6 +228,19 @@ class RegisterActivity : AppCompatActivity() {
             }.onFailure { error ->
                 Toast.makeText(this, error.message ?: "Đăng ký thất bại", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    private fun updateOtpSessionUI(email: String) {
+        val hasSession = OtpSessionManager.isSessionValid(this, email)
+        if (hasSession) {
+            val remainingHours = OtpSessionManager.getRemainingHours(this, email)
+            binding.layoutOtp.visibility = View.GONE
+            binding.layoutOtpSessionNotice.visibility = View.VISIBLE
+            binding.tvOtpSessionNotice.text = "Email đã được xác minh OTP trên thiết bị (còn hạn ${remainingHours}h). Bỏ qua bước nhập OTP."
+        } else {
+            binding.layoutOtp.visibility = View.VISIBLE
+            binding.layoutOtpSessionNotice.visibility = View.GONE
         }
     }
 

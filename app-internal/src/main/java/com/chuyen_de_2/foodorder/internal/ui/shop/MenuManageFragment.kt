@@ -392,6 +392,15 @@ class MenuManageFragment : Fragment() {
      *  - Khi bấm Lưu: Gọi [FirebaseRepository.saveStoreDish] để đẩy lên Firestore.
      * Luồng hướng tới: Cập nhật trực tiếp thực đơn trên Firestore và thông báo thành công.
      */
+    /** Rung lắc cảnh báo trường nhập liệu bị thiếu hoặc không hợp lệ */
+    private fun shakeView(view: View) {
+        val shake = android.view.animation.TranslateAnimation(0f, 14f, 0f, 0f).apply {
+            duration = 400
+            interpolator = android.view.animation.CycleInterpolator(3f)
+        }
+        view.startAnimation(shake)
+    }
+
     private fun showDishDialog(editingDish: Dish?) {
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -403,13 +412,17 @@ class MenuManageFragment : Fragment() {
         )
 
         val tvTitle = dialog.findViewById<TextView>(R.id.tvModalTitle)
+        val cardPreview = dialog.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardDishPreview)
         val ivPreview = dialog.findViewById<ImageView>(R.id.ivDishPreview)
         val btnPickImage = dialog.findViewById<MaterialButton>(R.id.btnPickDishImage)
-        val btnClearImage = dialog.findViewById<TextView>(R.id.btnClearDishImage)
+        val tvImageStatus = dialog.findViewById<TextView>(R.id.tvImageStatusNotice)
+        val tvNameCount = dialog.findViewById<TextView>(R.id.tvDishNameCount)
         val etName = dialog.findViewById<EditText>(R.id.etDishName)
+        val tvPriceFormatted = dialog.findViewById<TextView>(R.id.tvPriceFormatted)
         val etPrice = dialog.findViewById<EditText>(R.id.etDishPrice)
         val spinnerCategory = dialog.findViewById<Spinner>(R.id.spinnerDishCategory)
         val spinnerPlatformCategory = dialog.findViewById<Spinner>(R.id.spinnerPlatformCategory)
+        val tvDescCount = dialog.findViewById<TextView>(R.id.tvDishDescCount)
         val etDescription = dialog.findViewById<EditText>(R.id.etDishDescription)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelDish)
         val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveDish)
@@ -438,8 +451,12 @@ class MenuManageFragment : Fragment() {
             false
         }
 
-        // Tự động gợi ý danh mục nền tảng khi gõ tên món nếu tạo mới
+        // Tự động đếm ký tự & gợi ý danh mục nền tảng khi gõ tên món
         etName.doAfterTextChanged { text ->
+            val inputLength = text?.length ?: 0
+            tvNameCount.text = "$inputLength/60"
+            etName.error = null
+
             if (!userSelectedPlatformCategory && editingDish == null) {
                 val input = text?.toString().orEmpty().lowercase()
                 val suggestedIndex = when {
@@ -462,15 +479,46 @@ class MenuManageFragment : Fragment() {
             }
         }
 
+        // Định dạng số tiền real-time khi gõ giá bán
+        etPrice.doAfterTextChanged { text ->
+            etPrice.error = null
+            val raw = text?.toString()?.trim().orEmpty()
+            val amount = raw.toLongOrNull()
+            if (amount != null && amount > 0L) {
+                tvPriceFormatted.text = "= ${amount.toVndCurrency()}"
+            } else {
+                tvPriceFormatted.text = ""
+            }
+        }
+
+        // Đếm ký tự mô tả
+        etDescription.doAfterTextChanged { text ->
+            val inputLength = text?.length ?: 0
+            tvDescCount.text = "$inputLength/200"
+            etDescription.error = null
+        }
+
         // Thiết lập dữ liệu ban đầu
         if (editingDish != null) {
             tvTitle.text = "Chỉnh Sửa Món Ăn"
             etName.setText(editingDish.name)
             val currentPrice = if (editingDish.basePrice > 0) editingDish.basePrice else editingDish.price
             etPrice.setText(currentPrice.toString())
+            tvPriceFormatted.text = if (currentPrice > 0L) "= ${currentPrice.toVndCurrency()}" else ""
             etDescription.setText(editingDish.description)
+            tvNameCount.text = "${editingDish.name.length}/60"
+            tvDescCount.text = "${editingDish.description.length}/200"
 
             loadPreviewImage(ivPreview, editingDish.imageUrl)
+            if (editingDish.imageUrl.isNotBlank()) {
+                tvImageStatus.text = "Đã có ảnh món ăn"
+                tvImageStatus.setTextColor(Color.parseColor("#059669"))
+                cardPreview.strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
+            } else {
+                tvImageStatus.text = "Chưa có ảnh (bắt buộc tải ảnh)"
+                tvImageStatus.setTextColor(Color.parseColor("#DC2626"))
+            }
+
             val catIndex = storeCategories.indexOfFirst { it.equals(editingDish.category, ignoreCase = true) }
             if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
 
@@ -488,26 +536,26 @@ class MenuManageFragment : Fragment() {
             }
         } else {
             tvTitle.text = "Thêm Món Mới Vào Menu"
+            tvNameCount.text = "0/60"
+            tvDescCount.text = "0/200"
+            tvPriceFormatted.text = ""
+            tvImageStatus.text = "Chưa có ảnh (bắt buộc tải ảnh)"
+            tvImageStatus.setTextColor(Color.parseColor("#DC2626"))
             loadPreviewImage(ivPreview, "")
         }
 
-        // Tải ảnh từ thư viện thiết bị
+        // Tải ảnh từ thư viện thiết bị (Bắt buộc)
         btnPickImage.setOnClickListener {
             onImagePickedCallback = { base64Data ->
                 currentImageUrl = base64Data
                 loadPreviewImage(ivPreview, base64Data)
-                Toast.makeText(requireContext(), "📷 Đã chọn ảnh món ăn thành công!", Toast.LENGTH_SHORT).show()
+                cardPreview.strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
+                tvImageStatus.text = "Đã có ảnh món ăn"
+                tvImageStatus.setTextColor(Color.parseColor("#059669"))
+                Toast.makeText(requireContext(), "Đã chọn ảnh món ăn thành công!", Toast.LENGTH_SHORT).show()
             }
             pickImageLauncher.launch("image/*")
         }
-
-        // Đặt lại ảnh mặc định
-        btnClearImage.setOnClickListener {
-            currentImageUrl = ""
-            ivPreview.setImageResource(R.drawable.bg_badge_orange)
-        }
-
-
 
         btnCancel.setOnClickListener { dialog.dismiss() }
 
@@ -517,14 +565,73 @@ class MenuManageFragment : Fragment() {
             val category = spinnerCategory.selectedItem?.toString().orEmpty().ifBlank { "Món chính" }
             val platformCategory = spinnerPlatformCategory.selectedItem?.toString().orEmpty().ifBlank { "Món Khác" }
             val description = etDescription.text.toString().trim()
-            val finalImageUrl = currentImageUrl.ifBlank { "" }
+            val finalImageUrl = currentImageUrl.trim()
 
-            if (name.isBlank() || priceStr.isBlank()) {
-                Toast.makeText(requireContext(), "Vui lòng nhập đầy đủ tên và giá món!", Toast.LENGTH_SHORT).show()
+            // 1. Kiểm tra ảnh món ăn (Bắt buộc)
+            if (finalImageUrl.isBlank()) {
+                cardPreview.strokeColor = Color.parseColor("#DC2626")
+                shakeView(cardPreview)
+                Toast.makeText(requireContext(), "Hình ảnh món ăn là bắt buộc. Vui lòng tải ảnh từ thiết bị!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            // 2. Kiểm tra tên món ăn (Bắt buộc, 2 - 60 ký tự)
+            if (name.isBlank()) {
+                etName.error = "Vui lòng nhập tên món ăn"
+                shakeView(etName)
+                etName.requestFocus()
+                Toast.makeText(requireContext(), "Vui lòng nhập tên món ăn!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (name.length < 2) {
+                etName.error = "Tên món ăn quá ngắn (tối thiểu 2 ký tự)"
+                shakeView(etName)
+                etName.requestFocus()
+                Toast.makeText(requireContext(), "Tên món ăn quá ngắn (tối thiểu 2 ký tự)!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (name.length > 60) {
+                etName.error = "Tên món ăn tối đa 60 ký tự"
+                shakeView(etName)
+                etName.requestFocus()
+                Toast.makeText(requireContext(), "Tên món ăn không được vượt quá 60 ký tự!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // 3. Kiểm tra giá bán (Bắt buộc, 1.000 đ - 50.000.000 đ)
+            if (priceStr.isBlank()) {
+                etPrice.error = "Vui lòng nhập giá bán"
+                shakeView(etPrice)
+                etPrice.requestFocus()
+                Toast.makeText(requireContext(), "Vui lòng nhập giá bán của món!", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             val price = priceStr.toLongOrNull() ?: 0L
+            if (price < 1000L) {
+                etPrice.error = "Giá bán tối thiểu là 1.000 đ"
+                shakeView(etPrice)
+                etPrice.requestFocus()
+                Toast.makeText(requireContext(), "Giá bán tối thiểu là 1.000 đ!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (price > 50000000L) {
+                etPrice.error = "Giá bán không vượt quá 50.000.000 đ"
+                shakeView(etPrice)
+                etPrice.requestFocus()
+                Toast.makeText(requireContext(), "Giá bán tối đa là 50.000.000 đ!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // 4. Kiểm tra mô tả món ăn (Tối đa 200 ký tự)
+            if (description.length > 200) {
+                etDescription.error = "Mô tả không được vượt quá 200 ký tự"
+                shakeView(etDescription)
+                etDescription.requestFocus()
+                Toast.makeText(requireContext(), "Mô tả món ăn không được vượt quá 200 ký tự!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
             val matchedCategory = platformCategoryObjects.find { it.categoryName.equals(platformCategory, ignoreCase = true) }
             val finalCategoryId = matchedCategory?.categoryId?.ifBlank { null } ?: "cat_other"
 
@@ -547,7 +654,7 @@ class MenuManageFragment : Fragment() {
                 viewLifecycleOwner.lifecycleScope.launch {
                     firebaseRepository.saveStoreDish(currentStoreId, updated)
                 }
-                Toast.makeText(requireContext(), "✓ Đã cập nhật món [$name] thành công!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Đã cập nhật món [$name] thành công!", Toast.LENGTH_SHORT).show()
             } else {
                 // Thêm món mới
                 val newDishId = "dish_${currentStoreId}_${System.currentTimeMillis()}"
@@ -567,7 +674,7 @@ class MenuManageFragment : Fragment() {
                 viewLifecycleOwner.lifecycleScope.launch {
                     firebaseRepository.saveStoreDish(currentStoreId, newDish)
                 }
-                Toast.makeText(requireContext(), "✓ Đã thêm món [$name] vào thực đơn quán!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Đã thêm món [$name] vào thực đơn quán!", Toast.LENGTH_SHORT).show()
             }
 
             updateList()

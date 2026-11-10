@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.supervisorScope
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -271,21 +272,55 @@ class AuthRepository @Inject constructor(
      */
     suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> {
         return try {
-            kotlinx.coroutines.supervisorScope {
-                val cleanEmail = email.trim()
-                val cleanCode = code.trim()
+            val cleanEmail = email.trim().lowercase()
+            val cleanCode = code.trim()
 
-                // Chạy đồng thời xác thực OTP Supabase và đăng nhập Firebase an toàn bằng runCatching
-                val otpDeferred = async { runCatching { emailOtpApi.verifyCode(cleanEmail, cleanCode) } }
-                val authDeferred = async { runCatching { auth.signInWithEmailAndPassword(cleanEmail, password).await() } }
-
-                val otpResult = otpDeferred.await()
-                val authResultWrap = authDeferred.await()
-
-                val authResult = authResultWrap.getOrElse { e ->
-                    throw e
+            supervisorScope {
+                val otpDeferred = async {
+                    runCatching { emailOtpApi.verifyCode(cleanEmail, cleanCode) }
                 }
-                val firebaseUser = authResult.user
+                val authDeferred = async {
+                    runCatching { auth.signInWithEmailAndPassword(cleanEmail, password).await() }
+                }
+
+                val otpRes = otpDeferred.await()
+                val authRes = authDeferred.await()
+
+                if (otpRes.isFailure) {
+                    try { auth.signOut() } catch (_: Exception) {}
+                    val rawMsg = otpRes.exceptionOrNull()?.message.orEmpty()
+                    val userMsg = if (
+                        rawMsg.contains("expired", ignoreCase = true) ||
+                        rawMsg.contains("invalid", ignoreCase = true) ||
+                        rawMsg.contains("token", ignoreCase = true) ||
+                        rawMsg.contains("otp", ignoreCase = true)
+                    ) {
+                        "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                    } else {
+                        rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
+                    }
+                    throw Exception(userMsg)
+                }
+
+                if (authRes.isFailure) {
+                    val rawMsg = authRes.exceptionOrNull()?.message.orEmpty()
+                    val userMsg = if (
+                        rawMsg.contains("password", ignoreCase = true) ||
+                        rawMsg.contains("credential", ignoreCase = true) ||
+                        rawMsg.contains("mật khẩu", ignoreCase = true)
+                    ) {
+                        "Mật khẩu không chính xác."
+                    } else if (rawMsg.contains("no user", ignoreCase = true) || rawMsg.contains("user-not-found", ignoreCase = true)) {
+                        "Không tìm thấy tài khoản với email này."
+                    } else {
+                        rawMsg.ifBlank { "Đăng nhập thất bại." }
+                    }
+                    throw Exception(userMsg)
+                }
+
+                val verifiedEmail = otpRes.getOrNull().orEmpty()
+                val authResult = authRes.getOrNull()
+                val firebaseUser = authResult?.user
                     ?: throw Exception("Không xác định được tài khoản Firebase.")
 
                 val verifiedEmail = otpResult.getOrElse { otpError ->
@@ -308,14 +343,11 @@ class AuthRepository @Inject constructor(
                 }
 
                 val userRef = database.getReference("users").child(firebaseUser.uid)
-                val markVerifiedDeferred = async {
-                    runCatching {
-                        userRef.child("emailVerified").setValue(true).await()
-                    }
-                }
+                try {
+                    userRef.child("emailVerified").setValue(true).await()
+                } catch (_: Exception) {}
 
                 val user = completePostLogin(firebaseUser, cleanEmail, emailVerifiedByOtp = true)
-                markVerifiedDeferred.await()
                 Result.success(user)
             }
         } catch (error: Exception) {
@@ -334,10 +366,27 @@ class AuthRepository @Inject constructor(
         otpCode: String
     ): Result<FirebaseUser> {
         return try {
-            val verifiedEmail = emailOtpApi.verifyCode(email.trim(), otpCode.trim())
+            val cleanEmail = email.trim().lowercase()
+            val cleanOtp = otpCode.trim()
+            val verifiedEmail = try {
+                emailOtpApi.verifyCode(cleanEmail, cleanOtp)
+            } catch (e: Exception) {
+                val rawMsg = e.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
+                }
+                throw Exception(userMsg)
+            }
             register(
                 name = name,
-                email = email,
+                email = cleanEmail,
                 password = password,
                 role = role,
                 phone = phone,

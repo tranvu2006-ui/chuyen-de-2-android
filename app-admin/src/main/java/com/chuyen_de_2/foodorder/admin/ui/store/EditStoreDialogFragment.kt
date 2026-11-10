@@ -54,9 +54,9 @@ class EditStoreDialogFragment(
         if (!base64.isNullOrBlank()) {
             currentStoreImageUrl = base64
             updateStoreImagePreview(currentStoreImageUrl)
-            binding.tvStoreImageStatus.text = "✓ Đã chọn ảnh mới từ thư viện"
+            binding.tvStoreImageStatus.text = "Đã chọn ảnh mới từ thư viện"
             binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
-            Toast.makeText(ctx, "📷 Đã chọn ảnh quán thành công!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, "Đã chọn ảnh quán thành công!", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", Toast.LENGTH_SHORT).show()
         }

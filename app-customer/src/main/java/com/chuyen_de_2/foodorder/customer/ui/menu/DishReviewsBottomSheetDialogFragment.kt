@@ -107,7 +107,7 @@ class DishReviewsBottomSheetDialogFragment : BottomSheetDialogFragment() {
             },
             onImageClick = { imageUrl ->
                 // Hiển thị toast hoặc xem ảnh chi tiết
-                Toast.makeText(requireContext(), "📸 Ảnh đánh giá từ khách hàng", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Ảnh đánh giá từ khách hàng", Toast.LENGTH_SHORT).show()
             }
         )
         binding.rvDishReviews.apply {

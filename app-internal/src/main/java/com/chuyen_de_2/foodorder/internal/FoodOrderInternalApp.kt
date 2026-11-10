@@ -16,7 +16,9 @@ class FoodOrderInternalApp : Application() {
         super.onCreate()
 
         // Firebase Offline Persistence
-        FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).setPersistenceEnabled(true)
+        try {
+            FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).setPersistenceEnabled(true)
+        } catch (_: Exception) {}
 
         createNotificationChannels()
 

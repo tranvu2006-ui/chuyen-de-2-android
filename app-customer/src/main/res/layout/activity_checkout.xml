@@ -331,7 +331,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="💳 Hình Thức Thanh Toán"
+                        android:text="Hình Thức Thanh Toán"
                         android:textColor="#0F172A"
                         android:textSize="15sp"
                         android:textStyle="bold" />
@@ -369,7 +369,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="8dp"
                                 android:layout_weight="1"
-                                android:text="💰 Trả Thẳng (100% Đơn Hàng)"
+                                android:text="Trả Thẳng (100% Đơn Hàng)"
                                 android:textColor="#0F172A"
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
@@ -429,7 +429,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="8dp"
                                 android:layout_weight="1"
-                                android:text="⚡ Đặt Cọc 20% Giữ Đơn"
+                                android:text="Đặt Cọc 20% Giữ Đơn"
                                 android:textColor="#0F172A"
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
@@ -514,7 +514,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="8dp"
                                 android:layout_weight="1"
-                                android:text="💵 Thanh Toán Khi Nhận Hàng (COD)"
+                                android:text="Thanh Toán Khi Nhận Hàng (COD)"
                                 android:textColor="#0F172A"
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
@@ -619,12 +619,12 @@
                                 android:minWidth="0dp"
                                 android:minHeight="0dp" />
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
+                            <ImageView
+                                android:layout_width="22dp"
+                                android:layout_height="22dp"
                                 android:layout_marginStart="8dp"
-                                android:text="🏦"
-                                android:textSize="20sp" />
+                                android:src="@drawable/ic_credit_card"
+                                app:tint="#2563EB" />
 
                             <LinearLayout
                                 android:layout_width="0dp"
@@ -682,12 +682,12 @@
                                 android:minWidth="0dp"
                                 android:minHeight="0dp" />
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
+                            <ImageView
+                                android:layout_width="22dp"
+                                android:layout_height="22dp"
                                 android:layout_marginStart="8dp"
-                                android:text="📱"
-                                android:textSize="20sp" />
+                                android:src="@drawable/ic_phone"
+                                app:tint="#A50064" />
 
                             <LinearLayout
                                 android:layout_width="0dp"
@@ -1014,7 +1014,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="👉 Cần thanh toán ngay (100%):"
+                            android:text="Cần thanh toán ngay (100%):"
                             android:textColor="@color/primary"
                             android:textSize="13sp"
                             android:textStyle="bold" />

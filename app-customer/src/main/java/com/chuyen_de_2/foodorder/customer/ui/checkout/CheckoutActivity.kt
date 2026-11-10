@@ -121,7 +121,7 @@ class CheckoutActivity : AppCompatActivity() {
             }
 
             updateLocationAndFee()
-            Toast.makeText(this, "📍 Đã chọn địa chỉ từ Google Maps thành công!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Đã chọn địa chỉ từ Google Maps thành công!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -194,9 +194,13 @@ class CheckoutActivity : AppCompatActivity() {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
-        // Tự động Geocode khi người dùng thay đổi địa chỉ
+        // Tự động Geocode khi người dùng thay đổi địa chỉ & xóa báo lỗi khi gõ
         binding.etAddress.doAfterTextChanged {
+            binding.tilAddress.error = null
             updateLocationAndFee()
+        }
+        binding.etPhone.doAfterTextChanged {
+            binding.tilPhone.error = null
         }
 
         // 1. NÚT CHỌN ĐỊA CHỈ TRÊN GOOGLE MAPS (Bản đồ trực quan tương tác)
@@ -257,17 +261,30 @@ class CheckoutActivity : AppCompatActivity() {
             val note = binding.etNote.text.toString().trim()
 
             if (streetAddress.isBlank()) {
-                binding.tilAddress.error = "Vui lòng nhập địa chỉ giao hàng"
-                binding.nestedScrollView.smoothScrollTo(0, 0)
-                binding.etAddress.requestFocus()
+                scrollToMissingField(
+                    inputView = binding.etAddress,
+                    tilView = binding.tilAddress,
+                    message = "Vui lòng nhập địa chỉ giao hàng cụ thể (số nhà, tên đường)"
+                )
                 return@setOnClickListener
             }
             binding.tilAddress.error = null
 
             if (phone.isBlank()) {
-                binding.tilPhone.error = "Vui lòng nhập số điện thoại người nhận"
-                binding.nestedScrollView.smoothScrollTo(0, 0)
-                binding.etPhone.requestFocus()
+                scrollToMissingField(
+                    inputView = binding.etPhone,
+                    tilView = binding.tilPhone,
+                    message = "Vui lòng nhập số điện thoại người nhận hàng"
+                )
+                return@setOnClickListener
+            }
+
+            if (phone.length < 10 || !phone.all { it.isDigit() }) {
+                scrollToMissingField(
+                    inputView = binding.etPhone,
+                    tilView = binding.tilPhone,
+                    message = "Số điện thoại nhận hàng không hợp lệ (cần ít nhất 10 số)"
+                )
                 return@setOnClickListener
             }
             binding.tilPhone.error = null
@@ -305,6 +322,48 @@ class CheckoutActivity : AppCompatActivity() {
                 remainAmount = if (selectedPaymentMode == Order.PaymentMode.DEPOSIT) remainAmount else if (selectedPaymentMode == Order.PaymentMode.COD) finalTotal else 0L,
                 customerPhone = phone
             )
+        }
+    }
+
+    /** Rung lắc cảnh báo trường nhập liệu bị thiếu */
+    private fun shakeView(view: View) {
+        val shake = android.view.animation.TranslateAnimation(0f, 16f, 0f, 0f).apply {
+            duration = 450
+            interpolator = android.view.animation.CycleInterpolator(3f)
+        }
+        view.startAnimation(shake)
+    }
+
+    /** Tự động cuộn mượt mà lên trường nhập liệu bị thiếu, hiển thị thông báo và bật bàn phím */
+    private fun scrollToMissingField(
+        inputView: View,
+        tilView: com.google.android.material.textfield.TextInputLayout,
+        message: String
+    ) {
+        tilView.error = message
+        tilView.isErrorEnabled = true
+        shakeView(tilView)
+
+        // Cảnh báo Toast nổi bật ngay lập tức
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+        // Phản hồi rung xúc giác nhẹ (Haptic feedback)
+        try {
+            tilView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        } catch (_: Exception) {}
+
+        // Tự động cuộn mượt mà đưa ô nhập liệu vào tầm nhìn trung tâm
+        binding.nestedScrollView.post {
+            val rect = android.graphics.Rect()
+            tilView.getDrawingRect(rect)
+            binding.nestedScrollView.offsetDescendantRectToMyCoords(tilView, rect)
+            val scrollY = (rect.top - 120).coerceAtLeast(0)
+            binding.nestedScrollView.smoothScrollTo(0, scrollY)
+
+            // Focus vào ô nhập và bật bàn phím để nhập ngay
+            inputView.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+            imm?.showSoftInput(inputView, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
@@ -403,7 +462,7 @@ class CheckoutActivity : AppCompatActivity() {
 
                 for (addr in list) {
                     val chip = Chip(this@CheckoutActivity).apply {
-                        text = if (addr.isDefault) "⭐ ${addr.label}" else addr.label
+                        text = if (addr.isDefault) "[Mặc định] ${addr.label}" else addr.label
                         isCheckable = false
                         isClickable = true
                         setOnClickListener {
@@ -443,8 +502,11 @@ class CheckoutActivity : AppCompatActivity() {
             binding.etPhone.setText(addr.receiverPhone)
         }
 
+        binding.tilAddress.error = null
+        binding.tilPhone.error = null
+
         updateLocationAndFee()
-        Toast.makeText(this, "📍 Đã chọn: ${addr.label} (${addr.fullAddress()})", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Đã chọn: ${addr.label} (${addr.fullAddress()})", Toast.LENGTH_SHORT).show()
     }
 
     /** Mở BottomSheet chọn từ Sổ Địa Chỉ đã lưu */
@@ -490,7 +552,7 @@ class CheckoutActivity : AppCompatActivity() {
 
     /** Lấy toạ độ GPS hiện tại và tự động điền địa chỉ */
     private fun fetchCurrentGpsAndFillAddress() {
-        Toast.makeText(this, "📡 Đang lấy vị trí GPS hiện tại...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Đang lấy vị trí GPS hiện tại...", Toast.LENGTH_SHORT).show()
         try {
             val fusedClient = LocationServices.getFusedLocationProviderClient(this)
             fusedClient.lastLocation.addOnSuccessListener { location ->
@@ -532,7 +594,7 @@ class CheckoutActivity : AppCompatActivity() {
                         }
 
                         updateLocationAndFee()
-                        Toast.makeText(this@CheckoutActivity, "🎯 Đã định vị thành công: $fullAddr", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@CheckoutActivity, "Đã định vị thành công: $fullAddr", Toast.LENGTH_LONG).show()
                     }
                 } else {
                     Toast.makeText(this, "Không lấy được vị trí GPS. Vui lòng bật vị trí thiết bị!", Toast.LENGTH_SHORT).show()
@@ -565,7 +627,7 @@ class CheckoutActivity : AppCompatActivity() {
 
             currentShippingFee = GoogleMapUtils.calculateShippingFeeByDistance(distanceKm)
             val distanceStr = String.format(Locale.US, "%.1f", distanceKm)
-            binding.tvShipRule.text = "🛵 Google Maps: Khoảng cách ~$distanceStr km • Cước phí: ${currentShippingFee.toVndCurrency()}"
+            binding.tvShipRule.text = "Google Maps: Khoảng cách ~$distanceStr km • Cước phí: ${currentShippingFee.toVndCurrency()}"
             recalculateTotal()
         }
     }
@@ -593,7 +655,7 @@ class CheckoutActivity : AppCompatActivity() {
                 val channelName = if (selectedChannel == "momo") "Ví MoMo" else "VietQR Ngân Hàng"
                 binding.txtSelectedMode.text = "Trả thẳng 100% ($channelName)"
                 binding.txtSelectedMode.setTextColor(ContextCompat.getColor(this, R.color.primary))
-                binding.lblPayNowTitle.text = "👉 Cần thanh toán ngay (100%):"
+                binding.lblPayNowTitle.text = "Cần thanh toán ngay (100%):"
                 binding.lblPayNowTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 binding.txtPayNowAmount.text = finalTotal.toVndCurrency()
                 binding.txtPayNowAmount.setTextColor(ContextCompat.getColor(this, R.color.primary))
@@ -602,13 +664,13 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.lblBottomTitle.text = "Tổng thanh toán:"
                 binding.tvBottomTotal.text = finalTotal.toVndCurrency()
                 binding.lblBottomSubNotice.visibility = View.GONE
-                binding.btnPlaceOrder.text = "Thanh toán ngay ➔"
+                binding.btnPlaceOrder.text = "Thanh toán ngay"
             }
             Order.PaymentMode.DEPOSIT -> {
                 val channelName = if (selectedChannel == "momo") "Ví MoMo" else "VietQR Ngân Hàng"
                 binding.txtSelectedMode.text = "Đặt cọc 20% ($channelName)"
                 binding.txtSelectedMode.setTextColor(Color.parseColor("#D97706"))
-                binding.lblPayNowTitle.text = "👉 Cần thanh toán cọc ngay (20%):"
+                binding.lblPayNowTitle.text = "Cần thanh toán cọc ngay (20%):"
                 binding.lblPayNowTitle.setTextColor(Color.parseColor("#D97706"))
                 binding.txtPayNowAmount.text = depositAmount.toVndCurrency()
                 binding.txtPayNowAmount.setTextColor(Color.parseColor("#D97706"))
@@ -619,13 +681,13 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.lblBottomTitle.text = "Tiền cọc (20%):"
                 binding.tvBottomTotal.text = depositAmount.toVndCurrency()
                 binding.lblBottomSubNotice.visibility = View.VISIBLE
-                binding.lblBottomSubNotice.text = "💡 Còn lại ${remainAmount.toVndCurrency()} thu khi nhận hàng"
-                binding.btnPlaceOrder.text = "Thanh toán cọc ➔"
+                binding.lblBottomSubNotice.text = "Còn lại ${remainAmount.toVndCurrency()} thu khi nhận hàng"
+                binding.btnPlaceOrder.text = "Thanh toán cọc"
             }
             Order.PaymentMode.COD -> {
                 binding.txtSelectedMode.text = "Thanh toán khi nhận hàng (COD - Uy tín cao)"
                 binding.txtSelectedMode.setTextColor(Color.parseColor("#059669"))
-                binding.lblPayNowTitle.text = "👉 Cần thanh toán ngay:"
+                binding.lblPayNowTitle.text = "Cần thanh toán ngay:"
                 binding.lblPayNowTitle.setTextColor(Color.parseColor("#059669"))
                 binding.txtPayNowAmount.text = "0 đ"
                 binding.txtPayNowAmount.setTextColor(Color.parseColor("#059669"))
@@ -636,8 +698,8 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.lblBottomTitle.text = "Cần trả trước:"
                 binding.tvBottomTotal.text = "0 đ"
                 binding.lblBottomSubNotice.visibility = View.VISIBLE
-                binding.lblBottomSubNotice.text = "💡 Shipper thu ${finalTotal.toVndCurrency()} khi giao món"
-                binding.btnPlaceOrder.text = "Đặt hàng COD ➔"
+                binding.lblBottomSubNotice.text = "Shipper thu ${finalTotal.toVndCurrency()} khi giao món"
+                binding.btnPlaceOrder.text = "Đặt hàng COD"
             }
         }
     }
@@ -676,7 +738,7 @@ class CheckoutActivity : AppCompatActivity() {
 
         viewModel.orderResult.observe(this) { result ->
             result.onSuccess { orderId ->
-                Toast.makeText(this, "🎉 Đặt hàng thành công!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Đặt hàng thành công!", Toast.LENGTH_SHORT).show()
 
                 val streetAddress = binding.etAddress.text.toString().trim()
                 val selectedDistrict = binding.spDistrict.selectedItem?.toString() ?: ""
@@ -778,7 +840,7 @@ class CheckoutActivity : AppCompatActivity() {
     private fun updatePaymentPreviewBox(isMomo: Boolean) {
         val store = currentStore
         if (isMomo) {
-            binding.tvBankingTitle.text = "📱 VÍ ĐIỆN TỬ MOMO 24/7"
+            binding.tvBankingTitle.text = "VÍ ĐIỆN TỬ MOMO 24/7"
             binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#A50064"))
             val momoPhone = store?.let {
                 it.momoPhone.ifBlank { it.phone.ifBlank { it.bankAccountNumber } }

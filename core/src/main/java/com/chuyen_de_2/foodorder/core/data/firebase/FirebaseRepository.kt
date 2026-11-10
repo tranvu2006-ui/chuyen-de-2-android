@@ -3060,26 +3060,73 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Gán tài khoản MERCHANT cho một Chi nhánh (hoặc gỡ nếu merchantUid rỗng) */
-    suspend fun assignMerchantToStore(storeId: String, merchantUid: String?, merchantName: String = ""): Result<Unit> {
+    /** Phân công quản lý vào chi nhánh mới (tự động gỡ khỏi chi nhánh cũ nếu có) */
+    suspend fun assignMerchantToBranch(
+        merchantUid: String,
+        merchantName: String,
+        targetStoreId: String,
+        previousStoreId: String = ""
+    ): Result<Unit> {
         return try {
-            val storeRef = database.getReference("stores").child(storeId)
-            val updates = mutableMapOf<String, Any?>(
-                "merchantId" to (merchantUid ?: ""),
-                "ownerId" to (merchantUid ?: ""),
-                "merchantName" to merchantName
-            )
-            storeRef.updateChildren(updates).await()
-
-            if (!merchantUid.isNullOrBlank()) {
-                database.getReference("users").child(merchantUid).updateChildren(
-                    mapOf("storeId" to storeId, "role" to User.Role.MERCHANT, "roleId" to 3)
+            if (previousStoreId.isNotBlank() && previousStoreId != targetStoreId) {
+                database.getReference("stores").child(previousStoreId).updateChildren(
+                    mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
                 ).await()
+            }
+            if (targetStoreId.isNotBlank()) {
+                database.getReference("stores").child(targetStoreId).updateChildren(
+                    mapOf("merchantId" to merchantUid, "ownerId" to merchantUid, "merchantName" to merchantName)
+                ).await()
+                database.getReference("users").child(merchantUid).child("storeId").setValue(targetStoreId).await()
+            } else {
+                database.getReference("users").child(merchantUid).child("storeId").setValue("").await()
             }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /** Gỡ quản lý khỏi chi nhánh */
+    suspend fun unassignMerchantFromBranch(merchantUid: String, storeId: String): Result<Unit> {
+        return try {
+            if (storeId.isNotBlank()) {
+                database.getReference("stores").child(storeId).updateChildren(
+                    mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
+                ).await()
+            }
+            if (merchantUid.isNotBlank()) {
+                database.getReference("users").child(merchantUid).child("storeId").setValue("").await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa tài khoản Merchant do Boss quản lý */
+    suspend fun deleteMerchantByBoss(merchantUid: String, storeId: String = ""): Result<Unit> {
+        return try {
+            if (storeId.isNotBlank()) {
+                database.getReference("stores").child(storeId).updateChildren(
+                    mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
+                ).await()
+            }
+            database.getReference("users").child(merchantUid).removeValue().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Gán tài khoản MERCHANT cho một Chi nhánh (hoặc gỡ nếu merchantUid rỗng) */
+    suspend fun assignMerchantToStore(storeId: String, merchantUid: String?, merchantName: String = ""): Result<Unit> {
+        return assignMerchantToBranch(
+            merchantUid = merchantUid.orEmpty(),
+            merchantName = merchantName,
+            targetStoreId = if (merchantUid.isNullOrBlank()) "" else storeId,
+            previousStoreId = if (merchantUid.isNullOrBlank()) storeId else ""
+        )
     }
 
     /** Lấy danh sách các tài khoản MERCHANT để Boss gán vào quán */
@@ -3126,18 +3173,12 @@ class FirebaseRepository @Inject constructor(
             }
             val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
             val secondaryDatabase = FirebaseDatabase.getInstance(secondaryApp)
-            val merchantUid = try {
-                val authResult = secondaryAuth.createUserWithEmailAndPassword(email.trim(), password.trim()).await()
-                authResult.user?.uid
+            val authResult = try {
+                secondaryAuth.createUserWithEmailAndPassword(email.trim(), password.trim()).await()
             } catch (_: com.google.firebase.auth.FirebaseAuthUserCollisionException) {
-                // Email đã được tạo trên Auth trong lần thử trước, đăng nhập vào để hoàn tất lưu thông tin DB
-                try {
-                    val signResult = secondaryAuth.signInWithEmailAndPassword(email.trim(), password.trim()).await()
-                    signResult.user?.uid
-                } catch (_: Exception) {
-                    return Result.failure(Exception("Email '$email' đã được đăng ký trên hệ thống. Vui lòng nhập đúng mật khẩu đã tạo hoặc dùng email khác."))
-                }
-            } ?: return Result.failure(Exception("Không lấy được UID của quản lý mới"))
+                return Result.failure(Exception("Email '$email' đã được đăng ký trên hệ thống. Không thể ghi đè tài khoản đã tồn tại, vui lòng sử dụng email khác!"))
+            }
+            val merchantUid = authResult.user?.uid ?: return Result.failure(Exception("Không lấy được UID của quản lý mới"))
 
             val updates = mutableMapOf<String, Any>(
                 "uid" to merchantUid,

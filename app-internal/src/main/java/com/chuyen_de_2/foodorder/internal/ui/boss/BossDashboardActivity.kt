@@ -21,6 +21,7 @@ import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityBossDashboardBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignBranchToMerchantBinding
 import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignMerchantBinding
 import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateBranchBinding
 import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateMerchantBinding
@@ -33,8 +34,8 @@ import javax.inject.Inject
 
 /**
  * Màn hình Bảng điều khiển Quản lý Chuỗi dành riêng cho BOSSMERCHANT.
- * Cho phép tạo chi nhánh, tạo tài khoản Merchant, gán Merchant vào chi nhánh,
- * và truy cập trực tiếp vào bất kỳ chi nhánh nào để vận hành.
+ * Cho phép tạo chi nhánh, tạo tài khoản Merchant, xem và quản lý danh sách Merchant đã tạo,
+ * phân công/gỡ Merchant cho từng chi nhánh, và truy cập trực tiếp vào bất kỳ chi nhánh nào để vận hành.
  */
 @AndroidEntryPoint
 class BossDashboardActivity : AppCompatActivity() {
@@ -48,7 +49,9 @@ class BossDashboardActivity : AppCompatActivity() {
     lateinit var firebaseRepository: FirebaseRepository
 
     private lateinit var branchAdapter: BossBranchAdapter
+    private lateinit var merchantAdapter: BossMerchantAdapter
     private var currentBossUid: String = ""
+    private var cachedBranches: List<Store> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +71,7 @@ class BossDashboardActivity : AppCompatActivity() {
         currentBossUid = currentUser.uid
         setupUI()
         observeBranches()
+        observeMerchants()
         observeBusinessProfile()
     }
 
@@ -92,13 +96,35 @@ class BossDashboardActivity : AppCompatActivity() {
             append(displayName.ifBlank { email })
         }
 
+        // Branch Adapter
         branchAdapter = BossBranchAdapter(
             onEnterBranchClick = { store -> enterBranchAsManager(store) },
             onAssignManagerClick = { store -> showAssignMerchantDialog(store) }
         )
-
         binding.rvBossBranches.layoutManager = LinearLayoutManager(this)
         binding.rvBossBranches.adapter = branchAdapter
+
+        // Merchant Adapter
+        merchantAdapter = BossMerchantAdapter(
+            onAssignBranchClick = { merchant -> showAssignBranchToMerchantDialog(merchant) },
+            onUnassignBranchClick = { merchant -> unassignMerchant(merchant) },
+            onDeleteMerchantClick = { merchant -> confirmDeleteMerchant(merchant) }
+        )
+        binding.rvBossMerchants.layoutManager = LinearLayoutManager(this)
+        binding.rvBossMerchants.adapter = merchantAdapter
+
+        // Tab Toggle Group
+        binding.toggleGroupBossTab.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                if (checkedId == R.id.btnTabBranches) {
+                    binding.layoutBranchesSection.visibility = View.VISIBLE
+                    binding.layoutMerchantsSection.visibility = View.GONE
+                } else if (checkedId == R.id.btnTabMerchants) {
+                    binding.layoutBranchesSection.visibility = View.GONE
+                    binding.layoutMerchantsSection.visibility = View.VISIBLE
+                }
+            }
+        }
 
         binding.btnCreateBranch.setOnClickListener {
             showCreateBranchDialog()
@@ -146,12 +172,29 @@ class BossDashboardActivity : AppCompatActivity() {
         lifecycleScope.launch {
             firebaseRepository.getStoresByBoss(currentBossUid).collect { stores ->
                 binding.progressBarBoss.visibility = View.GONE
+                cachedBranches = stores
                 branchAdapter.submitList(stores)
+                merchantAdapter.setStores(stores)
 
                 val count = stores.size
+                binding.btnTabBranches.text = "🏪 Chi Nhánh ($count)"
                 binding.tvChainStats.text = "$count chi nhánh đang vận hành"
                 binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
                 binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    private fun observeMerchants() {
+        lifecycleScope.launch {
+            firebaseRepository.getMerchantsForBoss(currentBossUid).collect { merchants ->
+                merchantAdapter.submitList(merchants)
+                merchantAdapter.setStores(cachedBranches)
+
+                val count = merchants.size
+                binding.btnTabMerchants.text = "👥 Quản Lý ($count)"
+                binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
+                binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
             }
         }
     }
@@ -315,6 +358,8 @@ class BossDashboardActivity : AppCompatActivity() {
                         "✓ Tạo tài khoản quản lý '${user.name}' thành công! Giờ bạn có thể phân công quản lý này vào chi nhánh.",
                         Toast.LENGTH_LONG
                     ).show()
+                    // Tự động chuyển sang tab Quản lý để Boss xem danh sách
+                    binding.toggleGroupBossTab.check(R.id.btnTabMerchants)
                 }.onFailure { err ->
                     Toast.makeText(
                         this@BossDashboardActivity,
@@ -418,5 +463,120 @@ class BossDashboardActivity : AppCompatActivity() {
 
         dialog.show()
     }
-}
 
+    /**
+     * Dialog phân công chi nhánh cho một Quản lý (Merchant) được chọn từ danh sách Quản lý
+     */
+    private fun showAssignBranchToMerchantDialog(merchant: User) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogAssignBranchToMerchantBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        dialogBinding.tvAssignTargetMerchant.text = "Quản lý: ${merchant.name.ifBlank { merchant.email }}"
+
+        var selectedStoreId: String = merchant.storeId
+        for (branch in cachedBranches) {
+            val rb = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = "🏪 ${branch.name} (${branch.address.ifBlank { "Chưa có địa chỉ" }})"
+                setTextColor(Color.parseColor("#0F172A"))
+                textSize = 14f
+                setPadding(0, 16, 0, 16)
+                tag = branch.id
+                if (branch.id == merchant.storeId) {
+                    isChecked = true
+                }
+            }
+            dialogBinding.rgBranches.addView(rb)
+        }
+
+        if (merchant.storeId.isBlank()) {
+            dialogBinding.rbNoBranch.isChecked = true
+        }
+
+        dialogBinding.rgBranches.setOnCheckedChangeListener { group, checkedId ->
+            if (checkedId == dialogBinding.rbNoBranch.id) {
+                selectedStoreId = ""
+            } else {
+                val checkedRb = group.findViewById<RadioButton>(checkedId)
+                selectedStoreId = checkedRb?.tag as? String ?: ""
+            }
+        }
+
+        dialogBinding.btnCancelAssignBranch.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitAssignBranch.setOnClickListener {
+            dialogBinding.btnSubmitAssignBranch.isEnabled = false
+            dialogBinding.btnSubmitAssignBranch.text = "Đang lưu..."
+            lifecycleScope.launch {
+                val targetBranchName = cachedBranches.firstOrNull { it.id == selectedStoreId }?.name.orEmpty()
+                val result = firebaseRepository.assignMerchantToBranch(
+                    merchantUid = merchant.uid,
+                    merchantName = merchant.name,
+                    targetStoreId = selectedStoreId,
+                    previousStoreId = merchant.storeId
+                )
+                dialog.dismiss()
+                result.onSuccess {
+                    val msg = if (selectedStoreId.isNotBlank()) {
+                        "✓ Đã phân công quản lý '${merchant.name}' cho chi nhánh '$targetBranchName'!"
+                    } else {
+                        "✓ Đã chuyển quản lý '${merchant.name}' về trạng thái tự do!"
+                    }
+                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                }.onFailure { err ->
+                    Toast.makeText(this@BossDashboardActivity, "Lỗi phân công: ${err.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * Gỡ quản lý khỏi chi nhánh
+     */
+    private fun unassignMerchant(merchant: User) {
+        AlertDialog.Builder(this)
+            .setTitle("Gỡ Quản Lý")
+            .setMessage("Bạn có chắc muốn gỡ quản lý '${merchant.name}' khỏi chi nhánh đang phụ trách không?")
+            .setPositiveButton("Gỡ") { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.unassignMerchantFromBranch(merchant.uid, merchant.storeId)
+                    result.onSuccess {
+                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh!", Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Xóa tài khoản Quản lý khỏi chuỗi
+     */
+    private fun confirmDeleteMerchant(merchant: User) {
+        AlertDialog.Builder(this)
+            .setTitle("🗑️ Xóa Quản Lý")
+            .setMessage("Bạn có chắc chắn muốn xóa tài khoản quản lý '${merchant.name}' (${merchant.email}) khỏi chuỗi không?")
+            .setPositiveButton("Xóa") { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.deleteMerchantByBoss(merchant.uid, merchant.storeId)
+                    result.onSuccess {
+                        Toast.makeText(this@BossDashboardActivity, "✓ Đã xóa tài khoản quản lý!", Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+}

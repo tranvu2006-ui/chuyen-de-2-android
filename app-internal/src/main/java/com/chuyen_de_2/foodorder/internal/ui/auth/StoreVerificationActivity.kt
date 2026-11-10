@@ -5,30 +5,29 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityStoreVerificationBinding
-import com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Tên chức năng: Phiếu Xác Minh Danh Tính Chủ Quán & Tài Khoản Đối Soát (VietQR)
+ * Tên chức năng: Phiếu Thiết Lập Địa Chỉ Bắt Buộc & Xác Minh Thông Tin Quán
  * Cách hoạt động:
- *  - Thu thập thông tin định danh chủ sở hữu: Họ tên chủ hộ kinh doanh, CCCD (12 số).
- *  - Thu thập thông tin Tài khoản ngân hàng (VietQR) để hệ thống quyết toán doanh thu.
- *  - Thông tin tên quán và địa chỉ chi nhánh sẽ được tạo/quản lý tại phần Chi nhánh.
+ *  - Thu thập hồ sơ kinh doanh của Quán: Tên quán, SĐT, Địa chỉ lấy hàng chi tiết, Quận/Huyện, Họ tên chủ quán, CCCD (12 số).
+ *  - Thu thập thông tin Tài khoản ngân hàng (VietQR / Napas) để hệ thống quyết toán doanh thu.
+ *  - Tự động map tọa độ GPS theo Quận/Huyện TP.HCM phục vụ tính toán cước ship và định tuyến cho Shipper.
+ *  - Cập nhật cờ `isVerified = true` lên Firestore document của Quán và tài khoản Merchant.
  * Luồng hướng tới:
- *  - BOSSMERCHANT -> [BossDashboardActivity] (Quản lý chuỗi chi nhánh).
- *  - MERCHANT -> [DashboardActivity] (Vận hành đơn hàng).
- *  - Bấm Đăng xuất -> [LoginActivity].
+ *  - Xác minh thành công -> Điều hướng trực tiếp vào [DashboardActivity] (xóa stack).
+ *  - Bấm Đăng xuất -> Trở về [LoginActivity].
  */
 @AndroidEntryPoint
 class StoreVerificationActivity : AppCompatActivity() {
@@ -42,6 +41,41 @@ class StoreVerificationActivity : AppCompatActivity() {
     lateinit var firebaseRepository: FirebaseRepository
 
     private var currentStoreId: String = ""
+    private var selectedLat: Double? = null
+    private var selectedLng: Double? = null
+
+    private val selectLocationLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            if (!streetAddress.isNullOrBlank()) {
+                binding.etStoreAddress.setText(streetAddress)
+            } else if (!fullAddress.isNullOrBlank()) {
+                binding.etStoreAddress.setText(fullAddress)
+            }
+
+            if (!district.isNullOrBlank()) {
+                val dIndex = districts.indexOfFirst { d ->
+                    d.equals(district, ignoreCase = true) || district.contains(d, ignoreCase = true)
+                }
+                if (dIndex >= 0) {
+                    binding.spStoreDistrict.setSelection(dIndex)
+                }
+            }
+
+            if (lat != 0.0 && lng != 0.0) {
+                selectedLat = lat
+                selectedLng = lng
+            }
+        }
+    }
 
     data class SupportedBank(val name: String, val bin: String)
 
@@ -59,6 +93,18 @@ class StoreVerificationActivity : AppCompatActivity() {
         SupportedBank("OCB (Phương Đông)", "970448")
     )
 
+    private val districts = listOf(
+        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
+        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
+        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
+        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
+    )
+
+    /**
+     * Tên chức năng: Khởi tạo màn hình xác minh
+     * Cách hoạt động: Thiết lập padding Edge-to-Edge tránh đè status bar, load storeId từ Intent hoặc Firebase, khởi tạo Spinners.
+     * Luồng hướng tới: Chuẩn bị form để đối tác điền thông tin.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         InsetUtils.initEdgeToEdge(this, true)
@@ -76,12 +122,28 @@ class StoreVerificationActivity : AppCompatActivity() {
         loadInitialData()
     }
 
+    /**
+     * Tên chức năng: Thiết lập danh sách chọn Quận/Huyện và Ngân hàng
+     * Cách hoạt động: Gán ArrayAdapter danh mục các quận TP.HCM và các ngân hàng nội địa phổ biến vào Spinner.
+     * Luồng hướng tới: Cung cấp lựa chọn dropdown cho người dùng.
+     */
     private fun setupSpinners() {
+        // Spinner Quận/Huyện
+        val districtAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, districts)
+        districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spStoreDistrict.adapter = districtAdapter
+
+        // Spinner Ngân hàng
         val bankAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedBanks.map { it.name })
         bankAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spBankName.adapter = bankAdapter
     }
 
+    /**
+     * Tên chức năng: Tải trước thông tin quán (nếu đã có trên Firebase)
+     * Cách hoạt động: Truy vấn Firestore lấy thông tin hiện tại của User và Store để tự động điền sẵn vào các trường nhập liệu.
+     * Luồng hướng tới: Giảm thiểu thao tác nhập liệu lại cho chủ quán.
+     */
     private fun loadInitialData() {
         lifecycleScope.launch {
             val user = authRepository.currentUser
@@ -97,6 +159,19 @@ class StoreVerificationActivity : AppCompatActivity() {
             if (currentStoreId.isNotBlank()) {
                 val store = firebaseRepository.getStoreOnce(currentStoreId)
                 store?.let {
+                    if (it.name.isNotBlank() && it.name != "Quán Ăn Mới") {
+                        binding.etStoreName.setText(it.name)
+                    } else if (!user.displayName.isNullOrBlank()) {
+                        binding.etStoreName.setText(user.displayName)
+                    }
+
+                    if (it.phone.isNotBlank()) {
+                        binding.etStorePhone.setText(it.phone)
+                    } else if (!user.phoneNumber.isNullOrBlank()) {
+                        binding.etStorePhone.setText(user.phoneNumber)
+                    }
+
+                    if (it.address.isNotBlank()) binding.etStoreAddress.setText(it.address)
                     if (it.ownerName.isNotBlank()) {
                         binding.etOwnerName.setText(it.ownerName)
                     } else if (!user.displayName.isNullOrBlank()) {
@@ -104,6 +179,19 @@ class StoreVerificationActivity : AppCompatActivity() {
                     }
 
                     if (it.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(it.cccdNumber)
+                    if (it.openHours.isNotBlank()) binding.etOpenHours.setText(it.openHours)
+                    if (it.prepTime.isNotBlank()) binding.etPrepTime.setText(it.prepTime)
+
+                    if (it.district.isNotBlank()) {
+                        val dIndex = districts.indexOfFirst { d -> d.equals(it.district, ignoreCase = true) }
+                        if (dIndex >= 0) binding.spStoreDistrict.setSelection(dIndex)
+                    }
+
+                    if (it.latitude != 0.0 && it.longitude != 0.0) {
+                        selectedLat = it.latitude
+                        selectedLng = it.longitude
+                    }
+
                     if (it.bankAccountNumber.isNotBlank()) binding.etBankAccountNumber.setText(it.bankAccountNumber)
                     if (it.bankAccountName.isNotBlank()) binding.etBankAccountName.setText(it.bankAccountName)
                     if (it.bankName.isNotBlank()) {
@@ -113,21 +201,50 @@ class StoreVerificationActivity : AppCompatActivity() {
                 }
             } else {
                 if (!user.displayName.isNullOrBlank()) {
+                    binding.etStoreName.setText(user.displayName)
                     binding.etOwnerName.setText(user.displayName)
+                }
+                if (!user.phoneNumber.isNullOrBlank()) {
+                    binding.etStorePhone.setText(user.phoneNumber)
                 }
             }
         }
     }
 
+    /**
+     * Tên chức năng: Thiết lập sự kiện nút bấm gửi phiếu xác minh & đăng xuất
+     * Cách hoạt động: Bắt sự kiện Click nút "Xác Nhận & Kích Hoạt Quán", nút "Đăng Xuất".
+     * Luồng hướng tới: Gọi [validateAndSubmit] hoặc hiển thị xác nhận đăng xuất.
+     */
     private fun setupListeners() {
+        val openMapAction = {
+            val intent = Intent(this, SelectLocationActivity::class.java).apply {
+                val currentAddress = binding.etStoreAddress.text.toString().trim()
+                if (currentAddress.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
+                }
+                val curDistrict = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
+                if (curDistrict.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
+                }
+                selectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                selectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectLocationLauncher.launch(intent)
+        }
+
+        binding.btnPickLocationMap.setOnClickListener { openMapAction() }
+        binding.etStoreAddress.setOnClickListener { openMapAction() }
+        binding.tilStoreAddress.setOnClickListener { openMapAction() }
+
         binding.btnSubmitVerification.setOnClickListener {
             validateAndSubmit()
         }
 
         binding.btnLogout.setOnClickListener {
-            AlertDialog.Builder(this)
+            androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("🚪 Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất tài khoản không?")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
                     getSharedPreferences("boss_session", MODE_PRIVATE).edit().clear().apply()
                     authRepository.logout()
@@ -142,11 +259,32 @@ class StoreVerificationActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tên chức năng: Kiểm tra tính hợp lệ dữ liệu và lưu hồ sơ lên Firebase
+     * Cách hoạt động:
+     *  - Kiểm tra các trường bắt buộc (Tên quán, SĐT, Địa chỉ, Chủ quán, CCCD 12 số, Số tài khoản ngân hàng).
+     *  - Tự động gán tọa độ GPS dựa trên bảng tọa độ các quận TP.HCM.
+     *  - Lưu dữ liệu lên Firestore via [FirebaseRepository.verifyAndCompleteStoreProfile].
+     * Luồng hướng tới:
+     *  - Thành công: Chuyển sang [DashboardActivity] và bắt đầu vận hành nhận đơn.
+     *  - Thất bại: Hiển thị thông báo Toast lỗi cụ thể.
+     */
     private fun validateAndSubmit() {
+        // Reset errors
+        binding.tilStoreName.error = null
+        binding.tilStorePhone.error = null
+        binding.tilStoreAddress.error = null
         binding.tilOwnerName.error = null
         binding.tilCccdNumber.error = null
         binding.tilBankAccountNumber.error = null
         binding.tilBankAccountName.error = null
+
+        val name = binding.etStoreName.text.toString().trim()
+        val phone = binding.etStorePhone.text.toString().trim()
+        val address = binding.etStoreAddress.text.toString().trim()
+        val district = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
+        val openHours = binding.etOpenHours.text.toString().trim().ifBlank { "08:00 - 22:30" }
+        val prepTime = binding.etPrepTime.text.toString().trim().ifBlank { "15 phút" }
 
         val ownerName = binding.etOwnerName.text.toString().trim()
         val cccd = binding.etCccdNumber.text.toString().trim()
@@ -156,6 +294,21 @@ class StoreVerificationActivity : AppCompatActivity() {
         val bankAccountName = binding.etBankAccountName.text.toString().trim().uppercase()
 
         var hasError = false
+
+        if (name.isBlank()) {
+            binding.tilStoreName.error = "Vui lòng nhập tên cửa hàng / quán ăn"
+            hasError = true
+        }
+
+        if (phone.isBlank()) {
+            binding.tilStorePhone.error = "Vui lòng nhập số điện thoại quán"
+            hasError = true
+        }
+
+        if (address.isBlank()) {
+            binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
+            hasError = true
+        }
 
         if (ownerName.isBlank()) {
             binding.tilOwnerName.error = "Vui lòng nhập họ và tên chủ hộ kinh doanh"
@@ -186,40 +339,44 @@ class StoreVerificationActivity : AppCompatActivity() {
             binding.progressBarVerification.visibility = View.VISIBLE
             binding.btnSubmitVerification.isEnabled = false
 
+            // Ưu tiên dùng tọa độ chính xác do quán đã chọn/ghim trên bản đồ
+            val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
+            val (resolvedLat, resolvedLng) = if (selectedLat != null && selectedLng != null && selectedLat != 0.0 && selectedLng != 0.0) {
+                selectedLat!! to selectedLng!!
+            } else {
+                val coords = try {
+                    val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
+                    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                    else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                } catch (_: Exception) {
+                    GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                }
+                coords.latitude to coords.longitude
+            }
             val user = authRepository.currentUser
             val uid = user?.uid.orEmpty()
             if (currentStoreId.isBlank()) {
                 currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
             }
             if (currentStoreId.isBlank()) {
-                currentStoreId = "store_${uid}"
+                currentStoreId = "store_${System.currentTimeMillis()}"
             }
-
-            val existingStore = firebaseRepository.getStoreOnce(currentStoreId)
-            val storeName = existingStore?.name?.takeIf { it.isNotBlank() } ?: (ownerName.ifBlank { "Quán Ăn" })
-            val storePhone = existingStore?.phone?.takeIf { it.isNotBlank() } ?: user?.phoneNumber.orEmpty()
-            val storeAddress = existingStore?.address.orEmpty()
-            val storeDistrict = existingStore?.district.orEmpty()
-            val openHours = existingStore?.openHours?.takeIf { it.isNotBlank() } ?: "08:00 - 22:30"
-            val prepTime = existingStore?.prepTime?.takeIf { it.isNotBlank() } ?: "15 phút"
-            val lat = existingStore?.latitude ?: 0.0
-            val lng = existingStore?.longitude ?: 0.0
 
             val result = firebaseRepository.verifyAndCompleteStoreProfile(
                 storeId = currentStoreId,
                 merchantUid = uid,
-                name = storeName,
-                phone = storePhone,
-                address = storeAddress,
-                district = storeDistrict,
+                name = name,
+                phone = phone,
+                address = address,
+                district = district,
                 ownerName = ownerName,
                 cccdNumber = cccd,
                 bankName = selectedBank.name,
                 bankAccountNumber = bankAccount,
                 bankAccountName = bankAccountName,
                 bankBin = selectedBank.bin,
-                latitude = lat,
-                longitude = lng,
+                latitude = resolvedLat,
+                longitude = resolvedLng,
                 openHours = openHours,
                 prepTime = prepTime
             )
@@ -228,11 +385,11 @@ class StoreVerificationActivity : AppCompatActivity() {
             binding.btnSubmitVerification.isEnabled = true
 
             result.onSuccess {
-                Toast.makeText(this@StoreVerificationActivity, "🎉 Xác minh hồ sơ định danh và STK thành công!", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@StoreVerificationActivity, "🎉 Xác minh hồ sơ và thiết lập địa chỉ quán thành công!", Toast.LENGTH_LONG).show()
                 val role = authRepository.getUserRole()?.uppercase()
-                if (role == User.Role.BOSSMERCHANT || role == "BOSS") {
+                if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
                     firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
-                    startActivity(Intent(this@StoreVerificationActivity, BossDashboardActivity::class.java).apply {
+                    startActivity(Intent(this@StoreVerificationActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                     })
                 } else {

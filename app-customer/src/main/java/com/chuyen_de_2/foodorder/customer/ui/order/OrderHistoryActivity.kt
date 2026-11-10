@@ -160,6 +160,13 @@ class OrderHistoryActivity : AppCompatActivity() {
                 } catch (_: Exception) {
                     Toast.makeText(this, "Số điện thoại: $phone", Toast.LENGTH_SHORT).show()
                 }
+            },
+            onChatStoreClick = { order ->
+                val chatSheet = com.chuyen_de_2.foodorder.customer.ui.tracking.ChatStoreBottomSheetDialogFragment.newInstance(
+                    storeName = order.shopName.ifBlank { "Quán Ăn Oishi Food" },
+                    orderId = order.orderId
+                )
+                chatSheet.show(supportFragmentManager, "ChatStoreBottomSheet_${order.orderId}")
             }
         )
 

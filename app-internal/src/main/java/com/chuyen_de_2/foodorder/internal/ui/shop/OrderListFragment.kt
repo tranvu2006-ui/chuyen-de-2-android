@@ -301,7 +301,12 @@ class OrderListFragment : Fragment() {
             onActionClick = { order -> handleOrderAction(order) },
             onDetailClick = { order -> showOrderDetailDialog(order) },
             onChatCustomerClick = { order ->
-                Toast.makeText(requireContext(), "💬 Đang mở kênh tin nhắn với khách ${order.customerName}...", Toast.LENGTH_SHORT).show()
+                val chatSheet = ChatCustomerBottomSheetDialogFragment.newInstance(
+                    customerName = order.customerName.ifBlank { "Khách hàng" },
+                    orderId = order.orderId,
+                    orderNote = order.note
+                )
+                chatSheet.show(childFragmentManager, "ChatCustomerBottomSheet")
             },
             onCallDriverClick = { phone ->
                 try {

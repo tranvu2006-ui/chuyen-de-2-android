@@ -1496,7 +1496,8 @@ class FirebaseRepository @Inject constructor(
                 statusId = 1,
                 status = com.chuyen_de_2.foodorder.core.data.model.User.Status.ACTIVE,
                 isActive = true,
-                storeId = storeId
+                storeId = storeId,
+                emailVerified = true
             )
             database.getReference("users").child(driverUid).setValue(user).await()
 
@@ -1517,6 +1518,7 @@ class FirebaseRepository @Inject constructor(
                 note = "Tài xế nội bộ của quán"
             )
             database.getReference("drivers").child(driverUid).setValue(driver).await()
+            database.getReference("drivers").child(driverUid).child("email").setValue(email.trim()).await()
 
             Result.success(driverUid)
         } catch (e: Exception) {

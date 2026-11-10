@@ -24,6 +24,10 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
 
     private var storeName: String = "Quán ăn"
     private var orderId: String = ""
+    private val seenMessageKeys = mutableSetOf<String>()
+    private var primaryRef: com.google.firebase.database.DatabaseReference? = null
+    private var fallbackRef: com.google.firebase.database.DatabaseReference? = null
+    private var chatListener: com.google.firebase.database.ChildEventListener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,9 +85,10 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
         }
         if (orderId.isNotBlank()) {
             val db = com.google.firebase.database.FirebaseDatabase.getInstance()
-            val chatRef = db.getReference("order_chats").child(orderId)
-            chatRef.addChildEventListener(object : com.google.firebase.database.ChildEventListener {
+            val listener = object : com.google.firebase.database.ChildEventListener {
                 override fun onChildAdded(snapshot: com.google.firebase.database.DataSnapshot, prev: String?) {
+                    val key = snapshot.key ?: return
+                    if (!seenMessageKeys.add(key)) return
                     val sender = snapshot.child("sender").getValue(String::class.java) ?: "customer"
                     val text = snapshot.child("text").getValue(String::class.java) ?: return
                     val time = snapshot.child("timestamp").getValue(Long::class.java) ?: System.currentTimeMillis()
@@ -98,7 +103,14 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
                 override fun onChildRemoved(snapshot: com.google.firebase.database.DataSnapshot) {}
                 override fun onChildMoved(snapshot: com.google.firebase.database.DataSnapshot, prev: String?) {}
                 override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
-            })
+            }
+            chatListener = listener
+            primaryRef = db.getReference("tracking").child("chats_$orderId").also {
+                it.addChildEventListener(listener)
+            }
+            fallbackRef = db.getReference("order_chats").child(orderId).also {
+                it.addChildEventListener(listener)
+            }
         }
     }
 
@@ -111,20 +123,21 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
     }
 
     private fun sendMessage(content: String) {
+        val now = System.currentTimeMillis()
         if (orderId.isNotBlank()) {
             val db = com.google.firebase.database.FirebaseDatabase.getInstance()
-            val msgKey = db.getReference("order_chats").child(orderId).push().key ?: System.currentTimeMillis().toString()
-            db.getReference("order_chats").child(orderId).child(msgKey).setValue(
-                mapOf(
-                    "sender" to "customer",
-                    "text" to content,
-                    "timestamp" to System.currentTimeMillis()
-                )
+            val msgKey = db.getReference("tracking").child("chats_$orderId").push().key ?: now.toString()
+            val payload = mapOf(
+                "sender" to "customer",
+                "text" to content,
+                "timestamp" to now
             )
+            db.getReference("tracking").child("chats_$orderId").child(msgKey).setValue(payload)
+            db.getReference("order_chats").child(orderId).child(msgKey).setValue(payload)
             // Cập nhật trực tiếp vào ghi chú của đơn trên Firebase
             db.getReference("orders").child(orderId).child("note").setValue(content)
         } else {
-            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(now))
             addUserMessage(content, timeStr)
         }
     }
@@ -173,7 +186,7 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
 
     private fun addShopReply(content: String, timeStr: String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())) {
         val context = context ?: return
-        val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+        val binding = _binding ?: return
 
         val shopMsgLayout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -215,6 +228,13 @@ class ChatStoreBottomSheetDialogFragment : BottomSheetDialogFragment() {
     }
 
     override fun onDestroyView() {
+        chatListener?.let { listener ->
+            primaryRef?.removeEventListener(listener)
+            fallbackRef?.removeEventListener(listener)
+        }
+        chatListener = null
+        primaryRef = null
+        fallbackRef = null
         super.onDestroyView()
         _binding = null
     }

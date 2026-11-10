@@ -154,26 +154,23 @@ class DashboardActivity : AppCompatActivity() {
                     setupShipperNavigation()
                 }
                 User.Role.CUSTOMER -> {
-                    // Tài khoản là Khách hàng đăng nhập vào app Quán / Shipper
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                        .setTitle("⚠️ Tài khoản Khách Hàng")
-                        .setMessage("Tài khoản (${authRepository.currentUser?.email}) là tài khoản Khách hàng (Oishi Customer).\n\nỨng dụng Oishi Internal chỉ dành riêng cho Cửa Hàng (Quán Ăn) và Tài Xế.\n\nBạn có muốn chuyển sang ứng dụng Khách hàng hoặc Đăng xuất?")
-                        .setPositiveButton("Mở App Khách Hàng") { _, _ ->
-                            val launchIntent = packageManager.getLaunchIntentForPackage("com.chuyen_de_2.foodorder.customer")
-                            if (launchIntent != null) {
-                                startActivity(launchIntent)
-                                finish()
-                            } else {
-                                Toast.makeText(this@DashboardActivity, "Vui lòng mở ứng dụng Oishi Customer trên thiết bị!", Toast.LENGTH_LONG).show()
+                        .setTitle("🛵 Kích Hoạt Vai Trò Quán / Tài Xế")
+                        .setMessage("Tài khoản (${authRepository.currentUser?.email}) hiện đang ở vai trò Khách hàng.\n\nBạn muốn sử dụng tài khoản này trên Oishi Internal với vai trò nào?")
+                        .setPositiveButton("🛵 Tôi là Tài Xế (Shipper)") { _, _ ->
+                            lifecycleScope.launch {
+                                authRepository.setUserRole(User.Role.DRIVER)
+                                Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Tài Xế!", Toast.LENGTH_SHORT).show()
+                                setupShipperNavigation()
                             }
                         }
-                        .setNegativeButton("Đăng ký làm Quán Ăn") { _, _ ->
+                        .setNegativeButton("🏪 Tôi là Quán Ăn") { _, _ ->
                             lifecycleScope.launch {
                                 authRepository.setUserRole(User.Role.MERCHANT)
                                 checkMerchantVerificationAndProceed()
                             }
                         }
-                        .setNeutralButton("Đăng xuất") { _, _ ->
+                        .setNeutralButton("🚪 Đăng xuất") { _, _ ->
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

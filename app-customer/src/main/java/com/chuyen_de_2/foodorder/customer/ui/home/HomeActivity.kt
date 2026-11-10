@@ -915,24 +915,10 @@ class HomeActivity : AppCompatActivity() {
      * Luồng hướng tới: Mở Package `com.chuyen_de_2.foodorder.internal`.
      */
     private fun checkUserRoleForBanner() {
+        binding.bannerMerchantNotice.visibility = View.GONE
         lifecycleScope.launch {
-            val role = authRepository.getUserRole()?.trim()?.uppercase()
-            if (role == User.Role.MERCHANT || role == User.Role.MANAGER || role == "SHOP" || role == "STORE" || role == User.Role.DRIVER || role == User.Role.SHIPPER) {
-                binding.bannerMerchantNotice.visibility = View.VISIBLE
-                val roleName = if (role == User.Role.DRIVER || role == User.Role.SHIPPER) "Tài Xế (Driver)" else "Cửa Hàng (Merchant)"
-                binding.tvMerchantNoticeText.text = "Bạn đang đăng nhập bằng tài khoản $roleName."
-
-                binding.btnOpenInternalApp.setOnClickListener {
-                    val launchIntent = packageManager.getLaunchIntentForPackage("com.chuyen_de_2.foodorder.internal")
-                    if (launchIntent != null) {
-                        startActivity(launchIntent)
-                    } else {
-                        Toast.makeText(this@HomeActivity, "Ứng dụng Quán/Shipper (Oishi Internal) chưa cài đặt!", Toast.LENGTH_LONG).show()
-                    }
-                }
-            } else {
-                binding.bannerMerchantNotice.visibility = View.GONE
-            }
+            // Gọi getUserRole() để tự động đồng bộ và khôi phục role CUSTOMER nếu tài khoản từng bị ghi đè nhầm
+            authRepository.getUserRole()
         }
     }
 }

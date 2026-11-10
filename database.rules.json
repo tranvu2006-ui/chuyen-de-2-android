@@ -133,6 +133,12 @@
         ".write": "auth != null"
       }
     },
+    "order_chats": {
+      ".read": "auth != null",
+      "$orderId": {
+        ".write": "auth != null"
+      }
+    },
     "restaurants": {
       ".read": true,
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"

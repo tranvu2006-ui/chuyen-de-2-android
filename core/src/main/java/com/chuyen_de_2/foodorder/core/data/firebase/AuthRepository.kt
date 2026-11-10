@@ -46,21 +46,29 @@ class AuthRepository @Inject constructor(
                     throw error
                 }
             }
+            val driverSnapAtLogin = try {
+                database.getReference("drivers").child(firebaseUser.uid).get().await()
+            } catch (_: Exception) { null }
+            val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
+            val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
+
             val emailVerifiedByOtp = verificationState
                 ?.child("emailVerified")
                 ?.getValue(Boolean::class.java) == true ||
                 verificationState
                     ?.child("registrationVerified")
                     ?.getValue(Boolean::class.java) == true
-            val isStoreCreatedDriver = verificationState
-                ?.child("role")
-                ?.getValue(String::class.java)
-                .orEmpty()
-                .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER) &&
-                !verificationState
-                    ?.child("storeId")
+            val isStoreCreatedDriver = hasDriverProfile || (
+                verificationState
+                    ?.child("role")
                     ?.getValue(String::class.java)
-                    .isNullOrBlank()
+                    .orEmpty()
+                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER) &&
+                    !verificationState
+                        ?.child("storeId")
+                        ?.getValue(String::class.java)
+                        .isNullOrBlank()
+                )
             // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
             // Ngoại lệ: tài khoản DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
             // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
@@ -77,7 +85,12 @@ class AuthRepository @Inject constructor(
                 return Result.failure(EmailOtpRequiredException())
             }
 
-            val user = completePostLogin(firebaseUser, email, emailVerifiedByOtp)
+            val user = completePostLogin(
+                firebaseUser = firebaseUser,
+                email = email,
+                emailVerifiedByOtp = emailVerifiedByOtp || isStoreCreatedDriver,
+                isStoreCreatedDriver = isStoreCreatedDriver
+            )
             Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
@@ -90,7 +103,8 @@ class AuthRepository @Inject constructor(
     private suspend fun completePostLogin(
         firebaseUser: FirebaseUser,
         email: String,
-        emailVerifiedByOtp: Boolean
+        emailVerifiedByOtp: Boolean,
+        isStoreCreatedDriver: Boolean = false
     ): FirebaseUser {
         val userRef = database.getReference("users").child(firebaseUser.uid)
         try { userRef.keepSynced(true) } catch (_: Exception) {}
@@ -145,16 +159,27 @@ class AuthRepository @Inject constructor(
             val rawDbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
                 ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
 
-            val (dbRole, dbStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
-                uid = firebaseUser.uid,
-                email = actualEmail,
-                currentRole = rawDbRole,
-                currentStoreId = rawDbStoreId
-            )
+            val driverSnapAtLogin = try {
+                database.getReference("drivers").child(firebaseUser.uid).get().await()
+            } catch (_: Exception) { null }
+            val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
+            val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
+
+            val (dbRole, dbStoreId) = if (hasDriverProfile) {
+                Pair(User.Role.DRIVER, driverStoreIdFromProfile.ifBlank { rawDbStoreId })
+            } else {
+                sanitizeCorruptedCustomerRoleIfNeeded(
+                    uid = firebaseUser.uid,
+                    email = actualEmail,
+                    currentRole = rawDbRole,
+                    currentStoreId = rawDbStoreId
+                )
+            }
 
             val wasCorruptedMock = dbEmail == "mai.tran@oishifood.vn" && !actualEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
             val resolvedRole = when {
                 actualEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
+                hasDriverProfile -> User.Role.DRIVER
                 dbRole.isNotBlank() -> dbRole.uppercase()
                 actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
@@ -186,7 +211,7 @@ class AuthRepository @Inject constructor(
                 "roleId" to resolvedRoleId,
                 "storeId" to dbStoreId,
                 "status" to User.Status.ACTIVE,
-                "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp),
+                "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp || isStoreCreatedDriver),
                 "isActive" to true,
                 "lockReason" to null,
                 "suspendedReason" to null
@@ -536,7 +561,7 @@ class AuthRepository @Inject constructor(
                 } catch (_: Exception) {}
                 user = newUser
             } else {
-                // Tự động sửa nếu tài khoản khách hàng từng bị gán nhầm storeId của quán khác
+                // Tự động sửa nếu tài khoản tài xế bị nhảy sang CUSTOMER hoặc khách hàng bị gán nhầm storeId
                 val (healedRole, healedStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
                     uid = uid,
                     email = currentEmail,
@@ -544,9 +569,15 @@ class AuthRepository @Inject constructor(
                     currentStoreId = user.storeId
                 )
                 if (healedRole != user.role || healedStoreId != user.storeId) {
+                    val healedRoleId = when (healedRole) {
+                        User.Role.ADMIN -> 1
+                        User.Role.MERCHANT, User.Role.MANAGER -> 3
+                        User.Role.DRIVER, User.Role.SHIPPER -> 4
+                        else -> 2
+                    }
                     user = user.copy(
                         role = healedRole,
-                        roleId = if (healedRole == User.Role.CUSTOMER) 2 else user.roleId,
+                        roleId = healedRoleId,
                         storeId = healedStoreId
                     )
                 }
@@ -686,39 +717,35 @@ class AuthRepository @Inject constructor(
             if (rawRole == "ADMIN" || roleId == 1) return User.Role.ADMIN
             if (rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4) return User.Role.DRIVER
 
-            // 2. Nếu là CUSTOMER rõ ràng -> trả về CUSTOMER ngay (không tra cứu stores tránh gán nhầm quán)
-            if (rawRole == "CUSTOMER" || roleId == 2) return User.Role.CUSTOMER
+            // 2. Tra cứu bảng drivers trước: Nếu uid có trong bảng drivers thì chắc chắn là Tài xế (khôi phục nếu từng bị nhảy sang CUSTOMER)
+            try {
+                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                if (driverSnap.exists()) {
+                    val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
+                    val updates = mutableMapOf<String, Any>(
+                        "role" to User.Role.DRIVER,
+                        "roleId" to 4
+                    )
+                    if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
+                    database.getReference("users").child(uid).updateChildren(updates).await()
+                    try { database.getReference("customers").child(uid).removeValue() } catch (_: Exception) {}
+                    return User.Role.DRIVER
+                }
+            } catch (_: Exception) {}
 
             // 3. Nếu đang mang role MERCHANT/MANAGER hoặc có storeId -> xác thực quyền sở hữu thực sự trên bảng stores
             if (rawRole == "MERCHANT" || rawRole == "MANAGER" || roleId == 3 || !userData?.storeId.isNullOrBlank()) {
-                val sid = userData?.storeId.orEmpty().trim()
-                if (sid.isNotBlank()) {
-                    val storeSnap = try { database.getReference("stores").child(sid).get().await() } catch (_: Exception) { null }
-                    if (storeSnap != null && storeSnap.exists()) {
-                        val mId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
-                        val oId = storeSnap.child("ownerId").getValue(String::class.java).orEmpty()
-                        if (mId == uid || oId == uid || (mId.isBlank() && oId.isBlank())) {
-                            return User.Role.MERCHANT
-                        } else {
-                            // Tài khoản khách hàng từng bị gán nhầm storeId của quán khác -> Tự động khôi phục về CUSTOMER
-                            val isEmailMerchant = currentEmail.contains("manager", true) || currentEmail.contains("merchant", true)
-                            if (!isEmailMerchant) {
-                                try {
-                                    database.getReference("users").child(uid).updateChildren(
-                                        mapOf(
-                                            "role" to User.Role.CUSTOMER,
-                                            "roleId" to 2,
-                                            "storeId" to ""
-                                        )
-                                    ).await()
-                                } catch (_: Exception) {}
-                                return User.Role.CUSTOMER
-                            }
-                        }
-                    }
-                }
-                return User.Role.MERCHANT
+                val (healedRole, _) = sanitizeCorruptedCustomerRoleIfNeeded(
+                    uid = uid,
+                    email = currentEmail,
+                    currentRole = rawRole.orEmpty(),
+                    currentStoreId = userData?.storeId.orEmpty()
+                )
+                return healedRole.ifBlank { User.Role.CUSTOMER }
             }
+
+            // 4. Nếu là CUSTOMER rõ ràng -> trả về CUSTOMER ngay (không tra cứu stores tránh gán nhầm quán)
+            if (rawRole == "CUSTOMER" || roleId == 2) return User.Role.CUSTOMER
 
             // 4. Tra cứu chéo: Chỉ khớp khi merchantId hoặc ownerId của store bằng đúng uid
             try {
@@ -820,15 +847,22 @@ class AuthRepository @Inject constructor(
                 }
             } else if (normalizedRole == User.Role.DRIVER) {
                 val driverSnap = database.getReference("drivers").child(uid).get().await()
-                if (!driverSnap.exists()) {
+                if (driverSnap.exists()) {
+                    val dStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
+                    if (dStoreId.isNotBlank()) {
+                        updates["storeId"] = dStoreId
+                    }
+                } else {
                     val driver = Driver(
                         driverId = uid,
                         storeId = "",
                         driverCode = "TX-" + (10..99).random(),
+                        name = auth.currentUser?.displayName?.ifBlank { "Tài xế Oishi" } ?: "Tài xế Oishi",
                         dutyStatus = Driver.DutyStatus.AVAILABLE
                     )
                     database.getReference("drivers").child(uid).setValue(driver).await()
                 }
+                try { database.getReference("customers").child(uid).removeValue() } catch (_: Exception) {}
             }
 
             database.getReference("users").child(uid).updateChildren(updates).await()
@@ -996,7 +1030,8 @@ class AuthRepository @Inject constructor(
     }
 
     /**
-     * Khôi phục role CUSTOMER nếu tài khoản khách hàng từng bị gán nhầm storeId của quán khác.
+     * Khôi phục role DRIVER nếu tài khoản có hồ sơ trong bảng drivers,
+     * hoặc khôi phục role CUSTOMER nếu tài khoản khách hàng từng bị gán nhầm storeId của quán khác.
      */
     private suspend fun sanitizeCorruptedCustomerRoleIfNeeded(
         uid: String,
@@ -1006,47 +1041,76 @@ class AuthRepository @Inject constructor(
     ): Pair<String, String> {
         val normRole = currentRole.trim().uppercase()
         val sid = currentStoreId.trim()
-        if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {
-            return Pair(currentRole, currentStoreId)
-        }
         return try {
+            // 0. Kiểm tra trước xem uid có hồ sơ trong bảng drivers không (kể cả khi từng bị nhảy nhầm sang CUSTOMER)
+            val driverSnap = try { database.getReference("drivers").child(uid).get().await() } catch (_: Exception) { null }
+            if (driverSnap != null && driverSnap.exists()) {
+                val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty().ifBlank { sid }
+                if (normRole != User.Role.DRIVER || sid != driverStoreId) {
+                    val updates = mutableMapOf<String, Any>(
+                        "role" to User.Role.DRIVER,
+                        "roleId" to 4
+                    )
+                    if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
+                    database.getReference("users").child(uid).updateChildren(updates).await()
+                    try { database.getReference("customers").child(uid).removeValue() } catch (_: Exception) {}
+                }
+                return Pair(User.Role.DRIVER, driverStoreId)
+            }
+
+            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN) {
+                return Pair(currentRole, currentStoreId)
+            }
+            if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {
+                return Pair(currentRole, currentStoreId)
+            }
+
+            // 1. Kiểm tra nếu storeId hiện tại thực sự thuộc sở hữu của uid (merchantId == uid hoặc ownerId == uid)
             if (sid.isNotBlank()) {
                 val storeSnap = database.getReference("stores").child(sid).get().await()
                 if (storeSnap.exists()) {
                     val mId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
                     val oId = storeSnap.child("ownerId").getValue(String::class.java).orEmpty()
-                    if (mId == uid || oId == uid || (mId.isBlank() && oId.isBlank())) {
-                        return Pair(currentRole, currentStoreId)
-                    }
-                    // Store này thuộc về người khác! Kiểm tra xem uid có thực sự sở hữu store nào không
-                    val byMerchant = try {
-                        database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
-                    } catch (_: Exception) { null }
-                    val realOwnedKey = byMerchant?.children?.firstOrNull {
-                        it.child("merchantId").getValue(String::class.java) == uid ||
-                            it.child("ownerId").getValue(String::class.java) == uid
-                    }?.key
-                    if (!realOwnedKey.isNullOrBlank()) {
-                        database.getReference("users").child(uid).updateChildren(
-                            mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to realOwnedKey)
-                        ).await()
-                        return Pair(User.Role.MERCHANT, realOwnedKey)
-                    }
-
-                    val isEmailMerchant = email.contains("manager", ignoreCase = true) ||
-                        email.contains("merchant", ignoreCase = true)
-                    if (!isEmailMerchant) {
-                        database.getReference("users").child(uid).updateChildren(
-                            mapOf(
-                                "role" to User.Role.CUSTOMER,
-                                "roleId" to 2,
-                                "storeId" to ""
-                            )
-                        ).await()
-                        return Pair(User.Role.CUSTOMER, "")
+                    if (mId == uid || oId == uid) {
+                        return Pair(User.Role.MERCHANT, sid)
                     }
                 }
             }
+
+            // 2. Kiểm tra xem uid có thực sự sở hữu bất kỳ store nào trên bảng stores không
+            val byMerchant = try {
+                database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+            } catch (_: Exception) { null }
+            val realOwnedKey = byMerchant?.children?.firstOrNull {
+                it.child("merchantId").getValue(String::class.java) == uid ||
+                    it.child("ownerId").getValue(String::class.java) == uid
+            }?.key
+            if (!realOwnedKey.isNullOrBlank()) {
+                database.getReference("users").child(uid).updateChildren(
+                    mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to realOwnedKey)
+                ).await()
+                return Pair(User.Role.MERCHANT, realOwnedKey)
+            }
+
+            // 3. Nếu user có hồ sơ trong bảng customers hoặc email không phải tài khoản quản lý quán -> khôi phục về CUSTOMER
+            val custSnap = try { database.getReference("customers").child(uid).get().await() } catch (_: Exception) { null }
+            val hasCustomerRecord = custSnap != null && custSnap.exists()
+            val isEmailMerchant = email.contains("manager", ignoreCase = true) ||
+                email.contains("merchant", ignoreCase = true) ||
+                email.startsWith("quan", ignoreCase = true) ||
+                email.startsWith("shop", ignoreCase = true)
+
+            if (hasCustomerRecord || !isEmailMerchant) {
+                database.getReference("users").child(uid).updateChildren(
+                    mapOf(
+                        "role" to User.Role.CUSTOMER,
+                        "roleId" to 2,
+                        "storeId" to ""
+                    )
+                ).await()
+                return Pair(User.Role.CUSTOMER, "")
+            }
+
             Pair(currentRole, currentStoreId)
         } catch (_: Exception) {
             Pair(currentRole, currentStoreId)

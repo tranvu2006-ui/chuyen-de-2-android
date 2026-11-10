@@ -286,22 +286,6 @@ class AuthRepository @Inject constructor(
                 val otpRes = otpDeferred.await()
                 val authRes = authDeferred.await()
 
-                if (otpRes.isFailure) {
-                    try { auth.signOut() } catch (_: Exception) {}
-                    val rawMsg = otpRes.exceptionOrNull()?.message.orEmpty()
-                    val userMsg = if (
-                        rawMsg.contains("expired", ignoreCase = true) ||
-                        rawMsg.contains("invalid", ignoreCase = true) ||
-                        rawMsg.contains("token", ignoreCase = true) ||
-                        rawMsg.contains("otp", ignoreCase = true)
-                    ) {
-                        "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
-                    } else {
-                        rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
-                    }
-                    throw Exception(userMsg)
-                }
-
                 if (authRes.isFailure) {
                     val rawMsg = authRes.exceptionOrNull()?.message.orEmpty()
                     val userMsg = if (
@@ -318,12 +302,11 @@ class AuthRepository @Inject constructor(
                     throw Exception(userMsg)
                 }
 
-                val verifiedEmail = otpRes.getOrNull().orEmpty()
                 val authResult = authRes.getOrNull()
                 val firebaseUser = authResult?.user
                     ?: throw Exception("Không xác định được tài khoản Firebase.")
 
-                val verifiedEmail = otpResult.getOrElse { otpError ->
+                val verifiedEmail = otpRes.getOrElse { otpError ->
                     // Cho phép tài khoản Tài xế do quán tạo (có trong drivers/{uid}) đăng nhập kể cả không qua OTP
                     val isDriver = try {
                         database.getReference("drivers").child(firebaseUser.uid).get().await().exists()
@@ -332,7 +315,18 @@ class AuthRepository @Inject constructor(
                         cleanEmail
                     } else {
                         try { auth.signOut() } catch (_: Exception) {}
-                        throw otpError
+                        val rawMsg = otpError.message.orEmpty()
+                        val userMsg = if (
+                            rawMsg.contains("expired", ignoreCase = true) ||
+                            rawMsg.contains("invalid", ignoreCase = true) ||
+                            rawMsg.contains("token", ignoreCase = true) ||
+                            rawMsg.contains("otp", ignoreCase = true)
+                        ) {
+                            "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                        } else {
+                            rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
+                        }
+                        throw Exception(userMsg)
                     }
                 }
 

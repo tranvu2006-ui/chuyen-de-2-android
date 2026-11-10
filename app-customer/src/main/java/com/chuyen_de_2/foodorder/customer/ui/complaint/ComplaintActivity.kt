@@ -355,12 +355,12 @@ class ComplaintActivity : AppCompatActivity() {
             val selectedReasonItem = binding.spinnerReason.selectedItem as? ReasonItem ?: reasonEntries[0]
 
             if (resolvedOrderId.isBlank()) {
-                Toast.makeText(this, "⚠️ Vui lòng chọn hoặc nhập mã đơn hàng cần khiếu nại", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Vui lòng chọn hoặc nhập mã đơn hàng cần khiếu nại", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             if (description.length < 5) {
-                Toast.makeText(this, "⚠️ Vui lòng mô tả chi tiết sự việc (tối thiểu 5 ký tự)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Vui lòng mô tả chi tiết sự việc (tối thiểu 5 ký tự)", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -417,7 +417,7 @@ class ComplaintActivity : AppCompatActivity() {
                 val result = firebaseRepository.submitComplaint(complaint)
                 if (result.isSuccess) {
                     AlertDialog.Builder(this@ComplaintActivity)
-                        .setTitle("🎉 Gửi Khiếu Nại Thành Công!")
+                        .setTitle("Gửi Khiếu Nại Thành Công!")
                         .setMessage("Mã hồ sơ tiếp nhận: #$complaintCode\n\nBan Quản Trị Oishi Food sẽ tiến hành thẩm định và áp dụng chế tài xử phạt đối với ${if (isDriverFault) "tài xế" else "quán ăn"} trong vòng 2 giờ.\n\nLưu ý: Nếu khiếu nại sai sự thật hoặc lạm dụng, tài khoản có thể bị phạt trừ điểm uy tín hoặc tạm khóa.")
                         .setCancelable(false)
                         .setPositiveButton("Theo dõi tiến độ ngay") { _, _ ->

@@ -3125,9 +3125,9 @@ class FirebaseRepository @Inject constructor(
                 com.google.firebase.FirebaseApp.initializeApp(context.applicationContext, options, "MerchantCreator")
             }
             val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
+            val secondaryDatabase = FirebaseDatabase.getInstance(secondaryApp)
             val authResult = secondaryAuth.createUserWithEmailAndPassword(email.trim(), password.trim()).await()
             val merchantUid = authResult.user?.uid ?: return Result.failure(Exception("Không lấy được UID của quản lý mới"))
-            secondaryAuth.signOut()
 
             val updates = mutableMapOf<String, Any>(
                 "uid" to merchantUid,
@@ -3143,7 +3143,9 @@ class FirebaseRepository @Inject constructor(
                 "emailVerified" to true,
                 "registrationVerified" to true
             )
-            database.getReference("users").child(merchantUid).setValue(updates).await()
+            // Ghi trực tiếp bằng phiên của tài khoản mới để thỏa mãn điều kiện auth.uid == $userId
+            secondaryDatabase.getReference("users").child(merchantUid).setValue(updates).await()
+            secondaryAuth.signOut()
             if (storeId.isNotBlank()) {
                 assignMerchantToStore(storeId, merchantUid, name.trim())
             }

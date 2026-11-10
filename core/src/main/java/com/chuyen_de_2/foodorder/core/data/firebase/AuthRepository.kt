@@ -72,10 +72,13 @@ class AuthRepository @Inject constructor(
                         ?.getValue(String::class.java)
                         .isNullOrBlank()
                 )
+            val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
+            val isAdminEmail = actualEmail.equals("admin@gmail.com", ignoreCase = true)
+
             // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
-            // Ngoại lệ: tài khoản DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
+            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com) và DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
             // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
-            if (!firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
+            if (!isAdminEmail && !firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
                 try {
                     emailOtpApi.requestCode(email.trim())
                 } catch (error: Exception) {
@@ -91,7 +94,7 @@ class AuthRepository @Inject constructor(
             val user = completePostLogin(
                 firebaseUser = firebaseUser,
                 email = email,
-                emailVerifiedByOtp = emailVerifiedByOtp || isStoreCreatedDriver,
+                emailVerifiedByOtp = emailVerifiedByOtp || isStoreCreatedDriver || isAdminEmail,
                 isStoreCreatedDriver = isStoreCreatedDriver
             )
             Result.success(user)
@@ -250,6 +253,9 @@ class AuthRepository @Inject constructor(
             val cleanEmail = email.trim().lowercase()
             if (cleanEmail.isBlank()) {
                 return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
+            }
+            if (cleanEmail == "admin@gmail.com") {
+                return Result.failure(Exception("Tài khoản Quản trị viên (admin@gmail.com) được miễn xác thực OTP. Bạn có thể đăng nhập ngay."))
             }
             val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
             if (!isRegistered) {

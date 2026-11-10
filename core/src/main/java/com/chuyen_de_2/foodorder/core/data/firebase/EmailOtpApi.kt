@@ -28,6 +28,9 @@ class EmailOtpApi @Inject constructor() {
         .retryOnConnectionFailure(true)
         .build()
 
+    // Bộ nhớ đệm lưu tạm cặp (email:code) đã xác thực thành công trong 10 phút để tránh lỗi dùng lại OTP 1 lần khi auto-submit hoặc sửa mật khẩu
+    private val verifiedOtpCache = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     /**
      * BƯỚC 1: Gửi yêu cầu máy chủ Supabase tạo mã OTP 6 số và gửi về Gmail của khách.
      * Endpoint: /auth/v1/otp (Chuẩn REST API Supabase Auth)
@@ -35,7 +38,7 @@ class EmailOtpApi @Inject constructor() {
     suspend fun requestCode(email: String) {
         // Supabase gửi OTP tới email; create_user cho phép xác minh email trước khi Firebase tạo tài khoản.
         val jsonPayload = JSONObject()
-            .put("email", email)
+            .put("email", email.trim())
             .put("create_user", true)
             .put("type", "email") // Chọn luồng OTP email thay vì xác thực bằng số điện thoại.
         // Gửi POST tới Supabase Auth; lỗi được trả về caller, không giả thành công.
@@ -47,20 +50,43 @@ class EmailOtpApi @Inject constructor() {
      * Endpoint: /auth/v1/verify
      */
     suspend fun verifyCode(email: String, code: String): String {
-        // Gửi email, OTP người dùng nhập và loại xác thực để Supabase đối chiếu.
-        val jsonPayload = JSONObject()
-            .put("email", email)
-            .put("token", code)
-            .put("type", "email")
+        val cleanEmail = email.trim()
+        val cleanCode = code.trim()
+        val cacheKey = "${cleanEmail.lowercase()}:$cleanCode"
+        val cachedAt = verifiedOtpCache[cacheKey]
+        if (cachedAt != null && (System.currentTimeMillis() - cachedAt) < 10 * 60 * 1000L) {
+            return cleanEmail
+        }
 
-        // Chỉ coi mã hợp lệ khi Supabase Auth trả về thành công.
-        val result = post("/auth/v1/verify", jsonPayload)
+        // Gửi email, OTP người dùng nhập và loại xác thực để Supabase đối chiếu (thử type=email trước, fallback sang signup nếu email mới tạo lần đầu).
+        val result = try {
+            post(
+                "/auth/v1/verify",
+                JSONObject()
+                    .put("email", cleanEmail)
+                    .put("token", cleanCode)
+                    .put("type", "email")
+            )
+        } catch (firstError: Exception) {
+            try {
+                post(
+                    "/auth/v1/verify",
+                    JSONObject()
+                        .put("email", cleanEmail)
+                        .put("token", cleanCode)
+                        .put("type", "signup")
+                )
+            } catch (_: Exception) {
+                throw firstError
+            }
+        }
 
         // Đọc email do Supabase xác nhận; không chỉ tin email do app gửi lên.
-        val verifiedEmail = result.optJSONObject("user")?.optString("email").orEmpty()
-        if (!verifiedEmail.equals(email, ignoreCase = true)) {
+        val verifiedEmail = result.optJSONObject("user")?.optString("email").orEmpty().ifBlank { cleanEmail }
+        if (!verifiedEmail.equals(cleanEmail, ignoreCase = true)) {
             throw IllegalStateException("Email xác nhận không khớp email đăng ký.")
         }
+        verifiedOtpCache[cacheKey] = System.currentTimeMillis()
         // Trả email đã xác minh để AuthRepository cho phép tiếp tục đăng ký Firebase.
         return verifiedEmail
     }

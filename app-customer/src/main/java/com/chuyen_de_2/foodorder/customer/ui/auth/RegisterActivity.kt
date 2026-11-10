@@ -65,7 +65,7 @@ class RegisterActivity : AppCompatActivity() {
         binding.etOtp.doAfterTextChanged { s ->
             binding.tilOtp.error = null
             val code = s?.toString()?.trim().orEmpty()
-            if (code.length == 6 && code.all { it.isDigit() }) {
+            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
                 val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
                 imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
                 val name = binding.etName.text?.toString()?.trim().orEmpty()

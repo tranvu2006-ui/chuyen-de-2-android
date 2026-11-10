@@ -269,31 +269,37 @@ class AuthRepository @Inject constructor(
      * Xác thực đăng nhập bằng OTP: Chạy song song kiểm tra OTP trên Supabase và đăng nhập Firebase
      * giúp giảm tối đa độ trễ mạng (giảm từ 2 lần round-trip nối tiếp xuống còn 1 lần song song).
      */
-    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> =
-        coroutineScope {
-            try {
+    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> {
+        return try {
+            kotlinx.coroutines.supervisorScope {
                 val cleanEmail = email.trim()
                 val cleanCode = code.trim()
 
-                // Chạy đồng thời xác thực OTP Supabase và đăng nhập Firebase
-                val otpDeferred = async { emailOtpApi.verifyCode(cleanEmail, cleanCode) }
-                val authDeferred = async { auth.signInWithEmailAndPassword(cleanEmail, password).await() }
+                // Chạy đồng thời xác thực OTP Supabase và đăng nhập Firebase an toàn bằng runCatching
+                val otpDeferred = async { runCatching { emailOtpApi.verifyCode(cleanEmail, cleanCode) } }
+                val authDeferred = async { runCatching { auth.signInWithEmailAndPassword(cleanEmail, password).await() } }
 
-                val verifiedEmail = try {
-                    otpDeferred.await()
-                } catch (e: Exception) {
-                    try { auth.signOut() } catch (_: Exception) {}
+                val otpResult = otpDeferred.await()
+                val authResultWrap = authDeferred.await()
+
+                val authResult = authResultWrap.getOrElse { e ->
                     throw e
                 }
-
-                val authResult = try {
-                    authDeferred.await()
-                } catch (e: Exception) {
-                    throw e
-                }
-
                 val firebaseUser = authResult.user
                     ?: throw Exception("Không xác định được tài khoản Firebase.")
+
+                val verifiedEmail = otpResult.getOrElse { otpError ->
+                    // Cho phép tài khoản Tài xế do quán tạo (có trong drivers/{uid}) đăng nhập kể cả không qua OTP
+                    val isDriver = try {
+                        database.getReference("drivers").child(firebaseUser.uid).get().await().exists()
+                    } catch (_: Exception) { false }
+                    if (isDriver) {
+                        cleanEmail
+                    } else {
+                        try { auth.signOut() } catch (_: Exception) {}
+                        throw otpError
+                    }
+                }
 
                 if (!cleanEmail.equals(verifiedEmail, ignoreCase = true) ||
                     !cleanEmail.equals(firebaseUser.email.orEmpty(), ignoreCase = true)) {
@@ -303,19 +309,20 @@ class AuthRepository @Inject constructor(
 
                 val userRef = database.getReference("users").child(firebaseUser.uid)
                 val markVerifiedDeferred = async {
-                    try {
+                    runCatching {
                         userRef.child("emailVerified").setValue(true).await()
-                    } catch (_: Exception) {}
+                    }
                 }
 
                 val user = completePostLogin(firebaseUser, cleanEmail, emailVerifiedByOtp = true)
                 markVerifiedDeferred.await()
                 Result.success(user)
-            } catch (error: Exception) {
-                try { auth.signOut() } catch (_: Exception) {}
-                Result.failure(error)
             }
+        } catch (error: Exception) {
+            try { auth.signOut() } catch (_: Exception) {}
+            Result.failure(error)
         }
+    }
 
     /** Đăng ký tài khoản kèm xác thực mã OTP 6 số từ Supabase trong cùng một quy trình mượt mà */
     suspend fun registerWithOtp(

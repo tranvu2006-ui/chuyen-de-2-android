@@ -266,30 +266,45 @@ class BossDashboardActivity : AppCompatActivity() {
         dialogBinding.btnCancelCreateMerchant.setOnClickListener { dialog.dismiss() }
 
         dialogBinding.btnSubmitCreateMerchant.setOnClickListener {
+            dialogBinding.tilMerchantName.error = null
+            dialogBinding.tilMerchantEmail.error = null
+            dialogBinding.tilMerchantPhone.error = null
+            dialogBinding.tilMerchantPassword.error = null
+
             val name = dialogBinding.etMerchantName.text?.toString()?.trim().orEmpty()
             val email = dialogBinding.etMerchantEmail.text?.toString()?.trim().orEmpty()
             val phone = dialogBinding.etMerchantPhone.text?.toString()?.trim().orEmpty()
+            val password = dialogBinding.etMerchantPassword.text?.toString()?.trim().orEmpty()
 
+            var hasError = false
             if (name.isBlank()) {
                 dialogBinding.tilMerchantName.error = "Vui lòng nhập họ tên"
-                return@setOnClickListener
+                hasError = true
             }
             if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 dialogBinding.tilMerchantEmail.error = "Vui lòng nhập email hợp lệ"
-                return@setOnClickListener
+                hasError = true
             }
             if (phone.isBlank()) {
                 dialogBinding.tilMerchantPhone.error = "Vui lòng nhập số điện thoại"
-                return@setOnClickListener
+                hasError = true
             }
+            if (password.length < 6) {
+                dialogBinding.tilMerchantPassword.error = "Mật khẩu phải có tối thiểu 6 ký tự"
+                hasError = true
+            }
+
+            if (hasError) return@setOnClickListener
 
             dialogBinding.btnSubmitCreateMerchant.isEnabled = false
             dialogBinding.btnSubmitCreateMerchant.text = "Đang tạo..."
 
             lifecycleScope.launch {
                 val result = firebaseRepository.createMerchantByBoss(
+                    context = this@BossDashboardActivity,
                     bossUid = currentBossUid,
                     email = email,
+                    password = password,
                     name = name,
                     phone = phone
                 )

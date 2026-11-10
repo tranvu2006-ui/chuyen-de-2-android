@@ -3107,18 +3107,30 @@ class FirebaseRepository @Inject constructor(
         awaitClose { usersRef.removeEventListener(listener) }
     }
 
-    /** Tạo tài khoản MERCHANT trực tiếp bởi Boss */
+    /** Tạo tài khoản MERCHANT trực tiếp bởi Boss bằng Firebase Auth phụ (giữ nguyên session Boss) */
     suspend fun createMerchantByBoss(
+        context: android.content.Context,
         bossUid: String,
         email: String,
+        password: String,
         name: String,
         phone: String,
         storeId: String = ""
     ): Result<User> {
         return try {
-            val newUid = "merchant_${System.currentTimeMillis()}"
+            val secondaryApp = try {
+                com.google.firebase.FirebaseApp.getInstance("MerchantCreator")
+            } catch (e: Exception) {
+                val options = com.google.firebase.FirebaseApp.getInstance().options
+                com.google.firebase.FirebaseApp.initializeApp(context.applicationContext, options, "MerchantCreator")
+            }
+            val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
+            val authResult = secondaryAuth.createUserWithEmailAndPassword(email.trim(), password.trim()).await()
+            val merchantUid = authResult.user?.uid ?: return Result.failure(Exception("Không lấy được UID của quản lý mới"))
+            secondaryAuth.signOut()
+
             val updates = mutableMapOf<String, Any>(
-                "uid" to newUid,
+                "uid" to merchantUid,
                 "name" to name.trim(),
                 "email" to email.trim(),
                 "phone" to phone.trim(),
@@ -3128,14 +3140,15 @@ class FirebaseRepository @Inject constructor(
                 "bossId" to bossUid,
                 "status" to User.Status.ACTIVE,
                 "isActive" to true,
-                "emailVerified" to true
+                "emailVerified" to true,
+                "registrationVerified" to true
             )
-            database.getReference("users").child(newUid).setValue(updates).await()
+            database.getReference("users").child(merchantUid).setValue(updates).await()
             if (storeId.isNotBlank()) {
-                assignMerchantToStore(storeId, newUid, name.trim())
+                assignMerchantToStore(storeId, merchantUid, name.trim())
             }
             val merchantUser = User(
-                uid = newUid,
+                uid = merchantUid,
                 name = name.trim(),
                 email = email.trim(),
                 phone = phone.trim(),

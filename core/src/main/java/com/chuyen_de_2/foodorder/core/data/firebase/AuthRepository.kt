@@ -63,14 +63,18 @@ class AuthRepository @Inject constructor(
                     ?.child("role")
                     ?.getValue(String::class.java)
                     .orEmpty()
-                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER) &&
-                    !verificationState
+                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER) &&
+                    (!verificationState
                         ?.child("storeId")
                         ?.getValue(String::class.java)
-                        .isNullOrBlank()
+                        .isNullOrBlank() ||
+                     !verificationState
+                        ?.child("bossId")
+                        ?.getValue(String::class.java)
+                        .isNullOrBlank())
                 )
             // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
-            // Ngoại lệ: tài khoản DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
+            // Ngoại lệ: tài khoản DRIVER/SHIPPER hoặc MERCHANT do Boss tạo không cần xác minh email qua OTP Supabase.
             // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
             if (!firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
                 try {

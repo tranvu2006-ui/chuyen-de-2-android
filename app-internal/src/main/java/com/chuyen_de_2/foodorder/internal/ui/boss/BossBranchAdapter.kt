@@ -13,8 +13,11 @@ import com.chuyen_de_2.foodorder.internal.databinding.ItemBossBranchBinding
  */
 class BossBranchAdapter(
     private val onEnterBranchClick: (Store) -> Unit,
-    private val onAssignManagerClick: (Store) -> Unit
+    private val onAssignManagerClick: (Store) -> Unit,
+    private val onUnassignManagerClick: (Store) -> Unit = {}
 ) : ListAdapter<Store, BossBranchAdapter.BranchViewHolder>(DiffCallback) {
+
+    var currentBossUid: String = ""
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BranchViewHolder {
         val binding = ItemBossBranchBinding.inflate(
@@ -52,19 +55,23 @@ class BossBranchAdapter(
             binding.tvBranchAddress.text = addressDisplay.ifBlank { "Chưa cập nhật địa chỉ chi nhánh" }
 
             // Hiển thị người quản lý (Merchant)
-            if (store.merchantName.isNotBlank()) {
-                binding.tvBranchManager.text = "Quản lý: ${store.merchantName}"
+            val isRealMerchant = store.merchantId.isNotBlank() && store.merchantId != currentBossUid
+            if (isRealMerchant) {
+                val mName = if (store.merchantName.isNotBlank()) store.merchantName else "Quản lý (${store.merchantId.take(6)}...)"
+                binding.tvBranchManager.text = "Quản lý: $mName"
                 binding.tvBranchManager.setTextColor(android.graphics.Color.parseColor("#0F172A"))
-            } else if (store.merchantId.isNotBlank()) {
-                binding.tvBranchManager.text = "Quản lý: ${store.merchantId.take(8)}..."
-                binding.tvBranchManager.setTextColor(android.graphics.Color.parseColor("#0F172A"))
+                binding.btnUnassignBranchManager.visibility = android.view.View.VISIBLE
+                binding.btnAssignManager.text = "Đổi"
             } else {
                 binding.tvBranchManager.text = "Quản lý: ⚠️ Chưa gán (Boss tự quản)"
                 binding.tvBranchManager.setTextColor(android.graphics.Color.parseColor("#F59E0B"))
+                binding.btnUnassignBranchManager.visibility = android.view.View.GONE
+                binding.btnAssignManager.text = "Phân công"
             }
 
             binding.btnEnterBranch.setOnClickListener { onEnterBranchClick(store) }
             binding.btnAssignManager.setOnClickListener { onAssignManagerClick(store) }
+            binding.btnUnassignBranchManager.setOnClickListener { onUnassignManagerClick(store) }
             binding.root.setOnClickListener { onEnterBranchClick(store) }
         }
     }

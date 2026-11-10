@@ -99,8 +99,11 @@ class BossDashboardActivity : AppCompatActivity() {
         // Branch Adapter
         branchAdapter = BossBranchAdapter(
             onEnterBranchClick = { store -> enterBranchAsManager(store) },
-            onAssignManagerClick = { store -> showAssignMerchantDialog(store) }
-        )
+            onAssignManagerClick = { store -> showAssignMerchantDialog(store) },
+            onUnassignManagerClick = { store -> unassignManagerFromStore(store) }
+        ).apply {
+            currentBossUid = this@BossDashboardActivity.currentBossUid
+        }
         binding.rvBossBranches.layoutManager = LinearLayoutManager(this)
         binding.rvBossBranches.adapter = branchAdapter
 
@@ -172,6 +175,12 @@ class BossDashboardActivity : AppCompatActivity() {
         lifecycleScope.launch {
             firebaseRepository.getStoresByBoss(currentBossUid).collect { stores ->
                 binding.progressBarBoss.visibility = View.GONE
+                // Tự động dọn dẹp nếu chi nhánh bị lưu nhầm merchantId là UID của Boss
+                for (st in stores) {
+                    if (st.merchantId == currentBossUid) {
+                        launch { firebaseRepository.unassignMerchantFromBranch("", st.id) }
+                    }
+                }
                 cachedBranches = stores
                 branchAdapter.submitList(stores)
                 merchantAdapter.setStores(stores)
@@ -462,6 +471,28 @@ class BossDashboardActivity : AppCompatActivity() {
         }
 
         dialog.show()
+    }
+
+    /**
+     * Gỡ quản lý khỏi một chi nhánh cụ thể từ danh sách Chi Nhánh
+     */
+    private fun unassignManagerFromStore(store: Store) {
+        val managerDisplayName = if (store.merchantName.isNotBlank()) store.merchantName else "quản lý này"
+        AlertDialog.Builder(this)
+            .setTitle("Gỡ Quản Lý")
+            .setMessage("Bạn có chắc muốn gỡ $managerDisplayName khỏi chi nhánh '${store.name}' không? Chi nhánh sẽ chuyển về chế độ Boss tự quản lý.")
+            .setPositiveButton("Gỡ") { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.unassignMerchantFromBranch(store.merchantId, store.id)
+                    result.onSuccess {
+                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh '${store.name}'!", Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 
     /**

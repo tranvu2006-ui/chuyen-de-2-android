@@ -119,7 +119,7 @@ class LoginActivity : AppCompatActivity() {
             binding.tilOtp.error = null
             binding.btnGetOtp.isEnabled = false
             binding.btnGetOtp.text = "Đang gửi..."
-            viewModel.requestEmailOtp(email)
+            viewModel.requestLoginOtp(email)
         }
 
         // Nút "Đăng nhập"
@@ -193,7 +193,12 @@ class LoginActivity : AppCompatActivity() {
             }.onFailure { error ->
                 binding.btnGetOtp.isEnabled = true
                 binding.btnGetOtp.text = "Lấy mã"
-                Toast.makeText(this, error.message ?: "Không gửi được mã OTP.", Toast.LENGTH_LONG).show()
+                val errorMsg = error.message.orEmpty()
+                if (errorMsg.contains("chưa được đăng ký", ignoreCase = true)) {
+                    binding.tilEmail.error = errorMsg
+                    binding.etEmail.requestFocus()
+                }
+                Toast.makeText(this, errorMsg.ifBlank { "Không gửi được mã OTP." }, Toast.LENGTH_LONG).show()
             }
         }
 

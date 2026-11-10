@@ -38,6 +38,26 @@ class AuthViewModel @Inject constructor(
     /**
      * Yêu cầu gửi mã OTP xác thực qua Email cho tài khoản nội bộ (Chủ quán/Tài xế).
      */
+    /**
+     * Yêu cầu gửi mã OTP cho màn hình Đăng nhập (chỉ gửi nếu email đã đăng ký trên Firebase).
+     */
+    fun requestLoginOtp(email: String) {
+        if (email.isBlank()) {
+            _otpRequestResult.value = Result.failure(Exception("Vui lòng nhập email"))
+            return
+        }
+        _isLoading.value = true
+        viewModelScope.launch {
+            try {
+                _otpRequestResult.value = authRepository.requestLoginOtp(email)
+            } catch (e: Exception) {
+                _otpRequestResult.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun requestEmailOtp(email: String) {
         if (email.isBlank()) {
             _otpRequestResult.value = Result.failure(Exception("Vui lòng nhập email"))

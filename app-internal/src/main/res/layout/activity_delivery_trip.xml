@@ -776,18 +776,24 @@
 
 
         <!-- ==================== BƯỚC 2: XÁC NHẬN LẤY HÀNG TẠI QUÁN (5.html) ==================== -->
-        <ScrollView
+        <LinearLayout
             android:id="@+id/layoutStep2"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:fillViewport="true"
-            android:padding="14dp"
+            android:orientation="vertical"
             android:visibility="gone">
 
-            <LinearLayout
+            <ScrollView
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:fillViewport="true"
+                android:padding="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
                 <!-- Thông báo đến quán lấy đơn gộp (5.html: arrived-alert-card) -->
                 <com.google.android.material.card.MaterialCardView
@@ -1096,55 +1102,82 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- THANH TRƯỢT GẠT SANG PHẢI XÁC NHẬN ĐÃ LẤY HÀNG (giống Bước 1) -->
-                <FrameLayout
-                    android:id="@+id/swipeTrackStep2"
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- Bottom Sheet Thanh Trượt Chân Màn Hình (5.html: bottom-sheet-fixed, giống màn hình trước) -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="#FFFFFF"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="10dp">
+
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginBottom="16dp"
-                    android:background="@drawable/bg_swipe_track">
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="20dp">
 
-                    <!-- Nhãn chữ ở giữa thanh trượt -->
-                    <TextView
-                        android:id="@+id/tvSwipeLabelStep2"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:text="Tích đủ các món để mở khóa quẹt"
-                        android:textColor="#94A3B8"
-                        android:textSize="12.5sp"
-                        android:textStyle="bold" />
+                    <View
+                        android:layout_width="36dp"
+                        android:layout_height="4dp"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginBottom="10dp"
+                        android:background="#CBD5E1" />
 
-                    <!-- Nút tròn gạt màu cam đỏ (Handle / Thumb) -->
+                    <!-- THANH TRƯỢT GẠT SANG PHẢI XÁC NHẬN ĐÃ LẤY HÀNG (giống Bước 1) -->
                     <FrameLayout
-                        android:id="@+id/swipeThumbStep2"
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:layout_gravity="start|center_vertical"
-                        android:layout_marginStart="4dp"
-                        android:background="@drawable/bg_swipe_thumb"
-                        android:elevation="4dp">
+                        android:id="@+id/swipeTrackStep2"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_swipe_track">
 
+                        <!-- Nhãn chữ ở giữa thanh trượt -->
                         <TextView
+                            android:id="@+id/tvSwipeLabelStep2"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_gravity="center"
-                            android:text="➔"
-                            android:textColor="#FFFFFF"
-                            android:textSize="18sp"
+                            android:text="Tích đủ các món để mở khóa quẹt"
+                            android:textColor="#94A3B8"
+                            android:textSize="12.5sp"
                             android:textStyle="bold" />
+
+                        <!-- Nút tròn gạt màu cam đỏ (Handle / Thumb) -->
+                        <FrameLayout
+                            android:id="@+id/swipeThumbStep2"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:layout_gravity="start|center_vertical"
+                            android:layout_marginStart="4dp"
+                            android:background="@drawable/bg_swipe_thumb"
+                            android:elevation="4dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:text="➔"
+                                android:textColor="#FFFFFF"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+                        </FrameLayout>
                     </FrameLayout>
-                </FrameLayout>
 
-                <!-- Giữ nút cũ ẩn để tương thích -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnConfirmPickDishes"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:visibility="gone" />
+                    <!-- Giữ nút cũ ẩn để tương thích -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnConfirmPickDishes"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
-            </LinearLayout>
-        </ScrollView>
+        </LinearLayout>
 
 
         <!-- ==================== BƯỚC 3: ĐẾN ĐIỂM GIAO KHÁCH (6.html) ==================== -->

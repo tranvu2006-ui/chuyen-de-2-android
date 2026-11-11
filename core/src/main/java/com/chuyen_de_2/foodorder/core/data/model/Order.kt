@@ -133,6 +133,12 @@ data class Order(
     @SerializedName("hasIncidentWarning")
     val hasIncidentWarning: Boolean = false,
 
+    @SerializedName("incidentWarningTime")
+    val incidentWarningTime: Long = 0L,
+
+    @SerializedName("countdownRound")
+    val countdownRound: Int = 1,
+
     @SerializedName("incidentWarningText")
     val incidentWarningText: String = "",
 

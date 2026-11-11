@@ -568,6 +568,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                     } else {
                         syncStepFromOrderStatus(order.status)
                     }
+                    checkAndRestoreActiveCountdown()
                 }
             }
         }
@@ -652,6 +653,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                     if (currentStep >= 3) {
                         updateStepUI(currentStep)
                     }
+                    checkAndRestoreActiveCountdown()
                 } else if (!isBundleMode) {
                     isBundleMode = false
                     binding.tvTripBundleBadge.visibility = View.GONE
@@ -1503,48 +1505,74 @@ class DeliveryTripActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun start15MinCountdown(order: Order, reason: String, round: Int = 1) {
+    private fun start15MinCountdown(order: Order, reason: String, round: Int = 1, forceReset: Boolean = false) {
         countdownRound = round
         pendingIncidentReason = reason
         isCountdownActive = true
         isRiskReported = (round >= 2)
         val targetMinutes = if (round == 1) round1Minutes else round2Minutes
-        countdownSecondsRemaining = targetMinutes * 60
+        val totalSec = targetMinutes * 60
 
-        // Lưu trạng thái cảnh báo vào Firebase/SharedPreferences
-        getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
-            .edit()
-            .putLong("start_time_${order.orderId}", System.currentTimeMillis())
+        val prefs = getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
+        val savedStartTime = prefs.getLong("start_time_${order.orderId}", 0L).let {
+            if (it > 0L) it else order.incidentWarningTime
+        }
+        val savedRound = prefs.getInt("round_${order.orderId}", if (order.countdownRound > 0) order.countdownRound else 1)
+
+        val startTimeToUse: Long
+        if (!forceReset && savedStartTime > 0L && savedRound == round) {
+            // Giữ nguyên mốc thời gian bắt đầu trước đó, tính thời gian còn lại
+            startTimeToUse = savedStartTime
+            val elapsedSec = ((System.currentTimeMillis() - savedStartTime) / 1000).toInt()
+            if (elapsedSec >= totalSec) {
+                countdownSecondsRemaining = 0
+                isCountdownActive = false
+                onCountdownExpired()
+                return
+            } else {
+                countdownSecondsRemaining = maxOf(1, totalSec - elapsedSec)
+            }
+        } else {
+            // Khởi tạo mốc đếm ngược mới
+            startTimeToUse = System.currentTimeMillis()
+            countdownSecondsRemaining = totalSec
+
+            // Gửi thông báo / tin nhắn cảnh báo vào Firebase
+            lifecycleScope.launch {
+                try {
+                    val sc = QRCodeUtils.getShortOrderCode(order.orderId)
+                    val warningText = if (round == 1) {
+                        "⚠️ CẢNH BÁO MẤT ĐƠN #ORD-${sc} (LẦN 1): Tài xế đang đợi tại điểm giao. Bạn có ${round1Minutes} phút để ra nhận món. Quá thời gian này đơn sẽ chuyển sang đơn rủi ro!"
+                    } else {
+                        "⚠️ CẢNH BÁO GIA HẠN LẦN 2 #ORD-${sc}: Đơn đã vào danh sách Rủi ro. Bạn có ${round2Minutes} phút cuối cùng để ra nhận món trước khi đơn bị hủy bom hàng và trả về quán!"
+                    }
+                    val updates = mapOf<String, Any>(
+                        "hasIncidentWarning" to true,
+                        "incidentWarningTime" to startTimeToUse,
+                        "incidentWarningText" to warningText,
+                        "countdownRound" to round,
+                        "isRiskOrder" to (round >= 2)
+                    )
+                    com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
+                } catch (_: Exception) {}
+            }
+        }
+
+        // Lưu trạng thái cảnh báo vào SharedPreferences (luôn giữ startTimeToUse)
+        prefs.edit()
+            .putLong("start_time_${order.orderId}", startTimeToUse)
             .putString("reason_${order.orderId}", reason)
             .putInt("round_${order.orderId}", round)
             .apply()
-
-        // Gửi thông báo / tin nhắn cảnh báo vào Firebase
-        lifecycleScope.launch {
-            try {
-                val sc = QRCodeUtils.getShortOrderCode(order.orderId)
-                val warningText = if (round == 1) {
-                    "⚠️ CẢNH BÁO MẤT ĐƠN #ORD-${sc} (LẦN 1): Tài xế đang đợi tại điểm giao. Bạn có ${round1Minutes} phút để ra nhận món. Quá thời gian này đơn sẽ chuyển sang đơn rủi ro!"
-                } else {
-                    "⚠️ CẢNH BÁO GIA HẠN LẦN 2 #ORD-${sc}: Đơn đã vào danh sách Rủi ro. Bạn có ${round2Minutes} phút cuối cùng để ra nhận món trước khi đơn bị hủy bom hàng và trả về quán!"
-                }
-                val updates = mapOf<String, Any>(
-                    "hasIncidentWarning" to true,
-                    "incidentWarningTime" to System.currentTimeMillis(),
-                    "incidentWarningText" to warningText,
-                    "countdownRound" to round,
-                    "isRiskOrder" to (round >= 2)
-                )
-                com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
-            } catch (_: Exception) {}
-        }
 
         // Khung đếm ngược đã được chuyển vào bên trong modal Báo cáo sự cố
         binding.cardCountdownWarning.visibility = View.GONE
         binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
         binding.btnCountdownExpiredAction.visibility = View.GONE
 
-        binding.tvCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:00", targetMinutes)
+        val m = countdownSecondsRemaining / 60
+        val s = countdownSecondsRemaining % 60
+        binding.tvCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", m, s)
         binding.tvCountdownDigits.setTextColor(Color.parseColor("#DC2626"))
         binding.tvCountdownBadge.text = if (round == 1) "Chờ ${round1Minutes} phút" else "Gia hạn ${round2Minutes} phút"
 
@@ -1608,6 +1636,17 @@ class DeliveryTripActivity : AppCompatActivity() {
                         .remove("reason_${o.orderId}")
                         .remove("round_${o.orderId}")
                         .apply()
+
+                    lifecycleScope.launch {
+                        try {
+                            val updates = mapOf<String, Any>(
+                                "hasIncidentWarning" to false,
+                                "incidentWarningTime" to 0L,
+                                "incidentWarningText" to ""
+                            )
+                            com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(o.orderId).updateChildren(updates)
+                        } catch (_: Exception) {}
+                    }
                 }
                 binding.cardCountdownWarning.visibility = View.GONE
                 Toast.makeText(this, "✓ Đã hủy cảnh báo mất đơn. Vui lòng quét mã QR để đối soát!", Toast.LENGTH_SHORT).show()
@@ -1619,21 +1658,35 @@ class DeliveryTripActivity : AppCompatActivity() {
     private fun checkAndRestoreActiveCountdown() {
         val targetOrder = (if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder) ?: return
         val prefs = getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
-        val startTime = prefs.getLong("start_time_${targetOrder.orderId}", 0L)
-        if (startTime > 0 && currentStep >= 3) {
+        var startTime = prefs.getLong("start_time_${targetOrder.orderId}", 0L)
+        var round = prefs.getInt("round_${targetOrder.orderId}", 1)
+
+        // Fallback từ Firebase nếu prefs local chưa có
+        if (startTime <= 0L && targetOrder.incidentWarningTime > 0L) {
+            startTime = targetOrder.incidentWarningTime
+            round = if (targetOrder.countdownRound > 0) targetOrder.countdownRound else 1
+            prefs.edit()
+                .putLong("start_time_${targetOrder.orderId}", startTime)
+                .putInt("round_${targetOrder.orderId}", round)
+                .putString("reason_${targetOrder.orderId}", targetOrder.incidentWarningText)
+                .apply()
+        }
+
+        if (startTime > 0L) {
             val elapsedSec = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-            countdownRound = prefs.getInt("round_${targetOrder.orderId}", 1)
+            countdownRound = round
             val targetMinutes = if (countdownRound == 1) round1Minutes else round2Minutes
             val totalSec = targetMinutes * 60
-            pendingIncidentReason = prefs.getString("reason_${targetOrder.orderId}", "Khách không nhận món").orEmpty()
+            pendingIncidentReason = prefs.getString("reason_${targetOrder.orderId}", targetOrder.incidentWarningText.ifBlank { "Khách không nhận món" }).orEmpty()
             isRiskReported = (countdownRound >= 2)
             binding.cardCountdownWarning.visibility = View.GONE
             if (elapsedSec >= totalSec) {
                 countdownSecondsRemaining = 0
+                isCountdownActive = false
                 onCountdownExpired()
             } else {
                 isCountdownActive = true
-                countdownSecondsRemaining = totalSec - elapsedSec
+                countdownSecondsRemaining = maxOf(1, totalSec - elapsedSec)
                 binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
                 binding.btnCountdownExpiredAction.visibility = View.GONE
                 binding.tvCountdownBadge.text = if (countdownRound == 1) "Chờ ${round1Minutes} phút" else "Gia hạn ${round2Minutes} phút"
@@ -1930,6 +1983,7 @@ class DeliveryTripActivity : AppCompatActivity() {
      */
     private fun showIncidentReportDialog(order: Order, isExpiredRoundOne: Boolean = false) {
         activeIncidentDialog?.dismiss()
+        checkAndRestoreActiveCountdown()
         if (!isCountdownActive && !isExpiredRoundOne) {
             start15MinCountdown(order, "Đang đếm ngược ${round1Minutes} phút thời gian chờ nhận hàng")
         }
@@ -2004,6 +2058,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             repBinding.layoutIncidentCountdownNotice.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
             repBinding.ivIncidentCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
             repBinding.tvIncidentCountdownDesc.setTextColor(Color.parseColor("#DC2626"))
+            repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", countdownSecondsRemaining / 60, countdownSecondsRemaining % 60)
             updateConfirmButtonLockState(countdownSecondsRemaining)
 
             if (countdownSecondsRemaining > 0) {
@@ -2037,6 +2092,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             repBinding.layoutIncidentCountdownNotice.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
             repBinding.ivIncidentCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
             repBinding.tvIncidentCountdownDesc.setTextColor(Color.parseColor("#78350F"))
+            repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", countdownSecondsRemaining / 60, countdownSecondsRemaining % 60)
             updateConfirmButtonLockState(countdownSecondsRemaining)
 
             if (countdownSecondsRemaining > 0) {
@@ -2243,7 +2299,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                         com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
                     } catch (_: Exception) {}
                 }
-                start15MinCountdown(order, fullReason, round = 2)
+                start15MinCountdown(order, fullReason, round = 2, forceReset = true)
                 showIncidentReportDialog(order)
             } else {
                 // Hủy đơn bom hàng và quay về quán trả món (trừ -30 điểm uy tín)

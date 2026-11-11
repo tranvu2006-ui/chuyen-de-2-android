@@ -1724,20 +1724,16 @@ class DeliveryTripActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // HẾT LẦN 2: Chính thức hủy đơn bom và quay về Quán trả hàng
+            // HẾT LẦN 2: Hiển thị thông báo hết giờ & chờ Shipper chọn quay về Quán trả hàng
             binding.tvCountdownSubtext.text = "HẾT ${round2Minutes}P LẦN 2"
             binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-            binding.tvCountdownStatusMsg.text = "ĐÃ HẾT ${round2Minutes} PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng).\nĐơn hàng chính thức bị hủy. Đang chuyển sang luồng quay về Quán để trả lại món và nhận tiền hoàn!"
+            binding.tvCountdownStatusMsg.text = "ĐÃ HẾT ${round2Minutes} PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng).\nVui lòng bấm nút bên dưới để xác nhận đơn bom và bắt đầu quay về Quán trả món nhận tiền hoàn."
             binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
             binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
             binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
 
-            binding.btnCountdownExpiredAction.text = "HẾT ${round2Minutes}P LẦN 2 • HỦY ĐƠN & QUAY VỀ TRẢ HÀNG CHO QUÁN ➔"
+            binding.btnCountdownExpiredAction.text = "HẾT ${round2Minutes}P LẦN 2 • XÁC NHẬN BOM & QUAY VỀ QUÁN ➔"
             binding.btnCountdownExpiredAction.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#DC2626"))
-
-            targetOrder?.let {
-                executeIncidentCancel(it, "Khách bom hàng sau 2 lần đếm ngược (${round1Minutes} phút + ${round2Minutes} phút) (${pendingIncidentReason})")
-            }
         }
     }
 
@@ -1746,7 +1742,14 @@ class DeliveryTripActivity : AppCompatActivity() {
         if (countdownRound == 1) {
             showIncidentReportDialog(targetOrder, isExpiredRoundOne = true)
         } else {
-            executeIncidentCancel(targetOrder, "Khách bom hàng sau 2 lần đếm ngược (${round1Minutes} phút + ${round2Minutes} phút) (${pendingIncidentReason})")
+            AlertDialog.Builder(this)
+                .setTitle("🏪 Xác nhận quay về quán?")
+                .setMessage("Đã hết ${round2Minutes} phút gia hạn Lần 2 mà khách vẫn không nhận món. Bạn có muốn xác nhận đơn bị bom và quay về Quán để trả hàng nhận hoàn tiền không?")
+                .setPositiveButton("Quay về quán trả hàng") { _, _ ->
+                    executeIncidentCancel(targetOrder, "Khách bom hàng sau 2 lần đếm ngược (${round1Minutes} phút + ${round2Minutes} phút) (${pendingIncidentReason})")
+                }
+                .setNegativeButton("Đóng", null)
+                .show()
         }
     }
 

@@ -39,7 +39,7 @@
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:fontFamily="monospace"
-                android:text="#ORD_OISHI_88291"
+                tools:text="#ORD_OISHI_88291"
                 android:textColor="#0F172A"
                 android:textSize="13.5sp"
                 android:textStyle="bold" />
@@ -51,7 +51,7 @@
                 android:background="@drawable/bg_badge_orange"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="4dp"
-                android:text="⏳ Chờ Quán Xác Nhận Đơn"
+                tools:text="⏳ Chờ Quán Xác Nhận Đơn"
                 android:textColor="@color/primary"
                 android:textSize="11sp"
                 android:textStyle="bold" />
@@ -103,7 +103,7 @@
                         android:background="@drawable/bg_badge_orange"
                         android:paddingHorizontal="8dp"
                         android:paddingVertical="3dp"
-                        android:text="💵 Tiền mặt (COD)"
+                        tools:text="💵 Tiền mặt (COD)"
                         android:textColor="#475569"
                         android:textSize="10.5sp"
                         android:textStyle="bold" />
@@ -144,7 +144,7 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="2"
-                android:text="Giao đến: An Nguyễn (⭐ 98/100) - 104 Hai Bà Trưng"
+                tools:text="Giao đến: An Nguyễn (⭐ 98/100) - 104 Hai Bà Trưng"
                 android:textColor="#475569"
                 android:textSize="11.5sp" />
 

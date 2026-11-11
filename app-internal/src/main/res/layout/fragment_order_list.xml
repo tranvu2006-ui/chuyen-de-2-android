@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F8FAFC"
@@ -146,7 +147,7 @@
                         android:id="@+id/tvShopName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Quán của bạn"
+                        tools:text="Quán của bạn"
                         android:textColor="#0F172A"
                         android:textSize="15.5sp"
                         android:textStyle="bold" />
@@ -179,7 +180,7 @@
                         android:layout_marginStart="4dp"
                         android:ellipsize="end"
                         android:maxLines="1"
-                        android:text="28 Tô Vĩnh Diện, TP. Thủ Đức"
+                        tools:text="28 Tô Vĩnh Diện, TP. Thủ Đức"
                         android:textColor="#64748B"
                         android:textSize="11.5sp" />
                 </LinearLayout>

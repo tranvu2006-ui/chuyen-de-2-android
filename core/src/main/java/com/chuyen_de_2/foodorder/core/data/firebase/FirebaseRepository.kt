@@ -3142,17 +3142,23 @@ class FirebaseRepository @Inject constructor(
                 }
             }
 
-            // 2. Nếu merchantUid đang quản lý một quán cũ khác, gỡ khỏi quán cũ
-            val userOldStoreId = if (merchantUid.isNotBlank()) {
-                database.getReference("users").child(merchantUid).child("storeId").get().await()
-                    .getValue(String::class.java).orEmpty()
-            } else ""
-
-            val storesToClear = setOf(previousStoreId, userOldStoreId).filter { it.isNotBlank() && it != targetStoreId }
-            for (oldSid in storesToClear) {
-                database.getReference("stores").child(oldSid).updateChildren(
-                    mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
-                ).await()
+            // 2. Quét toàn bộ bảng stores: bất kỳ store nào đang gán merchantUid này (ngoại trừ targetStoreId) đều phải xóa sạch merchantId
+            if (merchantUid.isNotBlank()) {
+                val storesSnap = try { database.getReference("stores").get().await() } catch (_: Exception) { null }
+                if (storesSnap != null) {
+                    for (child in storesSnap.children) {
+                        val sKey = child.key.orEmpty()
+                        if (sKey.isNotBlank() && sKey != targetStoreId) {
+                            val mId = child.child("merchantId").getValue(String::class.java).orEmpty()
+                            val oId = child.child("ownerId").getValue(String::class.java).orEmpty()
+                            if (mId == merchantUid || oId == merchantUid) {
+                                database.getReference("stores").child(sKey).updateChildren(
+                                    mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
+                                ).await()
+                            }
+                        }
+                    }
+                }
             }
 
             // 3. Cập nhật gán mới hoặc gỡ

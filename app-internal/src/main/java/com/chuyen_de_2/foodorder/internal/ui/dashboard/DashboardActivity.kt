@@ -481,8 +481,18 @@ class DashboardActivity : AppCompatActivity() {
                 .setNegativeButton("Để sau", null)
                 .show()
         } else {
-            // Đã cấp quyền -> Yêu cầu Android kết nối Service ngay lập tức
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestRebindIfNecessary(this)
+            // Đã cấp quyền -> Yêu cầu Android kết nối Service ngay lập tức và khởi động Foreground Service
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestIgnoreBatteryOptimizations(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
         }
     }
 

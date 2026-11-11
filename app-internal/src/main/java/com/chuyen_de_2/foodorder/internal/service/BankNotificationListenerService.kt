@@ -52,17 +52,61 @@ class BankNotificationListenerService : NotificationListenerService() {
             context.startActivity(intent)
         }
 
-        /** Yêu cầu Android kết nối lại Service nếu đã được cấp quyền */
-        fun requestRebindIfNecessary(context: Context) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isPermissionGranted(context)) {
-                try {
-                    val component = android.content.ComponentName(context, BankNotificationListenerService::class.java)
+        /**
+         * Lệnh phổ quát kết nối lại Service trên mọi dòng máy (Universal Auto-Toggle & RequestRebind).
+         * Ép toàn bộ các hệ điều hành (Samsung, Xiaomi, Vivo, OPPO, Realme...) kết nối lại ngay lập tức.
+         */
+        fun forceRebindService(context: Context) {
+            if (!isPermissionGranted(context)) return
+            try {
+                val component = android.content.ComponentName(context, BankNotificationListenerService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     requestRebind(component)
-                    Log.d(TAG, "Đã gọi requestRebind cho BankNotificationListenerService")
+                }
+                val pm = context.packageManager
+                pm.setComponentEnabledSetting(
+                    component,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+                )
+                pm.setComponentEnabledSetting(
+                    component,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+                )
+                Log.i(TAG, "✓ Universal Auto-Toggle completed successfully for BankNotificationListenerService")
+            } catch (e: Exception) {
+                Log.e(TAG, "Lỗi forceRebindService: ${e.message}")
+            }
+        }
+
+        /** Yêu cầu hệ thống Android bỏ qua giới hạn pin (Chuẩn Android gốc chạy trên 100% mọi dòng máy) */
+        fun requestIgnoreBatteryOptimizations(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                    val packageName = context.packageName
+                    if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = android.net.Uri.parse("package:$packageName")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Lỗi requestRebind: ${e.message}")
+                    try {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
                 }
             }
+        }
+
+        /** Giữ nguyên alias cũ để tương thích ngược */
+        fun requestRebindIfNecessary(context: Context) {
+            forceRebindService(context)
         }
 
         /** Mở màn hình cài đặt Tự Khởi Chạy (Autostart) trên Xiaomi/MIUI/HyperOS/Vivo */

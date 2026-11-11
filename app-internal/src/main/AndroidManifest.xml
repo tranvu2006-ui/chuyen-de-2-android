@@ -7,9 +7,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Foreground Service cho GPS Shipper (Section 12 - doc-adr) -->
+    <!-- Foreground Service cho GPS Shipper & Giám sát đơn Quán ăn (Section 12 - doc-adr) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
@@ -105,6 +106,12 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Dịch vụ tiền cảnh giữ kết nối Quán ăn & VietQR 24/7 không bị hệ điều hành diệt -->
+        <service
+            android:name=".service.MerchantKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng / MoMo để duyệt đơn VietQR -->
         <service

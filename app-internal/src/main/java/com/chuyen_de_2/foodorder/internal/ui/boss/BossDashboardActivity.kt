@@ -222,7 +222,17 @@ class BossDashboardActivity : AppCompatActivity() {
                 .setNegativeButton("Để sau", null)
                 .show()
         } else {
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestRebindIfNecessary(this)
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestIgnoreBatteryOptimizations(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
         }
     }
 

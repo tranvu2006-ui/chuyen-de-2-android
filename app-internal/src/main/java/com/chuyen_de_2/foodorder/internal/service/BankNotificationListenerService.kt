@@ -53,6 +53,11 @@ class BankNotificationListenerService : NotificationListenerService() {
         }
     }
 
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.i(TAG, "✓✓✓ BankNotificationListenerService ĐÃ KẾT NỐI THÀNH CÔNG VỚI ANDROID! Sẵn sàng lắng nghe thông báo ngân hàng.")
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
         val packageName = sbn.packageName.orEmpty()
@@ -125,12 +130,21 @@ class BankNotificationListenerService : NotificationListenerService() {
     private suspend fun processAutoConfirmPayment(orderId: String, receivedAmount: Long, packageName: String) {
         try {
             val db = FirebaseDatabase.getInstance()
-            val orderRef = db.getReference("orders").child(orderId)
-            val snapshot = orderRef.get().await()
+            var targetOrderRef = db.getReference("orders").child(orderId)
+            var snapshot = targetOrderRef.get().await()
 
             if (!snapshot.exists()) {
-                Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' trên hệ thống Firebase")
-                return
+                // Thử tìm linh hoạt cả trường hợp có hoặc không có dấu gạch dưới
+                val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
+                val altRef = db.getReference("orders").child(altId)
+                val altSnap = altRef.get().await()
+                if (altSnap.exists()) {
+                    targetOrderRef = altRef
+                    snapshot = altSnap
+                } else {
+                    Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' hoặc '$altId' trên hệ thống Firebase")
+                    return
+                }
             }
 
             val currentPaymentStatus = snapshot.child("paymentStatus").getValue(String::class.java).orEmpty()
@@ -177,8 +191,8 @@ class BankNotificationListenerService : NotificationListenerService() {
                 "paymentNote" to "Tự động duyệt từ thông báo ngân hàng ($packageName) với số tiền ${finalPaidAmount.toVndCurrency()}"
             )
 
-            orderRef.updateChildren(updates).await()
-            Log.i(TAG, "✓ XÁC NHẬN THÀNH CÔNG: Đơn '$orderId' đã chuyển sang trạng thái PAID!")
+            targetOrderRef.updateChildren(updates).await()
+            Log.i(TAG, "✓ XÁC NHẬN THÀNH CÔNG: Đơn '${targetOrderRef.key}' đã chuyển sang trạng thái PAID!")
 
             // Phát thông báo âm thanh chuông báo nổi bật cho Quán/Boss
             showSuccessNotification(orderId, finalPaidAmount, packageName, customerName)

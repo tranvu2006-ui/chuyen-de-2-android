@@ -1,23 +1,28 @@
 package com.chuyen_de_2.foodorder.customer.ui.auth
 
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityOtpVerificationBinding
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * Màn hình xác thực OTP riêng biệt cho luồng đăng ký tài khoản khách hàng.
- * Tài khoản Firebase chỉ thực sự được tạo sau khi xác minh mã OTP thành công tại màn hình này.
+ * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP riêng biệt, thẻ email nổi bật,
+ * bộ đếm ngược thời gian và nút gửi lại trực quan.
  */
 @AndroidEntryPoint
 class OtpVerificationActivity : AppCompatActivity() {
@@ -43,6 +48,17 @@ class OtpVerificationActivity : AppCompatActivity() {
 
     private var countDownTimer: CountDownTimer? = null
     private var isResendEnabled = false
+
+    private val otpBoxes: List<TextView> by lazy {
+        listOf(
+            binding.tvOtp1,
+            binding.tvOtp2,
+            binding.tvOtp3,
+            binding.tvOtp4,
+            binding.tvOtp5,
+            binding.tvOtp6
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,9 +92,28 @@ class OtpVerificationActivity : AppCompatActivity() {
             finish()
         }
 
+        // Khởi tạo trạng thái 6 ô số OTP
+        updateOtpBoxes("")
+
+        // Nhấn vào khung OTP để kích hoạt bàn phím số
+        binding.layoutOtpContainer.setOnClickListener {
+            binding.etOtp.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        // Tự động focus và mở bàn phím số khi vào màn hình
+        binding.etOtp.requestFocus()
+        binding.etOtp.postDelayed({
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }, 250)
+
         binding.etOtp.doAfterTextChanged { s ->
-            binding.tilOtp.error = null
+            showOtpError(null)
             val code = s?.toString()?.trim().orEmpty()
+            updateOtpBoxes(code)
+
             if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
                 val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
                 imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
@@ -88,7 +123,7 @@ class OtpVerificationActivity : AppCompatActivity() {
 
         binding.btnResendOtp.setOnClickListener {
             if (!isResendEnabled) return@setOnClickListener
-            binding.tilOtp.error = null
+            showOtpError(null)
             isResendEnabled = false
             binding.btnResendOtp.isEnabled = false
             viewModel.requestEmailOtp(email)
@@ -97,12 +132,73 @@ class OtpVerificationActivity : AppCompatActivity() {
         binding.btnConfirmRegister.setOnClickListener {
             val code = binding.etOtp.text?.toString()?.trim().orEmpty()
             if (code.length != 6 || !code.all { it.isDigit() }) {
-                binding.tilOtp.error = "Vui lòng nhập đúng 6 chữ số mã OTP"
+                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
                 binding.etOtp.requestFocus()
                 return@setOnClickListener
             }
             submitOtpVerification(code)
         }
+    }
+
+    /**
+     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
+     */
+    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
+        val cleanCode = code.filter { it.isDigit() }
+        for (i in otpBoxes.indices) {
+            val box = otpBoxes[i]
+            if (i < cleanCode.length) {
+                box.text = cleanCode[i].toString()
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
+                )
+            } else if (i == cleanCode.length) {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
+                )
+            } else {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
+                )
+            }
+        }
+    }
+
+    /**
+     * Hiển thị hoặc ẩn thông báo lỗi OTP với hiệu ứng rung nhẹ.
+     */
+    private fun showOtpError(message: String?) {
+        if (message.isNullOrBlank()) {
+            binding.tvOtpError.visibility = View.GONE
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
+        } else {
+            binding.tvOtpError.text = message
+            binding.tvOtpError.visibility = View.VISIBLE
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
+            shakeOtpBoxes()
+        }
+    }
+
+    /**
+     * Hiệu ứng rung khung 6 ô số khi nhập sai hoặc xảy ra lỗi.
+     */
+    private fun shakeOtpBoxes() {
+        binding.layoutOtpBoxes.animate()
+            .translationXBy(12f)
+            .setDuration(45)
+            .withEndAction {
+                binding.layoutOtpBoxes.animate()
+                    .translationXBy(-24f)
+                    .setDuration(45)
+                    .withEndAction {
+                        binding.layoutOtpBoxes.animate()
+                            .translationXBy(12f)
+                            .setDuration(45)
+                            .start()
+                    }.start()
+            }.start()
     }
 
     private fun submitOtpVerification(code: String) {
@@ -137,9 +233,7 @@ class OtpVerificationActivity : AppCompatActivity() {
                     Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
                     startCountdown(if (remaining > 0L) remaining else 30_000L)
                 } else {
-                    isResendEnabled = true
-                    binding.btnResendOtp.isEnabled = true
-                    binding.btnResendOtp.text = "Gửi lại ngay"
+                    setResendAvailableState()
                     Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
                 }
             }
@@ -169,7 +263,7 @@ class OtpVerificationActivity : AppCompatActivity() {
                 } else {
                     rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
                 }
-                binding.tilOtp.error = userMsg
+                showOtpError(userMsg)
                 binding.etOtp.requestFocus()
                 Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
             }
@@ -186,14 +280,16 @@ class OtpVerificationActivity : AppCompatActivity() {
         }
 
         if (remainingMs <= 0L) {
-            isResendEnabled = true
-            binding.btnResendOtp.isEnabled = true
-            binding.btnResendOtp.text = "Gửi lại ngay"
+            setResendAvailableState()
             return
         }
 
         isResendEnabled = false
         binding.btnResendOtp.isEnabled = false
+        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+
         countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
             override fun onTick(millisUntilFinished: Long) {
                 val sec = (millisUntilFinished + 999) / 1000
@@ -201,11 +297,18 @@ class OtpVerificationActivity : AppCompatActivity() {
             }
 
             override fun onFinish() {
-                isResendEnabled = true
-                binding.btnResendOtp.isEnabled = true
-                binding.btnResendOtp.text = "Gửi lại ngay"
+                setResendAvailableState()
             }
         }.start()
+    }
+
+    private fun setResendAvailableState() {
+        isResendEnabled = true
+        binding.btnResendOtp.isEnabled = true
+        binding.btnResendOtp.text = "Gửi lại ngay"
+        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
     }
 
     override fun onDestroy() {

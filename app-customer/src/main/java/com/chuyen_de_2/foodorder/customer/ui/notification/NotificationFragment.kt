@@ -1,0 +1,257 @@
+package com.chuyen_de_2.foodorder.customer.ui.notification
+
+import android.content.Intent
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityNotificationBinding
+import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
+import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryActivity
+import com.chuyen_de_2.foodorder.customer.ui.tracking.TrackingActivity
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Fragment Hộp Thư Thông Báo Khách Hàng (Customer Notification Center)
+ * Cách hoạt động:
+ *  - Tích hợp trực tiếp vào thanh Bottom Navigation của HomeActivity.
+ *  - Thu thập danh sách thông báo Realtime từ hệ thống: Tiến độ đơn hàng, tin nhắn từ quán/tài xế, khuyến mãi.
+ *  - Lọc thông báo bằng Filter Chips (Tất cả, Đơn hàng, Khuyến mãi).
+ *  - Nhấn vào thông báo: Đơn đang chạy -> Mở TrackingActivity; Đơn kết thúc -> Mở Tab Đơn hàng.
+ */
+@AndroidEntryPoint
+class NotificationFragment : Fragment() {
+
+    private var _binding: ActivityNotificationBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var firebaseAuth: FirebaseAuth
+
+    private lateinit var adapter: NotificationAdapter
+    private var allNotifications = listOf<NotificationItem>()
+    private var allOrders: List<Order> = emptyList()
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = ActivityNotificationBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        InsetUtils.applyToolbarInsets(binding.toolbar)
+
+        setupToolbar()
+        setupRecyclerView()
+        setupFilterChips()
+        loadNotifications()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    private fun setupToolbar() {
+        binding.toolbar.setNavigationOnClickListener {
+            (activity as? HomeActivity)?.selectTab(R.id.nav_home)
+                ?: activity?.onBackPressedDispatcher?.onBackPressed()
+        }
+    }
+
+    private fun setupRecyclerView() {
+        adapter = NotificationAdapter { item ->
+            when {
+                item.orderId != null -> {
+                    val activeStatuses = listOf("PENDING", "PREPARING", "READY", "PICKED_UP", "DELIVERING")
+                    val matchingOrder = allOrders.find { it.orderId == item.orderId }
+                    if (matchingOrder != null && matchingOrder.status in activeStatuses) {
+                        val intent = Intent(requireContext(), TrackingActivity::class.java).apply {
+                            putExtra("orderId", item.orderId)
+                        }
+                        startActivity(intent)
+                    } else {
+                        (activity as? HomeActivity)?.selectTab(R.id.nav_orders)
+                            ?: startActivity(Intent(requireContext(), OrderHistoryActivity::class.java))
+                    }
+                }
+                else -> {
+                    // Thông báo ưu đãi / hệ thống
+                }
+            }
+        }
+
+        binding.rvNotifications.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = this@NotificationFragment.adapter
+        }
+    }
+
+    private fun setupFilterChips() {
+        binding.chipGroupFilter.setOnCheckedStateChangeListener { _, checkedIds ->
+            when {
+                checkedIds.contains(R.id.chipOrders) -> filterList(NotificationType.ORDER)
+                checkedIds.contains(R.id.chipPromos) -> filterList(NotificationType.PROMO)
+                else -> filterList(null)
+            }
+        }
+    }
+
+    private fun filterList(type: NotificationType?) {
+        val filtered = if (type == null) {
+            allNotifications
+        } else {
+            allNotifications.filter { it.type == type }
+        }
+        adapter.submitList(filtered)
+        updateEmptyState(filtered.isEmpty())
+    }
+
+    private fun updateEmptyState(isEmpty: Boolean) {
+        _binding?.let { b ->
+            b.llEmptyState.visibility = if (isEmpty) View.VISIBLE else View.GONE
+            b.rvNotifications.visibility = if (isEmpty) View.GONE else View.VISIBLE
+        }
+    }
+
+    private fun loadNotifications() {
+        val currentUid = firebaseAuth.currentUser?.uid ?: ""
+        if (currentUid.isBlank()) {
+            updateEmptyState(true)
+            return
+        }
+
+        binding.progressBar.visibility = View.VISIBLE
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            firebaseRepository.observeOrdersByCustomer(currentUid).collectLatest { orders ->
+                _binding?.let { b ->
+                    b.progressBar.visibility = View.GONE
+                    allOrders = orders
+
+                    val items = mutableListOf<NotificationItem>()
+
+                    // Tạo thông báo động từ trạng thái các đơn hàng thật trên Firebase
+                    orders.sortedByDescending { it.timestamp }.forEach { order ->
+                        val notif = createNotificationFromOrder(order)
+                        items.add(notif)
+                    }
+
+                    allNotifications = items
+
+                    // Áp dụng bộ lọc hiện tại
+                    val checkedIds = b.chipGroupFilter.checkedChipIds
+                    when {
+                        checkedIds.contains(R.id.chipOrders) -> filterList(NotificationType.ORDER)
+                        checkedIds.contains(R.id.chipPromos) -> filterList(NotificationType.PROMO)
+                        else -> filterList(null)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun createNotificationFromOrder(order: Order): NotificationItem {
+        val shortId = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
+        val shopName = if (order.shopName.isNotBlank()) order.shopName else "Quán ăn"
+
+        return when (order.status) {
+            "PENDING" -> NotificationItem(
+                id = "order_${order.orderId}_pending",
+                type = NotificationType.ORDER,
+                title = "Đơn hàng #$shortId đang chờ duyệt",
+                body = "Đơn của bạn tại $shopName đã gửi đi và đang chờ quán tiếp nhận.",
+                timestamp = order.timestamp,
+                isUnread = true,
+                orderId = order.orderId,
+                iconRes = R.drawable.ic_clock,
+                iconColor = 0xFFF59E0B.toInt()
+            )
+            "PREPARING" -> NotificationItem(
+                id = "order_${order.orderId}_prep",
+                type = NotificationType.ORDER,
+                title = "Quán đang chuẩn bị món",
+                body = "$shopName đang làm món cho đơn hàng #$shortId của bạn.",
+                timestamp = order.timestamp,
+                isUnread = true,
+                orderId = order.orderId,
+                iconRes = R.drawable.ic_nav_menu,
+                iconColor = 0xFFEE4D2D.toInt()
+            )
+            "READY" -> NotificationItem(
+                id = "order_${order.orderId}_ready",
+                type = NotificationType.ORDER,
+                title = "Món ăn đã sẵn sàng",
+                body = "Món của bạn tại $shopName đã nấu xong, đang chờ tài xế nhận đơn.",
+                timestamp = order.timestamp,
+                isUnread = true,
+                orderId = order.orderId,
+                iconRes = R.drawable.ic_package,
+                iconColor = 0xFF3B82F6.toInt()
+            )
+            "PICKED_UP", "DELIVERING" -> NotificationItem(
+                id = "order_${order.orderId}_delivering",
+                type = NotificationType.ORDER,
+                title = "Tài xế đang giao hàng",
+                body = "Đơn hàng #$shortId đang được tài xế vận chuyển đến địa chỉ của bạn.",
+                timestamp = order.timestamp,
+                isUnread = true,
+                orderId = order.orderId,
+                iconRes = R.drawable.ic_bike,
+                iconColor = 0xFF0284C7.toInt()
+            )
+            "COMPLETED" -> NotificationItem(
+                id = "order_${order.orderId}_completed",
+                type = NotificationType.ORDER,
+                title = "Giao hàng thành công!",
+                body = "Đơn hàng #$shortId tại $shopName đã hoàn tất. Cảm ơn bạn đã lựa chọn Oishi Food!",
+                timestamp = order.timestamp,
+                isUnread = false,
+                orderId = order.orderId,
+                iconRes = R.drawable.ic_check_circle_green,
+                iconColor = 0xFF10B981.toInt()
+            )
+            "CANCELLED" -> NotificationItem(
+                id = "order_${order.orderId}_cancelled",
+                type = NotificationType.ORDER,
+                title = "Đơn hàng đã hủy",
+                body = "Đơn hàng #$shortId đã bị hủy.",
+                timestamp = order.timestamp,
+                isUnread = false,
+                orderId = order.orderId,
+                iconRes = R.drawable.ic_close,
+                iconColor = 0xFFEF4444.toInt()
+            )
+            else -> NotificationItem(
+                id = "order_${order.orderId}_general",
+                type = NotificationType.ORDER,
+                title = "Cập nhật đơn hàng #$shortId",
+                body = "Đơn hàng tại $shopName có thay đổi trạng thái: ${order.status}",
+                timestamp = order.timestamp,
+                isUnread = false,
+                orderId = order.orderId,
+                iconRes = R.drawable.ic_receipt,
+                iconColor = 0xFF64748B.toInt()
+            )
+        }
+    }
+}

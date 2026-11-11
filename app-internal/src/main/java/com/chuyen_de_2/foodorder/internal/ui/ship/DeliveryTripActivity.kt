@@ -1248,7 +1248,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
 
         binding.btnBackToMapStep3.setOnClickListener {
-            handleBackNavigation()
+            revertToMapStep3()
         }
 
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
@@ -1475,31 +1475,32 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     /**
-     * Xử lý lùi bước điều hướng: Từ Bước 4 (Quét QR) lùi về Bước 3 (Bản đồ chọn khách giao)
+     * Quay lại Bước 3 (Bản đồ) từ nút riêng biệt bên dưới màn hình Bước 4
+     */
+    private fun revertToMapStep3() {
+        val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
+        targetOrder?.let { o ->
+            saveStep(o.orderId, 3)
+            lifecycleScope.launch {
+                try {
+                    firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                } catch (_: Exception) {}
+            }
+        }
+        updateStepUI(3)
+        Toast.makeText(this, "🛵 Đã quay lại bản đồ giao hàng để bạn tự do chọn khách giao!", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Xử lý điều hướng khi bấm nút Back (mũi tên góc trên hoặc phím Back của máy)
      */
     private fun handleBackNavigation() {
-        if (currentStep == 4) {
-            val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
-            targetOrder?.let { o ->
-                saveStep(o.orderId, 3)
-                lifecycleScope.launch {
-                    try {
-                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                    } catch (_: Exception) {}
-                }
-            }
-            updateStepUI(3)
-            Toast.makeText(this, "🛵 Đã quay lại bản đồ giao hàng để bạn tự do chọn khách giao!", Toast.LENGTH_SHORT).show()
-        } else if (currentStep == 3) {
-            AlertDialog.Builder(this)
-                .setTitle("Rời màn hình giao hàng?")
-                .setMessage("Chuyến đi giao hàng vẫn đang diễn ra. Bạn có muốn tạm thoát ra danh sách đơn?")
-                .setPositiveButton("Rời màn hình") { _, _ -> finish() }
-                .setNegativeButton("Ở lại giao hàng", null)
-                .show()
-        } else {
-            finish()
-        }
+        AlertDialog.Builder(this)
+            .setTitle("Rời màn hình chuyến đi?")
+            .setMessage("Chuyến giao hàng vẫn đang được lưu tiến trình. Bạn có muốn thoát ra danh sách đơn không?")
+            .setPositiveButton("Thoát ra") { _, _ -> finish() }
+            .setNegativeButton("Ở lại tiếp tục", null)
+            .show()
     }
 
     private fun start15MinCountdown(order: Order, reason: String, round: Int = 1) {

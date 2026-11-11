@@ -144,16 +144,50 @@ class BankNotificationListenerService : NotificationListenerService() {
         if (sbn == null) return
         val packageName = sbn.packageName.orEmpty()
 
-        // Bỏ qua thông báo của chính ứng dụng nội bộ Oishi để tránh vòng lặp tự kích hoạt
+        // 1. Bỏ qua thông báo của chính ứng dụng nội bộ Oishi để tránh vòng lặp tự kích hoạt
         if (packageName == applicationContext.packageName) return
 
+        // 2. CHẶN ĐỨNG 100% CÁC ỨNG DỤNG CHAT VÀ MẠNG XÃ HỘI (Zalo, Messenger, Telegram, WhatsApp...)
+        if (com.chuyen_de_2.foodorder.core.util.BankData.BLACKLISTED_CHAT_PACKAGES.contains(packageName) ||
+            packageName.contains("zalo", ignoreCase = true) ||
+            packageName.contains("orca", ignoreCase = true) ||
+            packageName.contains("telegram", ignoreCase = true) ||
+            packageName.contains("whatsapp", ignoreCase = true)
+        ) {
+            Log.w(TAG, "🚫 ĐÃ CHẶN THÔNG BÁO TỪ ỨNG DỤNG CHAT/MẠNG XÃ HỘI: $packageName")
+            return
+        }
+
         val extras = sbn.notification?.extras ?: return
-        val title = extras.getString(Notification.EXTRA_TITLE).orEmpty()
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
+        val title = extras.getString(Notification.EXTRA_TITLE).orEmpty().trim()
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty().trim()
+        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty().trim()
 
         val fullContent = "$title $text $bigText".trim()
         if (fullContent.isBlank()) return
+
+        // 3. KIỂM TRA NGUỒN PHÁT THÔNG BÁO: CHỈ CHẤP NHẬN CÁC ỨNG DỤNG NGÂN HÀNG/VÍ ĐIỆN TỬ HOẶC SMS BRANDNAME CHÍNH THỐNG
+        val isOfficialBankApp = com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.contains(packageName) ||
+                com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.any { packageName.startsWith(it, ignoreCase = true) }
+
+        val isSmsApp = packageName in listOf(
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.samsung.android.messaging",
+            "com.xiaomi.mms"
+        )
+
+        val isValidSmsBrandname = if (isSmsApp) {
+            val upperTitle = title.uppercase()
+            com.chuyen_de_2.foodorder.core.util.BankData.VALID_BANK_SMS_BRANDNAMES.any { brand ->
+                upperTitle.contains(brand)
+            }
+        } else false
+
+        if (!isOfficialBankApp && !isValidSmsBrandname) {
+            Log.d(TAG, "Bỏ qua thông báo không thuộc danh mục ngân hàng/ví điện tử: $packageName (Tiêu đề: $title)")
+            return
+        }
 
         // Regex bóc tách mã đơn chuẩn OISHI_****** (linh hoạt cả OISHI_XXXXXX, OISHI XXXXXX, OISHIXXXXXX)
         val orderCodeRegex = Regex("""OISHI[_ ]?([A-Z0-9]{6})""", RegexOption.IGNORE_CASE)

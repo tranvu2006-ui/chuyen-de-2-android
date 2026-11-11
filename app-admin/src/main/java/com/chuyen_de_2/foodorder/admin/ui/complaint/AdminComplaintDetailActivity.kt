@@ -391,8 +391,7 @@ class AdminComplaintDetailActivity : AppCompatActivity() {
         }
 
         binding.cardLinkedOrder.visibility = View.VISIBLE
-        val shortOrderCode = order.orderId.takeLast(6).uppercase()
-        binding.tvOrderTitle.text = "Đơn hàng: #ORD-$shortOrderCode"
+        binding.tvOrderTitle.text = "Đơn hàng: ${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)}"
         binding.tvOrderShopName.text = order.effectiveShopName.ifBlank { "Quán đối tác" }
 
         val orderTimeStr = if (order.createdAt > 0) dateFormat.format(Date(order.createdAt)) else ""

@@ -539,7 +539,7 @@ class FirebaseRepository @Inject constructor(
                         Order.Status.COMPLETED -> {
                             newScore = minOf(100L, currentScore + 2L)
                             scoreChange = (newScore - currentScore).toInt()
-                            logReason = "Hoàn thành nhận hàng & thanh toán đơn #ORD-$shortCode (+2 điểm)"
+                            logReason = "Hoàn thành nhận hàng & thanh toán đơn #$shortCode (+2 điểm)"
                             statsUpdates["completedOrders"] = currentCompleted + 1
                             statsUpdates["totalOrders"] = currentTotal + 1
                             statsUpdates["trustScore"] = newScore
@@ -548,7 +548,7 @@ class FirebaseRepository @Inject constructor(
                             if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
                                 newScore = maxOf(0L, currentScore - 30L)
                                 scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Bom hàng đơn #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
+                                logReason = if (reason.isNotBlank()) "Bom hàng đơn #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #$shortCode (-30 điểm)"
                                 statsUpdates["boomOrders"] = currentBoom + 1
                                 statsUpdates["totalOrders"] = currentTotal + 1
                                 statsUpdates["trustScore"] = newScore
@@ -563,7 +563,7 @@ class FirebaseRepository @Inject constructor(
                             if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
                                 newScore = maxOf(0L, currentScore - 30L)
                                 scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Bom hàng trả về quán #ORD-$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #ORD-$shortCode (-30 điểm)"
+                                logReason = if (reason.isNotBlank()) "Bom hàng trả về quán #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #$shortCode (-30 điểm)"
                                 statsUpdates["boomOrders"] = currentBoom + 1
                                 statsUpdates["totalOrders"] = currentTotal + 1
                                 statsUpdates["trustScore"] = newScore
@@ -581,7 +581,7 @@ class FirebaseRepository @Inject constructor(
                             if (!isApprovedByShop && (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING || prevStatus == Order.Status.ARRIVED_AT_CUSTOMER)) {
                                 newScore = maxOf(0L, currentScore - 10L)
                                 scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Hủy đơn muộn #ORD-$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #ORD-$shortCode sau khi quán đã chế biến (-10 điểm)"
+                                logReason = if (reason.isNotBlank()) "Hủy đơn muộn #$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #$shortCode sau khi quán đã chế biến (-10 điểm)"
                                 statsUpdates["boomOrders"] = currentBoom + 1
                                 statsUpdates["totalOrders"] = currentTotal + 1
                                 statsUpdates["trustScore"] = newScore

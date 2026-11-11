@@ -43,8 +43,8 @@ class ResolveComplaintDialogFragment(
 
     private fun populateData() {
         val shortCompId = if (complaint.complaintId.length > 8) complaint.complaintId.takeLast(8).uppercase() else complaint.complaintId
-        val shortOrderCode = if (complaint.orderId.length > 6) complaint.orderId.takeLast(6).uppercase() else complaint.orderId
-        binding.tvDialogComplaintRef.text = "#$shortCompId • Đơn: #ORD-$shortOrderCode"
+        val orderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(complaint.orderId)
+        binding.tvDialogComplaintRef.text = "#$shortCompId • Đơn: $orderCode"
 
         // Nguồn khiếu nại (Sender)
         val senderLabel = when (complaint.senderType) {

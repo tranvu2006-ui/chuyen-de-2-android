@@ -185,7 +185,7 @@ class OrderAdapter(
             when (order.status) {
                 Order.Status.AWAITING_PAYMENT -> {
                     // Đơn đang chờ khách chuyển khoản ngân hàng
-                    binding.tvOrderBadge.text = "⏳ CHỜ CHUYỂN KHOẢN • CHƯA NHẬN ĐƯỢC TIỀN"
+                    binding.tvOrderBadge.text = "⏳ Chờ chuyển khoản VietQR"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
 

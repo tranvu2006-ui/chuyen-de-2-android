@@ -92,9 +92,9 @@ class ShipperViewModel @Inject constructor(
                 if (delivering != null) {
                     val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
                     val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
-                        "#ORD-$shortCode (Trả hàng về quán)"
+                        "#$shortCode (Trả hàng về quán)"
                     } else {
-                        "#ORD-$shortCode (${delivering.customerName})"
+                        "#$shortCode (${delivering.customerName})"
                     }
                     firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
                 } else {

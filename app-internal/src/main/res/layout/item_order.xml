@@ -34,23 +34,33 @@
 
             <TextView
                 android:id="@+id/tvOrderCode"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
-                android:layout_weight="1"
                 android:fontFamily="monospace"
-                tools:text="#ORD_OISHI_88291"
+                android:singleLine="true"
+                android:maxLines="1"
+                tools:text="#OISHI_88291"
                 android:textColor="#0F172A"
                 android:textSize="13.5sp"
                 android:textStyle="bold" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/tvOrderBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:background="@drawable/bg_badge_orange"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="4dp"
+                android:singleLine="true"
+                android:maxLines="1"
+                android:ellipsize="end"
                 tools:text="⏳ Chờ Quán Xác Nhận Đơn"
                 android:textColor="@color/primary"
                 android:textSize="11sp"

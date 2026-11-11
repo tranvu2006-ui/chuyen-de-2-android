@@ -25,6 +25,7 @@ object QRCodeUtils {
             .removePrefix("#")
             .removePrefix("ORD-")
             .removePrefix("ORD_")
+            .removePrefix("ORD")
         while (clean.startsWith("OISHI_OISHI_")) {
             clean = clean.removePrefix("OISHI_")
         }
@@ -34,10 +35,10 @@ object QRCodeUtils {
         return "OI$suffix"
     }
 
-    /** Chuỗi mã đơn chuẩn hóa hiển thị đồng bộ cho toàn bộ UI: #ORD-OISHI_XXXXXX */
+    /** Chuỗi mã đơn chuẩn hóa hiển thị đồng bộ cho toàn bộ UI: #OISHI_XXXXXX (KHÔNG có chữ ORD) */
     fun formatOrderCode(orderId: String): String {
         val sc = getShortOrderCode(orderId)
-        return if (sc.isNotBlank()) "#ORD-$sc" else ""
+        return if (sc.isNotBlank()) "#$sc" else ""
     }
 
     /**
@@ -123,14 +124,14 @@ object QRCodeUtils {
                 QrVerifyResult(
                     isValid = true,
                     matchedToken = tokenToShow,
-                    message = "✓ Mã QR hợp lệ! Khớp đơn hàng #ORD-$expectedShortCode ($tokenToShow)"
+                    message = "✓ Mã QR hợp lệ! Khớp đơn hàng #$expectedShortCode ($tokenToShow)"
                 )
             } else {
                 val otherCode = scannedShortCode.ifBlank { getShortOrderCode(scannedOrderId) }
                 QrVerifyResult(
                     isValid = false,
                     matchedToken = scannedToken.ifBlank { raw },
-                    message = "❌ Mã QR này thuộc đơn hàng khác (#ORD-$otherCode), không khớp với đơn đang giao (#ORD-$expectedShortCode)!"
+                    message = "❌ Mã QR này thuộc đơn hàng khác (#$otherCode), không khớp với đơn đang giao (#$expectedShortCode)!"
                 )
             }
         }
@@ -154,13 +155,13 @@ object QRCodeUtils {
             QrVerifyResult(
                 isValid = true,
                 matchedToken = expectedDisplayToken,
-                message = "✓ Đã xác minh mã nhận hàng hợp lệ! Khớp đơn #ORD-$expectedShortCode"
+                message = "✓ Đã xác minh mã nhận hàng hợp lệ! Khớp đơn #$expectedShortCode"
             )
         } else {
             QrVerifyResult(
                 isValid = false,
                 matchedToken = raw.take(32),
-                message = "❌ Mã QR không khớp với đơn hàng #ORD-$expectedShortCode! Vui lòng quét đúng mã trên app Khách hàng."
+                message = "❌ Mã QR không khớp với đơn hàng #$expectedShortCode! Vui lòng quét đúng mã trên app Khách hàng."
             )
         }
     }

@@ -246,6 +246,7 @@ class StoreVerificationActivity : AppCompatActivity() {
                 .setTitle("🚪 Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
+                    getSharedPreferences("boss_session", MODE_PRIVATE).edit().clear().apply()
                     authRepository.logout()
                     startActivity(Intent(this, LoginActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -385,9 +386,17 @@ class StoreVerificationActivity : AppCompatActivity() {
 
             result.onSuccess {
                 Toast.makeText(this@StoreVerificationActivity, "🎉 Xác minh hồ sơ và thiết lập địa chỉ quán thành công!", Toast.LENGTH_LONG).show()
-                startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                })
+                val role = authRepository.getUserRole()?.uppercase()
+                if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
+                    firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
+                    startActivity(Intent(this@StoreVerificationActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    })
+                } else {
+                    startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    })
+                }
                 finish()
             }.onFailure { err ->
                 Toast.makeText(this@StoreVerificationActivity, "Lỗi khi cập nhật hồ sơ: ${err.message}", Toast.LENGTH_LONG).show()

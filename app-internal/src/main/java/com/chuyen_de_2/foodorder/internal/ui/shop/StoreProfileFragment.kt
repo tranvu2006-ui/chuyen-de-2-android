@@ -127,7 +127,23 @@ class StoreProfileFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         setupListeners()
+        checkRoleAndSetupUI()
         resolveCurrentStoreIdAndObserve()
+    }
+
+    private fun checkRoleAndSetupUI() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val role = authRepository.getUserRole()?.uppercase()
+            val isMerchantOnly = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT || 
+                                 role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER
+            if (isMerchantOnly) {
+                binding.btnTopEdit.visibility = View.GONE
+                binding.btnMainEdit.visibility = View.GONE
+            } else {
+                binding.btnTopEdit.visibility = View.VISIBLE
+                binding.btnMainEdit.visibility = View.VISIBLE
+            }
+        }
     }
 
     /**
@@ -295,7 +311,7 @@ class StoreProfileFragment : Fragment() {
             binding.tvProfileStatus.setTextColor(Color.parseColor("#64748B"))
         }
 
-        if (store.isVerified && store.address.isNotBlank() && store.district.isNotBlank()) {
+        if ((store.isVerified || store.bossId.isNotBlank()) && store.address.isNotBlank()) {
             binding.tvProfileVerifiedBadge.text = "✓ ĐÃ XÁC MINH HỒ SƠ"
             binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#10B981"))
             binding.tvProfileVerifiedBadge.setBackgroundResource(R.drawable.bg_badge_free)
@@ -306,10 +322,17 @@ class StoreProfileFragment : Fragment() {
         }
 
         binding.tvProfileVerifiedBadge.setOnClickListener {
-            val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
-                putExtra("STORE_ID", currentStoreId)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val role = authRepository.getUserRole()?.uppercase()
+                val isMerchantOnly = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT ||
+                    role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER
+                if (!isMerchantOnly) {
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
+                        putExtra("STORE_ID", currentStoreId)
+                    }
+                    startActivity(intent)
+                }
             }
-            startActivity(intent)
         }
     }
 
@@ -336,6 +359,15 @@ class StoreProfileFragment : Fragment() {
      * Luồng hướng tới: Gọi [FirebaseRepository.updateStoreProfile] để lưu Firestore và cập nhật giao diện ngay lập tức.
      */
     private fun showEditStoreDialog() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val role = authRepository.getUserRole()?.uppercase()
+            if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT || 
+                role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER) {
+                Toast.makeText(requireContext(), "ℹ️ Thông tin chi nhánh do Chủ thương hiệu (Boss) quản lý. Bạn không có quyền chỉnh sửa.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+        }
+
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_edit_store_profile)

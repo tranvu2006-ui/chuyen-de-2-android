@@ -15,8 +15,14 @@ data class Store(
     @SerializedName("id")
     val id: String = "",
 
+    @SerializedName("bossId")
+    val bossId: String = "",
+
     @SerializedName("merchantId", alternate = ["ownerId"])
     val merchantId: String = "",
+
+    @SerializedName("merchantName")
+    val merchantName: String = "",
 
     @SerializedName("name")
     val name: String = "",

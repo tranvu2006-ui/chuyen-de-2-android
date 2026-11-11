@@ -66,17 +66,21 @@ class AuthRepository @Inject constructor(
                     ?.child("role")
                     ?.getValue(String::class.java)
                     .orEmpty()
-                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER) &&
-                    !verificationState
+                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER) &&
+                    (!verificationState
                         ?.child("storeId")
                         ?.getValue(String::class.java)
-                        .isNullOrBlank()
+                        .isNullOrBlank() ||
+                     !verificationState
+                        ?.child("bossId")
+                        ?.getValue(String::class.java)
+                        .isNullOrBlank())
                 )
             val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
             val isAdminEmail = actualEmail.equals("admin@gmail.com", ignoreCase = true)
 
             // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
-            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com) và DRIVER/SHIPPER có storeId là shipper do quán tạo nên không cần xác minh email tại đây.
+            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com) và DRIVER/SHIPPER/MERCHANT có storeId/bossId do quán/boss tạo không cần xác minh email tại đây.
             // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
             if (!isAdminEmail && !firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
                 try {
@@ -187,12 +191,14 @@ class AuthRepository @Inject constructor(
                 actualEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
                 hasDriverProfile -> User.Role.DRIVER
                 dbRole.isNotBlank() -> dbRole.uppercase()
+                actualEmail.contains("boss", ignoreCase = true) -> User.Role.BOSSMERCHANT
                 actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
                 else -> User.Role.CUSTOMER
             }
             val resolvedRoleId = when (resolvedRole) {
                 User.Role.ADMIN -> 1
+                User.Role.BOSSMERCHANT -> 5
                 User.Role.MERCHANT, User.Role.MANAGER -> 3
                 User.Role.DRIVER, User.Role.SHIPPER -> 4
                 else -> 2
@@ -462,6 +468,7 @@ class AuthRepository @Inject constructor(
 
             // Chuẩn hóa role RBAC
             val normalizedRole = when (role.uppercase()) {
+                "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
                 "MERCHANT", "MANAGER" -> User.Role.MERCHANT
                 "DRIVER", "SHIPPER" -> User.Role.DRIVER
                 "ADMIN" -> User.Role.ADMIN
@@ -469,6 +476,7 @@ class AuthRepository @Inject constructor(
             }
             val roleId = when (normalizedRole) {
                 User.Role.ADMIN -> 1
+                User.Role.BOSSMERCHANT -> 5
                 User.Role.MERCHANT -> 3
                 User.Role.DRIVER -> 4
                 else -> 2
@@ -800,8 +808,9 @@ class AuthRepository @Inject constructor(
             val rawRole = userData?.role?.trim()?.uppercase()
             val roleId = userData?.roleId
 
-            // 1. Kiểm tra nếu là Admin hoặc Tài xế
+            // 1. Kiểm tra nếu là Admin, Boss, hoặc Tài xế
             if (rawRole == "ADMIN" || roleId == 1) return User.Role.ADMIN
+            if (rawRole == User.Role.BOSSMERCHANT || roleId == 5) return User.Role.BOSSMERCHANT
             if (rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4) return User.Role.DRIVER
 
             // 2. Tra cứu bảng drivers trước: Nếu uid có trong bảng drivers thì chắc chắn là Tài xế (khôi phục nếu từng bị nhảy sang CUSTOMER)
@@ -890,6 +899,7 @@ class AuthRepository @Inject constructor(
         val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Chưa đăng nhập"))
         return try {
             val normalizedRole = when (newRole.uppercase()) {
+                "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
                 "MERCHANT", "MANAGER" -> User.Role.MERCHANT
                 "DRIVER", "SHIPPER" -> User.Role.DRIVER
                 "ADMIN" -> User.Role.ADMIN
@@ -897,6 +907,7 @@ class AuthRepository @Inject constructor(
             }
             val roleId = when (normalizedRole) {
                 User.Role.ADMIN -> 1
+                User.Role.BOSSMERCHANT -> 5
                 User.Role.MERCHANT -> 3
                 User.Role.DRIVER -> 4
                 else -> 2
@@ -1145,11 +1156,18 @@ class AuthRepository @Inject constructor(
                 return Pair(User.Role.DRIVER, driverStoreId)
             }
 
-            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN) {
+            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN || normRole == User.Role.BOSSMERCHANT) {
                 return Pair(currentRole, currentStoreId)
             }
             if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {
                 return Pair(currentRole, currentStoreId)
+            }
+
+            // Kiểm tra xem tài khoản này có phải Quản lý do Boss tạo (có bossId) không
+            val userSnap = try { database.getReference("users").child(uid).get().await() } catch (_: Exception) { null }
+            val bossId = userSnap?.child("bossId")?.getValue(String::class.java).orEmpty()
+            if (bossId.isNotBlank()) {
+                return Pair(User.Role.MERCHANT, sid)
             }
 
             // 1. Kiểm tra nếu storeId hiện tại thực sự thuộc sở hữu của uid (merchantId == uid hoặc ownerId == uid)
@@ -1179,15 +1197,11 @@ class AuthRepository @Inject constructor(
                 return Pair(User.Role.MERCHANT, realOwnedKey)
             }
 
-            // 3. Nếu user có hồ sơ trong bảng customers hoặc email không phải tài khoản quản lý quán -> khôi phục về CUSTOMER
+            // 3. Chỉ khôi phục về CUSTOMER nếu user thực sự có hồ sơ trong bảng customers
             val custSnap = try { database.getReference("customers").child(uid).get().await() } catch (_: Exception) { null }
             val hasCustomerRecord = custSnap != null && custSnap.exists()
-            val isEmailMerchant = email.contains("manager", ignoreCase = true) ||
-                email.contains("merchant", ignoreCase = true) ||
-                email.startsWith("quan", ignoreCase = true) ||
-                email.startsWith("shop", ignoreCase = true)
 
-            if (hasCustomerRecord || !isEmailMerchant) {
+            if (hasCustomerRecord) {
                 database.getReference("users").child(uid).updateChildren(
                     mapOf(
                         "role" to User.Role.CUSTOMER,

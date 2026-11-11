@@ -64,7 +64,15 @@ class AdminCategoryAdapter(
                 }
             } else {
                 Glide.with(itemView.context).clear(binding.ivCategoryIcon)
-                binding.ivCategoryIcon.setImageResource(R.drawable.ic_image)
+                val fallbackRes = when {
+                    category.categoryName.contains("Cơm", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_utensils_crossed
+                    category.categoryName.contains("Phở", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_soup
+                    category.categoryName.contains("Trà sữa", true) || category.categoryName.contains("Trà", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_milktea
+                    category.categoryName.contains("Bún đậu", true) || category.categoryName.contains("Bún", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_bun_dau
+                    category.categoryName.contains("Nước ép", true) || category.categoryName.contains("Nước", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_juice
+                    else -> R.drawable.ic_image
+                }
+                binding.ivCategoryIcon.setImageResource(fallbackRes)
             }
 
             binding.tvCategoryName.text = category.name

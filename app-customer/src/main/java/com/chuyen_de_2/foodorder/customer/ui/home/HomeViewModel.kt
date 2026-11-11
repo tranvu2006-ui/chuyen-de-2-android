@@ -321,18 +321,11 @@ class HomeViewModel @Inject constructor(
     private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
         val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
         return when {
-            cat.contains("Trà", true) || cat.contains("Nước", true) || dishName.contains("Trà", true) || category.contains("Trà", true) -> "🧋"
-            cat.contains("Cơm", true) || dishName.contains("Cơm", true) || category.contains("Cơm", true) -> "🍚"
-            cat.contains("Gà", true) || dishName.contains("Gà", true) || category.contains("Gà", true) -> "🍗"
-            cat.contains("Bún", true) || cat.contains("Phở", true) || dishName.contains("Bún", true) || dishName.contains("Phở", true) || category.contains("Bún", true) -> "🍜"
-            cat.contains("Bánh mì", true) || dishName.contains("Bánh mì", true) || category.contains("Bánh mì", true) -> "🥖"
-            cat.contains("Pizza", true) || dishName.contains("Pizza", true) || category.contains("Pizza", true) -> "🍕"
-            cat.contains("Cà phê", true) || dishName.contains("Cà phê", true) || category.contains("Cà phê", true) -> "☕"
-            cat.contains("Chay", true) -> "🥗"
-            cat.contains("Hải sản", true) -> "🦐"
-            cat.contains("Ăn vặt", true) -> "🍟"
-            cat.contains("Tráng miệng", true) -> "🍰"
-            cat.contains("Lẩu", true) -> "🍲"
+            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
+            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
+            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
+            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
+            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
             else -> "🍽️"
         }
     }
@@ -526,37 +519,19 @@ class HomeViewModel @Inject constructor(
         if (name.contains(target)) return true
 
         if (target.contains("cơm")) {
-            return combined.contains("cơm")
+            return combined.contains("cơm") || combined.contains("com")
         }
-        if (target.contains("trà") || target.contains("nước") || target.contains("uống")) {
-            return combined.contains("trà") || combined.contains("nước") || combined.contains("uống") || combined.contains("sữa") || combined.contains("sinh tố")
+        if (target.contains("bún đậu")) {
+            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
         }
-        if (target.contains("phở") || target.contains("bún") || target.contains("mì") || target.contains("hủ tiếu")) {
-            return combined.contains("phở") || combined.contains("bún") || combined.contains("mì") || combined.contains("hủ tiếu") || combined.contains("miến")
+        if (target.contains("phở")) {
+            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
         }
-        if (target.contains("gà")) {
-            return combined.contains("gà")
+        if (target.contains("trà sữa")) {
+            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
         }
-        if (target.contains("bánh mì")) {
-            return combined.contains("bánh mì") || combined.contains("banh mi")
-        }
-        if (target.contains("pizza")) {
-            return combined.contains("pizza")
-        }
-        if (target.contains("cà phê") || target.contains("cafe") || target.contains("coffee")) {
-            return combined.contains("cà phê") || combined.contains("cafe") || combined.contains("coffee")
-        }
-        if (target.contains("ăn vặt") || target.contains("tráng miệng") || target.contains("chè") || target.contains("kem")) {
-            return combined.contains("ăn vặt") || combined.contains("tráng miệng") || combined.contains("chè") || combined.contains("kem") || combined.contains("bánh") || combined.contains("khoai") || combined.contains("nem")
-        }
-        if (target.contains("chay")) {
-            return combined.contains("chay")
-        }
-        if (target.contains("hải sản")) {
-            return combined.contains("hải sản") || combined.contains("tôm") || combined.contains("cua") || combined.contains("mực") || combined.contains("cá") || combined.contains("ốc")
-        }
-        if (target.contains("lẩu")) {
-            return combined.contains("lẩu")
+        if (target.contains("nước ép")) {
+            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
         }
 
         val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
@@ -567,17 +542,12 @@ class HomeViewModel @Inject constructor(
         val text = "$name $category".lowercase()
         return when {
             text.contains("cơm") -> "Cơm"
-            text.contains("trà") || text.contains("nước") || text.contains("uống") -> "Trà sữa & Nước"
-            text.contains("bún") || text.contains("phở") || text.contains("hủ tiếu") || text.contains("mì") -> "Bún - Phở"
-            text.contains("gà") -> "Gà rán"
-            text.contains("bánh mì") -> "Bánh mì"
-            text.contains("pizza") -> "Pizza"
-            text.contains("cà phê") || text.contains("cafe") || text.contains("coffee") -> "Cà phê"
-            text.contains("lẩu") -> "Lẩu / Món Nước"
-            text.contains("chay") -> "Món chay"
-            text.contains("hải sản") || text.contains("tôm") || text.contains("cua") || text.contains("cá") || text.contains("mực") -> "Hải sản"
-            text.contains("chè") || text.contains("kem") || text.contains("bánh") || text.contains("ăn vặt") || text.contains("tráng miệng") -> "Đồ ăn vặt"
-            else -> "Món Khác"
+            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
+            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
+            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
+            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
+            text.contains("trà") -> "Trà sữa"
+            else -> "Cơm"
         }
     }
 

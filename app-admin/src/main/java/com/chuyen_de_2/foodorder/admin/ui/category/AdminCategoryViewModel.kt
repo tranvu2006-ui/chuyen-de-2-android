@@ -75,7 +75,7 @@ class AdminCategoryViewModel @Inject constructor(
         viewModelScope.launch {
             val result = firebaseRepo.restoreDefaultCategories()
             if (result.isSuccess) {
-                _message.value = "Đã khôi phục 12 danh mục mẫu thành công!"
+                _message.value = "Đã khôi phục 5 danh mục chính thành công!"
             } else {
                 _message.value = "Khôi phục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
             }

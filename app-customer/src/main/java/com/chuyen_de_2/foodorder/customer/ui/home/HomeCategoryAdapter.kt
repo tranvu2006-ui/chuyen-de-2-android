@@ -168,7 +168,15 @@ class HomeCategoryAdapter(
                 }
             } else {
                 Glide.with(context).clear(binding.ivCategoryIcon)
-                val fallbackRes = if (isAll) R.drawable.ic_sparkles else R.drawable.ic_utensils_crossed
+                val fallbackRes = when {
+                    isAll -> R.drawable.ic_sparkles
+                    category.categoryName.contains("Cơm", true) -> R.drawable.ic_utensils_crossed
+                    category.categoryName.contains("Phở", true) -> R.drawable.ic_soup
+                    category.categoryName.contains("Trà sữa", true) || category.categoryName.contains("Trà", true) -> R.drawable.ic_milktea
+                    category.categoryName.contains("Bún đậu", true) || category.categoryName.contains("Bún", true) -> R.drawable.ic_bun_dau
+                    category.categoryName.contains("Nước ép", true) || category.categoryName.contains("Nước", true) -> R.drawable.ic_juice
+                    else -> R.drawable.ic_utensils_crossed
+                }
                 binding.ivCategoryIcon.setImageResource(fallbackRes)
                 binding.ivCategoryIcon.imageTintList = ContextCompat.getColorStateList(context, R.color.primary)
             }

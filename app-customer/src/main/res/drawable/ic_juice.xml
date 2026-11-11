@@ -1,0 +1,40 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Thân ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
+    <!-- Miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,6 L18,6" />
+    <!-- Ống hút -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M13,6 L16,2" />
+    <!-- Lát cam / chanh cài miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
+    <!-- Mực nước ép bên trong -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M8.2,11 L15.8,11" />
+</vector>

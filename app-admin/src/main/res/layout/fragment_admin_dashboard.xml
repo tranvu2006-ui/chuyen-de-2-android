@@ -949,7 +949,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:layout_marginBottom="14dp"
-                        android:text="Tự động đồng bộ 12 nhóm ẩm thực chuẩn (Cơm, Bún - Phở, Trà sữa, Gà rán, Bánh mì, Pizza, Cà phê, Ăn vặt, Món chay, Hải sản, Tráng miệng, Lẩu) lên toàn bộ ứng dụng Khách hàng và Chủ quán."
+                        android:text="Tự động đồng bộ 5 nhóm ẩm thực chuẩn (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên toàn bộ ứng dụng Khách hàng và Chủ quán."
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 

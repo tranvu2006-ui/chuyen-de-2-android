@@ -1,0 +1,48 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Mẹt tre tròn -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
+    <!-- Chén mắm tôm ở tâm mẹt -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
+    <!-- Đậu hũ rán góc trên -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
+    <!-- Chả cốm / dồi góc phải -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
+    <!-- Bún lá góc trái -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
+    <!-- Rau sống góc dưới -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
+</vector>

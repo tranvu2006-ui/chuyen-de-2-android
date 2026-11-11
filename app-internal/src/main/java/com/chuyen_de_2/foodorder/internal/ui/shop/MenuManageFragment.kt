@@ -73,7 +73,7 @@ class MenuManageFragment : Fragment() {
     private var storeCategories: MutableList<String> = mutableListOf("Món chính")
     private var selectedStoreCategory: String = "ALL"
     private var platformCategories: MutableList<String> = mutableListOf(
-        "Cơm", "Bún - Phở", "Trà sữa & Nước", "Gà rán", "Bánh mì", "Pizza", "Cà phê", "Đồ ăn vặt", "Món chay", "Hải sản", "Tráng miệng", "Lẩu / Món Nước", "Món Khác"
+        "Cơm", "Phở", "Trà sữa", "Bún đậu", "Nước ép", "Món Khác"
     )
     private var platformCategoryObjects: List<com.chuyen_de_2.foodorder.core.data.model.Category> = emptyList()
 
@@ -473,16 +473,10 @@ class MenuManageFragment : Fragment() {
                 val input = text?.toString().orEmpty().lowercase()
                 val suggestedIndex = when {
                     input.contains("cơm") -> platformCategories.indexOfFirst { it.contains("cơm", true) }
-                    input.contains("trà") || input.contains("nước") || input.contains("uống") -> platformCategories.indexOfFirst { it.contains("trà", true) || it.contains("nước", true) }
-                    input.contains("bún") || input.contains("phở") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOfFirst { it.contains("bún", true) || it.contains("phở", true) || it.contains("mì", true) }
-                    input.contains("gà") -> platformCategories.indexOfFirst { it.contains("gà", true) }
-                    input.contains("bánh mì") -> platformCategories.indexOfFirst { it.contains("bánh mì", true) }
-                    input.contains("pizza") -> platformCategories.indexOfFirst { it.contains("pizza", true) }
-                    input.contains("cà phê") || input.contains("cafe") || input.contains("coffee") -> platformCategories.indexOfFirst { it.contains("cà phê", true) || it.contains("cafe", true) }
-                    input.contains("lẩu") -> platformCategories.indexOfFirst { it.contains("lẩu", true) }
-                    input.contains("chay") -> platformCategories.indexOfFirst { it.contains("chay", true) }
-                    input.contains("hải sản") || input.contains("tôm") || input.contains("cua") || input.contains("cá") || input.contains("mực") -> platformCategories.indexOfFirst { it.contains("hải sản", true) }
-                    input.contains("chè") || input.contains("kem") || input.contains("bánh") || input.contains("ăn vặt") || input.contains("tráng miệng") -> platformCategories.indexOfFirst { it.contains("ăn vặt", true) || it.contains("tráng miệng", true) }
+                    input.contains("bún đậu") || (input.contains("bún") && input.contains("đậu")) -> platformCategories.indexOfFirst { it.contains("bún đậu", true) }
+                    input.contains("phở") || input.contains("bún") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOfFirst { it.contains("phở", true) }
+                    input.contains("trà sữa") || input.contains("tra sua") || input.contains("trà") -> platformCategories.indexOfFirst { it.contains("trà sữa", true) }
+                    input.contains("nước ép") || input.contains("sinh tố") || input.contains("nước") || input.contains("ép") -> platformCategories.indexOfFirst { it.contains("nước ép", true) }
                     else -> -1
                 }
                 if (suggestedIndex >= 0) {

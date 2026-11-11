@@ -74,7 +74,7 @@
                             android:textColor="@color/purple"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            tools:text="Tổng: 12 nhóm món • 12 đang hiển thị trên app Khách" />
+                            tools:text="Tổng: 5 nhóm món • 5 đang hiển thị trên app Khách" />
                     </LinearLayout>
                 </LinearLayout>
 

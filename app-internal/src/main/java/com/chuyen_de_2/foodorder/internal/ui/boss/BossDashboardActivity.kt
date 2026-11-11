@@ -92,6 +92,8 @@ class BossDashboardActivity : AppCompatActivity() {
         InsetUtils.initEdgeToEdge(this, true)
         binding = ActivityBossDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        InsetUtils.applyStatusBarPadding(binding.bossHeaderBar, 4)
+        InsetUtils.applyNavigationBarPadding(binding.nestedScrollViewBoss)
 
         val currentUser = authRepository.currentUser
         if (currentUser == null) {
@@ -191,7 +193,7 @@ class BossDashboardActivity : AppCompatActivity() {
 
         binding.btnBossLogout.setOnClickListener {
             AlertDialog.Builder(this)
-                .setTitle("🚪 Đăng Xuất")
+                .setTitle("Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất tài khoản Chủ chuỗi (Boss) không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
                     getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
@@ -212,7 +214,7 @@ class BossDashboardActivity : AppCompatActivity() {
     private fun checkNotificationAccessPermission() {
         if (!com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
             AlertDialog.Builder(this)
-                .setTitle("🔔 Tự Động Duyệt Tiền VietQR")
+                .setTitle("Tự Động Duyệt Tiền VietQR")
                 .setMessage(
                     "Để hệ thống tự động đọc thông báo biến động số dư ngân hàng và duyệt đơn VietQR ngay lập tức, vui lòng bật quyền 'Truy cập thông báo' cho Oishi Food."
                 )
@@ -251,7 +253,7 @@ class BossDashboardActivity : AppCompatActivity() {
                 }
 
                 val count = stores.size
-                binding.btnTabBranches.text = "🏪 Chi Nhánh ($count)"
+                binding.btnTabBranches.text = "Chi Nhánh ($count)"
                 binding.tvChainStats.text = "$count chi nhánh đang vận hành"
                 binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
                 binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
@@ -268,7 +270,7 @@ class BossDashboardActivity : AppCompatActivity() {
                 branchAdapter.setMerchants(merchants)
 
                 val count = merchants.size
-                binding.btnTabMerchants.text = "👥 Quản Lý ($count)"
+                binding.btnTabMerchants.text = "Quản Lý ($count)"
                 binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
                 binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
             }
@@ -503,7 +505,7 @@ class BossDashboardActivity : AppCompatActivity() {
                 val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
                 val rb = RadioButton(this@BossDashboardActivity).apply {
                     id = View.generateViewId()
-                    text = if (isLocked) "🔒 ${merchant.name} (${merchant.email}) [Đã khóa]" else "👤 ${merchant.name} (${merchant.email})"
+                    text = if (isLocked) "${merchant.name} (${merchant.email}) [Đã khóa]" else "${merchant.name} (${merchant.email})"
                     setTextColor(if (isLocked) Color.parseColor("#94A3B8") else Color.parseColor("#0F172A"))
                     textSize = 14f
                     setPadding(0, 16, 0, 16)
@@ -618,7 +620,7 @@ class BossDashboardActivity : AppCompatActivity() {
         for (branch in cachedBranches) {
             val rb = RadioButton(this).apply {
                 id = View.generateViewId()
-                text = "🏪 ${branch.name} (${branch.address.ifBlank { "Chưa có địa chỉ" }})"
+                text = "${branch.name} (${branch.address.ifBlank { "Chưa có địa chỉ" }})"
                 setTextColor(Color.parseColor("#0F172A"))
                 textSize = 14f
                 setPadding(0, 16, 0, 16)
@@ -700,7 +702,7 @@ class BossDashboardActivity : AppCompatActivity() {
         val isCurrentlyLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
         val shouldLock = !isCurrentlyLocked
 
-        val title = if (shouldLock) "🔒 Khóa Tài Khoản Quản Lý" else "🔓 Mở Khóa Tài Khoản Quản Lý"
+        val title = if (shouldLock) "Khóa Tài Khoản Quản Lý" else "Mở Khóa Tài Khoản Quản Lý"
         val message = if (shouldLock) {
             "Bạn có chắc muốn KHÓA tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nQuản lý này sẽ bị gỡ khỏi chi nhánh (nếu có) và không thể đăng nhập vào ứng dụng."
         } else {

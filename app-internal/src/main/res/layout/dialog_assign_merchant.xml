@@ -60,7 +60,7 @@
             android:layout_height="wrap_content"
             android:checked="true"
             android:paddingVertical="8dp"
-            android:text="👑 Để trống (Boss trực tiếp tự quản lý)"
+            android:text="Để trống (Boss trực tiếp tự quản lý)"
             android:textColor="#0F172A"
             android:textSize="14sp" />
     </RadioGroup>

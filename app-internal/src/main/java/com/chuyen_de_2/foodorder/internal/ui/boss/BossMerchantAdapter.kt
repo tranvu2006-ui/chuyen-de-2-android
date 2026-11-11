@@ -50,11 +50,11 @@ class BossMerchantAdapter(
             val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
 
             if (isLocked) {
-                binding.tvMerchantStatusBadge.text = "🔴 Đã khóa"
+                binding.tvMerchantStatusBadge.text = "Đã khóa"
                 binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
                 binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#B91C1C"))
 
-                binding.btnToggleLockMerchant.text = "🔓 Mở khóa"
+                binding.btnToggleLockMerchant.text = "Mở khóa"
                 binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#15803D"))
 
                 binding.tvMerchantAssignedBranch.text = "Tài khoản đang bị khóa"
@@ -65,11 +65,11 @@ class BossMerchantAdapter(
                 binding.btnAssignMerchantItem.alpha = 0.5f
                 binding.btnUnassignMerchantItem.visibility = View.GONE
             } else {
-                binding.tvMerchantStatusBadge.text = "🟢 Hoạt động"
+                binding.tvMerchantStatusBadge.text = "Hoạt động"
                 binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#15803D"))
 
-                binding.btnToggleLockMerchant.text = "🔒 Khóa"
+                binding.btnToggleLockMerchant.text = "Khóa"
                 binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#EF4444"))
 
                 binding.btnAssignMerchantItem.isEnabled = true

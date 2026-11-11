@@ -53,7 +53,7 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text="👑 Boss đang quản lý chi nhánh"
+            android:text="Boss đang quản lý chi nhánh"
             android:textColor="#FFFFFF"
             android:textSize="12.5sp"
             android:textStyle="bold" />
@@ -67,7 +67,7 @@
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:paddingHorizontal="10dp"
-            android:text="🔙 Đổi chi nhánh"
+            android:text="Đổi chi nhánh"
             android:textColor="#FFFFFF"
             android:textSize="11.5sp"
             android:textStyle="bold"

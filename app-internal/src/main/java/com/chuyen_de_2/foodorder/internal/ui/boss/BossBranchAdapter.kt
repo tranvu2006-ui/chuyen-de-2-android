@@ -45,10 +45,10 @@ class BossBranchAdapter(
             
             val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
             if (isClosed) {
-                binding.tvBranchStatus.text = "🔴 Tạm đóng"
+                binding.tvBranchStatus.text = "Tạm đóng"
                 binding.tvBranchStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
             } else {
-                binding.tvBranchStatus.text = "🟢 Đang mở cửa"
+                binding.tvBranchStatus.text = "Đang mở cửa"
                 binding.tvBranchStatus.setTextColor(android.graphics.Color.parseColor("#10B981"))
             }
 
@@ -80,7 +80,7 @@ class BossBranchAdapter(
                 binding.btnUnassignBranchManager.visibility = android.view.View.VISIBLE
                 binding.btnAssignManager.text = "Đổi"
             } else {
-                binding.tvBranchManager.text = "Quản lý: ⚠️ Chưa gán (Boss tự quản)"
+                binding.tvBranchManager.text = "Quản lý: Chưa gán (Boss tự quản)"
                 binding.tvBranchManager.setTextColor(android.graphics.Color.parseColor("#F59E0B"))
                 binding.btnUnassignBranchManager.visibility = android.view.View.GONE
                 binding.btnAssignManager.text = "Phân công"

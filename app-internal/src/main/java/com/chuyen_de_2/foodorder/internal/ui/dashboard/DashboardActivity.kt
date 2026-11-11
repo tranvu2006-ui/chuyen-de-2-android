@@ -131,7 +131,7 @@ class DashboardActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         binding.btnLogout.setOnClickListener {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("🚪 Đăng Xuất")
+                .setTitle("Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
                     authRepository.logout()
@@ -171,7 +171,7 @@ class DashboardActivity : AppCompatActivity() {
                         val newStoreId = "store_$uid"
                         Toast.makeText(
                             this@DashboardActivity,
-                            "👑 Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & STK ngân hàng nhận tiền.",
+                            "Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & STK ngân hàng nhận tiền.",
                             Toast.LENGTH_LONG
                         ).show()
                         val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
@@ -203,7 +203,7 @@ class DashboardActivity : AppCompatActivity() {
             val branchName = store.name.ifBlank { "Chi nhánh #$selectedBranchId" }
 
             binding.bossBranchBanner.visibility = android.view.View.VISIBLE
-            binding.tvBossBranchTitle.text = "👑 Đang quản lý: $branchName"
+            binding.tvBossBranchTitle.text = "Đang quản lý: $branchName"
             binding.btnBackToBossBranches.setOnClickListener {
                 prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
                 if (uid.isNotBlank()) {

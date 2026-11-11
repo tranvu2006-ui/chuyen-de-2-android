@@ -62,7 +62,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="🟢 Đang mở cửa"
+                    android:text="Đang mở cửa"
                     android:textColor="#10B981"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -168,10 +168,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:backgroundTint="#EE4D2D"
-                android:text="🚪 Vào Chi Nhánh Quản Lý"
+                android:text="Vào Quản Lý Chi Nhánh"
                 android:textColor="#FFFFFF"
                 android:textSize="13sp"
                 android:textStyle="bold"
+                app:icon="@drawable/ic_store"
+                app:iconGravity="textStart"
+                app:iconSize="18dp"
+                app:iconTint="#FFFFFF"
                 app:cornerRadius="10dp" />
         </LinearLayout>
 

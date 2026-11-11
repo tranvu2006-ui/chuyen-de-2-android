@@ -97,6 +97,7 @@
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/nestedScrollViewBoss"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true">
@@ -184,7 +185,8 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="👑 TỔNG QUAN CHUỖI"
+                        android:text="TỔNG QUAN CHUỖI"
+                        android:letterSpacing="0.05"
                         android:textColor="#F59E0B"
                         android:textSize="12sp"
                         android:textStyle="bold" />
@@ -225,10 +227,14 @@
                     android:layout_marginEnd="6dp"
                     android:layout_weight="1"
                     android:backgroundTint="#EE4D2D"
-                    android:text="➕ Tạo Chi Nhánh"
+                    android:text="Tạo Chi Nhánh"
                     android:textColor="#FFFFFF"
                     android:textSize="13sp"
                     android:textStyle="bold"
+                    app:icon="@drawable/ic_plus"
+                    app:iconGravity="textStart"
+                    app:iconSize="16dp"
+                    app:iconTint="#FFFFFF"
                     app:cornerRadius="12dp" />
 
                 <com.google.android.material.button.MaterialButton
@@ -239,10 +245,14 @@
                     android:layout_marginStart="6dp"
                     android:layout_weight="1"
                     android:backgroundTint="#2563EB"
-                    android:text="👥 Tạo Merchant"
+                    android:text="Tạo Merchant"
                     android:textColor="#FFFFFF"
                     android:textSize="13sp"
                     android:textStyle="bold"
+                    app:icon="@drawable/ic_user"
+                    app:iconGravity="textStart"
+                    app:iconSize="16dp"
+                    app:iconTint="#FFFFFF"
                     app:cornerRadius="12dp" />
             </LinearLayout>
 
@@ -263,10 +273,14 @@
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:text="🏪 Chi Nhánh"
+                    android:text="Chi Nhánh"
                     android:textColor="#0F172A"
                     android:textSize="13sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:icon="@drawable/ic_store"
+                    app:iconGravity="textStart"
+                    app:iconSize="16dp"
+                    app:iconTint="#0F172A" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnTabMerchants"
@@ -274,10 +288,14 @@
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
-                    android:text="👥 Quản Lý (Merchant)"
+                    android:text="Quản Lý (Merchant)"
                     android:textColor="#0F172A"
                     android:textSize="13sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:icon="@drawable/ic_users"
+                    app:iconGravity="textStart"
+                    app:iconSize="16dp"
+                    app:iconTint="#0F172A" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <ProgressBar
@@ -337,7 +355,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:gravity="center"
-                        android:text="Hãy bấm '+ Tạo Chi Nhánh' ở trên để khởi tạo chi nhánh của bạn!"
+                        android:text="Hãy bấm 'Tạo Chi Nhánh' ở trên để khởi tạo chi nhánh của bạn!"
                         android:textColor="#64748B"
                         android:textSize="13sp" />
                 </LinearLayout>
@@ -402,7 +420,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:gravity="center"
-                        android:text="Hãy bấm '👥 Tạo Merchant' ở trên để cấp tài khoản quản lý phụ trách chi nhánh."
+                        android:text="Hãy bấm 'Tạo Merchant' ở trên để cấp tài khoản quản lý phụ trách chi nhánh."
                         android:textColor="#64748B"
                         android:textSize="13sp" />
                 </LinearLayout>

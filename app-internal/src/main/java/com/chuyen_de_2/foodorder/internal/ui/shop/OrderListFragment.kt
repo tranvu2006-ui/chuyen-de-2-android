@@ -157,7 +157,7 @@ class OrderListFragment : Fragment() {
     private fun renderStoreHeader(store: com.chuyen_de_2.foodorder.core.data.model.Store) {
         val currentB = _binding ?: return
         currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
-        currentB.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
+        currentB.tvShopAddress.text = if (store.address.isNotBlank()) store.address else "Chưa cập nhật địa chỉ"
 
         com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
             imageView = currentB.ivShopHeaderLogo,
@@ -172,13 +172,13 @@ class OrderListFragment : Fragment() {
             com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
                 currentB.switchShopStatus.isChecked = false
                 currentB.switchShopStatus.isEnabled = false
-                currentB.tvShopStatusTxt.text = "Bị Khóa 🔴"
+                currentB.tvShopStatusTxt.text = "Bị Khóa"
                 currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
             }
             com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING -> {
                 currentB.switchShopStatus.isChecked = false
                 currentB.switchShopStatus.isEnabled = false
-                currentB.tvShopStatusTxt.text = "Chờ Duyệt ⏳"
+                currentB.tvShopStatusTxt.text = "Chờ Duyệt"
                 currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
             }
             com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
@@ -211,11 +211,11 @@ class OrderListFragment : Fragment() {
             if (isChecked) {
                 binding.tvShopStatusTxt.text = "Đang Bán"
                 binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-                Toast.makeText(requireContext(), "🟢 Quán đã mở cửa nhận đơn hàng mới!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Quán đã mở cửa nhận đơn hàng mới!", Toast.LENGTH_SHORT).show()
             } else {
                 binding.tvShopStatusTxt.text = "Tạm Đóng"
                 binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                Toast.makeText(requireContext(), "⚪ Quán tạm đóng cửa ngưng nhận đơn mới.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Quán tạm đóng cửa ngưng nhận đơn mới.", Toast.LENGTH_SHORT).show()
             }
             viewLifecycleOwner.lifecycleScope.launch {
                 firebaseRepository.updateStoreStatus(currentStoreId, newStatus)

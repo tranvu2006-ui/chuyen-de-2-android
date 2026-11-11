@@ -86,7 +86,7 @@
                     android:background="@drawable/bg_badge_green"
                     android:paddingHorizontal="8dp"
                     android:paddingVertical="3dp"
-                    android:text="🟢 Hoạt động"
+                    android:text="Hoạt động"
                     android:textColor="#15803D"
                     android:textSize="11sp"
                     android:textStyle="bold" />
@@ -100,7 +100,7 @@
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:paddingHorizontal="6dp"
-                    android:text="🔒 Khóa"
+                    android:text="Khóa"
                     android:textColor="#EF4444"
                     android:textSize="12sp"
                     android:textStyle="bold" />

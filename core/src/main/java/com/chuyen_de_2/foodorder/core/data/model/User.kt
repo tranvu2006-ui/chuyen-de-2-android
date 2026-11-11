@@ -48,6 +48,9 @@ data class User(
     @SerializedName("storeId")
     val storeId: String = "",
 
+    @SerializedName("bossId")
+    val bossId: String = "",
+
     @SerializedName("emailVerified")
     val emailVerified: Boolean = false,
 

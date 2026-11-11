@@ -54,6 +54,7 @@ class BossDashboardActivity : AppCompatActivity() {
     private lateinit var merchantAdapter: BossMerchantAdapter
     private var currentBossUid: String = ""
     private var cachedBranches: List<Store> = emptyList()
+    private var cachedMerchants: List<User> = emptyList()
 
     private var branchDialogBinding: DialogCreateBranchBinding? = null
     private var branchSelectedLat: Double? = null
@@ -110,13 +111,14 @@ class BossDashboardActivity : AppCompatActivity() {
 
     private fun observeBusinessProfile() {
         lifecycleScope.launch {
-            val storeId = firebaseRepository.resolveStoreIdForUser(currentBossUid)
-            if (storeId.isNotBlank()) {
-                val store = firebaseRepository.getStoreOnce(storeId)
-                val hasBank = store != null && store.bankAccountNumber.isNotBlank() && store.cccdNumber.isNotBlank()
-                binding.cardMissingBankAlert.visibility = if (hasBank) View.GONE else View.VISIBLE
+            val stores = firebaseRepository.getStoresByBoss(currentBossUid).firstOrNull().orEmpty()
+            val hasBankInBranches = stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
+            if (hasBankInBranches) {
+                binding.cardMissingBankAlert.visibility = View.GONE
             } else {
-                binding.cardMissingBankAlert.visibility = View.VISIBLE
+                val fallbackStore = firebaseRepository.getStoreOnce("store_$currentBossUid")
+                val hasFallbackBank = fallbackStore != null && fallbackStore.bankAccountNumber.isNotBlank() && fallbackStore.cccdNumber.isNotBlank()
+                binding.cardMissingBankAlert.visibility = if (hasFallbackBank) View.GONE else View.VISIBLE
             }
         }
     }
@@ -173,7 +175,9 @@ class BossDashboardActivity : AppCompatActivity() {
         binding.btnBossBusinessProfile.setOnClickListener {
             val uid = authRepository.currentUser?.uid.orEmpty()
             lifecycleScope.launch {
-                val storeId = firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
+                val storeId = cachedBranches.firstOrNull { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }?.id
+                    ?: cachedBranches.firstOrNull()?.id
+                    ?: firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
                 val intent = Intent(this@BossDashboardActivity, com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
                     putExtra("STORE_ID", storeId)
                 }
@@ -208,21 +212,22 @@ class BossDashboardActivity : AppCompatActivity() {
         lifecycleScope.launch {
             firebaseRepository.getStoresByBoss(currentBossUid).collect { stores ->
                 binding.progressBarBoss.visibility = View.GONE
-                // Tự động dọn dẹp nếu chi nhánh bị lưu nhầm merchantId là UID của Boss
-                for (st in stores) {
-                    if (st.merchantId == currentBossUid) {
-                        launch { firebaseRepository.unassignMerchantFromBranch("", st.id) }
-                    }
-                }
                 cachedBranches = stores
                 branchAdapter.submitList(stores)
                 merchantAdapter.setStores(stores)
+
+                val hasBank = stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
+                if (hasBank) {
+                    binding.cardMissingBankAlert.visibility = View.GONE
+                }
 
                 val count = stores.size
                 binding.btnTabBranches.text = "🏪 Chi Nhánh ($count)"
                 binding.tvChainStats.text = "$count chi nhánh đang vận hành"
                 binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
                 binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
+
+                reconcileStoreMerchantAssignments()
             }
         }
     }
@@ -230,6 +235,7 @@ class BossDashboardActivity : AppCompatActivity() {
     private fun observeMerchants() {
         lifecycleScope.launch {
             firebaseRepository.getMerchantsForBoss(currentBossUid).collect { merchants ->
+                cachedMerchants = merchants
                 merchantAdapter.submitList(merchants)
                 merchantAdapter.setStores(cachedBranches)
 
@@ -237,6 +243,39 @@ class BossDashboardActivity : AppCompatActivity() {
                 binding.btnTabMerchants.text = "👥 Quản Lý ($count)"
                 binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
                 binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
+
+                reconcileStoreMerchantAssignments()
+            }
+        }
+    }
+
+    /**
+     * Tự động đối soát và khôi phục đồng bộ 2 chiều giữa Chi nhánh (stores) và Quản lý (users):
+     * - Nếu Quản lý (đang hoạt động) có storeId trỏ vào chi nhánh của Boss mà chi nhánh đang trống hoặc lưu nhầm Boss UID -> tự khôi phục phân công lên chi nhánh.
+     * - Nếu Chi nhánh đang lưu nhầm merchantId == currentBossUid mà không có Quản lý nào nhận -> dọn merchantId trên chi nhánh về rỗng.
+     */
+    private fun reconcileStoreMerchantAssignments() {
+        val branches = cachedBranches
+        val merchants = cachedMerchants
+        if (branches.isEmpty()) return
+
+        lifecycleScope.launch {
+            for (branch in branches) {
+                val activeMerchantForBranch = merchants.firstOrNull { m ->
+                    val isLocked = !m.isActive || m.status == User.Status.LOCKED || m.status == "SUSPENDED"
+                    !isLocked && m.storeId == branch.id
+                }
+                if (activeMerchantForBranch != null) {
+                    if (branch.merchantId.isBlank() || branch.merchantId == currentBossUid) {
+                        firebaseRepository.assignMerchantToBranch(
+                            merchantUid = activeMerchantForBranch.uid,
+                            merchantName = activeMerchantForBranch.name,
+                            targetStoreId = branch.id
+                        )
+                    }
+                } else if (branch.merchantId == currentBossUid) {
+                    firebaseRepository.unassignMerchantFromBranch("", branch.id)
+                }
             }
         }
     }

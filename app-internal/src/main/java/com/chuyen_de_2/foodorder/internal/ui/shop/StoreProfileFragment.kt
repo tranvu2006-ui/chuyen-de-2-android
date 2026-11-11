@@ -311,7 +311,7 @@ class StoreProfileFragment : Fragment() {
             binding.tvProfileStatus.setTextColor(Color.parseColor("#64748B"))
         }
 
-        if (store.isVerified && store.address.isNotBlank() && store.district.isNotBlank()) {
+        if ((store.isVerified || store.bossId.isNotBlank()) && store.address.isNotBlank()) {
             binding.tvProfileVerifiedBadge.text = "✓ ĐÃ XÁC MINH HỒ SƠ"
             binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#10B981"))
             binding.tvProfileVerifiedBadge.setBackgroundResource(R.drawable.bg_badge_free)
@@ -322,10 +322,17 @@ class StoreProfileFragment : Fragment() {
         }
 
         binding.tvProfileVerifiedBadge.setOnClickListener {
-            val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
-                putExtra("STORE_ID", currentStoreId)
+            viewLifecycleOwner.lifecycleScope.launch {
+                val role = authRepository.getUserRole()?.uppercase()
+                val isMerchantOnly = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT ||
+                    role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER
+                if (!isMerchantOnly) {
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
+                        putExtra("STORE_ID", currentStoreId)
+                    }
+                    startActivity(intent)
+                }
             }
-            startActivity(intent)
         }
     }
 

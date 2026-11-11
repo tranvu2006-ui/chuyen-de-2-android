@@ -20,6 +20,7 @@ import com.chuyen_de_2.foodorder.internal.ui.shop.MenuManageFragment
 import com.chuyen_de_2.foodorder.internal.ui.shop.OrderListFragment
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -146,49 +147,13 @@ class DashboardActivity : AppCompatActivity() {
 
     /**
      * Xử lý tài khoản BOSSMERCHANT:
-     * - Nếu chưa xác minh thông tin kinh doanh & STK -> Chuyển sang StoreVerificationActivity có sẵn của app.
-     * - Kiểm tra Session chi nhánh đang chọn. Nếu chưa chọn -> Chuyển sang BossDashboardActivity.
-     * - Nếu đã chọn -> Đồng bộ storeId để các Fragment chạy mượt mà và hiển thị banner đổi chi nhánh.
+     * - Kiểm tra Session chi nhánh đang chọn. Nếu chưa chọn -> Chuyển thẳng sang BossDashboardActivity.
+     * - Chỉ khi Boss mới tinh chưa có bất kỳ chi nhánh nào mới chuyển sang StoreVerificationActivity.
+     * - Nếu đã chọn chi nhánh -> Đồng bộ storeId để các Fragment chạy mượt mà và hiển thị banner đổi chi nhánh.
      */
     private fun handleBossRoleAndProceed() {
         lifecycleScope.launch {
             val uid = authRepository.currentUser?.uid.orEmpty()
-            if (uid.isNotBlank()) {
-                val storeId = firebaseRepository.resolveStoreIdForUser(uid)
-                if (storeId.isNotBlank()) {
-                    val store = firebaseRepository.getStoreOnce(storeId)
-                    val isComplete = store != null && (store.isVerified || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
-                    if (store == null || !isComplete || store.address.isBlank()) {
-                        Toast.makeText(
-                            this@DashboardActivity,
-                            "⚠️ Vui lòng hoàn tất thông tin quán, CCCD và STK ngân hàng trước khi bắt đầu!",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                            putExtra("STORE_ID", storeId)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        }
-                        startActivity(intent)
-                        finish()
-                        return@launch
-                    }
-                } else {
-                    val newStoreId = "store_${uid}"
-                    Toast.makeText(
-                        this@DashboardActivity,
-                        "👑 Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & STK ngân hàng nhận tiền.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                        putExtra("STORE_ID", newStoreId)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                    return@launch
-                }
-            }
-
             val prefs = getSharedPreferences("boss_session", android.content.Context.MODE_PRIVATE)
             val intentStoreId = intent.getStringExtra("STORE_ID")
             val selectedBranchId = if (!intentStoreId.isNullOrBlank()) {
@@ -199,6 +164,25 @@ class DashboardActivity : AppCompatActivity() {
             }
 
             if (selectedBranchId.isNullOrBlank()) {
+                if (uid.isNotBlank()) {
+                    val existingBranches = firebaseRepository.getStoresByBoss(uid).firstOrNull().orEmpty()
+                    val defaultStore = firebaseRepository.getStoreOnce("store_$uid")
+                    if (existingBranches.isEmpty() && (defaultStore == null || !defaultStore.isVerified)) {
+                        val newStoreId = "store_$uid"
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "👑 Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & STK ngân hàng nhận tiền.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                            putExtra("STORE_ID", newStoreId)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        startActivity(intent)
+                        finish()
+                        return@launch
+                    }
+                }
                 startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
                 finish()
                 return@launch
@@ -209,7 +193,14 @@ class DashboardActivity : AppCompatActivity() {
             }
 
             val store = firebaseRepository.getStoreOnce(selectedBranchId)
-            val branchName = store?.name?.ifBlank { "Chi nhánh #$selectedBranchId" } ?: "Chi nhánh #$selectedBranchId"
+            if (store == null) {
+                prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
+                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
+                finish()
+                return@launch
+            }
+
+            val branchName = store.name.ifBlank { "Chi nhánh #$selectedBranchId" }
 
             binding.bossBranchBanner.visibility = android.view.View.VISIBLE
             binding.tvBossBranchTitle.text = "👑 Đang quản lý: $branchName"
@@ -322,11 +313,17 @@ class DashboardActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val uid = authRepository.currentUser?.uid.orEmpty()
             if (uid.isNotBlank()) {
+                val userProfile = firebaseRepository.getUserById(uid)
+                val isManagedByBoss = userProfile?.bossId?.isNotBlank() == true
                 val storeId = firebaseRepository.resolveStoreIdForUser(uid)
                 if (storeId.isNotBlank()) {
                     val store = firebaseRepository.getStoreOnce(storeId)
-                    val isComplete = store != null && (store.isVerified || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
+                    val isComplete = store != null && (store.isVerified || store.bossId.isNotBlank() || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
                     if (store == null || !isComplete || store.address.isBlank()) {
+                        if (isManagedByBoss) {
+                            setupMerchantNavigation()
+                            return@launch
+                        }
                         Toast.makeText(
                             this@DashboardActivity,
                             "⚠️ Vui lòng hoàn tất phiếu địa chỉ và xác minh thông tin quán trước khi nhận đơn!",
@@ -341,6 +338,25 @@ class DashboardActivity : AppCompatActivity() {
                         return@launch
                     }
                 } else {
+                    if (isManagedByBoss) {
+                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                            .setTitle("⏳ Chưa Được Phân Công Chi Nhánh")
+                            .setMessage("Tài khoản Quản lý của bạn hiện chưa được Chủ chuỗi (Boss) phân công vào chi nhánh nào.\n\nVui lòng liên hệ Chủ chuỗi để được gán chi nhánh làm việc!")
+                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
+                                checkMerchantVerificationAndProceed()
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra("LOGOUT", true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
+                        return@launch
+                    }
                     // Chưa có quán nào -> Tạo ID quán mới cho tài khoản này và chuyển sang màn hình thiết lập thông tin quán
                     val newStoreId = "store_${uid}"
                     Toast.makeText(

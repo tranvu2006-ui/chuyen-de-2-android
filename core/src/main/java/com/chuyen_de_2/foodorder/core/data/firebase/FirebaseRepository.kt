@@ -619,6 +619,17 @@ class FirebaseRepository @Inject constructor(
 
     // ==================== USERS ====================
 
+    /** Lấy thông tin User theo uid (one-shot) */
+    suspend fun getUserById(uid: String): User? {
+        if (uid.isBlank()) return null
+        return try {
+            val snap = database.getReference("users").child(uid).get().await()
+            snap.getValue(User::class.java)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Lấy danh sách shipper đang ACTIVE (hỗ trợ cả role SHIPPER và DRIVER) */
     fun observeActiveShippers(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.User>> = callbackFlow {
         val ref = database.getReference("users")
@@ -996,17 +1007,57 @@ class FirebaseRepository @Inject constructor(
                 "open" to true
             )
             if (merchantUid.isNotBlank()) {
-                updates["merchantId"] = merchantUid
-                updates["ownerId"] = merchantUid
-                try {
-                    database.getReference("users").child(merchantUid).child("storeId").setValue(storeId).await()
-                } catch (_: Exception) {}
+                val userSnap = try { database.getReference("users").child(merchantUid).get().await() } catch (_: Exception) { null }
+                val userRole = userSnap?.child("role")?.getValue(String::class.java).orEmpty().uppercase()
+                val isBoss = userRole == User.Role.BOSSMERCHANT || userRole == "BOSS"
+                if (isBoss) {
+                    updates["bossId"] = merchantUid
+                    val storeSnap = try { database.getReference("stores").child(storeId).get().await() } catch (_: Exception) { null }
+                    val existingMerchantId = storeSnap?.child("merchantId")?.getValue(String::class.java).orEmpty()
+                    if (existingMerchantId == merchantUid) {
+                        updates["merchantId"] = ""
+                        updates["ownerId"] = ""
+                        updates["merchantName"] = ""
+                    }
+                } else {
+                    updates["merchantId"] = merchantUid
+                    updates["ownerId"] = merchantUid
+                    try {
+                        database.getReference("users").child(merchantUid).child("storeId").setValue(storeId).await()
+                    } catch (_: Exception) {}
+                }
             }
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
             if (latitude != 0.0) updates["latitude"] = latitude
             if (longitude != 0.0) updates["longitude"] = longitude
 
             database.getReference("stores").child(storeId).updateChildren(updates).await()
+
+            // Nếu là Boss, đồng bộ CCCD & STK ngân hàng sang toàn bộ các chi nhánh của Boss
+            if (updates.containsKey("bossId")) {
+                val bossUid = updates["bossId"] as String
+                try {
+                    val allStoresSnap = database.getReference("stores").get().await()
+                    val legalUpdates = mutableMapOf<String, Any>(
+                        "ownerName" to ownerName.trim(),
+                        "cccdNumber" to cccdNumber.trim(),
+                        "bankName" to bankName.trim(),
+                        "bankAccountNumber" to bankAccountNumber.trim(),
+                        "bankAccountName" to bankAccountName.trim().uppercase(),
+                        "isVerified" to true,
+                        "verified" to true
+                    )
+                    if (bankBin.isNotBlank()) legalUpdates["bankBin"] = bankBin.trim()
+                    for (child in allStoresSnap.children) {
+                        val bId = child.child("bossId").getValue(String::class.java).orEmpty()
+                        val cKey = child.key.orEmpty()
+                        if (bId == bossUid && cKey.isNotBlank() && cKey != storeId) {
+                            database.getReference("stores").child(cKey).updateChildren(legalUpdates).await()
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -3073,7 +3124,7 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Phân công quản lý vào chi nhánh mới (tự động gỡ khỏi chi nhánh cũ nếu có) */
+    /** Phân công quản lý vào chi nhánh mới (tự động gỡ khỏi chi nhánh cũ và đồng bộ 2 chiều) */
     suspend fun assignMerchantToBranch(
         merchantUid: String,
         merchantName: String,
@@ -3081,17 +3132,36 @@ class FirebaseRepository @Inject constructor(
         previousStoreId: String = ""
     ): Result<Unit> {
         return try {
-            if (previousStoreId.isNotBlank() && previousStoreId != targetStoreId) {
-                database.getReference("stores").child(previousStoreId).updateChildren(
+            // 1. Nếu gán vào targetStoreId, kiểm tra xem targetStoreId đang có quản lý cũ nào khác không để gỡ storeId của họ
+            if (targetStoreId.isNotBlank()) {
+                val targetSnap = database.getReference("stores").child(targetStoreId).get().await()
+                val oldManagerUid = targetSnap.child("merchantId").getValue(String::class.java).orEmpty()
+                val bossUid = targetSnap.child("bossId").getValue(String::class.java).orEmpty()
+                if (oldManagerUid.isNotBlank() && oldManagerUid != merchantUid && oldManagerUid != bossUid) {
+                    database.getReference("users").child(oldManagerUid).child("storeId").setValue("").await()
+                }
+            }
+
+            // 2. Nếu merchantUid đang quản lý một quán cũ khác, gỡ khỏi quán cũ
+            val userOldStoreId = if (merchantUid.isNotBlank()) {
+                database.getReference("users").child(merchantUid).child("storeId").get().await()
+                    .getValue(String::class.java).orEmpty()
+            } else ""
+
+            val storesToClear = setOf(previousStoreId, userOldStoreId).filter { it.isNotBlank() && it != targetStoreId }
+            for (oldSid in storesToClear) {
+                database.getReference("stores").child(oldSid).updateChildren(
                     mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
                 ).await()
             }
-            if (targetStoreId.isNotBlank()) {
+
+            // 3. Cập nhật gán mới hoặc gỡ
+            if (targetStoreId.isNotBlank() && merchantUid.isNotBlank()) {
                 database.getReference("stores").child(targetStoreId).updateChildren(
                     mapOf("merchantId" to merchantUid, "ownerId" to merchantUid, "merchantName" to merchantName)
                 ).await()
                 database.getReference("users").child(merchantUid).child("storeId").setValue(targetStoreId).await()
-            } else {
+            } else if (merchantUid.isNotBlank()) {
                 database.getReference("users").child(merchantUid).child("storeId").setValue("").await()
             }
             Result.success(Unit)
@@ -3100,16 +3170,30 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Gỡ quản lý khỏi chi nhánh */
+    /** Gỡ quản lý khỏi chi nhánh (đồng bộ xóa cả trên stores lẫn trên users) */
     suspend fun unassignMerchantFromBranch(merchantUid: String, storeId: String): Result<Unit> {
         return try {
+            var actualMerchantUid = merchantUid
+            var bossUid = ""
             if (storeId.isNotBlank()) {
+                val storeSnap = database.getReference("stores").child(storeId).get().await()
+                if (actualMerchantUid.isBlank()) {
+                    actualMerchantUid = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
+                }
+                bossUid = storeSnap.child("bossId").getValue(String::class.java).orEmpty()
                 database.getReference("stores").child(storeId).updateChildren(
                     mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
                 ).await()
             }
-            if (merchantUid.isNotBlank()) {
-                database.getReference("users").child(merchantUid).child("storeId").setValue("").await()
+            if (actualMerchantUid.isNotBlank() && actualMerchantUid != bossUid) {
+                val userOldStoreId = database.getReference("users").child(actualMerchantUid).child("storeId").get().await()
+                    .getValue(String::class.java).orEmpty()
+                if (storeId.isBlank() && userOldStoreId.isNotBlank()) {
+                    database.getReference("stores").child(userOldStoreId).updateChildren(
+                        mapOf("merchantId" to "", "ownerId" to "", "merchantName" to "")
+                    ).await()
+                }
+                database.getReference("users").child(actualMerchantUid).child("storeId").setValue("").await()
             }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -3154,12 +3238,16 @@ class FirebaseRepository @Inject constructor(
 
     /** Gán tài khoản MERCHANT cho một Chi nhánh (hoặc gỡ nếu merchantUid rỗng) */
     suspend fun assignMerchantToStore(storeId: String, merchantUid: String?, merchantName: String = ""): Result<Unit> {
-        return assignMerchantToBranch(
-            merchantUid = merchantUid.orEmpty(),
-            merchantName = merchantName,
-            targetStoreId = if (merchantUid.isNullOrBlank()) "" else storeId,
-            previousStoreId = if (merchantUid.isNullOrBlank()) storeId else ""
-        )
+        return if (merchantUid.isNullOrBlank()) {
+            unassignMerchantFromBranch("", storeId)
+        } else {
+            assignMerchantToBranch(
+                merchantUid = merchantUid,
+                merchantName = merchantName,
+                targetStoreId = storeId,
+                previousStoreId = ""
+            )
+        }
     }
 
     /** Lấy danh sách các tài khoản MERCHANT để Boss gán vào quán */

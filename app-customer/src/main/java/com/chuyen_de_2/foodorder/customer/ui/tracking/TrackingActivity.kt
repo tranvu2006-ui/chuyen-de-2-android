@@ -946,10 +946,10 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.txtB9Total.text = totalAmount.toVndCurrency()
 
         // Hình thức thanh toán
-        val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid || order.status == Order.Status.PAID
         val payMethodStr = when (order.paymentMethod.uppercase()) {
             Order.PaymentMethod.MOMO -> if (isPaid) "Ví điện tử MoMo (Đã chuyển khoản)" else "Ví điện tử MoMo (Chờ chuyển khoản)"
-            Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
+            Order.PaymentMethod.BANKING -> if (isPaid) "Chuyển khoản Ngân hàng (Đã thanh toán)" else "Chuyển khoản VietQR (Chờ chuyển khoản)"
             else -> "Tiền mặt khi nhận món (COD)"
         }
         binding.txtB9PayMode.text = "💳 Hình thức: $payMethodStr"

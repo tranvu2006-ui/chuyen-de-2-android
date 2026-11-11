@@ -417,10 +417,10 @@ class OrderListFragment : Fragment() {
         } else {
             "• 1x Suất ăn tiêu chuẩn"
         }
-        val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid || order.status == Order.Status.PAID
         val payDetail = when (order.paymentMethod.uppercase()) {
             Order.PaymentMethod.MOMO -> if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo" else "⏳ Chờ khách chuyển khoản Ví MoMo"
-            Order.PaymentMethod.BANKING -> "✅ Đã thanh toán Ngân hàng (VietQR)"
+            Order.PaymentMethod.BANKING -> if (isPaidOnline) "✅ Đã thanh toán Ngân hàng (VietQR)" else "⏳ Chờ chuyển khoản VietQR (Chưa nhận được tiền)"
             else -> "💵 Thu tiền mặt khi nhận (COD)"
         }
 

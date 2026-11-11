@@ -226,8 +226,9 @@ class StoreVerificationActivity : AppCompatActivity() {
     private fun processCccdImage(uri: Uri) {
         binding.layoutCccdPreview.visibility = View.VISIBLE
         binding.layoutOcrLoading.visibility = View.VISIBLE
-        binding.layoutOcrSuccess.visibility = View.GONE
-        binding.tvCccdBadge.text = "✓ Thẻ CCCD vừa chụp"
+        binding.tvCccdBadge.text = "✓ Mặt trước CCCD"
+        binding.btnCaptureCccd.text = "Chụp lại"
+        binding.btnPickCccdGallery.text = "Đổi ảnh"
 
         Glide.with(this)
             .load(uri)
@@ -292,15 +293,12 @@ class StoreVerificationActivity : AppCompatActivity() {
                 }
 
                 if (filledAny) {
-                    binding.layoutOcrSuccess.visibility = View.VISIBLE
-                    binding.tvOcrResultDesc.text = "✓ Đã nhận diện: " + filledFields.joinToString(" • ")
                     Toast.makeText(
                         this@StoreVerificationActivity,
                         "🎉 Đã nhận diện và tự động điền thông tin CCCD!",
                         Toast.LENGTH_SHORT
                     ).show()
                 } else {
-                    binding.layoutOcrSuccess.visibility = View.GONE
                     Toast.makeText(
                         this@StoreVerificationActivity,
                         "⚠️ Đã lưu ảnh thẻ nhưng chưa nhận diện rõ chữ. Vui lòng kiểm tra hoặc tự nhập thông tin.",
@@ -308,7 +306,6 @@ class StoreVerificationActivity : AppCompatActivity() {
                     ).show()
                 }
             }.onFailure { err ->
-                binding.layoutOcrSuccess.visibility = View.GONE
                 Toast.makeText(
                     this@StoreVerificationActivity,
                     "⚠️ Lỗi quét CCCD: ${err.message}. Bạn có thể tự nhập thông tin bên dưới.",
@@ -357,6 +354,8 @@ class StoreVerificationActivity : AppCompatActivity() {
                         cccdFrontBase64 = it.cccdFrontUrl
                         binding.layoutCccdPreview.visibility = View.VISIBLE
                         binding.tvCccdBadge.text = "✓ Đã có ảnh thẻ CCCD xác thực"
+                        binding.btnCaptureCccd.text = "Chụp lại"
+                        binding.btnPickCccdGallery.text = "Đổi ảnh"
                         val decoded = if (it.cccdFrontUrl.startsWith("data:image")) {
                             try {
                                 val base64Clean = it.cccdFrontUrl.substringAfter("base64,")
@@ -449,9 +448,7 @@ class StoreVerificationActivity : AppCompatActivity() {
             pickGalleryLauncher.launch("image/*")
         }
 
-        binding.btnRetakeCccd.setOnClickListener {
-            checkPermissionAndLaunchCamera()
-        }
+
 
         // Tự động liên kết giữa ô Họ tên chủ hộ kinh doanh và Tên chủ tài khoản:
         // - Chủ hộ kinh doanh: Nhập tên bình thường đầy đủ dấu (ví dụ: Nguyễn Văn An)

@@ -86108,6 +86108,700 @@ class HomeCategoryAdapter(
 }
 ````
 
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.home
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository
+) : ViewModel() {
+
+    private val _stores = MutableLiveData<List<Store>>(emptyList())
+    val stores: LiveData<List<Store>> = _stores
+    val restaurants: LiveData<List<Store>> get() = _stores
+
+    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
+    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
+    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
+
+    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
+    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
+    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
+
+    enum class HotTab {
+        BEST_SELLER,
+        FAVORITE
+    }
+
+    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
+    val currentHotTab: LiveData<HotTab> = _currentHotTab
+
+    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
+    private var topBestSellerDishes = listOf<HotDish>()
+    private var topFavoriteDishes = listOf<HotDish>()
+
+    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
+    val hotDishes: LiveData<List<HotDish>> = _hotDishes
+
+    // Danh sách danh mục nền tảng thời gian thực từ Firebase
+    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
+    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
+
+    private val _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+
+    private val _error = MutableLiveData<String?>()
+    val error: LiveData<String?> = _error
+
+    private var masterDishList = listOf<HomeDishItem>()
+    private var currentQuery: String? = null
+    private var currentCategory: String? = null
+    private var currentNearbyOnly: Boolean = false
+    var currentNearbyMaxDistanceKm: Double = 3.0
+        private set
+    var currentMinPrice: Long? = null
+        private set
+    var currentMaxPrice: Long? = null
+        private set
+    var currentMinRating: Float = 1.0f
+        private set
+    var currentMaxRating: Float = 5.0f
+        private set
+    private var currentPriceSort: PriceSort = PriceSort.NONE
+    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
+        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun setUserLocation(lat: Double, lng: Double) {
+        if (lat != 0.0 && lng != 0.0) {
+            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
+            _stores.value?.let { processStoresAndDishes(it) }
+        }
+    }
+
+    init {
+        loadStores()
+    }
+
+    fun loadStores() {
+        _isLoading.value = true
+        _error.value = null
+
+        viewModelScope.launch {
+            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
+            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
+                _isLoading.value = false
+                _stores.value = firebaseStores
+                processStoresAndDishes(firebaseStores)
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
+            firebaseRepository.observeAllOrders().collectLatest { orders ->
+                cachedOrders = orders
+                _stores.value?.let { recalculateHotDishes(it) }
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
+            firebaseRepository.observeCategories().collectLatest { cats ->
+                _platformCategories.value = cats
+            }
+        }
+    }
+
+    private fun processStoresAndDishes(storeList: List<Store>) {
+        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // 1. Quán gần đây (Sắp xếp theo thứ tự khoảng cách từ gần đến xa)
+        val nearbyList = activeStores.map { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
+                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
+                "$baseTime-${baseTime + 10} phút"
+            } else "15-25 phút"
+            val emoji = when {
+                store.name.contains("Trà", true) -> "🍵"
+                store.name.contains("Cơm", true) -> "🍛"
+                store.name.contains("Gà", true) -> "🍗"
+                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
+                else -> "🍲"
+            }
+            NearbyStoreItem(
+                id = store.id,
+                name = store.name,
+                address = store.address.ifBlank { "TP.HCM" },
+                distanceKm = roundedDist,
+                eta = eta,
+                rating = store.ratingAvg,
+                imageUrl = store.imageUrl,
+                emoji = emoji,
+                originalStore = store
+            )
+        }
+
+        val sortedNearbyList = nearbyList.sortedWith(
+            compareBy<NearbyStoreItem> { if (it.distanceKm > 0.0) 0 else 1 }
+                .thenBy { it.distanceKm }
+        )
+        _nearbyStores.value = sortedNearbyList
+
+        // 2. Thu thập các món ăn của quán
+        val allDishes = mutableListOf<HomeDishItem>()
+
+        activeStores.forEach { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+
+            availableDishes.forEach { dish ->
+                val platformCat = dish.platformCategory.ifBlank {
+                    inferPlatformCategory(dish.name, dish.category)
+                }
+                val emoji = when {
+                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
+                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
+                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
+                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
+                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
+                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
+                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
+                    platformCat.contains("Chay", true) -> "🥗"
+                    platformCat.contains("Hải sản", true) -> "🦐"
+                    platformCat.contains("Ăn vặt", true) -> "🍟"
+                    platformCat.contains("Tráng miệng", true) -> "🍰"
+                    platformCat.contains("Lẩu", true) -> "🍲"
+                    else -> "🍽️"
+                }
+                allDishes.add(
+                    HomeDishItem(
+                        id = dish.id,
+                        name = dish.name,
+                        price = dish.basePrice,
+                        originalPrice = dish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = emoji,
+                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
+                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
+                        distanceKm = roundedDist,
+                        promoBadge = "",
+                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
+                        category = dish.category.ifBlank { store.category },
+                        platformCategory = platformCat
+                    )
+                )
+            }
+        }
+
+        masterDishList = allDishes
+        applyFilters()
+
+        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
+        recalculateHotDishes(activeStores)
+    }
+
+    private fun recalculateHotDishes(storeList: List<Store>) {
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
+        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
+        val weeklyDishSales = mutableMapOf<String, Int>()
+        cachedOrders.filter { order ->
+            val ts = order.effectiveTimestamp
+            ts >= oneWeekAgo &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
+        }.forEach { order ->
+            order.items.values.forEach { item ->
+                if (item.dishId.isNotBlank()) {
+                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
+                }
+            }
+        }
+
+        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
+        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
+        activeStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val bestDish = availableDishes.maxWithOrNull(
+                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
+                )
+                if (bestDish != null) {
+                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
+                    val totalCount = bestDish.soldCount
+                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
+                    val badgeText = when {
+                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
+                        totalCount > 0 -> "🔥 $totalCount đã bán"
+                        else -> "🔥 Bán chạy"
+                    }
+                    val hotDish = HotDish(
+                        id = bestDish.id,
+                        name = bestDish.name,
+                        price = bestDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    bestSellerList.add(Pair(hotDish, salesScore))
+                }
+            }
+        }
+        topBestSellerDishes = bestSellerList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
+        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
+        activeStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val topRatedDish = availableDishes.maxWithOrNull(
+                    compareBy(
+                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
+                        { it.reviewCount },
+                        { it.soldCount }
+                    )
+                )
+                if (topRatedDish != null) {
+                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
+                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
+                        else 5.0f
+                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
+                    val badgeText = "⭐ $formattedRating"
+                    val hotDish = HotDish(
+                        id = topRatedDish.id,
+                        name = topRatedDish.name,
+                        price = topRatedDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    favoriteList.add(Pair(hotDish, rating))
+                }
+            }
+        }
+        topFavoriteDishes = favoriteList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    fun switchHotTab(tab: HotTab) {
+        if (_currentHotTab.value == tab) return
+        _currentHotTab.value = tab
+        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
+        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
+        return when {
+            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
+            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
+            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
+            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
+            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
+            else -> "🍽️"
+        }
+    }
+
+    enum class PriceSort {
+        NONE, ASC, DESC
+    }
+
+    /** Lọc danh sách món ăn */
+    fun filterDishes(
+        query: String? = null,
+        category: String? = null,
+        nearbyOnly: Boolean? = null,
+        maxDistanceKm: Double? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        minRating: Float? = null,
+        maxRating: Float? = null,
+        resetPrice: Boolean = false,
+        resetRating: Boolean = false,
+        priceSort: PriceSort? = null
+    ) {
+        if (query != null) currentQuery = query
+        if (category != null) currentCategory = if (category == "ALL") null else category
+        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
+        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
+        if (resetPrice) {
+            currentMinPrice = null
+            currentMaxPrice = null
+            currentPriceSort = PriceSort.NONE
+        } else {
+            if (minPrice != null || maxPrice != null) {
+                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
+                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
+            }
+            if (priceSort != null) {
+                currentPriceSort = priceSort
+            }
+        }
+        if (resetRating) {
+            currentMinRating = 1.0f
+            currentMaxRating = 5.0f
+        } else {
+            if (minRating != null) currentMinRating = minRating
+            if (maxRating != null) currentMaxRating = maxRating
+        }
+        applyFilters()
+    }
+
+    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
+    fun getFilteredDishesCount(
+        minPrice: Long?,
+        maxPrice: Long?,
+        minRating: Float,
+        maxRating: Float
+    ): Int {
+        var list = masterDishList
+
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            list = list.filter { matchesCategory(it, cat) }
+        }
+
+        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
+            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+        }
+
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            list = list.filter { matchesSearch(it, q) }
+        }
+
+        if (minPrice != null && minPrice > 0) {
+            list = list.filter { it.price >= minPrice }
+        }
+        if (maxPrice != null && maxPrice > 0) {
+            list = list.filter { it.price <= maxPrice }
+        }
+
+        if (minRating > 1.05f || maxRating < 4.95f) {
+            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
+        }
+
+        return list.size
+    }
+
+    /**
+     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     */
+    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
+        val qClean = query.trim().lowercase()
+        if (qClean.isBlank()) return true
+
+        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
+
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val cat = dish.category.lowercase()
+        val platCat = dish.platformCategory.lowercase()
+
+        val fullWithAccent = "$name $store $cat $platCat"
+        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
+
+        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
+        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
+            return true
+        }
+
+        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
+        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
+        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun applyFilters() {
+        var filtered = masterDishList
+
+        // 1. Lọc theo cự ly gần
+        if (currentNearbyOnly) {
+            val maxDist = currentNearbyMaxDistanceKm
+            filtered = if (maxDist >= 999.0) {
+                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            } else {
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
+            }
+        }
+
+        // 2. Lọc theo danh mục
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesCategory(dish, cat)
+            }
+        }
+
+        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesSearch(dish, q)
+            }
+        }
+
+        // 4. Lọc theo khoảng giá tiền
+        val minP = currentMinPrice
+        val maxP = currentMaxPrice
+        if (minP != null || maxP != null) {
+            filtered = filtered.filter { dish ->
+                val p = dish.price
+                (minP == null || p >= minP) && (maxP == null || p <= maxP)
+            }
+        }
+
+        // 5. Lọc theo khoảng sao đánh giá
+        val minR = currentMinRating
+        val maxR = currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            filtered = filtered.filter { dish ->
+                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
+            }
+        }
+
+        // 5. Sắp xếp theo giá tiền nếu có
+        when (currentPriceSort) {
+            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
+            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
+            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
+        }
+
+        _homeDishes.value = filtered
+    }
+
+    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
+        val target = filterCat.trim().lowercase()
+        val pCat = dish.platformCategory.lowercase()
+        val sCat = dish.category.lowercase()
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val combined = "$name $pCat $sCat $store"
+
+        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
+        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
+        if (name.contains(target)) return true
+
+        if (target.contains("cơm")) {
+            return combined.contains("cơm") || combined.contains("com")
+        }
+        if (target.contains("bún đậu")) {
+            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
+        }
+        if (target.contains("phở")) {
+            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
+        }
+        if (target.contains("trà sữa")) {
+            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
+        }
+        if (target.contains("nước ép")) {
+            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
+        }
+
+        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
+        return keywords.any { kw -> combined.contains(kw) }
+    }
+
+    private fun inferPlatformCategory(name: String, category: String): String {
+        val text = "$name $category".lowercase()
+        return when {
+            text.contains("cơm") -> "Cơm"
+            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
+            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
+            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
+            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
+            text.contains("trà") -> "Trà sữa"
+            else -> "Cơm"
+        }
+    }
+
+    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
+        if (store.latitude != 0.0 && store.longitude != 0.0) {
+            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+        }
+        val distName = store.district.trim()
+        if (distName.isNotBlank()) {
+            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
+            if (exact != null) return exact
+            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
+                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
+            if (fuzzy != null) return fuzzy
+        }
+        return null
+    }
+
+    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
+        if (storeLatLng == null) return 0.0
+        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+            currentUserLatLng,
+            storeLatLng
+        ).toDouble()
+        return Math.round(dist * 10.0) / 10.0
+    }
+
+    fun loadRestaurants() = loadStores()
+}
+````
+
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HotDishAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.home
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ItemHotDishBinding
+
+data class HotDish(
+    val id: String,
+    val name: String,
+    val price: Long,
+    val storeId: String,
+    val storeName: String,
+    val imageUrl: String = "",
+    val emoji: String = "🍲",
+    val badgeText: String = "Hot"
+)
+
+class HotDishAdapter(
+    private val onClick: (HotDish) -> Unit
+) : RecyclerView.Adapter<HotDishAdapter.ViewHolder>() {
+
+    private val items = mutableListOf<HotDish>()
+
+    fun submitList(newItems: List<HotDish>) {
+        items.clear()
+        items.addAll(newItems)
+        notifyDataSetChanged()
+    }
+
+    inner class ViewHolder(private val binding: ItemHotDishBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(dish: HotDish) {
+            val context = binding.root.context
+            binding.tvDishName.text = dish.name
+            binding.tvShopName.text = if (dish.storeName.startsWith("🏪")) dish.storeName else "🏪 ${dish.storeName}"
+            binding.tvDishPrice.text = dish.price.toVndCurrency()
+            binding.tvHotBadge.text = dish.badgeText
+
+            if (dish.imageUrl.isNotBlank()) {
+                binding.ivDishThumb.visibility = View.VISIBLE
+                binding.tvDishEmoji.visibility = View.GONE
+                if (dish.imageUrl.startsWith("data:image") || dish.imageUrl.length > 500) {
+                    try {
+                        val clean = if (dish.imageUrl.contains(",")) dish.imageUrl.substringAfter(",") else dish.imageUrl
+                        val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
+                        Glide.with(context)
+                            .asBitmap()
+                            .load(decoded)
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    } catch (_: Exception) {
+                        Glide.with(context)
+                            .load(dish.imageUrl)
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    }
+                } else {
+                    Glide.with(context)
+                        .load(dish.imageUrl)
+                        .placeholder(R.drawable.placeholder_food)
+                        .error(R.drawable.placeholder_food)
+                        .into(binding.ivDishThumb)
+                }
+            } else {
+                binding.ivDishThumb.visibility = View.VISIBLE
+                binding.ivDishThumb.setImageResource(R.drawable.placeholder_food)
+                binding.tvDishEmoji.text = dish.emoji
+                binding.tvDishEmoji.visibility = View.VISIBLE
+            }
+
+            binding.root.setOnClickListener {
+                it.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80).withEndAction {
+                    it.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
+                    onClick(dish)
+                }.start()
+            }
+
+            binding.btnAddDish.setOnClickListener {
+                it.animate().scaleX(0.85f).scaleY(0.85f).setDuration(80).withEndAction {
+                    it.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
+                    onClick(dish)
+                }.start()
+            }
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = ItemHotDishBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return ViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.bind(items[position])
+    }
+
+    override fun getItemCount() = items.size
+}
+````
+
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/menu/DishReviewsBottomSheetDialogFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.menu
@@ -89873,6 +90567,140 @@ class FoodOrderCustomerApp : Application() {
         app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+````
+
+## File: app-customer/src/main/res/layout/item_hot_dish.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="148dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="12dp"
+    android:layout_marginVertical="4dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardBackgroundColor="@color/surface"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:strokeColor="@color/border_light"
+    app:strokeWidth="1dp"
+    app:rippleColor="@color/ripple">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Ảnh món ăn + Badge Hot -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="105dp">
+
+            <ImageView
+                android:id="@+id/ivDishThumb"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@drawable/placeholder_food" />
+
+            <TextView
+                android:id="@+id/tvDishEmoji"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textSize="36sp"
+                android:visibility="gone"
+                tools:text="🧋" />
+
+            <!-- Badge Hot góc trên bên trái bo tròn đẹp -->
+            <TextView
+                android:id="@+id/tvHotBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:layout_margin="8dp"
+                android:background="@drawable/bg_badge_orange"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="3dp"
+                android:text="Hot"
+                android:textColor="#c34738"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <!-- Thông tin món -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="10dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp">
+
+            <TextView
+                android:id="@+id/tvDishName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                tools:text="Trà Ô Long Sữa" />
+
+            <TextView
+                android:id="@+id/tvShopName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                tools:text="🏪 Phúc Long" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvDishPrice"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="45.000₫" />
+
+                <!-- Nút cộng tròn màu cam nổi bật sắc nét -->
+                <FrameLayout
+                    android:id="@+id/btnAddDish"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_btn_add_hot_dish"
+                    android:clickable="true"
+                    android:elevation="2dp"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="Thêm món"
+                        android:src="@drawable/ic_add_white" />
+                </FrameLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>
 ````
 
 ## File: app-customer/src/main/res/layout/item_order_history.xml
@@ -96479,697 +97307,983 @@ class ComplaintActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.home
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
+import androidx.activity.OnBackPressedCallback
+import androidx.annotation.IdRes
+import androidx.fragment.app.Fragment
+import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryFragment
+import com.chuyen_de_2.foodorder.customer.ui.notification.NotificationFragment
+import com.chuyen_de_2.foodorder.customer.ui.profile.ProfileFragment
+
+import android.content.Intent
+import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.View
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AccountLockWatcher
+import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
+import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
+import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
+import android.widget.TextView
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
+import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
+import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
+import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
-@HiltViewModel
-class HomeViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository
-) : ViewModel() {
+/**
+ * Tên chức năng: Trang Chủ Khám Phá & Đặt Món Ăn (Customer Home Marketplace)
+ * Cách hoạt động:
+ *  - Hiển thị danh mục món ăn (Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, v.v.).
+ *  - Cung cấp danh sách Món ăn Hot bán chạy cuộn ngang và Thực đơn món ăn toàn hệ thống cuộn dọc.
+ *  - Tìm kiếm món ăn tức thời theo từ khóa (Instant Search Filter).
+ *  - Bộ lọc Quán gần bạn (< 1.5 km) hiển thị qua BottomSheetDialog.
+ *  - Nút giỏ hàng nổi (Floating Cart Button) cập nhật số lượng món và tổng tiền theo thời gian thực.
+ *  - Thanh điều hướng BottomNavigation: Trang chủ, Đơn hàng, Thông báo, Tài khoản.
+ * Luồng hướng tới:
+ *  - Bấm vào món ăn / quán ăn -> Chuyển sang màn hình thực đơn chi tiết [MenuActivity].
+ *  - Bấm nút Giỏ hàng nổi -> Chuyển sang giỏ hàng [CartActivity].
+ *  - Bấm tab Đơn hàng -> Chuyển sang lịch sử đơn [OrderHistoryActivity].
+ *  - Bấm tab Thông báo -> Chuyển sang [NotificationActivity].
+ *  - Bấm tab Tài khoản -> Chuyển sang [ProfileActivity].
+ */
+@AndroidEntryPoint
+class HomeActivity : AppCompatActivity() {
 
-    private val _stores = MutableLiveData<List<Store>>(emptyList())
-    val stores: LiveData<List<Store>> = _stores
-    val restaurants: LiveData<List<Store>> get() = _stores
+    private lateinit var binding: ActivityHomeBinding
+    private val viewModel: HomeViewModel by viewModels()
+    private val cartViewModel: CartViewModel by viewModels()
 
-    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
-    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
-    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
+    private lateinit var dishAdapter: HomeDishAdapter
+    private lateinit var hotDishAdapter: HotDishAdapter
+    private lateinit var categoryAdapter: HomeCategoryAdapter
 
-    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
-    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
-    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
+    private var selectedCategory: String? = null
+    private var selectedPriceLabel: String? = null
+    private var isNearbyFiltered: Boolean = false
+    private var selectedNearbyDistanceKm: Double = 3.0
+    private var selectedNearbyDistanceLabel: String = "< 3 km"
+    private var currentLocationName: String = "Đang xác định vị trí..."
 
-    enum class HotTab {
-        BEST_SELLER,
-        FAVORITE
-    }
-
-    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
-    val currentHotTab: LiveData<HotTab> = _currentHotTab
-
-    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
-    private var topBestSellerDishes = listOf<HotDish>()
-    private var topFavoriteDishes = listOf<HotDish>()
-
-    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
-    val hotDishes: LiveData<List<HotDish>> = _hotDishes
-
-    // Danh sách danh mục nền tảng thời gian thực từ Firebase
-    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
-    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
-
-    private val _isLoading = MutableLiveData(false)
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>()
-    val error: LiveData<String?> = _error
-
-    private var masterDishList = listOf<HomeDishItem>()
-    private var currentQuery: String? = null
-    private var currentCategory: String? = null
-    private var currentNearbyOnly: Boolean = false
-    var currentNearbyMaxDistanceKm: Double = 3.0
-        private set
-    var currentMinPrice: Long? = null
-        private set
-    var currentMaxPrice: Long? = null
-        private set
-    var currentMinRating: Float = 1.0f
-        private set
-    var currentMaxRating: Float = 5.0f
-        private set
-    private var currentPriceSort: PriceSort = PriceSort.NONE
-    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
-        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-
-    fun setUserLocation(lat: Double, lng: Double) {
-        if (lat != 0.0 && lng != 0.0) {
-            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
-            _stores.value?.let { processStoresAndDishes(it) }
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
+            requestFreshGpsLocation()
         }
     }
 
-    init {
-        loadStores()
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    /**
+     * Tên chức năng: Khởi tạo Trang chủ Khách hàng
+     * Cách hoạt động: Cấu hình Insets Edge-to-Edge, khởi tạo các thành phần giao diện, adapter, bộ lọc và lắng nghe ViewModel.
+     * Luồng hướng tới: Chuẩn bị sàn thương mại món ăn cho khách đặt.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            startActivity(Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
+
+        binding = ActivityHomeBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, false)
+        InsetUtils.applyStatusBarPadding(binding.headerBar, 8)
+        InsetUtils.applyNavigationBarPadding(binding.bottomNav)
+
+        setupHeader()
+        setupCategories()
+        setupAdvancedFilterBar()
+        setupHotDishes()
+        setupSearch()
+        setupDishRecyclerView()
+        setupSwipeRefresh()
+        setupFloatingCart()
+        setupBottomNav()
+        setupBackNavigation()
+        observeViewModel()
+        checkUserRoleForBanner()
+        detectUserLocation()
     }
 
-    fun loadStores() {
-        _isLoading.value = true
-        _error.value = null
-
-        viewModelScope.launch {
-            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
-            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
-                _isLoading.value = false
-                _stores.value = firebaseStores
-                processStoresAndDishes(firebaseStores)
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
-            firebaseRepository.observeAllOrders().collectLatest { orders ->
-                cachedOrders = orders
-                _stores.value?.let { recalculateHotDishes(it) }
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
-            firebaseRepository.observeCategories().collectLatest { cats ->
-                _platformCategories.value = cats
-            }
-        }
-    }
-
-    private fun processStoresAndDishes(storeList: List<Store>) {
-        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // 1. Quán gần đây (Sắp xếp theo thứ tự khoảng cách từ gần đến xa)
-        val nearbyList = activeStores.map { store ->
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
-                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
-                "$baseTime-${baseTime + 10} phút"
-            } else "15-25 phút"
-            val emoji = when {
-                store.name.contains("Trà", true) -> "🍵"
-                store.name.contains("Cơm", true) -> "🍛"
-                store.name.contains("Gà", true) -> "🍗"
-                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
-                else -> "🍲"
-            }
-            NearbyStoreItem(
-                id = store.id,
-                name = store.name,
-                address = store.address.ifBlank { "TP.HCM" },
-                distanceKm = roundedDist,
-                eta = eta,
-                rating = store.ratingAvg,
-                imageUrl = store.imageUrl,
-                emoji = emoji,
-                originalStore = store
-            )
-        }
-
-        val sortedNearbyList = nearbyList.sortedWith(
-            compareBy<NearbyStoreItem> { if (it.distanceKm > 0.0) 0 else 1 }
-                .thenBy { it.distanceKm }
-        )
-        _nearbyStores.value = sortedNearbyList
-
-        // 2. Thu thập các món ăn của quán
-        val allDishes = mutableListOf<HomeDishItem>()
-
-        activeStores.forEach { store ->
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-
-            availableDishes.forEach { dish ->
-                val platformCat = dish.platformCategory.ifBlank {
-                    inferPlatformCategory(dish.name, dish.category)
-                }
-                val emoji = when {
-                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
-                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
-                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
-                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
-                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
-                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
-                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
-                    platformCat.contains("Chay", true) -> "🥗"
-                    platformCat.contains("Hải sản", true) -> "🦐"
-                    platformCat.contains("Ăn vặt", true) -> "🍟"
-                    platformCat.contains("Tráng miệng", true) -> "🍰"
-                    platformCat.contains("Lẩu", true) -> "🍲"
-                    else -> "🍽️"
-                }
-                allDishes.add(
-                    HomeDishItem(
-                        id = dish.id,
-                        name = dish.name,
-                        price = dish.basePrice,
-                        originalPrice = dish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = emoji,
-                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
-                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
-                        distanceKm = roundedDist,
-                        promoBadge = "",
-                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
-                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
-                        category = dish.category.ifBlank { store.category },
-                        platformCategory = platformCat
-                    )
-                )
-            }
-        }
-
-        masterDishList = allDishes
-        applyFilters()
-
-        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
-        recalculateHotDishes(activeStores)
-    }
-
-    private fun recalculateHotDishes(storeList: List<Store>) {
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
-        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
-        val weeklyDishSales = mutableMapOf<String, Int>()
-        cachedOrders.filter { order ->
-            val ts = order.effectiveTimestamp
-            ts >= oneWeekAgo &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
-        }.forEach { order ->
-            order.items.values.forEach { item ->
-                if (item.dishId.isNotBlank()) {
-                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
-                }
-            }
-        }
-
-        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
-        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
-        activeStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val bestDish = availableDishes.maxWithOrNull(
-                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
-                )
-                if (bestDish != null) {
-                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
-                    val totalCount = bestDish.soldCount
-                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
-                    val badgeText = when {
-                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
-                        totalCount > 0 -> "🔥 $totalCount đã bán"
-                        else -> "🔥 Bán chạy"
-                    }
-                    val hotDish = HotDish(
-                        id = bestDish.id,
-                        name = bestDish.name,
-                        price = bestDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    bestSellerList.add(Pair(hotDish, salesScore))
-                }
-            }
-        }
-        topBestSellerDishes = bestSellerList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
-        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
-        activeStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val topRatedDish = availableDishes.maxWithOrNull(
-                    compareBy(
-                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
-                        { it.reviewCount },
-                        { it.soldCount }
-                    )
-                )
-                if (topRatedDish != null) {
-                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
-                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
-                        else 5.0f
-                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
-                    val badgeText = "⭐ $formattedRating"
-                    val hotDish = HotDish(
-                        id = topRatedDish.id,
-                        name = topRatedDish.name,
-                        price = topRatedDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    favoriteList.add(Pair(hotDish, rating))
-                }
-            }
-        }
-        topFavoriteDishes = favoriteList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    fun switchHotTab(tab: HotTab) {
-        if (_currentHotTab.value == tab) return
-        _currentHotTab.value = tab
-        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
-        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
-        return when {
-            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
-            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
-            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
-            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
-            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
-            else -> "🍽️"
-        }
-    }
-
-    enum class PriceSort {
-        NONE, ASC, DESC
-    }
-
-    /** Lọc danh sách món ăn */
-    fun filterDishes(
-        query: String? = null,
-        category: String? = null,
-        nearbyOnly: Boolean? = null,
-        maxDistanceKm: Double? = null,
-        minPrice: Long? = null,
-        maxPrice: Long? = null,
-        minRating: Float? = null,
-        maxRating: Float? = null,
-        resetPrice: Boolean = false,
-        resetRating: Boolean = false,
-        priceSort: PriceSort? = null
-    ) {
-        if (query != null) currentQuery = query
-        if (category != null) currentCategory = if (category == "ALL") null else category
-        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
-        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
-        if (resetPrice) {
-            currentMinPrice = null
-            currentMaxPrice = null
-            currentPriceSort = PriceSort.NONE
+    override fun onResume() {
+        super.onResume()
+        checkAccountLock()
+        if (binding.bottomNav.selectedItemId == R.id.nav_home) {
+            InsetUtils.setLightStatusBar(this, false)
         } else {
-            if (minPrice != null || maxPrice != null) {
-                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
-                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
-            }
-            if (priceSort != null) {
-                currentPriceSort = priceSort
-            }
+            InsetUtils.setLightStatusBar(this, true)
         }
-        if (resetRating) {
-            currentMinRating = 1.0f
-            currentMaxRating = 5.0f
-        } else {
-            if (minRating != null) currentMinRating = minRating
-            if (maxRating != null) currentMaxRating = maxRating
-        }
-        applyFilters()
-    }
-
-    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
-    fun getFilteredDishesCount(
-        minPrice: Long?,
-        maxPrice: Long?,
-        minRating: Float,
-        maxRating: Float
-    ): Int {
-        var list = masterDishList
-
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            list = list.filter { matchesCategory(it, cat) }
-        }
-
-        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
-            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
-        }
-
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            list = list.filter { matchesSearch(it, q) }
-        }
-
-        if (minPrice != null && minPrice > 0) {
-            list = list.filter { it.price >= minPrice }
-        }
-        if (maxPrice != null && maxPrice > 0) {
-            list = list.filter { it.price <= maxPrice }
-        }
-
-        if (minRating > 1.05f || maxRating < 4.95f) {
-            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
-        }
-
-        return list.size
     }
 
     /**
-     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     * Tên chức năng: Kiểm tra trạng thái tài khoản khi người dùng quay lại màn hình
+     * Cách hoạt động: Kiểm tra cờ `isActive` trên Firestore; nếu bị khóa, tự động đăng xuất và thông báo lỗi.
+     * Luồng hướng tới: Điều hướng về [LoginActivity] nếu tài khoản bị khóa.
      */
-    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
-        val qClean = query.trim().lowercase()
-        if (qClean.isBlank()) return true
-
-        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
-
-        val name = dish.name.lowercase()
-        val store = dish.storeName.lowercase()
-        val cat = dish.category.lowercase()
-        val platCat = dish.platformCategory.lowercase()
-
-        val fullWithAccent = "$name $store $cat $platCat"
-        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
-
-        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
-        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
-            return true
-        }
-
-        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
-        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
-        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
-            return true
-        }
-
-        return false
-    }
-
-    private fun applyFilters() {
-        var filtered = masterDishList
-
-        // 1. Lọc theo cự ly gần
-        if (currentNearbyOnly) {
-            val maxDist = currentNearbyMaxDistanceKm
-            filtered = if (maxDist >= 999.0) {
-                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
-            } else {
-                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
-                if (nearbyDishes.isNotEmpty()) {
-                    nearbyDishes.sortedBy { it.distanceKm }
-                } else {
-                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
-                }
+    private fun checkAccountLock() {
+        lifecycleScope.launch {
+            val statusCheck = authRepository.checkAccountActiveStatus()
+            if (statusCheck.isFailure) {
+                val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                AccountLockWatcher.notifyLockedManually(this@HomeActivity, reason)
             }
         }
-
-        // 2. Lọc theo danh mục
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesCategory(dish, cat)
-            }
-        }
-
-        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesSearch(dish, q)
-            }
-        }
-
-        // 4. Lọc theo khoảng giá tiền
-        val minP = currentMinPrice
-        val maxP = currentMaxPrice
-        if (minP != null || maxP != null) {
-            filtered = filtered.filter { dish ->
-                val p = dish.price
-                (minP == null || p >= minP) && (maxP == null || p <= maxP)
-            }
-        }
-
-        // 5. Lọc theo khoảng sao đánh giá
-        val minR = currentMinRating
-        val maxR = currentMaxRating
-        if (minR > 1.05f || maxR < 4.95f) {
-            filtered = filtered.filter { dish ->
-                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
-            }
-        }
-
-        // 5. Sắp xếp theo giá tiền nếu có
-        when (currentPriceSort) {
-            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
-            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
-            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
-        }
-
-        _homeDishes.value = filtered
     }
 
-    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
-        val target = filterCat.trim().lowercase()
-        val pCat = dish.platformCategory.lowercase()
-        val sCat = dish.category.lowercase()
-        val name = dish.name.lowercase()
-        val store = dish.storeName.lowercase()
-        val combined = "$name $pCat $sCat $store"
-
-        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
-        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
-        if (name.contains(target)) return true
-
-        if (target.contains("cơm")) {
-            return combined.contains("cơm") || combined.contains("com")
-        }
-        if (target.contains("bún đậu")) {
-            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
-        }
-        if (target.contains("phở")) {
-            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
-        }
-        if (target.contains("trà sữa")) {
-            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
-        }
-        if (target.contains("nước ép")) {
-            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
+    /**
+     * Tên chức năng: Thiết lập thanh tiêu đề Header và bộ lọc quán gần
+     * Cách hoạt động: Bắt sự kiện Click nút "Quán gần đây", chọn địa chỉ, nút "Xem tất cả" và "Xóa lọc".
+     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet] hoặc reset bộ lọc.
+     */
+    private fun setupHeader() {
+        binding.btnNearbyStores.setOnClickListener {
+            showNearbyStoresBottomSheet()
         }
 
-        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
-        return keywords.any { kw -> combined.contains(kw) }
-    }
+        binding.tvLocation.setOnClickListener {
+            showNearbyStoresBottomSheet()
+        }
 
-    private fun inferPlatformCategory(name: String, category: String): String {
-        val text = "$name $category".lowercase()
-        return when {
-            text.contains("cơm") -> "Cơm"
-            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
-            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
-            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
-            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
-            text.contains("trà") -> "Trà sữa"
-            else -> "Cơm"
+        binding.tvViewAll.setOnClickListener {
+            selectedCategory = null
+            isNearbyFiltered = false
+            selectedNearbyDistanceKm = 3.0
+            selectedNearbyDistanceLabel = "< 3 km"
+            clearCategoryHighlight()
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
+            binding.etSearch.setText("")
+            syncFilterUI()
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+            Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnClearFilter.setOnClickListener {
+            selectedCategory = null
+            isNearbyFiltered = false
+            selectedNearbyDistanceKm = 3.0
+            selectedNearbyDistanceLabel = "< 3 km"
+            clearCategoryHighlight()
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
+            syncFilterUI()
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+        }
+
+        binding.layoutActiveFilterIndicator.setOnClickListener {
+            showNearbyStoresBottomSheet()
         }
     }
 
-    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
-        if (store.latitude != 0.0 && store.longitude != 0.0) {
-            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
-        }
-        val distName = store.district.trim()
-        if (distName.isNotBlank()) {
-            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
-            if (exact != null) return exact
-            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
-                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
-            if (fuzzy != null) return fuzzy
-        }
-        return null
-    }
+    /**
+     * Tên chức năng: Phát hiện vị trí người dùng (từ địa chỉ đã lưu hoặc GPS)
+     */
+    private fun detectUserLocation() {
+        lifecycleScope.launch {
+            try {
+                val uid = FirebaseAuth.getInstance().currentUser?.uid
+                if (!uid.isNullOrBlank()) {
+                    val userSnap = FirebaseDatabase.getInstance().getReference("users").child(uid).get().await()
+                    val addr = userSnap.child("address").getValue(String::class.java).orEmpty().trim()
+                    if (addr.isNotBlank()) {
+                        currentLocationName = addr
+                        val shortDistrict = addr.split(",")
+                            .map { it.trim() }
+                            .firstOrNull { it.contains("Quận", true) || it.contains("Thủ Đức", true) || it.contains("Bình Thạnh", true) || it.contains("Gò Vấp", true) || it.contains("Tân Bình", true) || it.contains("Phú Nhuận", true) }
+                            ?: "TP.HCM"
+                        binding.tvLocation.text = "📍 $shortDistrict ▾"
 
-    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
-        if (storeLatLng == null) return 0.0
-        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
-            currentUserLatLng,
-            storeLatLng
-        ).toDouble()
-        return Math.round(dist * 10.0) / 10.0
-    }
-
-    fun loadRestaurants() = loadStores()
-}
-````
-
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HotDishAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
-
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ItemHotDishBinding
-
-data class HotDish(
-    val id: String,
-    val name: String,
-    val price: Long,
-    val storeId: String,
-    val storeName: String,
-    val imageUrl: String = "",
-    val emoji: String = "🍲",
-    val badgeText: String = "Hot"
-)
-
-class HotDishAdapter(
-    private val onClick: (HotDish) -> Unit
-) : RecyclerView.Adapter<HotDishAdapter.ViewHolder>() {
-
-    private val items = mutableListOf<HotDish>()
-
-    fun submitList(newItems: List<HotDish>) {
-        items.clear()
-        items.addAll(newItems)
-        notifyDataSetChanged()
-    }
-
-    inner class ViewHolder(private val binding: ItemHotDishBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(dish: HotDish) {
-            val context = binding.root.context
-            binding.tvDishName.text = dish.name
-            binding.tvShopName.text = if (dish.storeName.startsWith("🏪")) dish.storeName else "🏪 ${dish.storeName}"
-            binding.tvDishPrice.text = dish.price.toVndCurrency()
-            binding.tvHotBadge.text = dish.badgeText
-
-            if (dish.imageUrl.isNotBlank()) {
-                binding.ivDishThumb.visibility = View.VISIBLE
-                binding.tvDishEmoji.visibility = View.GONE
-                if (dish.imageUrl.startsWith("data:image") || dish.imageUrl.length > 500) {
-                    try {
-                        val clean = if (dish.imageUrl.contains(",")) dish.imageUrl.substringAfter(",") else dish.imageUrl
-                        val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
-                        Glide.with(context)
-                            .asBitmap()
-                            .load(decoded)
-                            .placeholder(R.drawable.placeholder_food)
-                            .error(R.drawable.placeholder_food)
-                            .into(binding.ivDishThumb)
-                    } catch (_: Exception) {
-                        Glide.with(context)
-                            .load(dish.imageUrl)
-                            .placeholder(R.drawable.placeholder_food)
-                            .error(R.drawable.placeholder_food)
-                            .into(binding.ivDishThumb)
+                        val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
+                        if (coords.latitude != 0.0 && coords.longitude != 0.0) {
+                            viewModel.setUserLocation(coords.latitude, coords.longitude)
+                        }
                     }
-                } else {
-                    Glide.with(context)
-                        .load(dish.imageUrl)
-                        .placeholder(R.drawable.placeholder_food)
-                        .error(R.drawable.placeholder_food)
-                        .into(binding.ivDishThumb)
                 }
+            } catch (_: Exception) {}
+
+            checkGpsPermissionAndFetch()
+        }
+    }
+
+    private fun checkGpsPermissionAndFetch(onComplete: (() -> Unit)? = null) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ) {
+            requestFreshGpsLocation(onComplete)
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestFreshGpsLocation(onComplete: (() -> Unit)? = null) {
+        try {
+            val fused = LocationServices.getFusedLocationProviderClient(this)
+            val priority = Priority.PRIORITY_HIGH_ACCURACY
+            fused.getCurrentLocation(priority, null).addOnSuccessListener { loc ->
+                if (loc != null) {
+                    onGpsLocationUpdated(loc.latitude, loc.longitude, onComplete)
+                } else {
+                    fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                        if (fallbackLoc != null) {
+                            onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                        } else {
+                            onComplete?.invoke()
+                        }
+                    }
+                }
+            }.addOnFailureListener {
+                fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                    if (fallbackLoc != null) {
+                        onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                    } else {
+                        onComplete?.invoke()
+                    }
+                }
+            }
+        } catch (_: SecurityException) {
+            onComplete?.invoke()
+        }
+    }
+
+    private fun onGpsLocationUpdated(lat: Double, lng: Double, onComplete: (() -> Unit)? = null) {
+        viewModel.setUserLocation(lat, lng)
+        lifecycleScope.launch {
+            val nearestDistrict = GoogleMapUtils.findNearestDistrict(lat, lng)
+            binding.tvLocation.text = "📍 $nearestDistrict ▾"
+            val reverseAddr = GoogleMapUtils.reverseGeocode(this@HomeActivity, lat, lng)
+            currentLocationName = if (reverseAddr.isNotBlank() && reverseAddr != "TP. Hồ Chí Minh") {
+                reverseAddr
             } else {
-                binding.ivDishThumb.visibility = View.VISIBLE
-                binding.ivDishThumb.setImageResource(R.drawable.placeholder_food)
-                binding.tvDishEmoji.text = dish.emoji
-                binding.tvDishEmoji.visibility = View.VISIBLE
+                "$nearestDistrict, TP.HCM"
+            }
+            onComplete?.invoke()
+        }
+    }
+
+    /**
+     * Tên chức năng: Hiển thị Bottom Sheet Modal danh sách Quán Ăn Gần Bạn Nhất
+     * Cách hoạt động: Mở bảng trượt dưới lên hiển thị danh sách quán ăn theo bán kính khoảng cách GPS, hỗ trợ lọc món theo quán gần.
+     * Luồng hướng tới: Bấm chọn quán -> Mở [MenuActivity] của quán đó.
+     */
+    private fun showNearbyStoresBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
+
+        val updateSheetLocation = {
+            sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
+        }
+        updateSheetLocation()
+
+        if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
+            checkGpsPermissionAndFetch {
+                updateSheetLocation()
+            }
+        }
+
+        var currentRadius = selectedNearbyDistanceKm
+        var currentRadiusLabel = selectedNearbyDistanceLabel
+
+        val nearbyAdapter = NearbyStoreAdapter { storeItem ->
+            dialog.dismiss()
+            val intent = Intent(this, MenuActivity::class.java).apply {
+                putExtra(Constants.EXTRA_SHOP_ID, storeItem.id)
+                putExtra(Constants.EXTRA_SHOP_NAME, storeItem.name)
+                putExtra(Constants.EXTRA_SHOP_IMAGE, storeItem.imageUrl)
+            }
+            startActivity(intent)
+        }
+
+        sheetBinding.rvNearbyStores.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity)
+            adapter = nearbyAdapter
+        }
+
+        fun filterAndDisplayStores(allStores: List<NearbyStoreItem>) {
+            val filteredStores = if (currentRadius >= 999.0) {
+                allStores
+            } else {
+                allStores.filter { it.distanceKm in 0.001..currentRadius }
+            }
+            nearbyAdapter.submitList(filteredStores)
+
+            if (filteredStores.isEmpty()) {
+                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\nHãy thử chọn bán kính 5 km hoặc 10 km!"
+                sheetBinding.tvEmptyNearby.visibility = View.VISIBLE
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.GONE
+            } else {
+                sheetBinding.tvEmptyNearby.visibility = View.GONE
+                sheetBinding.tvNearbyStoreCountSummary.text = "Tìm thấy ${filteredStores.size} quán trong bán kính $currentRadiusLabel"
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.VISIBLE
             }
 
-            binding.root.setOnClickListener {
-                it.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80).withEndAction {
-                    it.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
-                    onClick(dish)
-                }.start()
+            sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
+                "Áp Dụng Lọc Món Quán Gần (Tất cả)"
+            } else {
+                "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel)"
             }
+        }
 
-            binding.btnAddDish.setOnClickListener {
-                it.animate().scaleX(0.85f).scaleY(0.85f).setDuration(80).withEndAction {
-                    it.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
-                    onClick(dish)
-                }.start()
+        // Chọn sẵn Chip khoảng cách hiện tại
+        when (currentRadius) {
+            1.5 -> sheetBinding.chipDist1.isChecked = true
+            3.0 -> sheetBinding.chipDist3.isChecked = true
+            5.0 -> sheetBinding.chipDist5.isChecked = true
+            10.0 -> sheetBinding.chipDist10.isChecked = true
+            else -> sheetBinding.chipDistAll.isChecked = true
+        }
+
+        filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+
+        sheetBinding.chipGroupDistance.setOnCheckedStateChangeListener { _, checkedIds ->
+            when (checkedIds.firstOrNull()) {
+                R.id.chipDist1 -> {
+                    currentRadius = 1.5
+                    currentRadiusLabel = "< 1.5 km"
+                }
+                R.id.chipDist3 -> {
+                    currentRadius = 3.0
+                    currentRadiusLabel = "< 3 km"
+                }
+                R.id.chipDist5 -> {
+                    currentRadius = 5.0
+                    currentRadiusLabel = "< 5 km"
+                }
+                R.id.chipDist10 -> {
+                    currentRadius = 10.0
+                    currentRadiusLabel = "< 10 km"
+                }
+                R.id.chipDistAll -> {
+                    currentRadius = 999.0
+                    currentRadiusLabel = "Tất cả"
+                }
+            }
+            filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+        }
+
+        // Quan sát Realtime để cập nhật khi dữ liệu quán tải xong
+        val nearbyObserver = androidx.lifecycle.Observer<List<NearbyStoreItem>> { updatedStores ->
+            filterAndDisplayStores(updatedStores)
+        }
+        viewModel.nearbyStores.observe(this, nearbyObserver)
+        dialog.setOnDismissListener {
+            viewModel.nearbyStores.removeObserver(nearbyObserver)
+        }
+
+        sheetBinding.btnCloseSheet.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        sheetBinding.btnFilterNearbyOnly.setOnClickListener {
+            dialog.dismiss()
+            selectedNearbyDistanceKm = currentRadius
+            selectedNearbyDistanceLabel = currentRadiusLabel
+            isNearbyFiltered = true
+            updateFilterIndicator()
+            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Tên chức năng: Thiết lập RecyclerView danh sách Món Ăn chính
+     * Cách hoạt động: Khởi tạo [HomeDishAdapter] và xử lý callback mở thực đơn quán chứa món ăn đó.
+     * Luồng hướng tới: Điều hướng sang [MenuActivity].
+     */
+    private fun setupDishRecyclerView() {
+        dishAdapter = HomeDishAdapter(
+            onDishClick = { dish ->
+                val intent = Intent(this, MenuActivity::class.java).apply {
+                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
+                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
+                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
+                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
+                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
+                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
+                }
+                startActivity(intent)
+            },
+            onAddClick = { dish ->
+                val intent = Intent(this, MenuActivity::class.java).apply {
+                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
+                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
+                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
+                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
+                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
+                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
+                }
+                startActivity(intent)
+            }
+        )
+
+        binding.rvDishes.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity)
+            adapter = dishAdapter
+        }
+    }
+
+    /**
+     * Tên chức năng: Cấu hình danh sách Món Ăn Hot (Thịnh hành)
+     * Cách hoạt động: Gắn [HotDishAdapter] với chiều ngang (HORIZONTAL).
+     * Luồng hướng tới: Chọn món hot -> Mở [MenuActivity].
+     */
+    private fun setupHotDishes() {
+        hotDishAdapter = HotDishAdapter { hotDish ->
+            val intent = Intent(this, MenuActivity::class.java).apply {
+                putExtra(Constants.EXTRA_SHOP_ID, hotDish.storeId)
+                putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName.removePrefix("🏪 ").trim())
+                putExtra(Constants.EXTRA_DISH_ID, hotDish.id)
+            }
+            startActivity(intent)
+        }
+
+        binding.rvHotDishes.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = hotDishAdapter
+        }
+
+        binding.btnHotBestSeller.setOnClickListener {
+            viewModel.switchHotTab(HomeViewModel.HotTab.BEST_SELLER)
+        }
+
+        binding.btnHotFavorite.setOnClickListener {
+            viewModel.switchHotTab(HomeViewModel.HotTab.FAVORITE)
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập các nút chọn Danh mục món ăn
+     * Cách hoạt động: Gán sự kiện click cho từng danh mục: Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, Pizza, Cà phê, Tráng miệng.
+     * Luồng hướng tới: Gọi [onCategorySelected].
+     */
+    private fun setupCategories() {
+        categoryAdapter = HomeCategoryAdapter { category ->
+            if (category == null) {
+                selectedCategory = null
+                viewModel.filterDishes(category = "ALL")
+                binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+                updateFilterIndicator()
+                Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
+            } else {
+                selectedCategory = category.name
+                if (binding.etSearch.text.isNotBlank()) {
+                    binding.etSearch.setText("")
+                }
+                viewModel.filterDishes(category = category.name)
+                binding.tvSectionTitle.text = "Món ngon: ${category.name}"
+                updateFilterIndicator()
+                Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        binding.rvHomeCategories.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = categoryAdapter
+        }
+    }
+
+    private fun clearCategoryHighlight() {
+        if (::categoryAdapter.isInitialized) {
+            categoryAdapter.setSelected(null)
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập thanh Bộ Lọc (Giá & Sao) và các Chip sao nhanh
+     */
+    private fun setupAdvancedFilterBar() {
+        binding.btnFilterToggle.setOnClickListener {
+            showAdvancedFilterBottomSheet()
+        }
+
+        syncFilterUI()
+    }
+
+    private fun toggleQuickRating(starNum: Int) {
+        val targetMin = when (starNum) {
+            5 -> 4.8f
+            4 -> 4.0f
+            3 -> 3.0f
+            else -> 1.0f
+        }
+        val targetMax = 5.0f
+
+        val isCurrentlySelected = Math.abs(viewModel.currentMinRating - targetMin) < 0.05f &&
+                Math.abs(viewModel.currentMaxRating - targetMax) < 0.05f
+
+        if (isCurrentlySelected) {
+            viewModel.filterDishes(minRating = 1.0f, maxRating = 5.0f)
+        } else {
+            viewModel.filterDishes(minRating = targetMin, maxRating = targetMax)
+        }
+        syncFilterUI()
+    }
+
+    private fun showAdvancedFilterBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = BottomSheetAdvancedFilterBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
+
+        var draftMinPrice: Long? = viewModel.currentMinPrice
+        var draftMaxPrice: Long? = viewModel.currentMaxPrice
+        var draftMinRating: Float = viewModel.currentMinRating
+        var draftMaxRating: Float = viewModel.currentMaxRating
+
+        if (draftMinPrice != null && draftMinPrice!! > 0L) {
+            sheetBinding.etMinPrice.setText(draftMinPrice.toString())
+        }
+        if (draftMaxPrice != null && draftMaxPrice!! > 0L) {
+            sheetBinding.etMaxPrice.setText(draftMaxPrice.toString())
+        }
+
+        sheetBinding.rangeSliderRating.values = listOf(
+            draftMinRating.coerceIn(1.0f, 5.0f),
+            draftMaxRating.coerceIn(1.0f, 5.0f)
+        )
+
+        fun updateRatingUI() {
+            sheetBinding.tvDispRatingMin.text = String.format(java.util.Locale.US, "%.1f", draftMinRating)
+            sheetBinding.tvDispRatingMax.text = String.format(java.util.Locale.US, "%.1f", draftMaxRating)
+
+            if (draftMinRating <= 1.05f && draftMaxRating >= 4.95f) {
+                sheetBinding.tvValRatingText.text = "1.0★ - 5.0★ (Tất cả)"
+            } else if (Math.abs(draftMinRating - draftMaxRating) < 0.05f) {
+                sheetBinding.tvValRatingText.text = "Đúng ${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★"
+            } else {
+                sheetBinding.tvValRatingText.text = "${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★ - ${String.format(java.util.Locale.US, "%.1f", draftMaxRating)}★"
+            }
+        }
+
+        fun updatePriceSummaryUI() {
+            if (draftMinPrice != null && draftMaxPrice != null) {
+                sheetBinding.tvValPriceText.text = "${draftMinPrice!!.toVndCurrency()} - ${draftMaxPrice!!.toVndCurrency()}"
+            } else if (draftMinPrice != null) {
+                sheetBinding.tvValPriceText.text = "Từ ${draftMinPrice!!.toVndCurrency()}"
+            } else if (draftMaxPrice != null) {
+                sheetBinding.tvValPriceText.text = "Đến ${draftMaxPrice!!.toVndCurrency()}"
+            } else {
+                sheetBinding.tvValPriceText.text = "Tất cả giá"
+            }
+        }
+
+        fun updatePreviewMatchCount() {
+            val count = viewModel.getFilteredDishesCount(
+                draftMinPrice,
+                draftMaxPrice,
+                draftMinRating,
+                draftMaxRating
+            )
+            sheetBinding.btnSheetApply.text = "Áp dụng ($count món)"
+        }
+
+        sheetBinding.etMinPrice.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                draftMinPrice = s?.toString()?.trim()?.toLongOrNull()
+                updatePriceSummaryUI()
+                updatePreviewMatchCount()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        sheetBinding.etMaxPrice.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                draftMaxPrice = s?.toString()?.trim()?.toLongOrNull()
+                updatePriceSummaryUI()
+                updatePreviewMatchCount()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        sheetBinding.rangeSliderRating.addOnChangeListener { slider, _, _ ->
+            val vals = slider.values
+            if (vals.size >= 2) {
+                draftMinRating = (Math.round(vals[0] * 10f) / 10f)
+                draftMaxRating = (Math.round(vals[1] * 10f) / 10f)
+                updateRatingUI()
+                updatePreviewMatchCount()
+            }
+        }
+
+        fun setSliderRating(minR: Float?, maxR: Float?) {
+            var newMin = minR ?: draftMinRating
+            var newMax = maxR ?: draftMaxRating
+            if (newMin > newMax) {
+                if (minR != null) newMax = newMin else newMin = newMax
+            }
+            draftMinRating = newMin
+            draftMaxRating = newMax
+            sheetBinding.rangeSliderRating.values = listOf(newMin, newMax)
+            updateRatingUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.tvTick1.setOnClickListener { setSliderRating(1.0f, null) }
+        sheetBinding.tvTick2.setOnClickListener { setSliderRating(2.0f, null) }
+        sheetBinding.tvTick3.setOnClickListener { setSliderRating(3.0f, null) }
+        sheetBinding.tvTick4.setOnClickListener { setSliderRating(4.0f, null) }
+        sheetBinding.tvTick5.setOnClickListener { setSliderRating(null, 5.0f) }
+
+        sheetBinding.tvValPriceText.setOnClickListener {
+            sheetBinding.etMinPrice.setText("")
+            sheetBinding.etMaxPrice.setText("")
+            draftMinPrice = null
+            draftMaxPrice = null
+            updatePriceSummaryUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.btnCloseSheet.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        sheetBinding.btnSheetReset.setOnClickListener {
+            sheetBinding.etMinPrice.setText("")
+            sheetBinding.etMaxPrice.setText("")
+            draftMinPrice = null
+            draftMaxPrice = null
+            draftMinRating = 1.0f
+            draftMaxRating = 5.0f
+            sheetBinding.rangeSliderRating.values = listOf(1.0f, 5.0f)
+            updateRatingUI()
+            updatePriceSummaryUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.btnSheetApply.setOnClickListener {
+            dialog.dismiss()
+            viewModel.filterDishes(
+                minPrice = draftMinPrice,
+                maxPrice = draftMaxPrice,
+                minRating = draftMinRating,
+                maxRating = draftMaxRating
+            )
+            syncFilterUI()
+        }
+
+        updateRatingUI()
+        updatePriceSummaryUI()
+        updatePreviewMatchCount()
+
+        dialog.show()
+    }
+
+    private fun syncFilterUI() {
+        var activeCount = 0
+        if (viewModel.currentMinPrice != null || viewModel.currentMaxPrice != null) activeCount++
+        if (viewModel.currentMinRating > 1.05f || viewModel.currentMaxRating < 4.95f) activeCount++
+
+        if (activeCount > 0) {
+            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle_active)
+            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.white))
+            binding.tvFilterBadge.visibility = View.VISIBLE
+            binding.tvFilterBadge.text = activeCount.toString()
+        } else {
+            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle)
+            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
+            binding.tvFilterBadge.visibility = View.GONE
+        }
+
+
+
+        updateFilterIndicator()
+    }
+
+    private fun updateFilterIndicator() {
+        val activeFilters = mutableListOf<String>()
+        if (!selectedCategory.isNullOrBlank()) {
+            activeFilters.add(selectedCategory!!)
+        }
+
+        val minP = viewModel.currentMinPrice
+        val maxP = viewModel.currentMaxPrice
+        if (minP != null && maxP != null) {
+            activeFilters.add("Giá: ${minP.toVndCurrency()} - ${maxP.toVndCurrency()}")
+        } else if (minP != null) {
+            activeFilters.add("Giá: từ ${minP.toVndCurrency()}")
+        } else if (maxP != null) {
+            activeFilters.add("Giá: đến ${maxP.toVndCurrency()}")
+        }
+
+        val minR = viewModel.currentMinRating
+        val maxR = viewModel.currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            if (minR >= 4.75f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 5 Sao")
+            } else if (minR >= 3.95f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 4 Sao+")
+            } else if (minR >= 2.95f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 3 Sao+")
+            } else {
+                activeFilters.add("⭐ ${String.format(java.util.Locale.US, "%.1f", minR)} - ${String.format(java.util.Locale.US, "%.1f", maxR)}★")
+            }
+        }
+
+        if (isNearbyFiltered) {
+            activeFilters.add("📍 $selectedNearbyDistanceLabel")
+        }
+
+        if (activeFilters.isNotEmpty()) {
+            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
+            binding.tvFilterIndicatorSummary.text = "Đang lọc: ${activeFilters.joinToString(" • ")}"
+        } else {
+            binding.layoutActiveFilterIndicator.visibility = View.GONE
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
+
+    /**
+     * Tên chức năng: Tìm kiếm món ăn theo từ khóa nhập liệu
+     * Cách hoạt động: Lắng nghe TextWatcher trên ô tìm kiếm, gọi [HomeViewModel.filterDishes] cập nhật danh sách hiển thị tức thời.
+     * Luồng hướng tới: Lọc kết quả tìm kiếm.
+     */
+    private fun setupSearch() {
+        binding.etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val q = s?.toString()?.trim() ?: ""
+                binding.btnClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
+
+                // Nếu người dùng gõ tìm kiếm, hủy lọc danh mục để tìm kiếm toàn diện trên mọi quán và món
+                if (q.isNotEmpty() && selectedCategory != null) {
+                    selectedCategory = null
+                    clearCategoryHighlight()
+                }
+
+                viewModel.filterDishes(query = q)
+
+                if (q.isNotEmpty()) {
+                    binding.tvSectionTitle.text = "Kết quả tìm kiếm cho \"$q\""
+                } else {
+                    binding.tvSectionTitle.text = if (selectedCategory != null) "Món ngon: $selectedCategory" else "Món ngon đề xuất cho bạn"
+                }
+                updateFilterIndicator()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        binding.btnClearSearch.setOnClickListener {
+            binding.etSearch.setText("")
+        }
+
+        binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
+                true
+            } else false
+        }
+    }
+
+    private fun setupSwipeRefresh() {
+        binding.swipeRefresh.setOnRefreshListener {
+            viewModel.loadRestaurants()
+        }
+    }
+
+    /**
+     * Tên chức năng: Nút Giỏ Hàng Nổi (Floating Cart)
+     * Cách hoạt động: Hiển thị nổi trên màn hình khi có món trong giỏ, click vào để điều hướng sang màn hình xem giỏ hàng.
+     * Luồng hướng tới: [CartActivity].
+     */
+    private fun setupFloatingCart() {
+        binding.btnCart.setOnClickListener {
+            startActivity(Intent(this, CartActivity::class.java))
+        }
+    }
+
+    /**
+     * Tên chức năng: Cấu hình điều hướng thanh Bottom Navigation
+     * Cách hoạt động: Bắt sự kiện chuyển hướng giữa các tab chính: Trang chủ, Đơn hàng, Thông báo, Hồ sơ cá nhân.
+     * Luồng hướng tới: [HomeActivity], [OrderHistoryActivity], [NotificationActivity], [ProfileActivity].
+     */
+    private fun setupBottomNav() {
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> {
+                    binding.customerFragmentContainer.visibility = View.GONE
+                    binding.layoutHomeContent.visibility = View.VISIBLE
+                    InsetUtils.setLightStatusBar(this, false)
+                    true
+                }
+                R.id.nav_orders -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(OrderHistoryFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                R.id.nav_notification -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(NotificationFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                R.id.nav_profile -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(ProfileFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                else -> false
             }
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = ItemHotDishBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return ViewHolder(binding)
+    fun selectTab(@IdRes tabId: Int) {
+        binding.bottomNav.selectedItemId = tabId
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(items[position])
+    private fun loadCustomerFragment(fragment: Fragment) {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.customerFragmentContainer, fragment)
+            .commit()
     }
 
-    override fun getItemCount() = items.size
+    private fun setupBackNavigation() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (binding.bottomNav.selectedItemId != R.id.nav_home) {
+                    binding.bottomNav.selectedItemId = R.id.nav_home
+                } else {
+                    finish()
+                }
+            }
+        })
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ HomeViewModel & CartViewModel
+     * Cách hoạt động: Cập nhật danh sách món ăn, món hot, trạng thái loading/error, và cập nhật số lượng/tổng tiền hiển thị trên nút Giỏ hàng nổi.
+     * Luồng hướng tới: Đồng bộ hiển thị Realtime.
+     */
+    private fun observeViewModel() {
+        viewModel.platformCategories.observe(this) { categories ->
+            if (::categoryAdapter.isInitialized) {
+                categoryAdapter.submitCategories(categories)
+            }
+        }
+
+        viewModel.homeDishes.observe(this) { dishes ->
+            dishAdapter.submitList(dishes)
+            binding.tvDishesCountBadge.text = "(${dishes.size} món)"
+            binding.tvEmpty.visibility = if (dishes.isEmpty()) View.VISIBLE else View.GONE
+        }
+
+        viewModel.currentHotTab.observe(this) { tab ->
+            val isBestSeller = tab == HomeViewModel.HotTab.BEST_SELLER
+            binding.btnHotBestSeller.apply {
+                setBackgroundResource(if (isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
+                setTextColor(ContextCompat.getColor(this@HomeActivity, if (isBestSeller) R.color.primary else R.color.text_secondary))
+                setTypeface(null, if (isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
+            binding.btnHotFavorite.apply {
+                setBackgroundResource(if (!isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
+                setTextColor(ContextCompat.getColor(this@HomeActivity, if (!isBestSeller) R.color.primary else R.color.text_secondary))
+                setTypeface(null, if (!isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
+        }
+
+        viewModel.hotDishes.observe(this) { hotDishes ->
+            hotDishAdapter.submitList(hotDishes)
+            val hasHot = hotDishes.isNotEmpty()
+            binding.layoutHotDishesHeader.visibility = if (hasHot) View.VISIBLE else View.GONE
+            binding.rvHotDishes.visibility = if (hasHot) View.VISIBLE else View.GONE
+            if (hasHot) {
+                binding.rvHotDishes.scrollToPosition(0)
+            }
+        }
+
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.swipeRefresh.isRefreshing = isLoading
+        }
+
+        viewModel.error.observe(this) { error ->
+            error?.let {
+                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+            }
+        }
+
+        cartViewModel.carts.observe(this) { carts ->
+            val totalItems = carts.sumOf { cart -> cart.items.values.sumOf { it.quantity } }
+            if (totalItems > 0) {
+                binding.btnCart.visibility = View.VISIBLE
+                val shopCount = carts.size
+                binding.tvCartBadge.text = if (shopCount > 1) "$shopCount quán" else "$totalItems món"
+            } else {
+                binding.btnCart.visibility = View.GONE
+            }
+        }
+
+        cartViewModel.totalAmount.observe(this) { total ->
+            if (total != null && total > 0L) {
+                binding.tvCartAmount.text = "${total.toVndCurrency()} ➔"
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Hiển thị Banner nhắc nhở mở App Nội bộ nếu tài khoản là Đối tác
+     * Cách hoạt động: Kiểm tra role của user; nếu là Quán hoặc Tài xế, hiển thị banner đầu trang hỗ trợ 1 chạm mở app Oishi Internal.
+     * Luồng hướng tới: Mở Package `com.chuyen_de_2.foodorder.internal`.
+     */
+    private fun checkUserRoleForBanner() {
+        binding.bannerMerchantNotice.visibility = View.GONE
+        lifecycleScope.launch {
+            // Gọi getUserRole() để tự động đồng bộ và khôi phục role CUSTOMER nếu tài khoản từng bị ghi đè nhầm
+            authRepository.getUserRole()
+        }
+    }
 }
 ````
 
@@ -97322,6 +98436,566 @@ class OrderSuccessActivity : AppCompatActivity() {
         finish()
     }
 }
+````
+
+## File: app-customer/src/main/res/layout/activity_home.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <!-- Khối nội dung Trang chủ (Home Feed Container) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/layoutHomeContent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+    <!-- Top Header Bar Oishi Food (Theo chuẩn b4.html) -->
+    <LinearLayout
+        android:id="@+id/headerBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/primary"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="14dp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <!-- Brand row: Logo + Tên App + Địa chỉ + Đăng xuất -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Logo App -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_app_logo"
+                    android:contentDescription="Oishi Food Logo" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:letterSpacing="-0.02"
+                android:text="Oishi Food"
+                android:textColor="@color/on_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Nút Quán Gần Đây (b1.html: btn-nearby-header) -->
+            <LinearLayout
+                android:id="@+id/btnNearbyStores"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_btn_nearby_header"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4.5dp">
+
+                <ImageView
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    app:srcCompat="@drawable/ic_map_pin"
+                    app:tint="@color/white" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="3dp"
+                    android:text="Quán Gần Đây"
+                    android:textColor="@color/white"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Pill chọn quận/huyện TP.HCM -->
+            <TextView
+                android:id="@+id/tvLocation"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="#2EFFFFFF"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4.5dp"
+                android:text="@string/location_default"
+                android:textColor="@color/on_primary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- Thanh Search Box bo góc trắng -->
+        <LinearLayout
+            android:id="@+id/searchBox"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_search_box"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                app:srcCompat="@drawable/ic_search"
+                app:tint="@color/text_muted" />
+
+            <EditText
+                android:id="@+id/etSearch"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <ImageView
+                android:id="@+id/btnClearSearch"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:padding="3dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:visibility="gone"
+                app:srcCompat="@drawable/ic_close"
+                app:tint="@color/text_muted" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Banner thông báo khi đăng nhập bằng tài khoản Cửa hàng / Shipper -->
+    <LinearLayout
+        android:id="@+id/bannerMerchantNotice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#FFF3E0"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:gravity="center_vertical"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/headerBar">
+
+        <TextView
+            android:id="@+id/tvMerchantNoticeText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Tài khoản Quán: Chế độ xem trước khách hàng"
+            android:textColor="#E65100"
+            android:textStyle="bold"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnOpenInternalApp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_badge_orange"
+            android:backgroundTint="#FF9800"
+            android:textColor="@color/white"
+            android:text="Mở App Quán "
+            android:textStyle="bold"
+            android:textSize="12sp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp" />
+    </LinearLayout>
+
+    <!-- Nội dung cuộn chính -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/bannerMerchantNotice">
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="76dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <!-- Danh sách món ăn hot cuộn ngang của các quán (Chuyển tab Top Bán Chạy / Yêu Thích) -->
+                <LinearLayout
+                    android:id="@+id/layoutHotDishesHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <!-- Button 1: Top Bán Chạy -->
+                    <TextView
+                        android:id="@+id/btnHotBestSeller"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:background="@drawable/bg_quick_chip_active"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingHorizontal="14dp"
+                        android:text="🔥 Top Bán Chạy"
+                        android:textColor="@color/primary"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <!-- Button 2: Top Yêu Thích -->
+                    <TextView
+                        android:id="@+id/btnHotFavorite"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_quick_chip"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingHorizontal="14dp"
+                        android:text="⭐ Top Yêu Thích"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <TextView
+                        android:id="@+id/tvHotSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1 món / quán"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvHotDishes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="4dp" />
+
+                <!-- 2. Danh mục món ăn thời gian thực từ Firebase (do Admin quản lý) -->
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/Widget.FoodOrder.Card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingVertical="10dp">
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/rvHomeCategories"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clipToPadding="false"
+                            android:paddingHorizontal="8dp"
+                            android:nestedScrollingEnabled="false"
+                            android:overScrollMode="never" />
+
+                        <!-- Đường phân cách nhẹ giữa danh mục và bộ lọc giá -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginHorizontal="10dp"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="6dp"
+                            android:background="#F1F5F9" />
+
+                        <!-- Nút Mở Bottom Sheet Bộ Lọc Nâng Cao (b1.html: btn-filter-toggle) -->
+                        <LinearLayout
+                            android:id="@+id/btnFilterToggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="40dp"
+                            android:layout_marginHorizontal="10dp"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="2dp"
+                            android:background="@drawable/bg_btn_filter_toggle"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="16dp">
+
+                            <TextView
+                                android:id="@+id/tvFilterToggleIcon"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="⚙️"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/tvFilterToggleTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="Bộ Lọc (Giá &amp; Đánh Giá Sao)"
+                                android:textColor="@color/primary"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvFilterBadge"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_marginStart="8dp"
+                                android:background="@drawable/bg_badge_filter_count"
+                                android:gravity="center"
+                                android:text="1"
+                                android:textColor="@color/white"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                android:visibility="gone" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Banner thông báo khi đang lọc món các quán gần (b1.html: active-filter-indicator) -->
+                <LinearLayout
+                    android:id="@+id/layoutActiveFilterIndicator"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="#ECFDF5"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="8dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvFilterIndicatorSummary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Đang lọc: 📍 Các quán gần nhất (&lt; 1.5 km)"
+                        android:textColor="#047857"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btnClearFilter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="#D1FAE5"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="3dp"
+                        android:text="Xóa lọc"
+                        android:textColor="#047857"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- 3. Tiêu đề "Món ngon đề xuất cho bạn" (Theo chuẩn b1.html) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:layout_marginBottom="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvSectionTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Món ngon đề xuất cho bạn"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvDishesCountBadge"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="(8 món)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvViewAll"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/view_all"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- 4. Danh sách Món Ăn chính của trang chủ (b1.html: shop-list dish-food-card) -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvDishes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false" />
+
+                <!-- Trạng thái trống -->
+                <TextView
+                    android:id="@+id/tvEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="40dp"
+                    android:paddingHorizontal="24dp"
+                    android:gravity="center"
+                    android:text="@string/empty_restaurants"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- Nút Giỏ hàng nổi (b4.html: floating-cart-btn đặt trên thanh Navigation) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/btnCart"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_floating_cart"
+        android:clickable="true"
+        android:elevation="6dp"
+        android:focusable="true"
+        android:paddingHorizontal="16dp"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <LinearLayout
+            android:id="@+id/layoutCartLeft"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/tvCartAmount"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:id="@+id/tvCartIcon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="🛒 Giỏ Hàng"
+                android:textColor="@color/on_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvCartBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_cart_badge_pill"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:textColor="@color/primary"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="2 quán" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvCartAmount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 đ ➔"
+            android:textColor="@color/on_primary"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Main Fragment Workspace for Orders / Notification / Profile -->
+    <FrameLayout
+        android:id="@+id/customerFragmentContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Modern Executive Bottom Navigation -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        app:elevation="8dp"
+        app:itemActiveIndicatorStyle="@style/Widget.Material3.BottomNavigationView.ActiveIndicator"
+        app:itemIconTint="@color/bottom_nav_color_selector"
+        app:itemRippleColor="@color/primary_light"
+        app:itemTextColor="@color/bottom_nav_color_selector"
+        app:labelVisibilityMode="labeled"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:menu="@menu/menu_bottom_nav_customer" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
 ## File: app-customer/src/main/res/layout/activity_otp_verification.xml
@@ -98816,140 +100490,6 @@ class OrderSuccessActivity : AppCompatActivity() {
     </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>
-````
-
-## File: app-customer/src/main/res/layout/item_hot_dish.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="148dp"
-    android:layout_height="wrap_content"
-    android:layout_marginEnd="12dp"
-    android:layout_marginVertical="4dp"
-    android:clickable="true"
-    android:focusable="true"
-    app:cardBackgroundColor="@color/surface"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="2dp"
-    app:strokeColor="@color/border_light"
-    app:strokeWidth="1dp"
-    app:rippleColor="@color/ripple">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <!-- Ảnh món ăn + Badge Hot -->
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="105dp">
-
-            <ImageView
-                android:id="@+id/ivDishThumb"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:src="@drawable/placeholder_food" />
-
-            <TextView
-                android:id="@+id/tvDishEmoji"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:textSize="36sp"
-                android:visibility="gone"
-                tools:text="🧋" />
-
-            <!-- Badge Hot góc trên bên trái bo tròn đẹp -->
-            <TextView
-                android:id="@+id/tvHotBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|start"
-                android:layout_margin="8dp"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="7dp"
-                android:paddingVertical="3dp"
-                android:text="Hot"
-                android:textColor="#c34738"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-        </FrameLayout>
-
-        <!-- Thông tin món -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="10dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="10dp">
-
-            <TextView
-                android:id="@+id/tvDishName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/text_primary"
-                android:textSize="13.5sp"
-                android:textStyle="bold"
-                tools:text="Trà Ô Long Sữa" />
-
-            <TextView
-                android:id="@+id/tvShopName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp"
-                tools:text="🏪 Phúc Long" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/tvDishPrice"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textColor="@color/primary"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    tools:text="45.000₫" />
-
-                <!-- Nút cộng tròn màu cam nổi bật sắc nét -->
-                <FrameLayout
-                    android:id="@+id/btnAddDish"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:background="@drawable/bg_btn_add_hot_dish"
-                    android:clickable="true"
-                    android:elevation="2dp"
-                    android:focusable="true">
-
-                    <ImageView
-                        android:layout_width="14dp"
-                        android:layout_height="14dp"
-                        android:layout_gravity="center"
-                        android:contentDescription="Thêm món"
-                        android:src="@drawable/ic_add_white" />
-                </FrameLayout>
-            </LinearLayout>
-        </LinearLayout>
-
-    </LinearLayout>
-
-</com.google.android.material.card.MaterialCardView>
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossBranchAdapter.kt
@@ -103408,986 +104948,6 @@ class AuthViewModel @Inject constructor(
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
-
-import androidx.activity.OnBackPressedCallback
-import androidx.annotation.IdRes
-import androidx.fragment.app.Fragment
-import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryFragment
-import com.chuyen_de_2.foodorder.customer.ui.notification.NotificationFragment
-import com.chuyen_de_2.foodorder.customer.ui.profile.ProfileFragment
-
-import android.content.Intent
-import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.View
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.AccountLockWatcher
-import com.chuyen_de_2.foodorder.core.util.Constants
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
-import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
-import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
-import android.widget.TextView
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
-import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
-import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
-import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
-import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
-import android.Manifest
-import android.annotation.SuppressLint
-import android.content.pm.PackageManager
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Trang Chủ Khám Phá & Đặt Món Ăn (Customer Home Marketplace)
- * Cách hoạt động:
- *  - Hiển thị danh mục món ăn (Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, v.v.).
- *  - Cung cấp danh sách Món ăn Hot bán chạy cuộn ngang và Thực đơn món ăn toàn hệ thống cuộn dọc.
- *  - Tìm kiếm món ăn tức thời theo từ khóa (Instant Search Filter).
- *  - Bộ lọc Quán gần bạn (< 1.5 km) hiển thị qua BottomSheetDialog.
- *  - Nút giỏ hàng nổi (Floating Cart Button) cập nhật số lượng món và tổng tiền theo thời gian thực.
- *  - Thanh điều hướng BottomNavigation: Trang chủ, Đơn hàng, Thông báo, Tài khoản.
- * Luồng hướng tới:
- *  - Bấm vào món ăn / quán ăn -> Chuyển sang màn hình thực đơn chi tiết [MenuActivity].
- *  - Bấm nút Giỏ hàng nổi -> Chuyển sang giỏ hàng [CartActivity].
- *  - Bấm tab Đơn hàng -> Chuyển sang lịch sử đơn [OrderHistoryActivity].
- *  - Bấm tab Thông báo -> Chuyển sang [NotificationActivity].
- *  - Bấm tab Tài khoản -> Chuyển sang [ProfileActivity].
- */
-@AndroidEntryPoint
-class HomeActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityHomeBinding
-    private val viewModel: HomeViewModel by viewModels()
-    private val cartViewModel: CartViewModel by viewModels()
-
-    private lateinit var dishAdapter: HomeDishAdapter
-    private lateinit var hotDishAdapter: HotDishAdapter
-    private lateinit var categoryAdapter: HomeCategoryAdapter
-
-    private var selectedCategory: String? = null
-    private var selectedPriceLabel: String? = null
-    private var isNearbyFiltered: Boolean = false
-    private var selectedNearbyDistanceKm: Double = 3.0
-    private var selectedNearbyDistanceLabel: String = "< 3 km"
-    private var currentLocationName: String = "Đang xác định vị trí..."
-
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        ) {
-            requestFreshGpsLocation()
-        }
-    }
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    /**
-     * Tên chức năng: Khởi tạo Trang chủ Khách hàng
-     * Cách hoạt động: Cấu hình Insets Edge-to-Edge, khởi tạo các thành phần giao diện, adapter, bộ lọc và lắng nghe ViewModel.
-     * Luồng hướng tới: Chuẩn bị sàn thương mại món ăn cho khách đặt.
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        if (FirebaseAuth.getInstance().currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
-            return
-        }
-
-        binding = ActivityHomeBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, false)
-        InsetUtils.applyStatusBarPadding(binding.headerBar, 8)
-        InsetUtils.applyNavigationBarPadding(binding.bottomNav)
-
-        setupHeader()
-        setupCategories()
-        setupAdvancedFilterBar()
-        setupHotDishes()
-        setupSearch()
-        setupDishRecyclerView()
-        setupSwipeRefresh()
-        setupFloatingCart()
-        setupBottomNav()
-        setupBackNavigation()
-        observeViewModel()
-        checkUserRoleForBanner()
-        detectUserLocation()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        checkAccountLock()
-        if (binding.bottomNav.selectedItemId == R.id.nav_home) {
-            InsetUtils.setLightStatusBar(this, false)
-        } else {
-            InsetUtils.setLightStatusBar(this, true)
-        }
-    }
-
-    /**
-     * Tên chức năng: Kiểm tra trạng thái tài khoản khi người dùng quay lại màn hình
-     * Cách hoạt động: Kiểm tra cờ `isActive` trên Firestore; nếu bị khóa, tự động đăng xuất và thông báo lỗi.
-     * Luồng hướng tới: Điều hướng về [LoginActivity] nếu tài khoản bị khóa.
-     */
-    private fun checkAccountLock() {
-        lifecycleScope.launch {
-            val statusCheck = authRepository.checkAccountActiveStatus()
-            if (statusCheck.isFailure) {
-                val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                AccountLockWatcher.notifyLockedManually(this@HomeActivity, reason)
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập thanh tiêu đề Header và bộ lọc quán gần
-     * Cách hoạt động: Bắt sự kiện Click nút "Quán gần đây", chọn địa chỉ, nút "Xem tất cả" và "Xóa lọc".
-     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet] hoặc reset bộ lọc.
-     */
-    private fun setupHeader() {
-        binding.btnNearbyStores.setOnClickListener {
-            showNearbyStoresBottomSheet()
-        }
-
-        binding.tvLocation.setOnClickListener {
-            showNearbyStoresBottomSheet()
-        }
-
-        binding.tvViewAll.setOnClickListener {
-            selectedCategory = null
-            isNearbyFiltered = false
-            selectedNearbyDistanceKm = 3.0
-            selectedNearbyDistanceLabel = "< 3 km"
-            clearCategoryHighlight()
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
-            binding.etSearch.setText("")
-            syncFilterUI()
-            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
-        }
-
-        binding.btnClearFilter.setOnClickListener {
-            selectedCategory = null
-            isNearbyFiltered = false
-            selectedNearbyDistanceKm = 3.0
-            selectedNearbyDistanceLabel = "< 3 km"
-            clearCategoryHighlight()
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
-            syncFilterUI()
-            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-        }
-
-        binding.layoutActiveFilterIndicator.setOnClickListener {
-            showNearbyStoresBottomSheet()
-        }
-    }
-
-    /**
-     * Tên chức năng: Phát hiện vị trí người dùng (từ địa chỉ đã lưu hoặc GPS)
-     */
-    private fun detectUserLocation() {
-        lifecycleScope.launch {
-            try {
-                val uid = FirebaseAuth.getInstance().currentUser?.uid
-                if (!uid.isNullOrBlank()) {
-                    val userSnap = FirebaseDatabase.getInstance().getReference("users").child(uid).get().await()
-                    val addr = userSnap.child("address").getValue(String::class.java).orEmpty().trim()
-                    if (addr.isNotBlank()) {
-                        currentLocationName = addr
-                        val shortDistrict = addr.split(",")
-                            .map { it.trim() }
-                            .firstOrNull { it.contains("Quận", true) || it.contains("Thủ Đức", true) || it.contains("Bình Thạnh", true) || it.contains("Gò Vấp", true) || it.contains("Tân Bình", true) || it.contains("Phú Nhuận", true) }
-                            ?: "TP.HCM"
-                        binding.tvLocation.text = "📍 $shortDistrict ▾"
-
-                        val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
-                        if (coords.latitude != 0.0 && coords.longitude != 0.0) {
-                            viewModel.setUserLocation(coords.latitude, coords.longitude)
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-
-            checkGpsPermissionAndFetch()
-        }
-    }
-
-    private fun checkGpsPermissionAndFetch(onComplete: (() -> Unit)? = null) {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        ) {
-            requestFreshGpsLocation(onComplete)
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun requestFreshGpsLocation(onComplete: (() -> Unit)? = null) {
-        try {
-            val fused = LocationServices.getFusedLocationProviderClient(this)
-            val priority = Priority.PRIORITY_HIGH_ACCURACY
-            fused.getCurrentLocation(priority, null).addOnSuccessListener { loc ->
-                if (loc != null) {
-                    onGpsLocationUpdated(loc.latitude, loc.longitude, onComplete)
-                } else {
-                    fused.lastLocation.addOnSuccessListener { fallbackLoc ->
-                        if (fallbackLoc != null) {
-                            onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
-                        } else {
-                            onComplete?.invoke()
-                        }
-                    }
-                }
-            }.addOnFailureListener {
-                fused.lastLocation.addOnSuccessListener { fallbackLoc ->
-                    if (fallbackLoc != null) {
-                        onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
-                    } else {
-                        onComplete?.invoke()
-                    }
-                }
-            }
-        } catch (_: SecurityException) {
-            onComplete?.invoke()
-        }
-    }
-
-    private fun onGpsLocationUpdated(lat: Double, lng: Double, onComplete: (() -> Unit)? = null) {
-        viewModel.setUserLocation(lat, lng)
-        lifecycleScope.launch {
-            val nearestDistrict = GoogleMapUtils.findNearestDistrict(lat, lng)
-            binding.tvLocation.text = "📍 $nearestDistrict ▾"
-            val reverseAddr = GoogleMapUtils.reverseGeocode(this@HomeActivity, lat, lng)
-            currentLocationName = if (reverseAddr.isNotBlank() && reverseAddr != "TP. Hồ Chí Minh") {
-                reverseAddr
-            } else {
-                "$nearestDistrict, TP.HCM"
-            }
-            onComplete?.invoke()
-        }
-    }
-
-    /**
-     * Tên chức năng: Hiển thị Bottom Sheet Modal danh sách Quán Ăn Gần Bạn Nhất
-     * Cách hoạt động: Mở bảng trượt dưới lên hiển thị danh sách quán ăn theo bán kính khoảng cách GPS, hỗ trợ lọc món theo quán gần.
-     * Luồng hướng tới: Bấm chọn quán -> Mở [MenuActivity] của quán đó.
-     */
-    private fun showNearbyStoresBottomSheet() {
-        val dialog = BottomSheetDialog(this)
-        val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
-        dialog.setContentView(sheetBinding.root)
-
-        val updateSheetLocation = {
-            sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
-        }
-        updateSheetLocation()
-
-        if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
-            checkGpsPermissionAndFetch {
-                updateSheetLocation()
-            }
-        }
-
-        var currentRadius = selectedNearbyDistanceKm
-        var currentRadiusLabel = selectedNearbyDistanceLabel
-
-        val nearbyAdapter = NearbyStoreAdapter { storeItem ->
-            dialog.dismiss()
-            val intent = Intent(this, MenuActivity::class.java).apply {
-                putExtra(Constants.EXTRA_SHOP_ID, storeItem.id)
-                putExtra(Constants.EXTRA_SHOP_NAME, storeItem.name)
-                putExtra(Constants.EXTRA_SHOP_IMAGE, storeItem.imageUrl)
-            }
-            startActivity(intent)
-        }
-
-        sheetBinding.rvNearbyStores.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity)
-            adapter = nearbyAdapter
-        }
-
-        fun filterAndDisplayStores(allStores: List<NearbyStoreItem>) {
-            val filteredStores = if (currentRadius >= 999.0) {
-                allStores
-            } else {
-                allStores.filter { it.distanceKm in 0.001..currentRadius }
-            }
-            nearbyAdapter.submitList(filteredStores)
-
-            if (filteredStores.isEmpty()) {
-                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\nHãy thử chọn bán kính 5 km hoặc 10 km!"
-                sheetBinding.tvEmptyNearby.visibility = View.VISIBLE
-                sheetBinding.tvNearbyStoreCountSummary.visibility = View.GONE
-            } else {
-                sheetBinding.tvEmptyNearby.visibility = View.GONE
-                sheetBinding.tvNearbyStoreCountSummary.text = "Tìm thấy ${filteredStores.size} quán trong bán kính $currentRadiusLabel"
-                sheetBinding.tvNearbyStoreCountSummary.visibility = View.VISIBLE
-            }
-
-            sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
-                "Áp Dụng Lọc Món Quán Gần (Tất cả)"
-            } else {
-                "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel)"
-            }
-        }
-
-        // Chọn sẵn Chip khoảng cách hiện tại
-        when (currentRadius) {
-            1.5 -> sheetBinding.chipDist1.isChecked = true
-            3.0 -> sheetBinding.chipDist3.isChecked = true
-            5.0 -> sheetBinding.chipDist5.isChecked = true
-            10.0 -> sheetBinding.chipDist10.isChecked = true
-            else -> sheetBinding.chipDistAll.isChecked = true
-        }
-
-        filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
-
-        sheetBinding.chipGroupDistance.setOnCheckedStateChangeListener { _, checkedIds ->
-            when (checkedIds.firstOrNull()) {
-                R.id.chipDist1 -> {
-                    currentRadius = 1.5
-                    currentRadiusLabel = "< 1.5 km"
-                }
-                R.id.chipDist3 -> {
-                    currentRadius = 3.0
-                    currentRadiusLabel = "< 3 km"
-                }
-                R.id.chipDist5 -> {
-                    currentRadius = 5.0
-                    currentRadiusLabel = "< 5 km"
-                }
-                R.id.chipDist10 -> {
-                    currentRadius = 10.0
-                    currentRadiusLabel = "< 10 km"
-                }
-                R.id.chipDistAll -> {
-                    currentRadius = 999.0
-                    currentRadiusLabel = "Tất cả"
-                }
-            }
-            filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
-        }
-
-        // Quan sát Realtime để cập nhật khi dữ liệu quán tải xong
-        val nearbyObserver = androidx.lifecycle.Observer<List<NearbyStoreItem>> { updatedStores ->
-            filterAndDisplayStores(updatedStores)
-        }
-        viewModel.nearbyStores.observe(this, nearbyObserver)
-        dialog.setOnDismissListener {
-            viewModel.nearbyStores.removeObserver(nearbyObserver)
-        }
-
-        sheetBinding.btnCloseSheet.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        sheetBinding.btnFilterNearbyOnly.setOnClickListener {
-            dialog.dismiss()
-            selectedNearbyDistanceKm = currentRadius
-            selectedNearbyDistanceLabel = currentRadiusLabel
-            isNearbyFiltered = true
-            updateFilterIndicator()
-            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Tên chức năng: Thiết lập RecyclerView danh sách Món Ăn chính
-     * Cách hoạt động: Khởi tạo [HomeDishAdapter] và xử lý callback mở thực đơn quán chứa món ăn đó.
-     * Luồng hướng tới: Điều hướng sang [MenuActivity].
-     */
-    private fun setupDishRecyclerView() {
-        dishAdapter = HomeDishAdapter(
-            onDishClick = { dish ->
-                val intent = Intent(this, MenuActivity::class.java).apply {
-                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
-                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
-                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
-                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
-                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
-                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
-                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
-                }
-                startActivity(intent)
-            },
-            onAddClick = { dish ->
-                val intent = Intent(this, MenuActivity::class.java).apply {
-                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
-                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
-                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
-                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
-                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
-                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
-                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
-                }
-                startActivity(intent)
-            }
-        )
-
-        binding.rvDishes.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity)
-            adapter = dishAdapter
-        }
-    }
-
-    /**
-     * Tên chức năng: Cấu hình danh sách Món Ăn Hot (Thịnh hành)
-     * Cách hoạt động: Gắn [HotDishAdapter] với chiều ngang (HORIZONTAL).
-     * Luồng hướng tới: Chọn món hot -> Mở [MenuActivity].
-     */
-    private fun setupHotDishes() {
-        hotDishAdapter = HotDishAdapter { hotDish ->
-            val intent = Intent(this, MenuActivity::class.java).apply {
-                putExtra(Constants.EXTRA_SHOP_ID, hotDish.storeId)
-                putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName.removePrefix("🏪 ").trim())
-                putExtra(Constants.EXTRA_DISH_ID, hotDish.id)
-            }
-            startActivity(intent)
-        }
-
-        binding.rvHotDishes.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
-            adapter = hotDishAdapter
-        }
-
-        binding.btnHotBestSeller.setOnClickListener {
-            viewModel.switchHotTab(HomeViewModel.HotTab.BEST_SELLER)
-        }
-
-        binding.btnHotFavorite.setOnClickListener {
-            viewModel.switchHotTab(HomeViewModel.HotTab.FAVORITE)
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập các nút chọn Danh mục món ăn
-     * Cách hoạt động: Gán sự kiện click cho từng danh mục: Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, Pizza, Cà phê, Tráng miệng.
-     * Luồng hướng tới: Gọi [onCategorySelected].
-     */
-    private fun setupCategories() {
-        categoryAdapter = HomeCategoryAdapter { category ->
-            if (category == null) {
-                selectedCategory = null
-                viewModel.filterDishes(category = "ALL")
-                binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-                updateFilterIndicator()
-                Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
-            } else {
-                selectedCategory = category.name
-                if (binding.etSearch.text.isNotBlank()) {
-                    binding.etSearch.setText("")
-                }
-                viewModel.filterDishes(category = category.name)
-                binding.tvSectionTitle.text = "Món ngon: ${category.name}"
-                updateFilterIndicator()
-                Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
-            }
-        }
-        binding.rvHomeCategories.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
-            adapter = categoryAdapter
-        }
-    }
-
-    private fun clearCategoryHighlight() {
-        if (::categoryAdapter.isInitialized) {
-            categoryAdapter.setSelected(null)
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập thanh Bộ Lọc (Giá & Sao) và các Chip sao nhanh
-     */
-    private fun setupAdvancedFilterBar() {
-        binding.btnFilterToggle.setOnClickListener {
-            showAdvancedFilterBottomSheet()
-        }
-
-        syncFilterUI()
-    }
-
-    private fun toggleQuickRating(starNum: Int) {
-        val targetMin = when (starNum) {
-            5 -> 4.8f
-            4 -> 4.0f
-            3 -> 3.0f
-            else -> 1.0f
-        }
-        val targetMax = 5.0f
-
-        val isCurrentlySelected = Math.abs(viewModel.currentMinRating - targetMin) < 0.05f &&
-                Math.abs(viewModel.currentMaxRating - targetMax) < 0.05f
-
-        if (isCurrentlySelected) {
-            viewModel.filterDishes(minRating = 1.0f, maxRating = 5.0f)
-        } else {
-            viewModel.filterDishes(minRating = targetMin, maxRating = targetMax)
-        }
-        syncFilterUI()
-    }
-
-    private fun showAdvancedFilterBottomSheet() {
-        val dialog = BottomSheetDialog(this)
-        val sheetBinding = BottomSheetAdvancedFilterBinding.inflate(layoutInflater)
-        dialog.setContentView(sheetBinding.root)
-
-        var draftMinPrice: Long? = viewModel.currentMinPrice
-        var draftMaxPrice: Long? = viewModel.currentMaxPrice
-        var draftMinRating: Float = viewModel.currentMinRating
-        var draftMaxRating: Float = viewModel.currentMaxRating
-
-        if (draftMinPrice != null && draftMinPrice!! > 0L) {
-            sheetBinding.etMinPrice.setText(draftMinPrice.toString())
-        }
-        if (draftMaxPrice != null && draftMaxPrice!! > 0L) {
-            sheetBinding.etMaxPrice.setText(draftMaxPrice.toString())
-        }
-
-        sheetBinding.rangeSliderRating.values = listOf(
-            draftMinRating.coerceIn(1.0f, 5.0f),
-            draftMaxRating.coerceIn(1.0f, 5.0f)
-        )
-
-        fun updateRatingUI() {
-            sheetBinding.tvDispRatingMin.text = String.format(java.util.Locale.US, "%.1f", draftMinRating)
-            sheetBinding.tvDispRatingMax.text = String.format(java.util.Locale.US, "%.1f", draftMaxRating)
-
-            if (draftMinRating <= 1.05f && draftMaxRating >= 4.95f) {
-                sheetBinding.tvValRatingText.text = "1.0★ - 5.0★ (Tất cả)"
-            } else if (Math.abs(draftMinRating - draftMaxRating) < 0.05f) {
-                sheetBinding.tvValRatingText.text = "Đúng ${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★"
-            } else {
-                sheetBinding.tvValRatingText.text = "${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★ - ${String.format(java.util.Locale.US, "%.1f", draftMaxRating)}★"
-            }
-        }
-
-        fun updatePriceSummaryUI() {
-            if (draftMinPrice != null && draftMaxPrice != null) {
-                sheetBinding.tvValPriceText.text = "${draftMinPrice!!.toVndCurrency()} - ${draftMaxPrice!!.toVndCurrency()}"
-            } else if (draftMinPrice != null) {
-                sheetBinding.tvValPriceText.text = "Từ ${draftMinPrice!!.toVndCurrency()}"
-            } else if (draftMaxPrice != null) {
-                sheetBinding.tvValPriceText.text = "Đến ${draftMaxPrice!!.toVndCurrency()}"
-            } else {
-                sheetBinding.tvValPriceText.text = "Tất cả giá"
-            }
-        }
-
-        fun updatePreviewMatchCount() {
-            val count = viewModel.getFilteredDishesCount(
-                draftMinPrice,
-                draftMaxPrice,
-                draftMinRating,
-                draftMaxRating
-            )
-            sheetBinding.btnSheetApply.text = "Áp dụng ($count món)"
-        }
-
-        sheetBinding.etMinPrice.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                draftMinPrice = s?.toString()?.trim()?.toLongOrNull()
-                updatePriceSummaryUI()
-                updatePreviewMatchCount()
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        sheetBinding.etMaxPrice.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                draftMaxPrice = s?.toString()?.trim()?.toLongOrNull()
-                updatePriceSummaryUI()
-                updatePreviewMatchCount()
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        sheetBinding.rangeSliderRating.addOnChangeListener { slider, _, _ ->
-            val vals = slider.values
-            if (vals.size >= 2) {
-                draftMinRating = (Math.round(vals[0] * 10f) / 10f)
-                draftMaxRating = (Math.round(vals[1] * 10f) / 10f)
-                updateRatingUI()
-                updatePreviewMatchCount()
-            }
-        }
-
-        fun setSliderRating(minR: Float?, maxR: Float?) {
-            var newMin = minR ?: draftMinRating
-            var newMax = maxR ?: draftMaxRating
-            if (newMin > newMax) {
-                if (minR != null) newMax = newMin else newMin = newMax
-            }
-            draftMinRating = newMin
-            draftMaxRating = newMax
-            sheetBinding.rangeSliderRating.values = listOf(newMin, newMax)
-            updateRatingUI()
-            updatePreviewMatchCount()
-        }
-
-        sheetBinding.tvTick1.setOnClickListener { setSliderRating(1.0f, null) }
-        sheetBinding.tvTick2.setOnClickListener { setSliderRating(2.0f, null) }
-        sheetBinding.tvTick3.setOnClickListener { setSliderRating(3.0f, null) }
-        sheetBinding.tvTick4.setOnClickListener { setSliderRating(4.0f, null) }
-        sheetBinding.tvTick5.setOnClickListener { setSliderRating(null, 5.0f) }
-
-        sheetBinding.tvValPriceText.setOnClickListener {
-            sheetBinding.etMinPrice.setText("")
-            sheetBinding.etMaxPrice.setText("")
-            draftMinPrice = null
-            draftMaxPrice = null
-            updatePriceSummaryUI()
-            updatePreviewMatchCount()
-        }
-
-        sheetBinding.btnCloseSheet.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        sheetBinding.btnSheetReset.setOnClickListener {
-            sheetBinding.etMinPrice.setText("")
-            sheetBinding.etMaxPrice.setText("")
-            draftMinPrice = null
-            draftMaxPrice = null
-            draftMinRating = 1.0f
-            draftMaxRating = 5.0f
-            sheetBinding.rangeSliderRating.values = listOf(1.0f, 5.0f)
-            updateRatingUI()
-            updatePriceSummaryUI()
-            updatePreviewMatchCount()
-        }
-
-        sheetBinding.btnSheetApply.setOnClickListener {
-            dialog.dismiss()
-            viewModel.filterDishes(
-                minPrice = draftMinPrice,
-                maxPrice = draftMaxPrice,
-                minRating = draftMinRating,
-                maxRating = draftMaxRating
-            )
-            syncFilterUI()
-        }
-
-        updateRatingUI()
-        updatePriceSummaryUI()
-        updatePreviewMatchCount()
-
-        dialog.show()
-    }
-
-    private fun syncFilterUI() {
-        var activeCount = 0
-        if (viewModel.currentMinPrice != null || viewModel.currentMaxPrice != null) activeCount++
-        if (viewModel.currentMinRating > 1.05f || viewModel.currentMaxRating < 4.95f) activeCount++
-
-        if (activeCount > 0) {
-            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle_active)
-            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.white))
-            binding.tvFilterBadge.visibility = View.VISIBLE
-            binding.tvFilterBadge.text = activeCount.toString()
-        } else {
-            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle)
-            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
-            binding.tvFilterBadge.visibility = View.GONE
-        }
-
-
-
-        updateFilterIndicator()
-    }
-
-    private fun updateFilterIndicator() {
-        val activeFilters = mutableListOf<String>()
-        if (!selectedCategory.isNullOrBlank()) {
-            activeFilters.add(selectedCategory!!)
-        }
-
-        val minP = viewModel.currentMinPrice
-        val maxP = viewModel.currentMaxPrice
-        if (minP != null && maxP != null) {
-            activeFilters.add("Giá: ${minP.toVndCurrency()} - ${maxP.toVndCurrency()}")
-        } else if (minP != null) {
-            activeFilters.add("Giá: từ ${minP.toVndCurrency()}")
-        } else if (maxP != null) {
-            activeFilters.add("Giá: đến ${maxP.toVndCurrency()}")
-        }
-
-        val minR = viewModel.currentMinRating
-        val maxR = viewModel.currentMaxRating
-        if (minR > 1.05f || maxR < 4.95f) {
-            if (minR >= 4.75f && maxR >= 4.95f) {
-                activeFilters.add("⭐ 5 Sao")
-            } else if (minR >= 3.95f && maxR >= 4.95f) {
-                activeFilters.add("⭐ 4 Sao+")
-            } else if (minR >= 2.95f && maxR >= 4.95f) {
-                activeFilters.add("⭐ 3 Sao+")
-            } else {
-                activeFilters.add("⭐ ${String.format(java.util.Locale.US, "%.1f", minR)} - ${String.format(java.util.Locale.US, "%.1f", maxR)}★")
-            }
-        }
-
-        if (isNearbyFiltered) {
-            activeFilters.add("📍 $selectedNearbyDistanceLabel")
-        }
-
-        if (activeFilters.isNotEmpty()) {
-            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-            binding.tvFilterIndicatorSummary.text = "Đang lọc: ${activeFilters.joinToString(" • ")}"
-        } else {
-            binding.layoutActiveFilterIndicator.visibility = View.GONE
-        }
-    }
-
-    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
-
-    /**
-     * Tên chức năng: Tìm kiếm món ăn theo từ khóa nhập liệu
-     * Cách hoạt động: Lắng nghe TextWatcher trên ô tìm kiếm, gọi [HomeViewModel.filterDishes] cập nhật danh sách hiển thị tức thời.
-     * Luồng hướng tới: Lọc kết quả tìm kiếm.
-     */
-    private fun setupSearch() {
-        binding.etSearch.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val q = s?.toString()?.trim() ?: ""
-                binding.btnClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
-
-                // Nếu người dùng gõ tìm kiếm, hủy lọc danh mục để tìm kiếm toàn diện trên mọi quán và món
-                if (q.isNotEmpty() && selectedCategory != null) {
-                    selectedCategory = null
-                    clearCategoryHighlight()
-                }
-
-                viewModel.filterDishes(query = q)
-
-                if (q.isNotEmpty()) {
-                    binding.tvSectionTitle.text = "Kết quả tìm kiếm cho \"$q\""
-                } else {
-                    binding.tvSectionTitle.text = if (selectedCategory != null) "Món ngon: $selectedCategory" else "Món ngon đề xuất cho bạn"
-                }
-                updateFilterIndicator()
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        binding.btnClearSearch.setOnClickListener {
-            binding.etSearch.setText("")
-        }
-
-        binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
-                true
-            } else false
-        }
-    }
-
-    private fun setupSwipeRefresh() {
-        binding.swipeRefresh.setOnRefreshListener {
-            viewModel.loadRestaurants()
-        }
-    }
-
-    /**
-     * Tên chức năng: Nút Giỏ Hàng Nổi (Floating Cart)
-     * Cách hoạt động: Hiển thị nổi trên màn hình khi có món trong giỏ, click vào để điều hướng sang màn hình xem giỏ hàng.
-     * Luồng hướng tới: [CartActivity].
-     */
-    private fun setupFloatingCart() {
-        binding.btnCart.setOnClickListener {
-            startActivity(Intent(this, CartActivity::class.java))
-        }
-    }
-
-    /**
-     * Tên chức năng: Cấu hình điều hướng thanh Bottom Navigation
-     * Cách hoạt động: Bắt sự kiện chuyển hướng giữa các tab chính: Trang chủ, Đơn hàng, Thông báo, Hồ sơ cá nhân.
-     * Luồng hướng tới: [HomeActivity], [OrderHistoryActivity], [NotificationActivity], [ProfileActivity].
-     */
-    private fun setupBottomNav() {
-        binding.bottomNav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_home -> {
-                    binding.customerFragmentContainer.visibility = View.GONE
-                    binding.layoutHomeContent.visibility = View.VISIBLE
-                    InsetUtils.setLightStatusBar(this, false)
-                    true
-                }
-                R.id.nav_orders -> {
-                    binding.layoutHomeContent.visibility = View.GONE
-                    binding.customerFragmentContainer.visibility = View.VISIBLE
-                    loadCustomerFragment(OrderHistoryFragment())
-                    InsetUtils.setLightStatusBar(this, true)
-                    true
-                }
-                R.id.nav_notification -> {
-                    binding.layoutHomeContent.visibility = View.GONE
-                    binding.customerFragmentContainer.visibility = View.VISIBLE
-                    loadCustomerFragment(NotificationFragment())
-                    InsetUtils.setLightStatusBar(this, true)
-                    true
-                }
-                R.id.nav_profile -> {
-                    binding.layoutHomeContent.visibility = View.GONE
-                    binding.customerFragmentContainer.visibility = View.VISIBLE
-                    loadCustomerFragment(ProfileFragment())
-                    InsetUtils.setLightStatusBar(this, true)
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    fun selectTab(@IdRes tabId: Int) {
-        binding.bottomNav.selectedItemId = tabId
-    }
-
-    private fun loadCustomerFragment(fragment: Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.customerFragmentContainer, fragment)
-            .commit()
-    }
-
-    private fun setupBackNavigation() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (binding.bottomNav.selectedItemId != R.id.nav_home) {
-                    binding.bottomNav.selectedItemId = R.id.nav_home
-                } else {
-                    finish()
-                }
-            }
-        })
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ HomeViewModel & CartViewModel
-     * Cách hoạt động: Cập nhật danh sách món ăn, món hot, trạng thái loading/error, và cập nhật số lượng/tổng tiền hiển thị trên nút Giỏ hàng nổi.
-     * Luồng hướng tới: Đồng bộ hiển thị Realtime.
-     */
-    private fun observeViewModel() {
-        viewModel.platformCategories.observe(this) { categories ->
-            if (::categoryAdapter.isInitialized) {
-                categoryAdapter.submitCategories(categories)
-            }
-        }
-
-        viewModel.homeDishes.observe(this) { dishes ->
-            dishAdapter.submitList(dishes)
-            binding.tvDishesCountBadge.text = "(${dishes.size} món)"
-            binding.tvEmpty.visibility = if (dishes.isEmpty()) View.VISIBLE else View.GONE
-        }
-
-        viewModel.currentHotTab.observe(this) { tab ->
-            val isBestSeller = tab == HomeViewModel.HotTab.BEST_SELLER
-            binding.btnHotBestSeller.apply {
-                setBackgroundResource(if (isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
-                setTextColor(ContextCompat.getColor(this@HomeActivity, if (isBestSeller) R.color.primary else R.color.text_secondary))
-                setTypeface(null, if (isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-            }
-            binding.btnHotFavorite.apply {
-                setBackgroundResource(if (!isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
-                setTextColor(ContextCompat.getColor(this@HomeActivity, if (!isBestSeller) R.color.primary else R.color.text_secondary))
-                setTypeface(null, if (!isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-            }
-        }
-
-        viewModel.hotDishes.observe(this) { hotDishes ->
-            hotDishAdapter.submitList(hotDishes)
-            val hasHot = hotDishes.isNotEmpty()
-            binding.layoutHotDishesHeader.visibility = if (hasHot) View.VISIBLE else View.GONE
-            binding.rvHotDishes.visibility = if (hasHot) View.VISIBLE else View.GONE
-            if (hasHot) {
-                binding.rvHotDishes.scrollToPosition(0)
-            }
-        }
-
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.swipeRefresh.isRefreshing = isLoading
-        }
-
-        viewModel.error.observe(this) { error ->
-            error?.let {
-                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
-            }
-        }
-
-        cartViewModel.carts.observe(this) { carts ->
-            val totalItems = carts.sumOf { cart -> cart.items.values.sumOf { it.quantity } }
-            if (totalItems > 0) {
-                binding.btnCart.visibility = View.VISIBLE
-                val shopCount = carts.size
-                binding.tvCartBadge.text = if (shopCount > 1) "$shopCount quán" else "$totalItems món"
-            } else {
-                binding.btnCart.visibility = View.GONE
-            }
-        }
-
-        cartViewModel.totalAmount.observe(this) { total ->
-            if (total != null && total > 0L) {
-                binding.tvCartAmount.text = "${total.toVndCurrency()} ➔"
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Hiển thị Banner nhắc nhở mở App Nội bộ nếu tài khoản là Đối tác
-     * Cách hoạt động: Kiểm tra role của user; nếu là Quán hoặc Tài xế, hiển thị banner đầu trang hỗ trợ 1 chạm mở app Oishi Internal.
-     * Luồng hướng tới: Mở Package `com.chuyen_de_2.foodorder.internal`.
-     */
-    private fun checkUserRoleForBanner() {
-        binding.bannerMerchantNotice.visibility = View.GONE
-        lifecycleScope.launch {
-            // Gọi getUserRole() để tự động đồng bộ và khôi phục role CUSTOMER nếu tài khoản từng bị ghi đè nhầm
-            authRepository.getUserRole()
-        }
-    }
-}
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/order/OrderHistoryActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.order
@@ -104828,566 +105388,6 @@ class OrderHistoryActivity : AppCompatActivity() {
         binding.layoutEmpty.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
     }
 }
-````
-
-## File: app-customer/src/main/res/layout/activity_home.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background">
-
-    <!-- Khối nội dung Trang chủ (Home Feed Container) -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/layoutHomeContent"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/bottomNav"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-    <!-- Top Header Bar Oishi Food (Theo chuẩn b4.html) -->
-    <LinearLayout
-        android:id="@+id/headerBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/primary"
-        android:orientation="vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="14dp"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <!-- Brand row: Logo + Tên App + Địa chỉ + Đăng xuất -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <!-- Logo App -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="0dp">
-
-                <ImageView
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_app_logo"
-                    android:contentDescription="Oishi Food Logo" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:letterSpacing="-0.02"
-                android:text="Oishi Food"
-                android:textColor="@color/on_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <!-- Nút Quán Gần Đây (b1.html: btn-nearby-header) -->
-            <LinearLayout
-                android:id="@+id/btnNearbyStores"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:background="@drawable/bg_btn_nearby_header"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4.5dp">
-
-                <ImageView
-                    android:layout_width="12dp"
-                    android:layout_height="12dp"
-                    app:srcCompat="@drawable/ic_map_pin"
-                    app:tint="@color/white" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="3dp"
-                    android:text="Quán Gần Đây"
-                    android:textColor="@color/white"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <!-- Pill chọn quận/huyện TP.HCM -->
-            <TextView
-                android:id="@+id/tvLocation"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="#2EFFFFFF"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4.5dp"
-                android:text="@string/location_default"
-                android:textColor="@color/on_primary"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-        </LinearLayout>
-
-        <!-- Thanh Search Box bo góc trắng -->
-        <LinearLayout
-            android:id="@+id/searchBox"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_search_box"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="12dp">
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                app:srcCompat="@drawable/ic_search"
-                app:tint="@color/text_muted" />
-
-            <EditText
-                android:id="@+id/etSearch"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:background="@null"
-                android:hint="@string/search_hint"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_muted"
-                android:textSize="13sp" />
-
-            <ImageView
-                android:id="@+id/btnClearSearch"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:padding="3dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:visibility="gone"
-                app:srcCompat="@drawable/ic_close"
-                app:tint="@color/text_muted" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <!-- Banner thông báo khi đăng nhập bằng tài khoản Cửa hàng / Shipper -->
-    <LinearLayout
-        android:id="@+id/bannerMerchantNotice"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="#FFF3E0"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="10dp"
-        android:gravity="center_vertical"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/headerBar">
-
-        <TextView
-            android:id="@+id/tvMerchantNoticeText"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Tài khoản Quán: Chế độ xem trước khách hàng"
-            android:textColor="#E65100"
-            android:textStyle="bold"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/btnOpenInternalApp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_badge_orange"
-            android:backgroundTint="#FF9800"
-            android:textColor="@color/white"
-            android:text="Mở App Quán "
-            android:textStyle="bold"
-            android:textSize="12sp"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="6dp" />
-    </LinearLayout>
-
-    <!-- Nội dung cuộn chính -->
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-        android:id="@+id/swipeRefresh"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bannerMerchantNotice">
-
-        <androidx.core.widget.NestedScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingBottom="76dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <!-- Danh sách món ăn hot cuộn ngang của các quán (Chuyển tab Top Bán Chạy / Yêu Thích) -->
-                <LinearLayout
-                    android:id="@+id/layoutHotDishesHeader"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:layout_marginBottom="8dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <!-- Button 1: Top Bán Chạy -->
-                    <TextView
-                        android:id="@+id/btnHotBestSeller"
-                        android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:background="@drawable/bg_quick_chip_active"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:paddingHorizontal="14dp"
-                        android:text="🔥 Top Bán Chạy"
-                        android:textColor="@color/primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <!-- Button 2: Top Yêu Thích -->
-                    <TextView
-                        android:id="@+id/btnHotFavorite"
-                        android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:layout_marginStart="8dp"
-                        android:background="@drawable/bg_quick_chip"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:gravity="center"
-                        android:paddingHorizontal="14dp"
-                        android:text="⭐ Top Yêu Thích"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" />
-
-                    <TextView
-                        android:id="@+id/tvHotSubtitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="1 món / quán"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11sp" />
-                </LinearLayout>
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvHotDishes"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:nestedScrollingEnabled="false"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="4dp" />
-
-                <!-- 2. Danh mục món ăn thời gian thực từ Firebase (do Admin quản lý) -->
-                <com.google.android.material.card.MaterialCardView
-                    style="@style/Widget.FoodOrder.Card"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:paddingVertical="10dp">
-
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/rvHomeCategories"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clipToPadding="false"
-                            android:paddingHorizontal="8dp"
-                            android:nestedScrollingEnabled="false"
-                            android:overScrollMode="never" />
-
-                        <!-- Đường phân cách nhẹ giữa danh mục và bộ lọc giá -->
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="1dp"
-                            android:layout_marginHorizontal="10dp"
-                            android:layout_marginTop="8dp"
-                            android:layout_marginBottom="6dp"
-                            android:background="#F1F5F9" />
-
-                        <!-- Nút Mở Bottom Sheet Bộ Lọc Nâng Cao (b1.html: btn-filter-toggle) -->
-                        <LinearLayout
-                            android:id="@+id/btnFilterToggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="40dp"
-                            android:layout_marginHorizontal="10dp"
-                            android:layout_marginTop="2dp"
-                            android:layout_marginBottom="2dp"
-                            android:background="@drawable/bg_btn_filter_toggle"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:gravity="center"
-                            android:orientation="horizontal"
-                            android:paddingHorizontal="16dp">
-
-                            <TextView
-                                android:id="@+id/tvFilterToggleIcon"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="⚙️"
-                                android:textSize="14sp" />
-
-                            <TextView
-                                android:id="@+id/tvFilterToggleTitle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:text="Bộ Lọc (Giá &amp; Đánh Giá Sao)"
-                                android:textColor="@color/primary"
-                                android:textSize="13sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/tvFilterBadge"
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_marginStart="8dp"
-                                android:background="@drawable/bg_badge_filter_count"
-                                android:gravity="center"
-                                android:text="1"
-                                android:textColor="@color/white"
-                                android:textSize="11sp"
-                                android:textStyle="bold"
-                                android:visibility="gone" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- Banner thông báo khi đang lọc món các quán gần (b1.html: active-filter-indicator) -->
-                <LinearLayout
-                    android:id="@+id/layoutActiveFilterIndicator"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:background="#ECFDF5"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="8dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/tvFilterIndicatorSummary"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Đang lọc: 📍 Các quán gần nhất (&lt; 1.5 km)"
-                        android:textColor="#047857"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/btnClearFilter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="#D1FAE5"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="3dp"
-                        android:text="Xóa lọc"
-                        android:textColor="#047857"
-                        android:textSize="10.5sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- 3. Tiêu đề "Món ngon đề xuất cho bạn" (Theo chuẩn b1.html) -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:layout_marginBottom="10dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvSectionTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Món ngon đề xuất cho bạn"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvDishesCountBadge"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:layout_weight="1"
-                        android:text="(8 món)"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvViewAll"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/view_all"
-                        android:textColor="@color/primary"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- 4. Danh sách Món Ăn chính của trang chủ (b1.html: shop-list dish-food-card) -->
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvDishes"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false" />
-
-                <!-- Trạng thái trống -->
-                <TextView
-                    android:id="@+id/tvEmpty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="40dp"
-                    android:paddingHorizontal="24dp"
-                    android:gravity="center"
-                    android:text="@string/empty_restaurants"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="14sp"
-                    android:lineSpacingExtra="4dp"
-                    android:visibility="gone" />
-
-            </LinearLayout>
-        </androidx.core.widget.NestedScrollView>
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-    <!-- Nút Giỏ hàng nổi (b4.html: floating-cart-btn đặt trên thanh Navigation) -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/btnCart"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="10dp"
-        android:background="@drawable/bg_floating_cart"
-        android:clickable="true"
-        android:elevation="6dp"
-        android:focusable="true"
-        android:paddingHorizontal="16dp"
-        app:layout_constraintBottom_toBottomOf="parent">
-
-        <LinearLayout
-            android:id="@+id/layoutCartLeft"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/tvCartAmount"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <TextView
-                android:id="@+id/tvCartIcon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="🛒 Giỏ Hàng"
-                android:textColor="@color/on_primary"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvCartBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/bg_cart_badge_pill"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textColor="@color/primary"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                tools:text="2 quán" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvCartAmount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="0 đ ➔"
-            android:textColor="@color/on_primary"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <!-- Main Fragment Workspace for Orders / Notification / Profile -->
-    <FrameLayout
-        android:id="@+id/customerFragmentContainer"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/bottomNav"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- Modern Executive Bottom Navigation -->
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottomNav"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/surface"
-        app:elevation="8dp"
-        app:itemActiveIndicatorStyle="@style/Widget.Material3.BottomNavigationView.ActiveIndicator"
-        app:itemIconTint="@color/bottom_nav_color_selector"
-        app:itemRippleColor="@color/primary_light"
-        app:itemTextColor="@color/bottom_nav_color_selector"
-        app:labelVisibilityMode="labeled"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:menu="@menu/menu_bottom_nav_customer" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/AuthViewModel.kt
@@ -106736,839 +106736,6 @@ class MenuManageFragment : Fragment() {
         fun newInstance() = MenuManageFragment()
     }
 }
-````
-
-## File: app-internal/src/main/res/layout/activity_store_verification.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/rootVerification"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F8FAFC">
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="20dp"
-            android:paddingBottom="40dp">
-
-            <!-- Header Section -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <FrameLayout
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_badge_orange"
-                    android:backgroundTint="#FFF0ED">
-
-                    <ImageView
-                        android:layout_width="28dp"
-                        android:layout_height="28dp"
-                        android:layout_gravity="center"
-                        app:srcCompat="@drawable/ic_store"
-                        app:tint="#EE4D2D" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="THIẾT LẬP ĐỊA CHỈ &amp; QUÁN"
-                        android:textColor="#EE4D2D"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Xác Minh Hồ Sơ Đối Tác"
-                        android:textColor="#0F172A"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Banner lưu ý bắt buộc -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_warning_inline"
-                android:orientation="vertical"
-                android:padding="12dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginEnd="8dp"
-                        app:srcCompat="@drawable/ic_alert_triangle"
-                        app:tint="#DC2626" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Phiếu thông tin bắt buộc dành cho Quán"
-                        android:textColor="#991B1B"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:lineSpacingExtra="2dp"
-                    android:text="Để quán có thể bắt đầu mở cửa nhận đơn và định vị trên bản đồ khách hàng, vui lòng hoàn tất đầy đủ địa chỉ thực tế và số CCCD định danh của chủ quán."
-                    android:textColor="#7F1D1D"
-                    android:textSize="11.5sp" />
-            </LinearLayout>
-
-            <!-- Card 1: Địa chỉ & Cửa hàng -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:layout_marginEnd="8dp"
-                            app:srcCompat="@drawable/ic_map_pin"
-                            app:tint="#EE4D2D" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="1. Địa Chỉ &amp; Thông Tin Cửa Hàng"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Tên quán -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilStoreName"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:hint="Tên cửa hàng / Quán ăn *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etStoreName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textCapWords"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Hotline quán -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilStorePhone"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Số điện thoại quán *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etStorePhone"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="phone"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Địa chỉ cụ thể (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS) -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilStoreAddress"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:endIconDrawable="@drawable/ic_map_pin"
-                        app:endIconMode="custom"
-                        app:endIconTint="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etStoreAddress"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clickable="true"
-                            android:cursorVisible="false"
-                            android:focusable="false"
-                            android:inputType="none"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Nút chọn / ghim vị trí quán trên bản đồ (Place Autocomplete & GPS) -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnPickLocationMap"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="8dp"
-                        android:text="📍 Chọn / Ghim vị trí quán trên bản đồ"
-                        android:textAllCaps="false"
-                        android:textColor="@color/primary"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="10dp"
-                        app:strokeColor="@color/primary"
-                        app:strokeWidth="1.2dp" />
-
-                    <!-- Quận / Huyện TP.HCM -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="4dp"
-                        android:text="Quận / Huyện (Tự động nhận diện từ bản đồ) *:"
-                        android:textColor="#64748B"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <Spinner
-                        android:id="@+id/spStoreDistrict"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:background="@drawable/bg_rounded_spinner_border"
-                        android:enabled="false"
-                        android:paddingHorizontal="12dp" />
-
-                    <!-- Giờ mở cửa & Thời gian làm món -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:id="@+id/tilOpenHours"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:hint="Giờ mở cửa"
-                            app:boxStrokeColor="#EE4D2D"
-                            app:hintTextColor="#EE4D2D">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etOpenHours"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="text"
-                                android:text="08:00 - 22:30"
-                                android:textColor="#0F172A"
-                                android:textSize="13sp" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:id="@+id/tilPrepTime"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:hint="Thời gian làm món"
-                            app:boxStrokeColor="#EE4D2D"
-                            app:hintTextColor="#EE4D2D">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etPrepTime"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="text"
-                                android:text="15 phút"
-                                android:textColor="#0F172A"
-                                android:textSize="13sp" />
-                        </com.google.android.material.textfield.TextInputLayout>
-                    </LinearLayout>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card 2: Xác minh pháp lý chủ quán (KYC) -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:layout_marginEnd="8dp"
-                            app:srcCompat="@drawable/ic_shield"
-                            app:tint="#EE4D2D" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="2. Xác Minh Danh Tính Chủ Quán (KYC)"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Khung Quét / Chụp ảnh CCCD tự động điền (AI OCR) -->
-                    <com.google.android.material.card.MaterialCardView
-                        android:id="@+id/cardCccdScanBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        app:cardBackgroundColor="#FFFFFF"
-                        app:cardCornerRadius="14dp"
-                        app:cardElevation="0dp"
-                        app:strokeColor="#FED7AA"
-                        app:strokeWidth="1.5dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="14dp">
-
-                            <!-- Header của mục Quét CCCD -->
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="38dp"
-                                    android:layout_height="38dp"
-                                    android:background="@drawable/bg_badge_orange"
-                                    android:backgroundTint="#FFF0ED">
-
-                                    <ImageView
-                                        android:layout_width="20dp"
-                                        android:layout_height="20dp"
-                                        android:layout_gravity="center"
-                                        app:srcCompat="@drawable/ic_camera"
-                                        app:tint="#EE4D2D" />
-                                </FrameLayout>
-
-                                <LinearLayout
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:orientation="vertical">
-
-                                    <TextView
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:text="Quét Thẻ Căn Cước Công Dân (AI)"
-                                        android:textColor="#0F172A"
-                                        android:textSize="13.5sp"
-                                        android:textStyle="bold" />
-
-                                    <TextView
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:layout_marginTop="1dp"
-                                        android:text="Tự động đọc Họ tên &amp; 12 số CCCD"
-                                        android:textColor="#64748B"
-                                        android:textSize="11.5sp" />
-                                </LinearLayout>
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:background="@drawable/bg_badge_orange"
-                                    android:backgroundTint="#FFF0ED"
-                                    android:paddingHorizontal="7dp"
-                                    android:paddingVertical="3dp"
-                                    android:text="TỰ ĐỘNG ĐIỀN"
-                                    android:textColor="#EE4D2D"
-                                    android:textSize="10sp"
-                                    android:textStyle="bold" />
-                            </LinearLayout>
-
-                            <View
-                                android:layout_width="match_parent"
-                                android:layout_height="1dp"
-                                android:layout_marginVertical="10dp"
-                                android:background="#F1F5F9" />
-
-                            <!-- Khung xem trước ảnh thẻ đã chụp/chọn -->
-                            <FrameLayout
-                                android:id="@+id/layoutCccdPreview"
-                                android:layout_width="match_parent"
-                                android:layout_height="180dp"
-                                android:layout_marginBottom="10dp"
-                                android:visibility="gone">
-
-                                <com.google.android.material.card.MaterialCardView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="match_parent"
-                                    app:cardCornerRadius="10dp"
-                                    app:cardElevation="0dp"
-                                    app:strokeColor="#CBD5E1"
-                                    app:strokeWidth="1dp">
-
-                                    <ImageView
-                                        android:id="@+id/ivCccdPreview"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="match_parent"
-                                        android:scaleType="centerCrop" />
-                                </com.google.android.material.card.MaterialCardView>
-
-                                <com.google.android.material.card.MaterialCardView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_gravity="top|start"
-                                    android:layout_margin="8dp"
-                                    app:cardBackgroundColor="#DCFCE7"
-                                    app:cardCornerRadius="6dp"
-                                    app:cardElevation="2dp"
-                                    app:strokeColor="#86EFAC"
-                                    app:strokeWidth="1dp">
-
-                                    <TextView
-                                        android:id="@+id/tvCccdBadge"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:paddingHorizontal="8dp"
-                                        android:paddingVertical="3dp"
-                                        android:text="✓ Mặt trước CCCD"
-                                        android:textColor="#166534"
-                                        android:textSize="11sp"
-                                        android:textStyle="bold" />
-                                </com.google.android.material.card.MaterialCardView>
-
-                                <com.google.android.material.button.MaterialButton
-                                    android:id="@+id/btnRetakeCccd"
-                                    style="@style/Widget.MaterialComponents.Button"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="36dp"
-                                    android:layout_gravity="bottom|end"
-                                    android:layout_margin="8dp"
-                                    android:backgroundTint="#CC000000"
-                                    android:insetTop="0dp"
-                                    android:insetBottom="0dp"
-                                    android:paddingHorizontal="10dp"
-                                    android:text="Chụp lại"
-                                    android:textColor="#FFFFFF"
-                                    android:textSize="11.5sp"
-                                    app:cornerRadius="6dp"
-                                    app:icon="@drawable/ic_camera"
-                                    app:iconGravity="textStart"
-                                    app:iconSize="14dp"
-                                    app:iconTint="#FFFFFF" />
-                            </FrameLayout>
-
-                            <!-- Loading quét OCR -->
-                            <com.google.android.material.card.MaterialCardView
-                                android:id="@+id/layoutOcrLoading"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="10dp"
-                                android:visibility="gone"
-                                app:cardBackgroundColor="#FFF7ED"
-                                app:cardCornerRadius="8dp"
-                                app:cardElevation="0dp"
-                                app:strokeColor="#FED7AA"
-                                app:strokeWidth="1dp">
-
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:gravity="center_vertical"
-                                    android:orientation="horizontal"
-                                    android:padding="10dp">
-
-                                    <ProgressBar
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:indeterminateTint="#EE4D2D" />
-
-                                    <TextView
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:layout_marginStart="10dp"
-                                        android:text="AI đang đọc và nhận diện thẻ CCCD..."
-                                        android:textColor="#C2410C"
-                                        android:textSize="12sp"
-                                        android:textStyle="bold" />
-                                </LinearLayout>
-                            </com.google.android.material.card.MaterialCardView>
-
-                            <!-- Banner kết quả nhận diện thành công -->
-                            <com.google.android.material.card.MaterialCardView
-                                android:id="@+id/layoutOcrSuccess"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="10dp"
-                                android:visibility="gone"
-                                app:cardBackgroundColor="#F0FDF4"
-                                app:cardCornerRadius="8dp"
-                                app:cardElevation="0dp"
-                                app:strokeColor="#86EFAC"
-                                app:strokeWidth="1dp">
-
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="vertical"
-                                    android:padding="10dp">
-
-                                    <LinearLayout
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:gravity="center_vertical"
-                                        android:orientation="horizontal">
-
-                                        <ImageView
-                                            android:layout_width="16dp"
-                                            android:layout_height="16dp"
-                                            app:srcCompat="@drawable/ic_check"
-                                            app:tint="#16A34A" />
-
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:layout_marginStart="6dp"
-                                            android:text="✓ Nhận diện &amp; tự động điền thành công:"
-                                            android:textColor="#15803D"
-                                            android:textSize="12sp"
-                                            android:textStyle="bold" />
-                                    </LinearLayout>
-
-                                    <TextView
-                                        android:id="@+id/tvOcrResultDesc"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:layout_marginTop="3dp"
-                                        android:text="Họ tên • Số CCCD"
-                                        android:textColor="#166534"
-                                        android:textSize="11.5sp" />
-                                </LinearLayout>
-                            </com.google.android.material.card.MaterialCardView>
-
-                            <!-- 2 nút Chụp ảnh & Chọn từ máy -->
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal">
-
-                                <com.google.android.material.button.MaterialButton
-                                    android:id="@+id/btnCaptureCccd"
-                                    style="@style/Widget.MaterialComponents.Button"
-                                    android:layout_width="0dp"
-                                    android:layout_height="44dp"
-                                    android:layout_weight="1"
-                                    android:backgroundTint="#EE4D2D"
-                                    android:insetTop="0dp"
-                                    android:insetBottom="0dp"
-                                    android:text="Chụp ảnh CCCD"
-                                    android:textColor="#FFFFFF"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold"
-                                    app:cornerRadius="8dp"
-                                    app:icon="@drawable/ic_camera"
-                                    app:iconGravity="textStart"
-                                    app:iconSize="16dp"
-                                    app:iconTint="#FFFFFF" />
-
-                                <com.google.android.material.button.MaterialButton
-                                    android:id="@+id/btnPickCccdGallery"
-                                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                                    android:layout_width="0dp"
-                                    android:layout_height="44dp"
-                                    android:layout_marginStart="8dp"
-                                    android:layout_weight="1"
-                                    android:insetTop="0dp"
-                                    android:insetBottom="0dp"
-                                    android:text="Chọn từ máy"
-                                    android:textColor="#0F172A"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold"
-                                    app:cornerRadius="8dp"
-                                    app:icon="@drawable/ic_image"
-                                    app:iconGravity="textStart"
-                                    app:iconSize="16dp"
-                                    app:iconTint="#64748B"
-                                    app:strokeColor="#CBD5E1" />
-                            </LinearLayout>
-
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <!-- Chủ hộ kinh doanh -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilOwnerName"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:hint="Họ và tên chủ hộ kinh doanh *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:helperText="Nhập tên đầy đủ có dấu (ví dụ: Nguyễn Văn An)"
-                        app:helperTextEnabled="true"
-                        app:helperTextTextColor="#64748B"
-                        app:hintTextColor="#EE4D2D">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etOwnerName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textPersonName|textCapWords"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Số CCCD 12 số -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilCccdNumber"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Số Căn cước công dân (12 chữ số) *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:counterEnabled="true"
-                        app:counterMaxLength="12"
-                        app:hintTextColor="#EE4D2D">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etCccdNumber"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:maxLength="12"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card 3: Tài khoản ngân hàng VietQR -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:layout_marginEnd="8dp"
-                            app:srcCompat="@drawable/ic_credit_card"
-                            app:tint="#EE4D2D" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="3. Tài Khoản Nhận Tiền Tự Động (VietQR)"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Tài khoản này dùng để tạo mã QR thanh toán động khi khách đặt đơn tại quán"
-                        android:textColor="#64748B"
-                        android:textSize="11.5sp" />
-
-                    <!-- Ngân hàng -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="4dp"
-                        android:text="Chọn Ngân hàng thụ hưởng *:"
-                        android:textColor="#64748B"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <Spinner
-                        android:id="@+id/spBankName"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:background="@drawable/bg_rounded_spinner_border"
-                        android:paddingHorizontal="12dp" />
-
-                    <!-- Số tài khoản -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilBankAccountNumber"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Số tài khoản ngân hàng *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etBankAccountNumber"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Tên chủ tài khoản -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilBankAccountName"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Tên chủ tài khoản (In hoa không dấu) *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:helperText="Tự động đồng bộ từ chủ hộ: in hoa không dấu (ví dụ: NGUYEN VAN AN)"
-                        app:helperTextEnabled="true"
-                        app:helperTextTextColor="#64748B"
-                        app:hintTextColor="#EE4D2D">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etBankAccountName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textCapCharacters"
-                            android:textColor="#0F172A"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Loading ProgressBar -->
-            <ProgressBar
-                android:id="@+id/progressBarVerification"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="16dp"
-                android:indeterminateTint="#EE4D2D"
-                android:visibility="gone" />
-
-            <!-- Nút Lưu & Kích Hoạt -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSubmitVerification"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="20dp"
-                android:backgroundTint="#EE4D2D"
-                android:text="Xác Nhận &amp; Bắt Đầu Hoạt Động"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:cornerRadius="10dp"
-                app:icon="@drawable/ic_check"
-                app:iconGravity="textStart"
-                app:iconTint="#FFFFFF" />
-
-            <!-- Nút Đăng xuất -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnLogout"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginTop="8dp"
-                android:text="Đăng xuất tài khoản này"
-                android:textColor="#64748B"
-                android:textSize="13sp" />
-
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
 ````
 
 ## File: app-internal/src/main/res/layout/item_order.xml
@@ -109181,6 +108348,769 @@ class ShopViewModel @Inject constructor(
 </ScrollView>
 ````
 
+## File: app-internal/src/main/res/layout/activity_store_verification.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootVerification"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8FAFC">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="40dp">
+
+            <!-- Header Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:backgroundTint="#FFF0ED">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        app:srcCompat="@drawable/ic_store"
+                        app:tint="#EE4D2D" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="THIẾT LẬP ĐỊA CHỈ &amp; QUÁN"
+                        android:textColor="#EE4D2D"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Xác Minh Hồ Sơ Đối Tác"
+                        android:textColor="#0F172A"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Banner lưu ý bắt buộc -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_warning_inline"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_marginEnd="8dp"
+                        app:srcCompat="@drawable/ic_alert_triangle"
+                        app:tint="#DC2626" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Phiếu thông tin bắt buộc dành cho Quán"
+                        android:textColor="#991B1B"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:lineSpacingExtra="2dp"
+                    android:text="Để quán có thể bắt đầu mở cửa nhận đơn và định vị trên bản đồ khách hàng, vui lòng hoàn tất đầy đủ địa chỉ thực tế và số CCCD định danh của chủ quán."
+                    android:textColor="#7F1D1D"
+                    android:textSize="11.5sp" />
+            </LinearLayout>
+
+            <!-- Card 1: Địa chỉ & Cửa hàng -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="#FFFFFF"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E2E8F0"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="8dp"
+                            app:srcCompat="@drawable/ic_map_pin"
+                            app:tint="#EE4D2D" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1. Địa Chỉ &amp; Thông Tin Cửa Hàng"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Tên quán -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilStoreName"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:hint="Tên cửa hàng / Quán ăn *"
+                        app:boxStrokeColor="#EE4D2D"
+                        app:hintTextColor="#EE4D2D">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etStoreName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapWords"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Hotline quán -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilStorePhone"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Số điện thoại quán *"
+                        app:boxStrokeColor="#EE4D2D"
+                        app:hintTextColor="#EE4D2D">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etStorePhone"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="phone"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Địa chỉ cụ thể (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilStoreAddress"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
+                        app:boxStrokeColor="#EE4D2D"
+                        app:endIconDrawable="@drawable/ic_map_pin"
+                        app:endIconMode="custom"
+                        app:endIconTint="#EE4D2D"
+                        app:hintTextColor="#EE4D2D">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etStoreAddress"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clickable="true"
+                            android:cursorVisible="false"
+                            android:focusable="false"
+                            android:inputType="none"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Nút chọn / ghim vị trí quán trên bản đồ (Place Autocomplete & GPS) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnPickLocationMap"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:text="📍 Chọn / Ghim vị trí quán trên bản đồ"
+                        android:textAllCaps="false"
+                        android:textColor="@color/primary"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:strokeColor="@color/primary"
+                        app:strokeWidth="1.2dp" />
+
+                    <!-- Quận / Huyện TP.HCM -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="4dp"
+                        android:text="Quận / Huyện (Tự động nhận diện từ bản đồ) *:"
+                        android:textColor="#64748B"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/spStoreDistrict"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/bg_rounded_spinner_border"
+                        android:enabled="false"
+                        android:paddingHorizontal="12dp" />
+
+                    <!-- Giờ mở cửa & Thời gian làm món -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilOpenHours"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:hint="Giờ mở cửa"
+                            app:boxStrokeColor="#EE4D2D"
+                            app:hintTextColor="#EE4D2D">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etOpenHours"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:text="08:00 - 22:30"
+                                android:textColor="#0F172A"
+                                android:textSize="13sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilPrepTime"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:hint="Thời gian làm món"
+                            app:boxStrokeColor="#EE4D2D"
+                            app:hintTextColor="#EE4D2D">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etPrepTime"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:text="15 phút"
+                                android:textColor="#0F172A"
+                                android:textSize="13sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 2: Xác minh pháp lý chủ quán (KYC) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="#FFFFFF"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E2E8F0"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="8dp"
+                            app:srcCompat="@drawable/ic_shield"
+                            app:tint="#EE4D2D" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="2. Xác Minh Danh Tính Chủ Quán (KYC)"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Khung Quét / Chụp ảnh CCCD tự động điền (AI OCR) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardCccdScanBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        app:cardBackgroundColor="#FFFFFF"
+                        app:cardCornerRadius="14dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="#FED7AA"
+                        app:strokeWidth="1.5dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <!-- Header của mục Quét CCCD -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_badge_orange"
+                                    android:backgroundTint="#FFF0ED">
+
+                                    <ImageView
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:layout_gravity="center"
+                                        app:srcCompat="@drawable/ic_camera"
+                                        app:tint="#EE4D2D" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Quét Thẻ Căn Cước Công Dân (AI)"
+                                        android:textColor="#0F172A"
+                                        android:textSize="13.5sp"
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="1dp"
+                                        android:text="Tự động đọc Họ tên &amp; 12 số CCCD"
+                                        android:textColor="#64748B"
+                                        android:textSize="11.5sp" />
+                                </LinearLayout>
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_badge_orange"
+                                    android:backgroundTint="#FFF0ED"
+                                    android:paddingHorizontal="7dp"
+                                    android:paddingVertical="3dp"
+                                    android:text="TỰ ĐỘNG ĐIỀN"
+                                    android:textColor="#EE4D2D"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:layout_marginVertical="10dp"
+                                android:background="#F1F5F9" />
+
+                            <!-- Khung xem trước ảnh thẻ đã chụp/chọn -->
+                            <FrameLayout
+                                android:id="@+id/layoutCccdPreview"
+                                android:layout_width="match_parent"
+                                android:layout_height="180dp"
+                                android:layout_marginBottom="10dp"
+                                android:visibility="gone">
+
+                                <com.google.android.material.card.MaterialCardView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    app:cardCornerRadius="10dp"
+                                    app:cardElevation="0dp"
+                                    app:strokeColor="#CBD5E1"
+                                    app:strokeWidth="1dp">
+
+                                    <ImageView
+                                        android:id="@+id/ivCccdPreview"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:scaleType="centerCrop" />
+                                </com.google.android.material.card.MaterialCardView>
+
+                                <com.google.android.material.card.MaterialCardView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="top|start"
+                                    android:layout_margin="8dp"
+                                    app:cardBackgroundColor="#DCFCE7"
+                                    app:cardCornerRadius="6dp"
+                                    app:cardElevation="2dp"
+                                    app:strokeColor="#86EFAC"
+                                    app:strokeWidth="1dp">
+
+                                    <TextView
+                                        android:id="@+id/tvCccdBadge"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:paddingHorizontal="8dp"
+                                        android:paddingVertical="3dp"
+                                        android:text="✓ Mặt trước CCCD"
+                                        android:textColor="#166534"
+                                        android:textSize="11sp"
+                                        android:textStyle="bold" />
+                                </com.google.android.material.card.MaterialCardView>
+                            </FrameLayout>
+
+                            <!-- Loading quét OCR -->
+                            <com.google.android.material.card.MaterialCardView
+                                android:id="@+id/layoutOcrLoading"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="10dp"
+                                android:visibility="gone"
+                                app:cardBackgroundColor="#FFF7ED"
+                                app:cardCornerRadius="8dp"
+                                app:cardElevation="0dp"
+                                app:strokeColor="#FED7AA"
+                                app:strokeWidth="1dp">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal"
+                                    android:padding="10dp">
+
+                                    <ProgressBar
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:indeterminateTint="#EE4D2D" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginStart="10dp"
+                                        android:text="AI đang đọc và nhận diện thẻ CCCD..."
+                                        android:textColor="#C2410C"
+                                        android:textSize="12sp"
+                                        android:textStyle="bold" />
+                                </LinearLayout>
+                            </com.google.android.material.card.MaterialCardView>
+
+                            <!-- 2 nút Chụp ảnh & Chọn từ máy -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnCaptureCccd"
+                                    style="@style/Widget.MaterialComponents.Button"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:backgroundTint="#EE4D2D"
+                                    android:insetTop="0dp"
+                                    android:insetBottom="0dp"
+                                    android:maxLines="1"
+                                    android:singleLine="true"
+                                    android:ellipsize="none"
+                                    android:paddingHorizontal="4dp"
+                                    android:text="Chụp ảnh"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold"
+                                    app:cornerRadius="8dp"
+                                    app:icon="@drawable/ic_camera"
+                                    app:iconGravity="textStart"
+                                    app:iconSize="16dp"
+                                    app:iconTint="#FFFFFF" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnPickCccdGallery"
+                                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="8dp"
+                                    android:layout_weight="1"
+                                    android:insetTop="0dp"
+                                    android:insetBottom="0dp"
+                                    android:maxLines="1"
+                                    android:singleLine="true"
+                                    android:ellipsize="none"
+                                    android:paddingHorizontal="4dp"
+                                    android:text="Chọn từ máy"
+                                    android:textColor="#0F172A"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold"
+                                    app:cornerRadius="8dp"
+                                    app:icon="@drawable/ic_image"
+                                    app:iconGravity="textStart"
+                                    app:iconSize="16dp"
+                                    app:iconTint="#64748B"
+                                    app:strokeColor="#CBD5E1" />
+                            </LinearLayout>
+
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Chủ hộ kinh doanh -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilOwnerName"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:hint="Họ và tên chủ hộ kinh doanh *"
+                        app:boxStrokeColor="#EE4D2D"
+                        app:hintTextColor="#EE4D2D">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etOwnerName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textPersonName|textCapWords"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Số CCCD 12 số -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilCccdNumber"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Số Căn cước công dân (12 chữ số) *"
+                        app:boxStrokeColor="#EE4D2D"
+                        app:counterEnabled="true"
+                        app:counterMaxLength="12"
+                        app:hintTextColor="#EE4D2D">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etCccdNumber"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLength="12"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 3: Tài khoản ngân hàng VietQR -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="#FFFFFF"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E2E8F0"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="8dp"
+                            app:srcCompat="@drawable/ic_credit_card"
+                            app:tint="#EE4D2D" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="3. Tài Khoản Nhận Tiền Tự Động (VietQR)"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Tài khoản này dùng để tạo mã QR thanh toán động khi khách đặt đơn tại quán"
+                        android:textColor="#64748B"
+                        android:textSize="11.5sp" />
+
+                    <!-- Ngân hàng -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="4dp"
+                        android:text="Chọn Ngân hàng thụ hưởng *:"
+                        android:textColor="#64748B"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/spBankName"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/bg_rounded_spinner_border"
+                        android:paddingHorizontal="12dp" />
+
+                    <!-- Số tài khoản -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilBankAccountNumber"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Số tài khoản ngân hàng *"
+                        app:boxStrokeColor="#EE4D2D"
+                        app:hintTextColor="#EE4D2D">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etBankAccountNumber"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Tên chủ tài khoản -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilBankAccountName"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Tên chủ tài khoản (In hoa không dấu) *"
+                        app:boxStrokeColor="#EE4D2D"
+                        app:hintTextColor="#EE4D2D">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etBankAccountName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapCharacters"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Loading ProgressBar -->
+            <ProgressBar
+                android:id="@+id/progressBarVerification"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="16dp"
+                android:indeterminateTint="#EE4D2D"
+                android:visibility="gone" />
+
+            <!-- Nút Lưu & Kích Hoạt -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSubmitVerification"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="20dp"
+                android:backgroundTint="#EE4D2D"
+                android:text="Xác Nhận &amp; Bắt Đầu Hoạt Động"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:cornerRadius="10dp"
+                app:icon="@drawable/ic_check"
+                app:iconGravity="textStart"
+                app:iconTint="#FFFFFF" />
+
+            <!-- Nút Đăng xuất -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnLogout"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="8dp"
+                android:text="Đăng xuất tài khoản này"
+                android:textColor="#64748B"
+                android:textSize="13sp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/User.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.model
@@ -110644,684 +110574,6 @@ class OrderHistoryAdapter(
 </ScrollView>
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/StoreVerificationActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.auth
-
-import android.content.Intent
-import android.net.Uri
-import android.os.Bundle
-import android.view.MotionEvent
-import android.view.View
-import android.widget.ArrayAdapter
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
-import androidx.lifecycle.lifecycleScope
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.util.CccdOcrHelper
-import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
-import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityStoreVerificationBinding
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import java.io.File
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Phiếu Thiết Lập Địa Chỉ Bắt Buộc & Xác Minh Thông Tin Quán
- * Cách hoạt động:
- *  - Thu thập hồ sơ kinh doanh của Quán: Tên quán, SĐT, Địa chỉ lấy hàng chi tiết, Quận/Huyện, Họ tên chủ quán, CCCD (12 số).
- *  - Thu thập thông tin Tài khoản ngân hàng (VietQR / Napas) để hệ thống quyết toán doanh thu.
- *  - Tự động map tọa độ GPS theo Quận/Huyện TP.HCM phục vụ tính toán cước ship và định tuyến cho Shipper.
- *  - Cập nhật cờ `isVerified = true` lên Firestore document của Quán và tài khoản Merchant.
- * Luồng hướng tới:
- *  - Xác minh thành công -> Điều hướng trực tiếp vào [DashboardActivity] (xóa stack).
- *  - Bấm Đăng xuất -> Trở về [LoginActivity].
- */
-@AndroidEntryPoint
-class StoreVerificationActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityStoreVerificationBinding
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    private var currentStoreId: String = ""
-    private var selectedLat: Double? = null
-    private var selectedLng: Double? = null
-    private var capturedCccdUri: Uri? = null
-    private var cccdFrontBase64: String = ""
-    private var isSyncingBankName = false
-    private var isManualEditingBankName = false
-
-    private val takePictureLauncher = registerForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            val uri = capturedCccdUri
-            if (uri != null) {
-                processCccdImage(uri)
-            }
-        }
-    }
-
-    private val pickGalleryLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            processCccdImage(uri)
-        }
-    }
-
-    private val cameraPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            launchCamera()
-        } else {
-            Toast.makeText(this, "⚠️ Vui lòng cấp quyền Camera để chụp ảnh thẻ CCCD", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun checkPermissionAndLaunchCamera() {
-        if (ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.CAMERA
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            launchCamera()
-        } else {
-            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-        }
-    }
-
-    private fun launchCamera() {
-        try {
-            val photoFile = File(cacheDir, "cccd_scan_${System.currentTimeMillis()}.jpg")
-            val photoUri = FileProvider.getUriForFile(
-                this,
-                "${packageName}.fileprovider",
-                photoFile
-            )
-            capturedCccdUri = photoUri
-            takePictureLauncher.launch(photoUri)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Không thể mở camera: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val selectLocationLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data ?: return@registerForActivityResult
-            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
-            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
-            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
-            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
-            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
-
-            if (!streetAddress.isNullOrBlank()) {
-                binding.etStoreAddress.setText(streetAddress)
-            } else if (!fullAddress.isNullOrBlank()) {
-                binding.etStoreAddress.setText(fullAddress)
-            }
-
-            if (!district.isNullOrBlank()) {
-                val dIndex = districts.indexOfFirst { d ->
-                    d.equals(district, ignoreCase = true) || district.contains(d, ignoreCase = true)
-                }
-                if (dIndex >= 0) {
-                    binding.spStoreDistrict.setSelection(dIndex)
-                }
-            }
-
-            if (lat != 0.0 && lng != 0.0) {
-                selectedLat = lat
-                selectedLng = lng
-            }
-        }
-    }
-
-    data class SupportedBank(val name: String, val bin: String)
-
-    private val supportedBanks = listOf(
-        SupportedBank("MB Bank (Quân Đội)", "970422"),
-        SupportedBank("Vietcombank (Ngoại Thương)", "970436"),
-        SupportedBank("Techcombank (Kỹ Thương)", "970407"),
-        SupportedBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
-        SupportedBank("ACB (Á Châu)", "970416"),
-        SupportedBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
-        SupportedBank("Agribank (Nông Nghiệp)", "970405"),
-        SupportedBank("TPBank (Tiên Phong)", "970423"),
-        SupportedBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
-        SupportedBank("VIB (Quốc Tế)", "970441"),
-        SupportedBank("OCB (Phương Đông)", "970448")
-    )
-
-    private val districts = listOf(
-        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
-        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
-        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
-        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
-    )
-
-    /**
-     * Tên chức năng: Khởi tạo màn hình xác minh
-     * Cách hoạt động: Thiết lập padding Edge-to-Edge tránh đè status bar, load storeId từ Intent hoặc Firebase, khởi tạo Spinners.
-     * Luồng hướng tới: Chuẩn bị form để đối tác điền thông tin.
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        InsetUtils.initEdgeToEdge(this, true)
-        binding = ActivityStoreVerificationBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        val statusBarHeight = InsetUtils.getFallbackStatusBarHeight(this)
-        binding.rootVerification.setPadding(0, statusBarHeight, 0, 0)
-        InsetUtils.setLightStatusBar(this, true)
-
-        currentStoreId = intent.getStringExtra("STORE_ID").orEmpty()
-
-        setupSpinners()
-        setupListeners()
-        loadInitialData()
-    }
-
-    /**
-     * Tên chức năng: Thiết lập danh sách chọn Quận/Huyện và Ngân hàng
-     * Cách hoạt động: Gán ArrayAdapter danh mục các quận TP.HCM và các ngân hàng nội địa phổ biến vào Spinner.
-     * Luồng hướng tới: Cung cấp lựa chọn dropdown cho người dùng.
-     */
-    private fun setupSpinners() {
-        // Spinner Quận/Huyện
-        val districtAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, districts)
-        districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.spStoreDistrict.adapter = districtAdapter
-
-        // Spinner Ngân hàng
-        val bankAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedBanks.map { it.name })
-        bankAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.spBankName.adapter = bankAdapter
-    }
-
-    /**
-     * Tên chức năng: Tải trước thông tin quán (nếu đã có trên Firebase)
-     * Cách hoạt động: Truy vấn Firestore lấy thông tin hiện tại của User và Store để tự động điền sẵn vào các trường nhập liệu.
-     * Luồng hướng tới: Giảm thiểu thao tác nhập liệu lại cho chủ quán.
-     */
-    /**
-     * Tên chức năng: Xử lý ảnh thẻ CCCD & Quét OCR tự động điền
-     * Cách hoạt động:
-     *  - Hiển thị ảnh vừa chụp/chọn lên khung xem trước [layoutCccdPreview].
-     *  - Chạy coroutine nén ảnh Base64 phục vụ lưu trữ lên Firebase.
-     *  - Chạy mô hình AI Text Recognition (ML Kit) qua [CccdOcrHelper] để trích xuất số CCCD (12 số), Họ tên và Nơi cư trú.
-     *  - Tự động điền kết quả vào trường [etCccdNumber], [etOwnerName] và gợi ý [etBankAccountName].
-     * Luồng hướng tới: Tối ưu hóa trải nghiệm xác minh hồ sơ, giảm 90% thao tác nhập liệu thủ công.
-     */
-    private fun processCccdImage(uri: Uri) {
-        binding.layoutCccdPreview.visibility = View.VISIBLE
-        binding.layoutOcrLoading.visibility = View.VISIBLE
-        binding.layoutOcrSuccess.visibility = View.GONE
-        binding.tvCccdBadge.text = "✓ Thẻ CCCD vừa chụp"
-
-        Glide.with(this)
-            .load(uri)
-            .into(binding.ivCccdPreview)
-
-        lifecycleScope.launch {
-            // Nén ảnh sang Base64
-            val base64 = ImagePickerUtils.compressUriToBase64(
-                this@StoreVerificationActivity,
-                uri,
-                maxDimension = 800,
-                quality = 80
-            )
-            if (!base64.isNullOrBlank()) {
-                cccdFrontBase64 = base64
-            }
-
-            // Quét OCR nhận diện CCCD bằng AI
-            val result = CccdOcrHelper.scanCccdFromUri(
-                this@StoreVerificationActivity,
-                uri
-            )
-
-            binding.layoutOcrLoading.visibility = View.GONE
-
-            result.onSuccess { scanResult ->
-                var filledAny = false
-                val filledFields = mutableListOf<String>()
-
-                val cccdNum = scanResult.cccdNumber
-                if (!cccdNum.isNullOrBlank()) {
-                    binding.etCccdNumber.setText(cccdNum)
-                    binding.tilCccdNumber.error = null
-                    filledFields.add("Số CCCD: $cccdNum")
-                    filledAny = true
-                }
-
-                val ocrName = scanResult.fullName
-                if (!ocrName.isNullOrBlank()) {
-                    val formattedName = CccdOcrHelper.toTitleCase(ocrName)
-                    binding.etOwnerName.setText(formattedName)
-                    binding.tilOwnerName.error = null
-                    filledFields.add("Họ tên: $formattedName")
-                    filledAny = true
-
-                    // Tự động liên kết điền sang Tên chủ tài khoản: IN HOA TOÀN BỘ VÀ KHÔNG DẤU
-                    val unaccentedUpper = CccdOcrHelper.removeAccents(ocrName).uppercase()
-                    isSyncingBankName = true
-                    binding.etBankAccountName.setText(unaccentedUpper)
-                    binding.tilBankAccountName.error = null
-                    isSyncingBankName = false
-                    isManualEditingBankName = false
-                }
-
-                // Gợi ý/điền Quận nếu trích xuất được và quán chưa chọn quận cụ thể
-                val ocrDistrict = scanResult.district
-                if (!ocrDistrict.isNullOrBlank()) {
-                    val dIndex = districts.indexOfFirst { d -> d.equals(ocrDistrict, ignoreCase = true) }
-                    if (dIndex >= 0 && (binding.etStoreAddress.text.toString().isBlank() || binding.spStoreDistrict.selectedItemPosition == 0)) {
-                        binding.spStoreDistrict.setSelection(dIndex)
-                    }
-                }
-
-                if (filledAny) {
-                    binding.layoutOcrSuccess.visibility = View.VISIBLE
-                    binding.tvOcrResultDesc.text = "✓ Đã nhận diện: " + filledFields.joinToString(" • ")
-                    Toast.makeText(
-                        this@StoreVerificationActivity,
-                        "🎉 Đã nhận diện và tự động điền thông tin CCCD!",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    binding.layoutOcrSuccess.visibility = View.GONE
-                    Toast.makeText(
-                        this@StoreVerificationActivity,
-                        "⚠️ Đã lưu ảnh thẻ nhưng chưa nhận diện rõ chữ. Vui lòng kiểm tra hoặc tự nhập thông tin.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }.onFailure { err ->
-                binding.layoutOcrSuccess.visibility = View.GONE
-                Toast.makeText(
-                    this@StoreVerificationActivity,
-                    "⚠️ Lỗi quét CCCD: ${err.message}. Bạn có thể tự nhập thông tin bên dưới.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
-
-    private fun loadInitialData() {
-        lifecycleScope.launch {
-            val user = authRepository.currentUser
-            if (user == null) {
-                finish()
-                return@launch
-            }
-
-            if (currentStoreId.isBlank()) {
-                currentStoreId = firebaseRepository.resolveStoreIdForUser(user.uid)
-            }
-
-            if (currentStoreId.isNotBlank()) {
-                val store = firebaseRepository.getStoreOnce(currentStoreId)
-                store?.let {
-                    if (it.name.isNotBlank() && it.name != "Quán Ăn Mới") {
-                        binding.etStoreName.setText(it.name)
-                    } else if (!user.displayName.isNullOrBlank()) {
-                        binding.etStoreName.setText(user.displayName)
-                    }
-
-                    if (it.phone.isNotBlank()) {
-                        binding.etStorePhone.setText(it.phone)
-                    } else if (!user.phoneNumber.isNullOrBlank()) {
-                        binding.etStorePhone.setText(user.phoneNumber)
-                    }
-
-                    if (it.address.isNotBlank()) binding.etStoreAddress.setText(it.address)
-                    if (it.ownerName.isNotBlank()) {
-                        binding.etOwnerName.setText(it.ownerName)
-                    } else if (!user.displayName.isNullOrBlank()) {
-                        binding.etOwnerName.setText(user.displayName)
-                    }
-
-                    if (it.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(it.cccdNumber)
-                    if (it.cccdFrontUrl.isNotBlank()) {
-                        cccdFrontBase64 = it.cccdFrontUrl
-                        binding.layoutCccdPreview.visibility = View.VISIBLE
-                        binding.tvCccdBadge.text = "✓ Đã có ảnh thẻ CCCD xác thực"
-                        val decoded = if (it.cccdFrontUrl.startsWith("data:image")) {
-                            try {
-                                val base64Clean = it.cccdFrontUrl.substringAfter("base64,")
-                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
-                            } catch (_: Exception) { null }
-                        } else null
-
-                        if (decoded != null) {
-                            Glide.with(this@StoreVerificationActivity)
-                                .load(decoded)
-                                .into(binding.ivCccdPreview)
-                        } else {
-                            Glide.with(this@StoreVerificationActivity)
-                                .load(it.cccdFrontUrl)
-                                .into(binding.ivCccdPreview)
-                        }
-                    }
-                    if (it.openHours.isNotBlank()) binding.etOpenHours.setText(it.openHours)
-                    if (it.prepTime.isNotBlank()) binding.etPrepTime.setText(it.prepTime)
-
-                    if (it.district.isNotBlank()) {
-                        val dIndex = districts.indexOfFirst { d -> d.equals(it.district, ignoreCase = true) }
-                        if (dIndex >= 0) binding.spStoreDistrict.setSelection(dIndex)
-                    }
-
-                    if (it.latitude != 0.0 && it.longitude != 0.0) {
-                        selectedLat = it.latitude
-                        selectedLng = it.longitude
-                    }
-
-                    if (it.bankAccountNumber.isNotBlank()) binding.etBankAccountNumber.setText(it.bankAccountNumber)
-                    if (it.bankAccountName.isNotBlank()) {
-                        binding.etBankAccountName.setText(it.bankAccountName)
-                        isManualEditingBankName = true
-                    } else {
-                        val currentOwner = binding.etOwnerName.text.toString().trim()
-                        if (currentOwner.isNotBlank()) {
-                            binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(currentOwner).uppercase())
-                        }
-                    }
-                    if (it.bankName.isNotBlank()) {
-                        val bIndex = supportedBanks.indexOfFirst { b -> b.name.contains(it.bankName, ignoreCase = true) }
-                        if (bIndex >= 0) binding.spBankName.setSelection(bIndex)
-                    }
-                }
-            } else {
-                if (!user.displayName.isNullOrBlank()) {
-                    binding.etStoreName.setText(user.displayName)
-                    binding.etOwnerName.setText(user.displayName)
-                    binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(user.displayName.orEmpty()).uppercase())
-                }
-                if (!user.phoneNumber.isNullOrBlank()) {
-                    binding.etStorePhone.setText(user.phoneNumber)
-                }
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập sự kiện nút bấm gửi phiếu xác minh & đăng xuất
-     * Cách hoạt động: Bắt sự kiện Click nút "Xác Nhận & Kích Hoạt Quán", nút "Đăng Xuất".
-     * Luồng hướng tới: Gọi [validateAndSubmit] hoặc hiển thị xác nhận đăng xuất.
-     */
-    private fun setupListeners() {
-        val openMapAction = {
-            val intent = Intent(this, SelectLocationActivity::class.java).apply {
-                val currentAddress = binding.etStoreAddress.text.toString().trim()
-                if (currentAddress.isNotBlank()) {
-                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
-                }
-                val curDistrict = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
-                if (curDistrict.isNotBlank()) {
-                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
-                }
-                selectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
-                selectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
-            }
-            selectLocationLauncher.launch(intent)
-        }
-
-        binding.btnPickLocationMap.setOnClickListener { openMapAction() }
-        binding.etStoreAddress.setOnClickListener { openMapAction() }
-        binding.tilStoreAddress.setOnClickListener { openMapAction() }
-
-        binding.btnCaptureCccd.setOnClickListener {
-            checkPermissionAndLaunchCamera()
-        }
-
-        binding.btnPickCccdGallery.setOnClickListener {
-            pickGalleryLauncher.launch("image/*")
-        }
-
-        binding.btnRetakeCccd.setOnClickListener {
-            checkPermissionAndLaunchCamera()
-        }
-
-        // Tự động liên kết giữa ô Họ tên chủ hộ kinh doanh và Tên chủ tài khoản:
-        // - Chủ hộ kinh doanh: Nhập tên bình thường đầy đủ dấu (ví dụ: Nguyễn Văn An)
-        // - Tên chủ tài khoản: Tự động cập nhật thành IN HOA TOÀN BỘ VÀ KHÔNG DẤU (ví dụ: NGUYEN VAN AN)
-        binding.etOwnerName.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                if (isSyncingBankName) return
-                val ownerInput = s?.toString().orEmpty().trim()
-                if (ownerInput.isNotBlank()) {
-                    val unaccentedUpper = CccdOcrHelper.removeAccents(ownerInput).uppercase()
-                    if (!isManualEditingBankName || binding.etBankAccountName.text.isNullOrBlank()) {
-                        isSyncingBankName = true
-                        binding.etBankAccountName.setText(unaccentedUpper)
-                        binding.tilBankAccountName.error = null
-                        isSyncingBankName = false
-                    }
-                } else if (!isManualEditingBankName) {
-                    isSyncingBankName = true
-                    binding.etBankAccountName.setText("")
-                    isSyncingBankName = false
-                }
-            }
-        })
-
-        // Khi người dùng chủ động gõ vào ô Tên chủ tài khoản:
-        // Đánh dấu đã chỉnh sửa thủ công và tự động chuẩn hóa thành IN HOA KHÔNG DẤU
-        binding.etBankAccountName.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                if (isSyncingBankName) return
-                if (binding.etBankAccountName.hasFocus()) {
-                    isManualEditingBankName = true
-                    val currentStr = s?.toString().orEmpty()
-                    val sanitized = CccdOcrHelper.removeAccents(currentStr).uppercase()
-                    if (currentStr != sanitized) {
-                        isSyncingBankName = true
-                        binding.etBankAccountName.setText(sanitized)
-                        binding.etBankAccountName.setSelection(sanitized.length)
-                        isSyncingBankName = false
-                    }
-                }
-            }
-        })
-
-        binding.btnSubmitVerification.setOnClickListener {
-            validateAndSubmit()
-        }
-
-        binding.btnLogout.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("🚪 Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    getSharedPreferences("boss_session", MODE_PRIVATE).edit().clear().apply()
-                    authRepository.logout()
-                    startActivity(Intent(this, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
-                    })
-                    finish()
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Kiểm tra tính hợp lệ dữ liệu và lưu hồ sơ lên Firebase
-     * Cách hoạt động:
-     *  - Kiểm tra các trường bắt buộc (Tên quán, SĐT, Địa chỉ, Chủ quán, CCCD 12 số, Số tài khoản ngân hàng).
-     *  - Tự động gán tọa độ GPS dựa trên bảng tọa độ các quận TP.HCM.
-     *  - Lưu dữ liệu lên Firestore via [FirebaseRepository.verifyAndCompleteStoreProfile].
-     * Luồng hướng tới:
-     *  - Thành công: Chuyển sang [DashboardActivity] và bắt đầu vận hành nhận đơn.
-     *  - Thất bại: Hiển thị thông báo Toast lỗi cụ thể.
-     */
-    private fun validateAndSubmit() {
-        // Reset errors
-        binding.tilStoreName.error = null
-        binding.tilStorePhone.error = null
-        binding.tilStoreAddress.error = null
-        binding.tilOwnerName.error = null
-        binding.tilCccdNumber.error = null
-        binding.tilBankAccountNumber.error = null
-        binding.tilBankAccountName.error = null
-
-        val name = binding.etStoreName.text.toString().trim()
-        val phone = binding.etStorePhone.text.toString().trim()
-        val address = binding.etStoreAddress.text.toString().trim()
-        val district = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
-        val openHours = binding.etOpenHours.text.toString().trim().ifBlank { "08:00 - 22:30" }
-        val prepTime = binding.etPrepTime.text.toString().trim().ifBlank { "15 phút" }
-
-        val ownerName = binding.etOwnerName.text.toString().trim()
-        val cccd = binding.etCccdNumber.text.toString().trim()
-
-        val selectedBank = supportedBanks.getOrNull(binding.spBankName.selectedItemPosition) ?: supportedBanks[0]
-        val bankAccount = binding.etBankAccountNumber.text.toString().trim()
-        val bankAccountName = binding.etBankAccountName.text.toString().trim().uppercase()
-
-        var hasError = false
-
-        if (name.isBlank()) {
-            binding.tilStoreName.error = "Vui lòng nhập tên cửa hàng / quán ăn"
-            hasError = true
-        }
-
-        if (phone.isBlank()) {
-            binding.tilStorePhone.error = "Vui lòng nhập số điện thoại quán"
-            hasError = true
-        }
-
-        if (address.isBlank()) {
-            binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
-            hasError = true
-        }
-
-        if (ownerName.isBlank()) {
-            binding.tilOwnerName.error = "Vui lòng nhập họ và tên chủ hộ kinh doanh"
-            hasError = true
-        }
-
-        if (cccd.length != 12) {
-            binding.tilCccdNumber.error = "Số CCCD phải có đúng 12 chữ số"
-            hasError = true
-        }
-
-        if (bankAccount.isBlank()) {
-            binding.tilBankAccountNumber.error = "Vui lòng nhập số tài khoản ngân hàng"
-            hasError = true
-        }
-
-        if (bankAccountName.isBlank()) {
-            binding.tilBankAccountName.error = "Vui lòng nhập tên chủ tài khoản"
-            hasError = true
-        }
-
-        if (hasError) {
-            Toast.makeText(this, "⚠️ Vui lòng điền đầy đủ các thông tin bắt buộc!", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        lifecycleScope.launch {
-            binding.progressBarVerification.visibility = View.VISIBLE
-            binding.btnSubmitVerification.isEnabled = false
-
-            // Ưu tiên dùng tọa độ chính xác do quán đã chọn/ghim trên bản đồ
-            val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
-            val (resolvedLat, resolvedLng) = if (selectedLat != null && selectedLng != null && selectedLat != 0.0 && selectedLng != 0.0) {
-                selectedLat!! to selectedLng!!
-            } else {
-                val coords = try {
-                    val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
-                    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
-                    else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                } catch (_: Exception) {
-                    GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                }
-                coords.latitude to coords.longitude
-            }
-            val user = authRepository.currentUser
-            val uid = user?.uid.orEmpty()
-            if (currentStoreId.isBlank()) {
-                currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-            }
-            if (currentStoreId.isBlank()) {
-                currentStoreId = "store_${System.currentTimeMillis()}"
-            }
-
-            val result = firebaseRepository.verifyAndCompleteStoreProfile(
-                storeId = currentStoreId,
-                merchantUid = uid,
-                name = name,
-                phone = phone,
-                address = address,
-                district = district,
-                ownerName = ownerName,
-                cccdNumber = cccd,
-                cccdFrontUrl = cccdFrontBase64,
-                bankName = selectedBank.name,
-                bankAccountNumber = bankAccount,
-                bankAccountName = bankAccountName,
-                bankBin = selectedBank.bin,
-                latitude = resolvedLat,
-                longitude = resolvedLng,
-                openHours = openHours,
-                prepTime = prepTime
-            )
-
-            binding.progressBarVerification.visibility = View.GONE
-            binding.btnSubmitVerification.isEnabled = true
-
-            result.onSuccess {
-                Toast.makeText(this@StoreVerificationActivity, "🎉 Xác minh hồ sơ và thiết lập địa chỉ quán thành công!", Toast.LENGTH_LONG).show()
-                val role = authRepository.getUserRole()?.uppercase()
-                if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
-                    firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
-                    startActivity(Intent(this@StoreVerificationActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    })
-                } else {
-                    startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    })
-                }
-                finish()
-            }.onFailure { err ->
-                Toast.makeText(this@StoreVerificationActivity, "Lỗi khi cập nhật hồ sơ: ${err.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
-    }
-}
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreProfileFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.shop
@@ -112445,6 +111697,681 @@ class OtpVerificationActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         countDownTimer?.cancel()
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/StoreVerificationActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.auth
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.util.CccdOcrHelper
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityStoreVerificationBinding
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.io.File
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Phiếu Thiết Lập Địa Chỉ Bắt Buộc & Xác Minh Thông Tin Quán
+ * Cách hoạt động:
+ *  - Thu thập hồ sơ kinh doanh của Quán: Tên quán, SĐT, Địa chỉ lấy hàng chi tiết, Quận/Huyện, Họ tên chủ quán, CCCD (12 số).
+ *  - Thu thập thông tin Tài khoản ngân hàng (VietQR / Napas) để hệ thống quyết toán doanh thu.
+ *  - Tự động map tọa độ GPS theo Quận/Huyện TP.HCM phục vụ tính toán cước ship và định tuyến cho Shipper.
+ *  - Cập nhật cờ `isVerified = true` lên Firestore document của Quán và tài khoản Merchant.
+ * Luồng hướng tới:
+ *  - Xác minh thành công -> Điều hướng trực tiếp vào [DashboardActivity] (xóa stack).
+ *  - Bấm Đăng xuất -> Trở về [LoginActivity].
+ */
+@AndroidEntryPoint
+class StoreVerificationActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityStoreVerificationBinding
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    private var currentStoreId: String = ""
+    private var selectedLat: Double? = null
+    private var selectedLng: Double? = null
+    private var capturedCccdUri: Uri? = null
+    private var cccdFrontBase64: String = ""
+    private var isSyncingBankName = false
+    private var isManualEditingBankName = false
+
+    private val takePictureLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            val uri = capturedCccdUri
+            if (uri != null) {
+                processCccdImage(uri)
+            }
+        }
+    }
+
+    private val pickGalleryLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processCccdImage(uri)
+        }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(this, "⚠️ Vui lòng cấp quyền Camera để chụp ảnh thẻ CCCD", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun checkPermissionAndLaunchCamera() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            launchCamera()
+        } else {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun launchCamera() {
+        try {
+            val photoFile = File(cacheDir, "cccd_scan_${System.currentTimeMillis()}.jpg")
+            val photoUri = FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                photoFile
+            )
+            capturedCccdUri = photoUri
+            takePictureLauncher.launch(photoUri)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Không thể mở camera: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val selectLocationLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            if (!streetAddress.isNullOrBlank()) {
+                binding.etStoreAddress.setText(streetAddress)
+            } else if (!fullAddress.isNullOrBlank()) {
+                binding.etStoreAddress.setText(fullAddress)
+            }
+
+            if (!district.isNullOrBlank()) {
+                val dIndex = districts.indexOfFirst { d ->
+                    d.equals(district, ignoreCase = true) || district.contains(d, ignoreCase = true)
+                }
+                if (dIndex >= 0) {
+                    binding.spStoreDistrict.setSelection(dIndex)
+                }
+            }
+
+            if (lat != 0.0 && lng != 0.0) {
+                selectedLat = lat
+                selectedLng = lng
+            }
+        }
+    }
+
+    data class SupportedBank(val name: String, val bin: String)
+
+    private val supportedBanks = listOf(
+        SupportedBank("MB Bank (Quân Đội)", "970422"),
+        SupportedBank("Vietcombank (Ngoại Thương)", "970436"),
+        SupportedBank("Techcombank (Kỹ Thương)", "970407"),
+        SupportedBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
+        SupportedBank("ACB (Á Châu)", "970416"),
+        SupportedBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
+        SupportedBank("Agribank (Nông Nghiệp)", "970405"),
+        SupportedBank("TPBank (Tiên Phong)", "970423"),
+        SupportedBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
+        SupportedBank("VIB (Quốc Tế)", "970441"),
+        SupportedBank("OCB (Phương Đông)", "970448")
+    )
+
+    private val districts = listOf(
+        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
+        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
+        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
+        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
+    )
+
+    /**
+     * Tên chức năng: Khởi tạo màn hình xác minh
+     * Cách hoạt động: Thiết lập padding Edge-to-Edge tránh đè status bar, load storeId từ Intent hoặc Firebase, khởi tạo Spinners.
+     * Luồng hướng tới: Chuẩn bị form để đối tác điền thông tin.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        InsetUtils.initEdgeToEdge(this, true)
+        binding = ActivityStoreVerificationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        val statusBarHeight = InsetUtils.getFallbackStatusBarHeight(this)
+        binding.rootVerification.setPadding(0, statusBarHeight, 0, 0)
+        InsetUtils.setLightStatusBar(this, true)
+
+        currentStoreId = intent.getStringExtra("STORE_ID").orEmpty()
+
+        setupSpinners()
+        setupListeners()
+        loadInitialData()
+    }
+
+    /**
+     * Tên chức năng: Thiết lập danh sách chọn Quận/Huyện và Ngân hàng
+     * Cách hoạt động: Gán ArrayAdapter danh mục các quận TP.HCM và các ngân hàng nội địa phổ biến vào Spinner.
+     * Luồng hướng tới: Cung cấp lựa chọn dropdown cho người dùng.
+     */
+    private fun setupSpinners() {
+        // Spinner Quận/Huyện
+        val districtAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, districts)
+        districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spStoreDistrict.adapter = districtAdapter
+
+        // Spinner Ngân hàng
+        val bankAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedBanks.map { it.name })
+        bankAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spBankName.adapter = bankAdapter
+    }
+
+    /**
+     * Tên chức năng: Tải trước thông tin quán (nếu đã có trên Firebase)
+     * Cách hoạt động: Truy vấn Firestore lấy thông tin hiện tại của User và Store để tự động điền sẵn vào các trường nhập liệu.
+     * Luồng hướng tới: Giảm thiểu thao tác nhập liệu lại cho chủ quán.
+     */
+    /**
+     * Tên chức năng: Xử lý ảnh thẻ CCCD & Quét OCR tự động điền
+     * Cách hoạt động:
+     *  - Hiển thị ảnh vừa chụp/chọn lên khung xem trước [layoutCccdPreview].
+     *  - Chạy coroutine nén ảnh Base64 phục vụ lưu trữ lên Firebase.
+     *  - Chạy mô hình AI Text Recognition (ML Kit) qua [CccdOcrHelper] để trích xuất số CCCD (12 số), Họ tên và Nơi cư trú.
+     *  - Tự động điền kết quả vào trường [etCccdNumber], [etOwnerName] và gợi ý [etBankAccountName].
+     * Luồng hướng tới: Tối ưu hóa trải nghiệm xác minh hồ sơ, giảm 90% thao tác nhập liệu thủ công.
+     */
+    private fun processCccdImage(uri: Uri) {
+        binding.layoutCccdPreview.visibility = View.VISIBLE
+        binding.layoutOcrLoading.visibility = View.VISIBLE
+        binding.tvCccdBadge.text = "✓ Mặt trước CCCD"
+        binding.btnCaptureCccd.text = "Chụp lại"
+        binding.btnPickCccdGallery.text = "Đổi ảnh"
+
+        Glide.with(this)
+            .load(uri)
+            .into(binding.ivCccdPreview)
+
+        lifecycleScope.launch {
+            // Nén ảnh sang Base64
+            val base64 = ImagePickerUtils.compressUriToBase64(
+                this@StoreVerificationActivity,
+                uri,
+                maxDimension = 800,
+                quality = 80
+            )
+            if (!base64.isNullOrBlank()) {
+                cccdFrontBase64 = base64
+            }
+
+            // Quét OCR nhận diện CCCD bằng AI
+            val result = CccdOcrHelper.scanCccdFromUri(
+                this@StoreVerificationActivity,
+                uri
+            )
+
+            binding.layoutOcrLoading.visibility = View.GONE
+
+            result.onSuccess { scanResult ->
+                var filledAny = false
+                val filledFields = mutableListOf<String>()
+
+                val cccdNum = scanResult.cccdNumber
+                if (!cccdNum.isNullOrBlank()) {
+                    binding.etCccdNumber.setText(cccdNum)
+                    binding.tilCccdNumber.error = null
+                    filledFields.add("Số CCCD: $cccdNum")
+                    filledAny = true
+                }
+
+                val ocrName = scanResult.fullName
+                if (!ocrName.isNullOrBlank()) {
+                    val formattedName = CccdOcrHelper.toTitleCase(ocrName)
+                    binding.etOwnerName.setText(formattedName)
+                    binding.tilOwnerName.error = null
+                    filledFields.add("Họ tên: $formattedName")
+                    filledAny = true
+
+                    // Tự động liên kết điền sang Tên chủ tài khoản: IN HOA TOÀN BỘ VÀ KHÔNG DẤU
+                    val unaccentedUpper = CccdOcrHelper.removeAccents(ocrName).uppercase()
+                    isSyncingBankName = true
+                    binding.etBankAccountName.setText(unaccentedUpper)
+                    binding.tilBankAccountName.error = null
+                    isSyncingBankName = false
+                    isManualEditingBankName = false
+                }
+
+                // Gợi ý/điền Quận nếu trích xuất được và quán chưa chọn quận cụ thể
+                val ocrDistrict = scanResult.district
+                if (!ocrDistrict.isNullOrBlank()) {
+                    val dIndex = districts.indexOfFirst { d -> d.equals(ocrDistrict, ignoreCase = true) }
+                    if (dIndex >= 0 && (binding.etStoreAddress.text.toString().isBlank() || binding.spStoreDistrict.selectedItemPosition == 0)) {
+                        binding.spStoreDistrict.setSelection(dIndex)
+                    }
+                }
+
+                if (filledAny) {
+                    Toast.makeText(
+                        this@StoreVerificationActivity,
+                        "🎉 Đã nhận diện và tự động điền thông tin CCCD!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        this@StoreVerificationActivity,
+                        "⚠️ Đã lưu ảnh thẻ nhưng chưa nhận diện rõ chữ. Vui lòng kiểm tra hoặc tự nhập thông tin.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }.onFailure { err ->
+                Toast.makeText(
+                    this@StoreVerificationActivity,
+                    "⚠️ Lỗi quét CCCD: ${err.message}. Bạn có thể tự nhập thông tin bên dưới.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun loadInitialData() {
+        lifecycleScope.launch {
+            val user = authRepository.currentUser
+            if (user == null) {
+                finish()
+                return@launch
+            }
+
+            if (currentStoreId.isBlank()) {
+                currentStoreId = firebaseRepository.resolveStoreIdForUser(user.uid)
+            }
+
+            if (currentStoreId.isNotBlank()) {
+                val store = firebaseRepository.getStoreOnce(currentStoreId)
+                store?.let {
+                    if (it.name.isNotBlank() && it.name != "Quán Ăn Mới") {
+                        binding.etStoreName.setText(it.name)
+                    } else if (!user.displayName.isNullOrBlank()) {
+                        binding.etStoreName.setText(user.displayName)
+                    }
+
+                    if (it.phone.isNotBlank()) {
+                        binding.etStorePhone.setText(it.phone)
+                    } else if (!user.phoneNumber.isNullOrBlank()) {
+                        binding.etStorePhone.setText(user.phoneNumber)
+                    }
+
+                    if (it.address.isNotBlank()) binding.etStoreAddress.setText(it.address)
+                    if (it.ownerName.isNotBlank()) {
+                        binding.etOwnerName.setText(it.ownerName)
+                    } else if (!user.displayName.isNullOrBlank()) {
+                        binding.etOwnerName.setText(user.displayName)
+                    }
+
+                    if (it.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(it.cccdNumber)
+                    if (it.cccdFrontUrl.isNotBlank()) {
+                        cccdFrontBase64 = it.cccdFrontUrl
+                        binding.layoutCccdPreview.visibility = View.VISIBLE
+                        binding.tvCccdBadge.text = "✓ Đã có ảnh thẻ CCCD xác thực"
+                        binding.btnCaptureCccd.text = "Chụp lại"
+                        binding.btnPickCccdGallery.text = "Đổi ảnh"
+                        val decoded = if (it.cccdFrontUrl.startsWith("data:image")) {
+                            try {
+                                val base64Clean = it.cccdFrontUrl.substringAfter("base64,")
+                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
+                            } catch (_: Exception) { null }
+                        } else null
+
+                        if (decoded != null) {
+                            Glide.with(this@StoreVerificationActivity)
+                                .load(decoded)
+                                .into(binding.ivCccdPreview)
+                        } else {
+                            Glide.with(this@StoreVerificationActivity)
+                                .load(it.cccdFrontUrl)
+                                .into(binding.ivCccdPreview)
+                        }
+                    }
+                    if (it.openHours.isNotBlank()) binding.etOpenHours.setText(it.openHours)
+                    if (it.prepTime.isNotBlank()) binding.etPrepTime.setText(it.prepTime)
+
+                    if (it.district.isNotBlank()) {
+                        val dIndex = districts.indexOfFirst { d -> d.equals(it.district, ignoreCase = true) }
+                        if (dIndex >= 0) binding.spStoreDistrict.setSelection(dIndex)
+                    }
+
+                    if (it.latitude != 0.0 && it.longitude != 0.0) {
+                        selectedLat = it.latitude
+                        selectedLng = it.longitude
+                    }
+
+                    if (it.bankAccountNumber.isNotBlank()) binding.etBankAccountNumber.setText(it.bankAccountNumber)
+                    if (it.bankAccountName.isNotBlank()) {
+                        binding.etBankAccountName.setText(it.bankAccountName)
+                        isManualEditingBankName = true
+                    } else {
+                        val currentOwner = binding.etOwnerName.text.toString().trim()
+                        if (currentOwner.isNotBlank()) {
+                            binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(currentOwner).uppercase())
+                        }
+                    }
+                    if (it.bankName.isNotBlank()) {
+                        val bIndex = supportedBanks.indexOfFirst { b -> b.name.contains(it.bankName, ignoreCase = true) }
+                        if (bIndex >= 0) binding.spBankName.setSelection(bIndex)
+                    }
+                }
+            } else {
+                if (!user.displayName.isNullOrBlank()) {
+                    binding.etStoreName.setText(user.displayName)
+                    binding.etOwnerName.setText(user.displayName)
+                    binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(user.displayName.orEmpty()).uppercase())
+                }
+                if (!user.phoneNumber.isNullOrBlank()) {
+                    binding.etStorePhone.setText(user.phoneNumber)
+                }
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập sự kiện nút bấm gửi phiếu xác minh & đăng xuất
+     * Cách hoạt động: Bắt sự kiện Click nút "Xác Nhận & Kích Hoạt Quán", nút "Đăng Xuất".
+     * Luồng hướng tới: Gọi [validateAndSubmit] hoặc hiển thị xác nhận đăng xuất.
+     */
+    private fun setupListeners() {
+        val openMapAction = {
+            val intent = Intent(this, SelectLocationActivity::class.java).apply {
+                val currentAddress = binding.etStoreAddress.text.toString().trim()
+                if (currentAddress.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
+                }
+                val curDistrict = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
+                if (curDistrict.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
+                }
+                selectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                selectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectLocationLauncher.launch(intent)
+        }
+
+        binding.btnPickLocationMap.setOnClickListener { openMapAction() }
+        binding.etStoreAddress.setOnClickListener { openMapAction() }
+        binding.tilStoreAddress.setOnClickListener { openMapAction() }
+
+        binding.btnCaptureCccd.setOnClickListener {
+            checkPermissionAndLaunchCamera()
+        }
+
+        binding.btnPickCccdGallery.setOnClickListener {
+            pickGalleryLauncher.launch("image/*")
+        }
+
+
+
+        // Tự động liên kết giữa ô Họ tên chủ hộ kinh doanh và Tên chủ tài khoản:
+        // - Chủ hộ kinh doanh: Nhập tên bình thường đầy đủ dấu (ví dụ: Nguyễn Văn An)
+        // - Tên chủ tài khoản: Tự động cập nhật thành IN HOA TOÀN BỘ VÀ KHÔNG DẤU (ví dụ: NGUYEN VAN AN)
+        binding.etOwnerName.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                if (isSyncingBankName) return
+                val ownerInput = s?.toString().orEmpty().trim()
+                if (ownerInput.isNotBlank()) {
+                    val unaccentedUpper = CccdOcrHelper.removeAccents(ownerInput).uppercase()
+                    if (!isManualEditingBankName || binding.etBankAccountName.text.isNullOrBlank()) {
+                        isSyncingBankName = true
+                        binding.etBankAccountName.setText(unaccentedUpper)
+                        binding.tilBankAccountName.error = null
+                        isSyncingBankName = false
+                    }
+                } else if (!isManualEditingBankName) {
+                    isSyncingBankName = true
+                    binding.etBankAccountName.setText("")
+                    isSyncingBankName = false
+                }
+            }
+        })
+
+        // Khi người dùng chủ động gõ vào ô Tên chủ tài khoản:
+        // Đánh dấu đã chỉnh sửa thủ công và tự động chuẩn hóa thành IN HOA KHÔNG DẤU
+        binding.etBankAccountName.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                if (isSyncingBankName) return
+                if (binding.etBankAccountName.hasFocus()) {
+                    isManualEditingBankName = true
+                    val currentStr = s?.toString().orEmpty()
+                    val sanitized = CccdOcrHelper.removeAccents(currentStr).uppercase()
+                    if (currentStr != sanitized) {
+                        isSyncingBankName = true
+                        binding.etBankAccountName.setText(sanitized)
+                        binding.etBankAccountName.setSelection(sanitized.length)
+                        isSyncingBankName = false
+                    }
+                }
+            }
+        })
+
+        binding.btnSubmitVerification.setOnClickListener {
+            validateAndSubmit()
+        }
+
+        binding.btnLogout.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    getSharedPreferences("boss_session", MODE_PRIVATE).edit().clear().apply()
+                    authRepository.logout()
+                    startActivity(Intent(this, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    })
+                    finish()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Kiểm tra tính hợp lệ dữ liệu và lưu hồ sơ lên Firebase
+     * Cách hoạt động:
+     *  - Kiểm tra các trường bắt buộc (Tên quán, SĐT, Địa chỉ, Chủ quán, CCCD 12 số, Số tài khoản ngân hàng).
+     *  - Tự động gán tọa độ GPS dựa trên bảng tọa độ các quận TP.HCM.
+     *  - Lưu dữ liệu lên Firestore via [FirebaseRepository.verifyAndCompleteStoreProfile].
+     * Luồng hướng tới:
+     *  - Thành công: Chuyển sang [DashboardActivity] và bắt đầu vận hành nhận đơn.
+     *  - Thất bại: Hiển thị thông báo Toast lỗi cụ thể.
+     */
+    private fun validateAndSubmit() {
+        // Reset errors
+        binding.tilStoreName.error = null
+        binding.tilStorePhone.error = null
+        binding.tilStoreAddress.error = null
+        binding.tilOwnerName.error = null
+        binding.tilCccdNumber.error = null
+        binding.tilBankAccountNumber.error = null
+        binding.tilBankAccountName.error = null
+
+        val name = binding.etStoreName.text.toString().trim()
+        val phone = binding.etStorePhone.text.toString().trim()
+        val address = binding.etStoreAddress.text.toString().trim()
+        val district = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
+        val openHours = binding.etOpenHours.text.toString().trim().ifBlank { "08:00 - 22:30" }
+        val prepTime = binding.etPrepTime.text.toString().trim().ifBlank { "15 phút" }
+
+        val ownerName = binding.etOwnerName.text.toString().trim()
+        val cccd = binding.etCccdNumber.text.toString().trim()
+
+        val selectedBank = supportedBanks.getOrNull(binding.spBankName.selectedItemPosition) ?: supportedBanks[0]
+        val bankAccount = binding.etBankAccountNumber.text.toString().trim()
+        val bankAccountName = binding.etBankAccountName.text.toString().trim().uppercase()
+
+        var hasError = false
+
+        if (name.isBlank()) {
+            binding.tilStoreName.error = "Vui lòng nhập tên cửa hàng / quán ăn"
+            hasError = true
+        }
+
+        if (phone.isBlank()) {
+            binding.tilStorePhone.error = "Vui lòng nhập số điện thoại quán"
+            hasError = true
+        }
+
+        if (address.isBlank()) {
+            binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
+            hasError = true
+        }
+
+        if (ownerName.isBlank()) {
+            binding.tilOwnerName.error = "Vui lòng nhập họ và tên chủ hộ kinh doanh"
+            hasError = true
+        }
+
+        if (cccd.length != 12) {
+            binding.tilCccdNumber.error = "Số CCCD phải có đúng 12 chữ số"
+            hasError = true
+        }
+
+        if (bankAccount.isBlank()) {
+            binding.tilBankAccountNumber.error = "Vui lòng nhập số tài khoản ngân hàng"
+            hasError = true
+        }
+
+        if (bankAccountName.isBlank()) {
+            binding.tilBankAccountName.error = "Vui lòng nhập tên chủ tài khoản"
+            hasError = true
+        }
+
+        if (hasError) {
+            Toast.makeText(this, "⚠️ Vui lòng điền đầy đủ các thông tin bắt buộc!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        lifecycleScope.launch {
+            binding.progressBarVerification.visibility = View.VISIBLE
+            binding.btnSubmitVerification.isEnabled = false
+
+            // Ưu tiên dùng tọa độ chính xác do quán đã chọn/ghim trên bản đồ
+            val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
+            val (resolvedLat, resolvedLng) = if (selectedLat != null && selectedLng != null && selectedLat != 0.0 && selectedLng != 0.0) {
+                selectedLat!! to selectedLng!!
+            } else {
+                val coords = try {
+                    val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
+                    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                    else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                } catch (_: Exception) {
+                    GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                }
+                coords.latitude to coords.longitude
+            }
+            val user = authRepository.currentUser
+            val uid = user?.uid.orEmpty()
+            if (currentStoreId.isBlank()) {
+                currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            }
+            if (currentStoreId.isBlank()) {
+                currentStoreId = "store_${System.currentTimeMillis()}"
+            }
+
+            val result = firebaseRepository.verifyAndCompleteStoreProfile(
+                storeId = currentStoreId,
+                merchantUid = uid,
+                name = name,
+                phone = phone,
+                address = address,
+                district = district,
+                ownerName = ownerName,
+                cccdNumber = cccd,
+                cccdFrontUrl = cccdFrontBase64,
+                bankName = selectedBank.name,
+                bankAccountNumber = bankAccount,
+                bankAccountName = bankAccountName,
+                bankBin = selectedBank.bin,
+                latitude = resolvedLat,
+                longitude = resolvedLng,
+                openHours = openHours,
+                prepTime = prepTime
+            )
+
+            binding.progressBarVerification.visibility = View.GONE
+            binding.btnSubmitVerification.isEnabled = true
+
+            result.onSuccess {
+                Toast.makeText(this@StoreVerificationActivity, "🎉 Xác minh hồ sơ và thiết lập địa chỉ quán thành công!", Toast.LENGTH_LONG).show()
+                val role = authRepository.getUserRole()?.uppercase()
+                if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
+                    firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
+                    startActivity(Intent(this@StoreVerificationActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    })
+                } else {
+                    startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    })
+                }
+                finish()
+            }.onFailure { err ->
+                Toast.makeText(this@StoreVerificationActivity, "Lỗi khi cập nhật hồ sơ: ${err.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
     }
 }
 ````

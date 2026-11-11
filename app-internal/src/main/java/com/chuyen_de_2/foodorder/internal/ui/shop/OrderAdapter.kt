@@ -24,7 +24,9 @@ class OrderAdapter(
     private val onDetailClick: (Order) -> Unit,
     private val onChatCustomerClick: (Order) -> Unit,
     private val onCallDriverClick: (String) -> Unit,
-    private val onWarningDetailClick: (Order) -> Unit
+    private val onWarningDetailClick: (Order) -> Unit,
+    private val onApproveCancelClick: (Order) -> Unit = {},
+    private val onRejectCancelClick: (Order) -> Unit = {}
 ) : ListAdapter<Order, OrderAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(private val binding: ItemOrderBinding) :
@@ -125,6 +127,16 @@ class OrderAdapter(
                 binding.cardOrderItem.strokeWidth = (1 * context.resources.displayMetrics.density).toInt()
                 binding.boxWarningIncident.visibility = View.GONE
                 binding.btnWarningDetail.visibility = View.GONE
+            }
+
+            // 3.5 Khách hàng gửi yêu cầu hủy đơn (khi đang nấu hoặc sẵn sàng)
+            if (order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING) {
+                binding.boxCancelRequest.visibility = View.VISIBLE
+                binding.tvCancelRequestReason.text = "Lý do: " + (order.cancelRequestReason.ifBlank { "Khách đặt nhầm món" })
+                binding.btnApproveCancel.setOnClickListener { onApproveCancelClick(order) }
+                binding.btnRejectCancel.setOnClickListener { onRejectCancelClick(order) }
+            } else {
+                binding.boxCancelRequest.visibility = View.GONE
             }
 
             // 4. Trạng thái Quy trình 3 bước (Quán/5.html)
@@ -379,7 +391,8 @@ class OrderAdapter(
                 }
 
                 Order.Status.CANCELLED, Order.Status.BOOM -> {
-                    binding.tvOrderBadge.text = "🚫 ĐÃ HỦY ĐƠN"
+                    val cancelTxt = if (order.cancelReason.isNotBlank()) "🚫 ĐÃ HỦY: ${order.cancelReason}" else "🚫 ĐÃ HỦY ĐƠN"
+                    binding.tvOrderBadge.text = cancelTxt
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 

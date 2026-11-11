@@ -326,13 +326,48 @@ class OrderListFragment : Fragment() {
                     Toast.makeText(requireContext(), "Không thể gọi số $phone", Toast.LENGTH_SHORT).show()
                 }
             },
-            onWarningDetailClick = { order -> showWarningDetailModal(order) }
+            onWarningDetailClick = { order -> showWarningDetailModal(order) },
+            onApproveCancelClick = { order -> showApproveCancelDialog(order) },
+            onRejectCancelClick = { order -> showRejectCancelDialog(order) }
         )
 
         binding.rvOrders.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = this@OrderListFragment.adapter
         }
+    }
+
+    private fun showApproveCancelDialog(order: Order) {
+        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
+        AlertDialog.Builder(requireContext())
+            .setTitle("Đồng ý hủy đơn $shortCode?")
+            .setMessage("Khách hàng gửi yêu cầu hủy đơn với lý do:\n\"${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\"\n\nBạn có đồng ý hủy đơn hàng này không? Đơn sẽ được hủy và khách không bị phạt uy tín.")
+            .setPositiveButton("Đồng Ý Hủy") { _, _ ->
+                viewModel.approveCancelOrder(order.orderId, order.cancelRequestReason)
+                Toast.makeText(requireContext(), "✓ Đã chấp thuận hủy đơn theo yêu cầu của khách", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Quay Lại", null)
+            .show()
+    }
+
+    private fun showRejectCancelDialog(order: Order) {
+        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
+        val input = android.widget.EditText(requireContext()).apply {
+            hint = "Nhập lý do từ chối (ví dụ: Quán đã làm xong món...)"
+            setText("Quán đã nấu xong món ăn, không thể hủy")
+            setPadding(40, 20, 40, 20)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Từ chối yêu cầu hủy $shortCode?")
+            .setMessage("Khách hàng yêu cầu hủy với lý do:\n\"${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\"\n\nNhập lý do từ chối gửi tới khách hàng:")
+            .setView(input)
+            .setPositiveButton("Từ Chối Hủy") { _, _ ->
+                val reason = input.text.toString().trim().ifBlank { "Quán đã nấu xong món ăn, không thể hủy" }
+                viewModel.rejectCancelOrder(order.orderId, reason)
+                Toast.makeText(requireContext(), "✓ Đã từ chối yêu cầu hủy đơn", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Quay Lại", null)
+            .show()
     }
 
     /**

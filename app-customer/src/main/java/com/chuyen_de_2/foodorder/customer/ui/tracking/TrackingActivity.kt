@@ -217,6 +217,121 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
             startActivity(intent)
         }
+
+        // Nút hủy đơn / gửi yêu cầu hủy đơn
+        binding.btnCancelOrder.setOnClickListener {
+            handleCancelOrderClick()
+        }
+
+        // Nút rút lại yêu cầu hủy đơn
+        binding.btnWithdrawCancelRequest.setOnClickListener {
+            handleWithdrawCancelClick()
+        }
+    }
+
+    private fun handleCancelOrderClick() {
+        val order = currentOrder ?: return
+        val status = order.effectiveStatus.uppercase()
+        if (status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
+            showInstantCancelDialog(order)
+        } else if (status == Order.Status.PREPARING || status == Order.Status.READY) {
+            showRequestCancelDialog(order)
+        }
+    }
+
+    private fun showInstantCancelDialog(order: Order) {
+        val reasons = arrayOf(
+            "Đặt nhầm món / trùng đơn",
+            "Đặt nhầm địa chỉ giao hàng",
+            "Đổi ý, không muốn mua nữa",
+            "Quán lâu xác nhận",
+            "Lý do khác..."
+        )
+        var selectedIndex = 0
+        val input = EditText(this).apply {
+            hint = "Nhập lý do cụ thể..."
+            visibility = View.GONE
+            setPadding(40, 20, 40, 20)
+        }
+
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(input)
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("✕ Hủy Đơn Hàng")
+            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức mà không bị ảnh hưởng đến điểm uy tín.\n\nVui lòng chọn lý do hủy:")
+            .setSingleChoiceItems(reasons, 0) { _, which ->
+                selectedIndex = which
+                input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
+            }
+            .setView(container)
+            .setPositiveButton("Xác Nhận Hủy") { _, _ ->
+                val reasonText = if (selectedIndex == reasons.size - 1) {
+                    input.text.toString().trim().ifBlank { "Khách hủy do đặt nhầm" }
+                } else {
+                    reasons[selectedIndex]
+                }
+                viewModel.cancelOrderImmediately(order.orderId, reasonText)
+                Toast.makeText(this, "✓ Đã hủy đơn hàng thành công!", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Giữ Lại Đơn", null)
+            .show()
+    }
+
+    private fun showRequestCancelDialog(order: Order) {
+        val reasons = arrayOf(
+            "Đặt nhầm món, cần đặt lại",
+            "Đặt nhầm địa chỉ nhận hàng",
+            "Chờ quán chuẩn bị quá lâu",
+            "Có việc bận đột xuất",
+            "Lý do khác..."
+        )
+        var selectedIndex = 0
+        val input = EditText(this).apply {
+            hint = "Nhập lý do cụ thể gửi quán..."
+            visibility = View.GONE
+            setPadding(40, 20, 40, 20)
+        }
+
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(input)
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("⚠️ Yêu Cầu Hủy Đơn")
+            .setMessage("Quán đã tiếp nhận và đang chế biến món ăn. Để hủy đơn, yêu cầu của bạn sẽ được gửi tới quán để quán xác nhận hủy.\n\nVui lòng chọn lý do:")
+            .setSingleChoiceItems(reasons, 0) { _, which ->
+                selectedIndex = which
+                input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
+            }
+            .setView(container)
+            .setPositiveButton("Gửi Yêu Cầu Hủy") { _, _ ->
+                val reasonText = if (selectedIndex == reasons.size - 1) {
+                    input.text.toString().trim().ifBlank { "Khách yêu cầu hủy do đặt nhầm" }
+                } else {
+                    reasons[selectedIndex]
+                }
+                viewModel.requestCancelOrder(order.orderId, reasonText)
+                Toast.makeText(this, "✓ Đã gửi yêu cầu hủy đơn đến quán! Vui lòng chờ phản hồi.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Quay Lại", null)
+            .show()
+    }
+
+    private fun handleWithdrawCancelClick() {
+        val order = currentOrder ?: return
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Rút lại yêu cầu hủy đơn?")
+            .setMessage("Bạn có muốn tiếp tục nhận đơn hàng này và rút lại yêu cầu hủy gửi quán không?")
+            .setPositiveButton("Rút Lại Yêu Cầu") { _, _ ->
+                viewModel.withdrawCancelRequest(order.orderId)
+                Toast.makeText(this, "✓ Đã rút lại yêu cầu hủy đơn", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
     }
 
     private fun setupRatingComponent() {
@@ -464,6 +579,51 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun updateOrderUI(order: Order) {
         currentOrder = order
+
+        // Cập nhật trạng thái nút hủy đơn và banner yêu cầu hủy đơn
+        val statusUpper = order.effectiveStatus.uppercase()
+        when {
+            statusUpper == Order.Status.CANCELLED || statusUpper == Order.Status.BOOM ||
+            statusUpper == Order.Status.COMPLETED || statusUpper == Order.Status.RETURNING_TO_STORE ||
+            statusUpper == Order.Status.RETURNED_TO_STORE || statusUpper == Order.Status.DELIVERING ||
+            statusUpper == Order.Status.ARRIVED_AT_CUSTOMER || statusUpper == Order.Status.ARRIVED_AT_SHOP ||
+            statusUpper == Order.Status.ASSIGNED -> {
+                binding.btnCancelOrder.isVisible = false
+                binding.boxCancelRequestStatus.isVisible = false
+            }
+            order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING -> {
+                binding.btnCancelOrder.isVisible = false
+                binding.boxCancelRequestStatus.isVisible = true
+                binding.tvCancelRequestIcon.text = "⏳"
+                binding.tvCancelRequestTitle.text = "Đang chờ quán duyệt yêu cầu hủy đơn"
+                binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu hủy của bạn."
+                binding.btnWithdrawCancelRequest.isVisible = true
+            }
+            !order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.REJECTED &&
+            (statusUpper == Order.Status.PREPARING || statusUpper == Order.Status.READY) -> {
+                binding.btnCancelOrder.isVisible = false
+                binding.boxCancelRequestStatus.isVisible = true
+                binding.tvCancelRequestIcon.text = "❌"
+                binding.tvCancelRequestTitle.text = "Quán không thể hủy đơn"
+                binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRejectReason.ifBlank { "Quán đã nấu xong món ăn, không thể hủy đơn." }}\nĐơn hàng vẫn tiếp tục được thực hiện."
+                binding.btnWithdrawCancelRequest.isVisible = false
+            }
+            statusUpper == Order.Status.PENDING || statusUpper == Order.Status.PAID || statusUpper == Order.Status.AWAITING_PAYMENT -> {
+                binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCancelOrder.isVisible = true
+                binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng (Đặt Nhầm)"
+            }
+            statusUpper == Order.Status.PREPARING || statusUpper == Order.Status.READY -> {
+                binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCancelOrder.isVisible = true
+                binding.btnCancelOrder.text = "✕ Gửi Yêu Cầu Hủy Đơn"
+            }
+            else -> {
+                binding.btnCancelOrder.isVisible = false
+                binding.boxCancelRequestStatus.isVisible = false
+            }
+        }
+
         // Cập nhật tên quán & số điện thoại
         if (order.shopName.isNotBlank()) {
             currentStoreName = order.shopName

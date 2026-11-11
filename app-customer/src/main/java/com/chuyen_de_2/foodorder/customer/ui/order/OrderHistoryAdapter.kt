@@ -26,7 +26,9 @@ class OrderHistoryAdapter(
     private val onReorderClick: (Order) -> Unit,
     private val onViewProofClick: (Order) -> Unit,
     private val onCallClick: (String) -> Unit,
-    private val onChatStoreClick: (Order) -> Unit = {}
+    private val onChatStoreClick: (Order) -> Unit = {},
+    private val onCancelOrderClick: (Order) -> Unit = {},
+    private val onWithdrawCancelClick: (Order) -> Unit = {}
 ) : ListAdapter<Order, OrderHistoryAdapter.OrderViewHolder>(DiffCallback) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
@@ -303,7 +305,7 @@ class OrderHistoryAdapter(
 
                         binding.btnActionSecondary.visibility = View.VISIBLE
                         binding.btnActionSecondary.text = "✕ Hủy đơn"
-                        binding.btnActionSecondary.setOnClickListener { onComplaintClick(order) }
+                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
 
                         binding.btnActionPrimary.text = "💳 Thanh Toán Ngay ➔"
                         binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
@@ -328,8 +330,8 @@ class OrderHistoryAdapter(
                         binding.tvAlertMessage.text = "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
 
                         binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "📞 Gọi Quán"
-                        binding.btnActionSecondary.setOnClickListener { onCallClick("02838229999") }
+                        binding.btnActionSecondary.text = "✕ Hủy đơn"
+                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
 
                         binding.btnActionPrimary.text = "Chi Tiết Đơn ➔"
                         binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
@@ -341,19 +343,48 @@ class OrderHistoryAdapter(
                     binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
                     binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
 
-                    binding.tvOrderStatusBadge.text = "🍳 Đang nấu món"
-                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
+                    val isCancelPending = order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING
+                    if (isCancelPending) {
+                        binding.tvOrderStatusBadge.text = "⏳ Chờ duyệt hủy"
+                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
 
-                    binding.tvShipperInfo.visibility = View.VISIBLE
-                    binding.tvShipperInfo.text = "👨‍🍳 Quán đang nấu món và đóng gói"
-                    binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.text = "👨‍🍳 Đã gửi yêu cầu hủy đến quán"
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#EA580C"))
 
-                    binding.layoutAlertBox.visibility = View.GONE
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "⏳"
+                        binding.tvAlertTitle.text = "Yêu cầu hủy đơn đang chờ quán duyệt"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu của bạn."
 
-                    binding.btnActionSecondary.visibility = View.VISIBLE
-                    binding.btnActionSecondary.text = "📞 Gọi Quán"
-                    binding.btnActionSecondary.setOnClickListener { onCallClick("02838229999") }
+                        binding.btnActionSecondary.visibility = View.VISIBLE
+                        binding.btnActionSecondary.text = "Rút lại yêu cầu"
+                        binding.btnActionSecondary.setOnClickListener { onWithdrawCancelClick(order) }
+                    } else {
+                        binding.tvOrderStatusBadge.text = "🍳 Đang nấu món"
+                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
+
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.text = "👨‍🍳 Quán đang nấu món và đóng gói"
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
+
+                        if (order.cancelRequestStatus == Order.CancelRequestStatus.REJECTED) {
+                            binding.layoutAlertBox.visibility = View.VISIBLE
+                            binding.tvAlertIcon.text = "❌"
+                            binding.tvAlertTitle.text = "Quán từ chối yêu cầu hủy"
+                            binding.tvAlertCountdown.visibility = View.GONE
+                            binding.tvAlertMessage.text = "Lý do: ${order.cancelRejectReason.ifBlank { "Quán đã nấu xong, không thể hủy." }}"
+                        } else {
+                            binding.layoutAlertBox.visibility = View.GONE
+                        }
+
+                        binding.btnActionSecondary.visibility = View.VISIBLE
+                        binding.btnActionSecondary.text = "✕ Yêu cầu hủy"
+                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
+                    }
 
                     binding.btnActionPrimary.text = "Theo Dõi Đơn ➔"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)

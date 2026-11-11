@@ -4,7 +4,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background"
-    android:fitsSystemWindows="true"
     android:fillViewport="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -12,26 +11,28 @@
         android:layout_height="wrap_content"
         android:padding="24dp">
 
-        <!-- Logo Icon Container -->
+        <!-- Logo Container -->
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/logoBox"
-            android:layout_width="100dp"
-            android:layout_height="100dp"
-            android:layout_marginTop="50dp"
-            app:cardCornerRadius="24dp"
-            app:cardElevation="6dp"
-            app:strokeWidth="0dp"
+            android:id="@+id/logoContainer"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:layout_marginTop="36dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="3dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
-                android:id="@+id/tvIcon"
+                android:id="@+id/ivLogo"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scaleType="centerCrop"
+                android:padding="16dp"
+                android:scaleType="centerInside"
                 android:src="@drawable/ic_app_logo"
-                android:contentDescription="Oishi Merchant Logo" />
+                android:contentDescription="Oishi Food Partner Logo" />
         </com.google.android.material.card.MaterialCardView>
 
         <TextView
@@ -40,20 +41,20 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:letterSpacing="-0.02"
-            android:text="Oishi Food Partner"
-            android:textColor="@color/primary"
+            android:text="Oishi Partner"
+            android:textColor="@color/text_primary"
             android:textSize="26sp"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/logoBox" />
+            app:layout_constraintTop_toBottomOf="@id/logoContainer" />
 
         <TextView
             android:id="@+id/tvSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="Kênh Quản Lý Dành Cho Quán Ăn &amp; Tài Xế"
+            android:layout_marginTop="4dp"
+            android:text="Cổng quản trị dành cho Chủ quán &amp; Tài xế"
             android:textColor="@color/text_secondary"
             android:textSize="13sp"
             app:layout_constraintEnd_toEndOf="parent"
@@ -81,11 +82,12 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    android:text="Đăng nhập tài khoản nội bộ"
+                    android:text="Đăng nhập đối tác"
                     android:textColor="@color/text_primary"
-                    android:textSize="17sp"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
 
+                <!-- Email Input -->
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/tilEmail"
                     style="@style/Widget.Internal.TextInput"
@@ -102,6 +104,7 @@
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!-- Password Input -->
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/tilPassword"
                     style="@style/Widget.Internal.TextInput"
@@ -119,84 +122,6 @@
                         android:inputType="textPassword"
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- OTP Input with Get Code Button -->
-                <LinearLayout
-                    android:id="@+id/layoutOtp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:gravity="top"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilOtp"
-                        style="@style/Widget.Internal.TextInput"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="Mã xác thực OTP (6 số)"
-                        app:helperText="Bấm 'Lấy mã' để nhận OTP qua email"
-                        app:startIconDrawable="@drawable/ic_shield">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etOtp"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:maxLength="6"
-                            android:maxLines="1"
-                            android:textColor="@color/text_primary" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnGetOtp"
-                        style="@style/Widget.Internal.Button"
-                        android:layout_width="wrap_content"
-                        android:layout_height="56dp"
-                        android:layout_marginStart="8dp"
-                        android:backgroundTint="@color/primary"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        android:minWidth="105dp"
-                        android:text="Lấy mã"
-                        android:textColor="@color/on_primary"
-                        android:textSize="13sp" />
-                </LinearLayout>
-
-                <!-- Thong bao phien xac minh OTP 24h con hieu luc -->
-                <LinearLayout
-                    android:id="@+id/layoutOtpSessionNotice"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_otp_session_notice"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/tvOtpSessionNotice"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Email đã được xác minh OTP trên thiết bị (còn hạn 24h). Bỏ qua bước nhập OTP."
-                        android:textColor="@color/brand_green"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvReVerifyOtp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="4dp"
-                        android:text="Xác minh lại"
-                        android:textColor="@color/primary"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogin"
@@ -219,14 +144,13 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Chưa có tài khoản? Đăng ký ngay -->
+        <!-- Go To Register -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="24dp"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
             android:orientation="horizontal"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/cardLogin">
@@ -242,6 +166,8 @@
                 android:id="@+id/tvGoToRegister"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:paddingVertical="4dp"
                 android:text="Đăng ký ngay"
                 android:textColor="@color/primary"
                 android:textSize="13.5sp"

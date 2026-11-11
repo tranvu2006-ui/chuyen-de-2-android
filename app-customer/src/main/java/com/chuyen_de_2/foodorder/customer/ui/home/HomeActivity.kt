@@ -1,5 +1,12 @@
 package com.chuyen_de_2.foodorder.customer.ui.home
 
+import androidx.activity.OnBackPressedCallback
+import androidx.annotation.IdRes
+import androidx.fragment.app.Fragment
+import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryFragment
+import com.chuyen_de_2.foodorder.customer.ui.notification.NotificationFragment
+import com.chuyen_de_2.foodorder.customer.ui.profile.ProfileFragment
+
 import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
@@ -121,6 +128,7 @@ class HomeActivity : AppCompatActivity() {
         setupSwipeRefresh()
         setupFloatingCart()
         setupBottomNav()
+        setupBackNavigation()
         observeViewModel()
         checkUserRoleForBanner()
         detectUserLocation()
@@ -129,6 +137,11 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         checkAccountLock()
+        if (binding.bottomNav.selectedItemId == R.id.nav_home) {
+            InsetUtils.setLightStatusBar(this, false)
+        } else {
+            InsetUtils.setLightStatusBar(this, true)
+        }
     }
 
     /**
@@ -822,21 +835,60 @@ class HomeActivity : AppCompatActivity() {
      * Luồng hướng tới: [HomeActivity], [OrderHistoryActivity], [NotificationActivity], [ProfileActivity].
      */
     private fun setupBottomNav() {
-        binding.tabHome.setOnClickListener {
-            // Already home
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> {
+                    binding.customerFragmentContainer.visibility = View.GONE
+                    binding.layoutHomeContent.visibility = View.VISIBLE
+                    InsetUtils.setLightStatusBar(this, false)
+                    true
+                }
+                R.id.nav_orders -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(OrderHistoryFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                R.id.nav_notification -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(NotificationFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                R.id.nav_profile -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(ProfileFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                else -> false
+            }
         }
+    }
 
-        binding.tabOrders.setOnClickListener {
-            startActivity(Intent(this, com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryActivity::class.java))
-        }
+    fun selectTab(@IdRes tabId: Int) {
+        binding.bottomNav.selectedItemId = tabId
+    }
 
-        binding.tabNotifications.setOnClickListener {
-            startActivity(Intent(this, com.chuyen_de_2.foodorder.customer.ui.notification.NotificationActivity::class.java))
-        }
+    private fun loadCustomerFragment(fragment: Fragment) {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.customerFragmentContainer, fragment)
+            .commit()
+    }
 
-        binding.tabProfile.setOnClickListener {
-            startActivity(Intent(this, com.chuyen_de_2.foodorder.customer.ui.profile.ProfileActivity::class.java))
-        }
+    private fun setupBackNavigation() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (binding.bottomNav.selectedItemId != R.id.nav_home) {
+                    binding.bottomNav.selectedItemId = R.id.nav_home
+                } else {
+                    finish()
+                }
+            }
+        })
     }
 
     /**

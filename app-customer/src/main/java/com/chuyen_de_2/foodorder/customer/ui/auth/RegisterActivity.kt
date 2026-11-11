@@ -13,7 +13,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import com.chuyen_de_2.foodorder.core.data.model.User
+import android.view.MotionEvent
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityRegisterBinding
@@ -21,8 +23,8 @@ import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * Màn hình nhập thông tin đăng ký tài khoản khách hàng.
- * Form đăng ký không còn chứa ô OTP. Sau khi bấm "Đăng ký", hệ thống sẽ chuyển sang
- * màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
+ * Form đăng ký dành riêng cho Khách Hàng (User.Role.CUSTOMER).
+ * Sau khi bấm "Đăng ký", hệ thống sẽ chuyển sang màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
  */
 @AndroidEntryPoint
 class RegisterActivity : AppCompatActivity() {
@@ -35,7 +37,7 @@ class RegisterActivity : AppCompatActivity() {
     private var pendingEmail = ""
     private var pendingPassword = ""
     private var pendingConfirmPassword = ""
-    private var pendingRole = User.Role.CUSTOMER
+    private val pendingRole = User.Role.CUSTOMER
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -54,7 +56,8 @@ class RegisterActivity : AppCompatActivity() {
         binding = ActivityRegisterBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
         checkNotificationPermission()
         setupUI()
         observeViewModel()
@@ -83,12 +86,6 @@ class RegisterActivity : AppCompatActivity() {
             val password = binding.etPassword.text.toString()
             val confirmPassword = binding.etConfirmPassword.text.toString()
 
-            val role = when (binding.rgRole.checkedRadioButtonId) {
-                R.id.rbMerchant -> User.Role.MERCHANT
-                R.id.rbDriver -> User.Role.DRIVER
-                else -> User.Role.CUSTOMER
-            }
-
             if (name.isBlank()) {
                 binding.tilName.error = "Vui lòng nhập họ tên"
                 binding.etName.requestFocus()
@@ -115,7 +112,6 @@ class RegisterActivity : AppCompatActivity() {
             pendingEmail = email.lowercase()
             pendingPassword = password
             pendingConfirmPassword = confirmPassword
-            pendingRole = role
 
             // Nếu mã OTP đã gửi cho email này trước đó và vẫn còn hiệu lực (trong vòng 10 phút),
             // chuyển thẳng sang màn hình xác minh mà không cần gọi gửi lại (tránh lỗi cooldown).
@@ -173,5 +169,10 @@ class RegisterActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
     }
 }

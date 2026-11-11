@@ -13,7 +13,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import com.chuyen_de_2.foodorder.core.data.model.User
+import android.view.MotionEvent
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityRegisterInternalBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -53,7 +55,8 @@ class RegisterActivity : AppCompatActivity() {
         binding = ActivityRegisterInternalBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
         checkNotificationPermission()
         setupUI()
         observeViewModel()

@@ -50,4 +50,10 @@
 
     <!-- Tracking -->
     <string name="tracking_title">Trạng Thái Đơn Hàng</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Trang chủ</string>
+    <string name="nav_orders">Đơn hàng</string>
+    <string name="nav_notifications">Thông báo</string>
+    <string name="nav_profile">Tôi</string>
 </resources>

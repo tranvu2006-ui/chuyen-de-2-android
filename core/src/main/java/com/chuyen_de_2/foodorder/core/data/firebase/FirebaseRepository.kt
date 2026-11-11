@@ -384,6 +384,76 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Khách hàng hủy đơn trực tiếp khi đơn chưa được quán xác nhận (PENDING, PAID, AWAITING_PAYMENT) */
+    suspend fun cancelOrderImmediately(orderId: String, reason: String = "") {
+        val finalReason = reason.ifBlank { "Khách hàng hủy do đặt nhầm (trước khi quán xác nhận)" }
+        val updates = mapOf<String, Any>(
+            "status" to Order.Status.CANCELLED,
+            "orderStatus" to Order.Status.CANCELLED,
+            "cancelReason" to finalReason,
+            "cancelRequested" to false,
+            "cancelRequestStatus" to "",
+            "updatedAt" to System.currentTimeMillis()
+        )
+        database.getReference("orders").child(orderId).updateChildren(updates)
+        try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+    }
+
+    /** Khách hàng gửi yêu cầu hủy đơn đến quán khi đơn đã được quán xác nhận đang nấu (PREPARING, READY) */
+    suspend fun requestCancelOrder(orderId: String, reason: String = "") {
+        val finalReason = reason.ifBlank { "Khách hàng yêu cầu hủy đơn do đặt nhầm" }
+        val updates = mapOf<String, Any>(
+            "cancelRequested" to true,
+            "cancelRequestReason" to finalReason,
+            "cancelRequestTime" to System.currentTimeMillis(),
+            "cancelRequestStatus" to Order.CancelRequestStatus.PENDING,
+            "cancelRejectReason" to "",
+            "updatedAt" to System.currentTimeMillis()
+        )
+        database.getReference("orders").child(orderId).updateChildren(updates)
+    }
+
+    /** Khách hàng rút lại yêu cầu hủy đơn */
+    suspend fun withdrawCancelRequest(orderId: String) {
+        val updates = mapOf<String, Any>(
+            "cancelRequested" to false,
+            "cancelRequestStatus" to Order.CancelRequestStatus.WITHDRAWN,
+            "updatedAt" to System.currentTimeMillis()
+        )
+        database.getReference("orders").child(orderId).updateChildren(updates)
+    }
+
+    /** Quán đồng ý yêu cầu hủy đơn của khách (chuyển sang CANCELLED, không phạt điểm uy tín) */
+    suspend fun approveCancelOrder(orderId: String, reason: String = "") {
+        val finalReason = if (reason.isNotBlank()) {
+            "Quán đồng ý hủy theo yêu cầu của khách: $reason"
+        } else {
+            "Quán đồng ý hủy theo yêu cầu của khách"
+        }
+        val updates = mapOf<String, Any>(
+            "status" to Order.Status.CANCELLED,
+            "orderStatus" to Order.Status.CANCELLED,
+            "cancelReason" to finalReason,
+            "cancelRequested" to false,
+            "cancelRequestStatus" to Order.CancelRequestStatus.APPROVED,
+            "updatedAt" to System.currentTimeMillis()
+        )
+        database.getReference("orders").child(orderId).updateChildren(updates)
+        try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+    }
+
+    /** Quán từ chối yêu cầu hủy đơn của khách */
+    suspend fun rejectCancelOrder(orderId: String, rejectReason: String = "") {
+        val finalReject = rejectReason.ifBlank { "Quán đã nấu xong món ăn, không thể hủy" }
+        val updates = mapOf<String, Any>(
+            "cancelRequested" to false,
+            "cancelRequestStatus" to Order.CancelRequestStatus.REJECTED,
+            "cancelRejectReason" to finalReject,
+            "updatedAt" to System.currentTimeMillis()
+        )
+        database.getReference("orders").child(orderId).updateChildren(updates)
+    }
+
     /** Cập nhật trạng thái đơn hàng tức thời (<10ms) và xử lý điểm uy tín bất đồng bộ ở nền */
     suspend fun updateOrderStatus(
         orderId: String,
@@ -505,7 +575,10 @@ class FirebaseRepository @Inject constructor(
                             }
                         }
                         Order.Status.CANCELLED -> {
-                            if (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING || prevStatus == Order.Status.ARRIVED_AT_CUSTOMER) {
+                            val isApprovedByShop = reason.startsWith("Quán đồng ý hủy", ignoreCase = true) ||
+                                prevOrderSnap?.child("cancelRequestStatus")?.getValue(String::class.java) == Order.CancelRequestStatus.APPROVED ||
+                                prevOrderSnap?.child("cancelRequested")?.getValue(Boolean::class.java) == true
+                            if (!isApprovedByShop && (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING || prevStatus == Order.Status.ARRIVED_AT_CUSTOMER)) {
                                 newScore = maxOf(0L, currentScore - 10L)
                                 scoreChange = (newScore - currentScore).toInt()
                                 logReason = if (reason.isNotBlank()) "Hủy đơn muộn #ORD-$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #ORD-$shortCode sau khi quán đã chế biến (-10 điểm)"

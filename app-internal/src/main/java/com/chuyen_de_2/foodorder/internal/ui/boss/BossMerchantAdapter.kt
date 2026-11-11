@@ -76,8 +76,9 @@ class BossMerchantAdapter(
                 binding.btnAssignMerchantItem.alpha = 1.0f
 
                 val assignedStore = if (merchant.storeId.isNotBlank()) storesMap[merchant.storeId] else null
-                if (assignedStore != null) {
-                    binding.tvMerchantAssignedBranch.text = "Chi nhánh: ${assignedStore.name}"
+                if (merchant.storeId.isNotBlank()) {
+                    val branchTitle = assignedStore?.name?.ifBlank { null } ?: "Chi nhánh (${merchant.storeId.take(6)}...)"
+                    binding.tvMerchantAssignedBranch.text = "Chi nhánh: $branchTitle"
                     binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#2563EB"))
                     binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#2563EB"))
                     binding.btnAssignMerchantItem.text = "Đổi quán"

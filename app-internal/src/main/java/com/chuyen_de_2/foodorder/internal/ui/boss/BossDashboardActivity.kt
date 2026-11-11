@@ -227,8 +227,6 @@ class BossDashboardActivity : AppCompatActivity() {
                 binding.tvChainStats.text = "$count chi nhánh đang vận hành"
                 binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
                 binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
-
-                reconcileStoreMerchantAssignments()
             }
         }
     }
@@ -245,40 +243,6 @@ class BossDashboardActivity : AppCompatActivity() {
                 binding.btnTabMerchants.text = "👥 Quản Lý ($count)"
                 binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
                 binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
-
-                reconcileStoreMerchantAssignments()
-            }
-        }
-    }
-
-    /**
-     * Tự động đối soát và khôi phục đồng bộ 2 chiều giữa Chi nhánh (stores) và Quản lý (users):
-     * - Nếu Quản lý (đang hoạt động) có storeId trỏ vào chi nhánh của Boss mà chi nhánh chưa cập nhật -> tự khôi phục phân công lên chi nhánh.
-     * - Nếu Chi nhánh đang lưu merchantId (kể cả UID merchant cũ hay Boss UID) mà không có Quản lý hợp lệ nào nhận -> dọn merchantId và merchantName trên chi nhánh về rỗng!
-     */
-    private fun reconcileStoreMerchantAssignments() {
-        val branches = cachedBranches
-        val merchants = cachedMerchants
-        if (branches.isEmpty()) return
-
-        lifecycleScope.launch {
-            for (branch in branches) {
-                val activeMerchantForBranch = merchants.firstOrNull { m ->
-                    val isLocked = !m.isActive || m.status == User.Status.LOCKED || m.status == "SUSPENDED"
-                    !isLocked && m.storeId == branch.id
-                }
-                if (activeMerchantForBranch != null) {
-                    if (branch.merchantId != activeMerchantForBranch.uid || branch.merchantName != activeMerchantForBranch.name) {
-                        firebaseRepository.assignMerchantToBranch(
-                            merchantUid = activeMerchantForBranch.uid,
-                            merchantName = activeMerchantForBranch.name,
-                            targetStoreId = branch.id
-                        )
-                    }
-                } else if (branch.merchantId.isNotBlank()) {
-                    // Chi nhánh không có ai quản lý hợp lệ nhưng vẫn còn lưu merchantId cũ (dữ liệu ma) -> tự dọn dẹp
-                    firebaseRepository.unassignMerchantFromBranch("", branch.id)
-                }
             }
         }
     }

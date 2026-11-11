@@ -73,6 +73,7 @@ class StoreProfileFragment : Fragment() {
 
     private var pendingAvatarBase64: String? = null
     private var currentDialogAvatarPreview: ImageView? = null
+    private var canEditStore: Boolean = false
     private var currentDialogAvatarPlaceholder: View? = null
 
     private val pickAvatarLauncher = registerForActivityResult(
@@ -132,8 +133,18 @@ class StoreProfileFragment : Fragment() {
     }
 
     private fun checkRoleAndSetupUI() {
-        binding.btnTopEdit.visibility = View.VISIBLE
-        binding.btnMainEdit.visibility = View.VISIBLE
+        viewLifecycleOwner.lifecycleScope.launch {
+            val role = authRepository.getUserRole()?.uppercase()
+            canEditStore = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT ||
+                           role == com.chuyen_de_2.foodorder.core.data.model.User.Role.ADMIN
+            if (canEditStore) {
+                binding.btnTopEdit.visibility = View.VISIBLE
+                binding.btnMainEdit.visibility = View.VISIBLE
+            } else {
+                binding.btnTopEdit.visibility = View.GONE
+                binding.btnMainEdit.visibility = View.GONE
+            }
+        }
     }
 
     /**
@@ -335,6 +346,15 @@ class StoreProfileFragment : Fragment() {
      * Luồng hướng tới: Gọi [FirebaseRepository.updateStoreProfile] để lưu Firestore và cập nhật giao diện ngay lập tức.
      */
     private fun showEditStoreDialog() {
+        if (!canEditStore) {
+            Toast.makeText(
+                requireContext(),
+                "ℹ️ Thông tin chi nhánh & tài khoản ngân hàng do Chủ thương hiệu (Boss) quản lý. Bạn không có quyền chỉnh sửa.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_edit_store_profile)

@@ -1927,375 +1927,6 @@ class AdminComplaintViewModel @Inject constructor(
 }
 ````
 
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/dashboard/AdminDashboardFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.dashboard
-
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminDashboardBinding
-import com.chuyen_de_2.foodorder.admin.ui.main.AdminMainActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import java.text.DecimalFormat
-
-@AndroidEntryPoint
-class AdminDashboardFragment : Fragment() {
-
-    private var _binding: FragmentAdminDashboardBinding? = null
-    private val binding get() = _binding!!
-
-    private val viewModel: AdminDashboardViewModel by viewModels()
-    private val currencyFormatter = DecimalFormat("#,###")
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentAdminDashboardBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        binding.swipeRefresh.setOnRefreshListener {
-            binding.swipeRefresh.isRefreshing = false
-        }
-
-        binding.btnRestoreCategories.setOnClickListener {
-            viewModel.restoreDefaultCategories()
-        }
-
-        binding.btnConfigureCountdown.setOnClickListener {
-            showCountdownConfigDialog()
-        }
-
-        setupNavigationClicks()
-        observeViewModel()
-    }
-
-    private fun setupNavigationClicks() {
-        val mainActivity = activity as? AdminMainActivity
-
-        binding.cardRevenue.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_monitor)
-        }
-
-        binding.cardOrders.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_monitor)
-        }
-
-        binding.cardComplaints.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_complaints)
-        }
-
-        binding.cardStores.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_stores)
-        }
-
-        binding.cardUsers.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_monitor)
-        }
-
-        binding.actionQuickApproveStore.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_stores)
-        }
-
-        binding.actionQuickComplaints.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_complaints)
-        }
-
-        binding.actionQuickAddCategory.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_categories)
-        }
-
-        binding.actionQuickMonitor.setOnClickListener {
-            mainActivity?.selectNavigationTab(R.id.menu_monitor)
-        }
-
-        binding.btnQuickHandleUrgent.setOnClickListener {
-            val kpi = viewModel.kpi.value
-            if (kpi.pendingStores > 0) {
-                mainActivity?.selectNavigationTab(R.id.menu_stores)
-            } else if (kpi.pendingComplaints > 0) {
-                mainActivity?.selectNavigationTab(R.id.menu_complaints)
-            }
-        }
-    }
-
-    private fun observeViewModel() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.kpi.collect { kpi ->
-                        binding.tvRevenue.text = "${currencyFormatter.format(kpi.totalRevenue)} đ"
-                        binding.tvCompletedOrdersChip.text = "${kpi.completedOrders} Đơn hoàn tất"
-                        binding.tvBoomOrdersChip.text = "${kpi.boomOrders} Đơn huỷ/boom"
-                        binding.tvTotalOrders.text = kpi.totalOrders.toString()
-                        binding.tvOrderSubtext.text = "${kpi.completedOrders} hoàn thành • ${kpi.boomOrders} huỷ/boom"
-                        binding.tvPendingComplaints.text = kpi.pendingComplaints.toString()
-                        binding.tvActiveStores.text = kpi.activeStores.toString()
-                        binding.tvPendingStores.text = "${kpi.pendingStores} chờ duyệt • ${kpi.chainStores} chi nhánh chuỗi"
-                        binding.tvTotalUsers.text = (kpi.totalCustomers + kpi.totalDrivers).toString()
-                        binding.tvUserSubtext.text = "${kpi.totalCustomers} Khách • ${kpi.totalDrivers} Tài xế • ${kpi.totalBosses} Boss chuỗi"
-
-                        // Sync alert badge with MainActivity TopBar
-                        (activity as? AdminMainActivity)?.updateAlertBadge(kpi.pendingStores + kpi.pendingComplaints)
-
-                        // Urgent attention banner
-                        if (kpi.pendingStores > 0 || kpi.pendingComplaints > 0) {
-                            binding.cardUrgentBanner.visibility = View.VISIBLE
-                            val parts = mutableListOf<String>()
-                            if (kpi.pendingStores > 0) parts.add("${kpi.pendingStores} quán chờ duyệt CCCD")
-                            if (kpi.pendingComplaints > 0) parts.add("${kpi.pendingComplaints} khiếu nại chờ giải quyết")
-                            binding.tvUrgentMessage.text = "Cần chú ý: ${parts.joinToString(" và ")}."
-                        } else {
-                            binding.cardUrgentBanner.visibility = View.GONE
-                        }
-                    }
-                }
-
-                launch {
-                    viewModel.actionMessage.collect { msg ->
-                        if (!msg.isNullOrBlank()) {
-                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
-                            viewModel.clearActionMessage()
-                        }
-                    }
-                }
-
-                launch {
-                    viewModel.countdownConfig.collect { config ->
-                        binding.tvCurrentCountdownConfig.text =
-                            "Lần 1: ${config.round1Minutes} phút • Lần 2 (gia hạn): ${config.round2Minutes} phút"
-                    }
-                }
-            }
-        }
-    }
-
-    private fun showCountdownConfigDialog() {
-        val dialogBinding = com.chuyen_de_2.foodorder.admin.databinding.DialogEditCountdownConfigBinding.inflate(layoutInflater)
-        val currentConfig = viewModel.countdownConfig.value
-
-        dialogBinding.etRound1Minutes.setText(currentConfig.round1Minutes.toString())
-        dialogBinding.etRound2Minutes.setText(currentConfig.round2Minutes.toString())
-
-        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
-            .setView(dialogBinding.root)
-            .create()
-
-        dialogBinding.btnResetDefault.setOnClickListener {
-            dialogBinding.etRound1Minutes.setText("15")
-            dialogBinding.etRound2Minutes.setText("15")
-        }
-
-        dialogBinding.btnSaveConfig.setOnClickListener {
-            val r1Str = dialogBinding.etRound1Minutes.text?.toString()?.trim().orEmpty()
-            val r2Str = dialogBinding.etRound2Minutes.text?.toString()?.trim().orEmpty()
-
-            val r1 = r1Str.toIntOrNull()
-            val r2 = r2Str.toIntOrNull()
-
-            if (r1 == null || r1 <= 0 || r1 > 120) {
-                dialogBinding.tilRound1Minutes.error = "Vui lòng nhập từ 1 đến 120 phút"
-                return@setOnClickListener
-            } else {
-                dialogBinding.tilRound1Minutes.error = null
-            }
-
-            if (r2 == null || r2 <= 0 || r2 > 120) {
-                dialogBinding.tilRound2Minutes.error = "Vui lòng nhập từ 1 đến 120 phút"
-                return@setOnClickListener
-            } else {
-                dialogBinding.tilRound2Minutes.error = null
-            }
-
-            viewModel.saveCountdownConfig(r1, r2)
-            dialog.dismiss()
-        }
-
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/dashboard/AdminDashboardViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.dashboard
-
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Complaint
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.model.User
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-data class DashboardKpi(
-    val totalRevenue: Long = 0L,
-    val totalOrders: Int = 0,
-    val completedOrders: Int = 0,
-    val boomOrders: Int = 0,
-    val totalStores: Int = 0,
-    val activeStores: Int = 0,
-    val pendingStores: Int = 0,
-    val chainStores: Int = 0,
-    val pendingComplaints: Int = 0,
-    val totalCustomers: Int = 0,
-    val totalDrivers: Int = 0,
-    val totalBosses: Int = 0,
-    val totalMerchants: Int = 0
-)
-
-@HiltViewModel
-class AdminDashboardViewModel @Inject constructor(
-    private val firebaseRepo: FirebaseRepository
-) : ViewModel() {
-
-    private val _kpi = MutableStateFlow(DashboardKpi())
-    val kpi: StateFlow<DashboardKpi> = _kpi.asStateFlow()
-
-    private val _countdownConfig = MutableStateFlow(com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig())
-    val countdownConfig: StateFlow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = _countdownConfig.asStateFlow()
-
-    private val _actionMessage = MutableStateFlow<String?>(null)
-    val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
-
-    init {
-        observePlatformData()
-        observeCountdownConfig()
-    }
-
-    private fun observeCountdownConfig() {
-        viewModelScope.launch {
-            firebaseRepo.observeCountdownConfig().collect { config ->
-                _countdownConfig.value = config
-            }
-        }
-    }
-
-    fun saveCountdownConfig(round1Minutes: Int, round2Minutes: Int) {
-        viewModelScope.launch {
-            val result = firebaseRepo.updateCountdownConfig(round1Minutes, round2Minutes)
-            if (result.isSuccess) {
-                _countdownConfig.value = com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig(
-                    round1Minutes = round1Minutes,
-                    round2Minutes = round2Minutes,
-                    updatedAt = System.currentTimeMillis()
-                )
-                _actionMessage.value = "Đã lưu cài đặt: Lần 1 = $round1Minutes phút, Lần 2 = $round2Minutes phút!"
-            } else {
-                _actionMessage.value = "Lưu thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    private fun observePlatformData() {
-        viewModelScope.launch {
-            combine(
-                firebaseRepo.observeAllOrders(),
-                firebaseRepo.observeAllStores(),
-                firebaseRepo.observeAllComplaints(),
-                firebaseRepo.observeAllUsers()
-            ) { orders, stores, complaints, users ->
-                val revenue = orders.filter {
-                    it.orderStatus.equals(Order.OrderStatus.COMPLETED, ignoreCase = true)
-                }.sumOf { it.totalPrice }
-
-                val completed = orders.count {
-                    it.orderStatus.equals(Order.OrderStatus.COMPLETED, ignoreCase = true)
-                }
-
-                val boomed = orders.count {
-                    it.orderStatus.equals(Order.OrderStatus.BOOM, ignoreCase = true) ||
-                    it.orderStatus.equals(Order.OrderStatus.CANCELLED, ignoreCase = true)
-                }
-
-                val activeS = stores.count { it.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true) }
-                val pendingS = stores.count {
-                    !it.isVerified || it.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
-                }
-
-                val pendingC = complaints.count {
-                    it.status.equals(Complaint.ComplaintStatus.PENDING, ignoreCase = true)
-                }
-
-                val chainS = stores.count { it.bossId.isNotBlank() }
-                val customers = users.count { it.role.equals(User.Role.CUSTOMER, ignoreCase = true) }
-                val drivers = users.count {
-                    it.role.equals(User.Role.DRIVER, ignoreCase = true) ||
-                    it.role.equals(User.Role.SHIPPER, ignoreCase = true)
-                }
-                val bosses = users.count {
-                    it.role.equals(User.Role.BOSSMERCHANT, ignoreCase = true) ||
-                    it.role.equals("BOSS", ignoreCase = true)
-                }
-                val merchants = users.count {
-                    it.role.equals(User.Role.MERCHANT, ignoreCase = true)
-                }
-
-                DashboardKpi(
-                    totalRevenue = revenue,
-                    totalOrders = orders.size,
-                    completedOrders = completed,
-                    boomOrders = boomed,
-                    totalStores = stores.size,
-                    activeStores = activeS,
-                    pendingStores = pendingS,
-                    chainStores = chainS,
-                    pendingComplaints = pendingC,
-                    totalCustomers = customers,
-                    totalDrivers = drivers,
-                    totalBosses = bosses,
-                    totalMerchants = merchants
-                )
-            }.collect { kpiData ->
-                _kpi.value = kpiData
-            }
-        }
-    }
-
-    fun restoreDefaultCategories() {
-        viewModelScope.launch {
-            val result = firebaseRepo.restoreDefaultCategories()
-            if (result.isSuccess) {
-                _actionMessage.value = "Đã khôi phục thành công 5 danh mục chính (Cơm, Phở, Trà sữa, Bún đậu, Nước ép)!"
-            } else {
-                _actionMessage.value = "Khôi phục danh mục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun clearActionMessage() {
-        _actionMessage.value = null
-    }
-}
-````
-
 ## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/main/AdminMainActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.admin.ui.main
@@ -2619,1217 +2250,6 @@ class AdminMonitorFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/AdminMonitorViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.monitor
-
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Customer
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.data.model.User
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-data class UserWithCustomerInfo(
-    val user: User,
-    val customer: Customer? = null
-)
-
-@HiltViewModel
-class AdminMonitorViewModel @Inject constructor(
-    private val firebaseRepo: FirebaseRepository
-) : ViewModel() {
-
-    private val _rawOrders = MutableStateFlow<List<Order>>(emptyList())
-    private val _rawUsers = MutableStateFlow<List<UserWithCustomerInfo>>(emptyList())
-    private val _searchQuery = MutableStateFlow("")
-
-    private val _filteredOrders = MutableStateFlow<List<Order>>(emptyList())
-    val orders: StateFlow<List<Order>> = _filteredOrders.asStateFlow()
-
-    private val _filteredUsers = MutableStateFlow<List<UserWithCustomerInfo>>(emptyList())
-    val users: StateFlow<List<UserWithCustomerInfo>> = _filteredUsers.asStateFlow()
-
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
-
-    init {
-        observeData()
-    }
-
-    private fun observeData() {
-        viewModelScope.launch {
-            launch {
-                firebaseRepo.observeAllOrders().collect { list ->
-                    _rawOrders.value = list.sortedByDescending { it.createdAt }
-                    applySearch()
-                }
-            }
-
-            launch {
-                combine(
-                    firebaseRepo.observeAllUsers(),
-                    firebaseRepo.observeAllCustomers()
-                ) { userList, customerList ->
-                    val customerMap = customerList.associateBy { it.customerId }
-                    userList.map { u ->
-                        UserWithCustomerInfo(
-                            user = u,
-                            customer = customerMap[u.uid]
-                        )
-                    }
-                }.collect { combined ->
-                    _rawUsers.value = combined
-                    applySearch()
-                }
-            }
-        }
-    }
-
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-        applySearch()
-    }
-
-    private fun applySearch() {
-        val q = _searchQuery.value.trim().lowercase()
-
-        // Filter Orders
-        if (q.isBlank()) {
-            _filteredOrders.value = _rawOrders.value
-        } else {
-            _filteredOrders.value = _rawOrders.value.filter { o ->
-                o.orderId.lowercase().contains(q) ||
-                o.shopName.lowercase().contains(q) ||
-                o.customerName.lowercase().contains(q) ||
-                o.customerPhone.lowercase().contains(q) ||
-                o.orderStatus.lowercase().contains(q) ||
-                o.cancelReason.lowercase().contains(q) ||
-                o.cancelRequestReason.lowercase().contains(q)
-            }
-        }
-
-        // Filter Users
-        if (q.isBlank()) {
-            _filteredUsers.value = _rawUsers.value
-        } else {
-            _filteredUsers.value = _rawUsers.value.filter { item ->
-                item.user.name.lowercase().contains(q) ||
-                item.user.email.lowercase().contains(q) ||
-                item.user.phone.lowercase().contains(q) ||
-                item.user.role.lowercase().contains(q) ||
-                item.user.uid.lowercase().contains(q) ||
-                item.user.bossId.lowercase().contains(q) ||
-                item.user.storeId.lowercase().contains(q)
-            }
-        }
-    }
-
-    fun toggleUserLock(user: User) {
-        viewModelScope.launch {
-            val isCurrentlyLocked = !user.isActive ||
-                user.status.equals("LOCKED", ignoreCase = true) ||
-                user.status.equals("SUSPENDED", ignoreCase = true) ||
-                user.status.equals(User.Status.INACTIVE, ignoreCase = true)
-
-            val newIsActive = isCurrentlyLocked
-            val newStatus = if (newIsActive) User.Status.ACTIVE else "LOCKED"
-            val lockReason = if (!newIsActive) "Tài khoản của bạn đã bị Quản trị viên tạm khóa. Vui lòng liên hệ Admin qua email admin@gmail.com để được giải quyết." else ""
-
-            val result = firebaseRepo.updateUserStatus(user.uid, newStatus, newIsActive, lockReason)
-            val displayName = user.email.ifBlank { user.name.ifBlank { user.uid } }
-            if (result.isSuccess) {
-                _message.value = if (newIsActive) "Đã mở khóa tài khoản $displayName" else "Đã khóa tài khoản $displayName"
-            } else {
-                _message.value = "Cập nhật tài khoản thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun saveUserWithTrustScore(
-        user: User,
-        trustScore: Int,
-        completedOrders: Int,
-        boomOrders: Int,
-        adjustReason: String
-    ) {
-        viewModelScope.launch {
-            val result = firebaseRepo.saveUserWithTrustScore(
-                user = user,
-                trustScore = trustScore,
-                completedOrders = completedOrders,
-                boomOrders = boomOrders,
-                adjustReason = adjustReason
-            )
-            if (result.isSuccess) {
-                _message.value = "Đã lưu hồ sơ & Điểm uy tín ($trustScore/100) cho '${user.name.ifBlank { user.email }}'!"
-            } else {
-                _message.value = "Cập nhật thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun saveOrderFull(order: Order) {
-        viewModelScope.launch {
-            val result = firebaseRepo.saveOrderFull(order)
-            if (result.isSuccess) {
-                _message.value = "Đã lưu toàn bộ thông tin đơn hàng #${order.orderId.takeLast(6)}!"
-            } else {
-                _message.value = "Cập nhật đơn hàng thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun clearMessage() {
-        _message.value = null
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/AdminOrderAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.monitor
-
-import android.view.LayoutInflater
-import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminOrderBinding
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import java.text.DecimalFormat
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-class AdminOrderAdapter(
-    private val onOrderClick: ((Order) -> Unit)? = null
-) : ListAdapter<Order, AdminOrderAdapter.OrderViewHolder>(OrderDiffCallback()) {
-
-    private val currencyFormat = DecimalFormat("#,### đ")
-    private val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
-        val binding = ItemAdminOrderBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return OrderViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: OrderViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class OrderViewHolder(private val binding: ItemAdminOrderBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(order: Order) {
-            val context = itemView.context
-
-            binding.tvOrderCode.text = "#${order.orderId.takeLast(8)}"
-            val timeStr = if (order.createdAt > 0) dateFormat.format(Date(order.createdAt)) else "Vừa xong"
-            binding.tvOrderTime.text = "Thời gian đặt: $timeStr"
-            binding.tvOrderShopName.text = "Quán: ${order.shopName.ifBlank { "Quán ăn #${order.shopId.takeLast(6)}" }}"
-            binding.tvOrderCustomer.text = "Khách: ${order.customerName.ifBlank { "Khách hàng" }} (${order.customerPhone.ifBlank { "Không có SĐT" }})"
-            binding.tvOrderPrice.text = currencyFormat.format(order.totalPrice)
-
-            val statusUpper = order.orderStatus.uppercase(Locale.getDefault())
-            binding.tvOrderStatusBadge.text = statusUpper
-
-            when (statusUpper) {
-                Order.OrderStatus.COMPLETED -> {
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
-                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-                }
-                Order.OrderStatus.BOOM, Order.OrderStatus.CANCELLED -> {
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-                }
-                Order.OrderStatus.DELIVERING -> {
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_blue)
-                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-                }
-                else -> {
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-                }
-            }
-
-            if (order.cancelRequested) {
-                binding.tvOrderCancelNotice.visibility = android.view.View.VISIBLE
-                val reason = order.cancelRequestReason.ifBlank { "Khách xin hủy đơn" }
-                val reqStatus = when (order.cancelRequestStatus.uppercase(Locale.getDefault())) {
-                    "PENDING" -> "Chờ quán xử lý"
-                    "REJECTED" -> "Quán từ chối hủy"
-                    "APPROVED" -> "Quán chấp thuận hủy"
-                    else -> order.cancelRequestStatus.ifBlank { "Chờ xử lý" }
-                }
-                binding.tvOrderCancelNotice.text = "Khách yêu cầu hủy: $reason • $reqStatus"
-                binding.tvOrderCancelNotice.setBackgroundResource(R.drawable.bg_badge_orange)
-                binding.tvOrderCancelNotice.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-            } else if (statusUpper == Order.OrderStatus.CANCELLED) {
-                binding.tvOrderCancelNotice.visibility = android.view.View.VISIBLE
-                val reason = order.cancelReason.ifBlank { order.cancelRequestReason.ifBlank { "Đã hủy đơn hàng" } }
-                binding.tvOrderCancelNotice.text = "Lý do hủy: $reason"
-                binding.tvOrderCancelNotice.setBackgroundResource(R.drawable.bg_badge_red)
-                binding.tvOrderCancelNotice.setTextColor(ContextCompat.getColor(context, R.color.danger))
-            } else {
-                binding.tvOrderCancelNotice.visibility = android.view.View.GONE
-            }
-
-            itemView.setOnClickListener {
-                onOrderClick?.invoke(order)
-            }
-        }
-    }
-
-    class OrderDiffCallback : DiffUtil.ItemCallback<Order>() {
-        override fun areItemsTheSame(oldItem: Order, newItem: Order): Boolean =
-            oldItem.orderId == newItem.orderId
-
-        override fun areContentsTheSame(oldItem: Order, newItem: Order): Boolean =
-            oldItem == newItem
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/AdminUserAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.monitor
-
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.DiffUtil
-import com.bumptech.glide.Glide
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminUserBinding
-import com.chuyen_de_2.foodorder.core.data.model.User
-import java.util.Locale
-
-class AdminUserAdapter(
-    private val onToggleLock: (User) -> Unit,
-    private val onUserClick: ((UserWithCustomerInfo) -> Unit)? = null
-) : ListAdapter<UserWithCustomerInfo, AdminUserAdapter.UserViewHolder>(UserDiffCallback()) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
-        val binding = ItemAdminUserBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return UserViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: UserViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class UserViewHolder(private val binding: ItemAdminUserBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(item: UserWithCustomerInfo) {
-            val user = item.user
-            val context = itemView.context
-
-                        binding.tvUserName.text = user.name.ifBlank { "Tài khoản #${user.uid.takeLast(6)}" }
-            val subText = buildString {
-                append(user.email.ifBlank { "Không có email" })
-                if (user.phone.isNotBlank()) append(" • ").append(user.phone)
-                if (user.bossId.isNotBlank()) append(" • Chuỗi: ").append(user.bossId.takeLast(6))
-                else if (user.storeId.isNotBlank()) append(" • Quán: ").append(user.storeId.takeLast(6))
-            }
-            binding.tvUserEmail.text = subText
-
-            val avatar = user.avatarUrl.ifBlank { item.customer?.avatarUrl.orEmpty() }
-            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
-                binding.ivUserAvatar,
-                avatar,
-                placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
-                tintColorResId = R.color.secondary
-            )
-
-            val roleUpper = user.role.uppercase(Locale.getDefault())
-            binding.tvUserRoleBadge.text = roleUpper
-
-            when (roleUpper) {
-                User.Role.ADMIN -> {
-                    binding.tvUserRoleBadge.text = "ADMIN"
-                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-                }
-                User.Role.BOSSMERCHANT, "BOSS" -> {
-                    binding.tvUserRoleBadge.text = "CHỦ CHUỖI"
-                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-                }
-                User.Role.MERCHANT, User.Role.MANAGER -> {
-                    binding.tvUserRoleBadge.text = "MERCHANT"
-                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-                }
-                User.Role.DRIVER, User.Role.SHIPPER -> {
-                    binding.tvUserRoleBadge.text = "TÀI XẾ"
-                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_green)
-                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-                }
-                else -> {
-                    binding.tvUserRoleBadge.text = "KHÁCH HÀNG"
-                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_blue)
-                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-                }
-            }
-
-            // Customer Trust Score & Tier Badge
-            val c = item.customer
-            val score = c?.trustScore ?: 100
-            val completed = c?.completedOrders ?: 0
-            val boomed = c?.boomOrders ?: 0
-            val tierBadge = c?.tierBadge ?: "💎 Hạng Kim Cương"
-
-            binding.tvCustomerTrust.visibility = View.VISIBLE
-            binding.tvCustomerTrust.text = "$tierBadge ($score/100) • Nhận: $completed • Bom: $boomed"
-
-            when {
-                score >= 95 -> {
-                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_green)
-                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-                }
-                score >= 80 -> {
-                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-                }
-                score >= 50 -> {
-                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-                }
-                else -> {
-                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_red)
-                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.danger))
-                }
-            }
-
-            // Lock / Unlock button & indicator
-            val isLocked = !user.isActive ||
-                user.status.equals("LOCKED", ignoreCase = true) ||
-                user.status.equals("SUSPENDED", ignoreCase = true) ||
-                user.status.equals(User.Status.INACTIVE, ignoreCase = true)
-
-            if (!isLocked) {
-                binding.btnToggleLock.text = "Khóa"
-                binding.btnToggleLock.setTextColor(ContextCompat.getColor(context, R.color.danger))
-                binding.btnToggleLock.strokeColor = ContextCompat.getColorStateList(context, R.color.danger)
-            } else {
-                binding.tvUserRoleBadge.text = "$roleUpper • ĐÃ KHÓA"
-                binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-
-                binding.btnToggleLock.text = "Mở khóa"
-                binding.btnToggleLock.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-                binding.btnToggleLock.strokeColor = ContextCompat.getColorStateList(context, R.color.brand_green)
-            }
-
-            binding.btnToggleLock.setOnClickListener {
-                onToggleLock(user)
-            }
-
-            itemView.setOnClickListener {
-                onUserClick?.invoke(item)
-            }
-        }
-    }
-
-    class UserDiffCallback : DiffUtil.ItemCallback<UserWithCustomerInfo>() {
-        override fun areItemsTheSame(
-            oldItem: UserWithCustomerInfo,
-            newItem: UserWithCustomerInfo
-        ): Boolean = oldItem.user.uid == newItem.user.uid
-
-        override fun areContentsTheSame(
-            oldItem: UserWithCustomerInfo,
-            newItem: UserWithCustomerInfo
-        ): Boolean = oldItem == newItem
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/EditOrderDialogFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.monitor
-
-import android.app.Dialog
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ArrayAdapter
-import com.chuyen_de_2.foodorder.admin.databinding.DialogEditOrderBinding
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-
-class EditOrderDialogFragment(
-    private val order: Order,
-    private val onSave: (Order) -> Unit
-) : BottomSheetDialogFragment() {
-
-    private var _binding: DialogEditOrderBinding? = null
-    private val binding get() = _binding!!
-
-    private val statusOptions = listOf(
-        Order.OrderStatus.PENDING,
-        Order.OrderStatus.PREPARING,
-        Order.OrderStatus.READY,
-        Order.OrderStatus.ASSIGNED,
-        Order.OrderStatus.DELIVERING,
-        Order.OrderStatus.COMPLETED,
-        Order.OrderStatus.BOOM,
-        Order.OrderStatus.CANCELLED
-    )
-
-    private val paymentOptions = listOf(
-        "COD",
-        "MOMO",
-        "VN_PAY",
-        "ZALO_PAY",
-        "WALLET"
-    )
-
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
-        dialog.setOnShowListener {
-            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-            bottomSheet?.let { sheet ->
-                val behavior = BottomSheetBehavior.from(sheet)
-                behavior.state = BottomSheetBehavior.STATE_EXPANDED
-                behavior.skipCollapsed = true
-            }
-        }
-        return dialog
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = DialogEditOrderBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupSpinners()
-        populateCurrentData()
-        setupListeners()
-    }
-
-    private fun setupSpinners() {
-        val context = requireContext()
-
-        val statusLabels = listOf(
-            "Đang chờ xác nhận (PENDING)",
-            "Đang chuẩn bị món (PREPARING)",
-            "Quán làm xong (READY)",
-            "Đã điều tài xế (ASSIGNED)",
-            "Đang giao hàng (DELIVERING)",
-            "Giao thành công (COMPLETED)",
-            "Khách boom hàng (BOOM)",
-            "Đã hủy đơn (CANCELLED)"
-        )
-        val statusAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, statusLabels).apply {
-            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
-        }
-        binding.spnOrderStatus.adapter = statusAdapter
-
-        val paymentLabels = listOf(
-            "Tiền mặt khi nhận (COD)",
-            "Ví điện tử MoMo",
-            "Cổng VNPAY QR",
-            "Ví ZaloPay",
-            "Ví số Oishi Food"
-        )
-        val paymentAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, paymentLabels).apply {
-            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
-        }
-        binding.spnPaymentMethod.adapter = paymentAdapter
-    }
-
-    private fun populateCurrentData() {
-        binding.tvOrderIdSubtitle.text = "Mã đơn: ${order.orderId}"
-
-        val currentStatus = order.orderStatus.ifBlank { order.status }.uppercase()
-        val statusIdx = statusOptions.indexOfFirst { it.equals(currentStatus, ignoreCase = true) }.coerceAtLeast(0)
-        binding.spnOrderStatus.setSelection(statusIdx)
-
-        val currentPayment = order.paymentMethod.uppercase()
-        val paymentIdx = paymentOptions.indexOfFirst { currentPayment.contains(it) }.coerceAtLeast(0)
-        binding.spnPaymentMethod.setSelection(paymentIdx)
-
-        binding.etOrderAddress.setText(order.address.ifBlank { order.deliveryAddress })
-        binding.etOrderNote.setText(order.note)
-        binding.etShippingFee.setText(order.shippingFee.toString())
-        binding.etTotalPayment.setText(order.totalPayment.toString())
-        binding.etShipperName.setText(order.shipperName)
-        binding.etShipperPhone.setText(order.shipperPhone)
-        binding.etCancelReason.setText(order.cancelReason)
-        binding.etCancelRequestReason.setText(order.cancelRequestReason)
-        binding.etCancelRequestStatus.setText(order.cancelRequestStatus)
-        binding.etCancelRejectReason.setText(order.cancelRejectReason)
-    }
-
-    private fun setupListeners() {
-        binding.btnCloseOrderDialog.setOnClickListener { dismiss() }
-        binding.btnCancelEditOrder.setOnClickListener { dismiss() }
-
-        binding.btnSaveEditOrder.setOnClickListener {
-            val selectedStatus = statusOptions.getOrElse(binding.spnOrderStatus.selectedItemPosition) { Order.OrderStatus.PENDING }
-            val selectedPayment = paymentOptions.getOrElse(binding.spnPaymentMethod.selectedItemPosition) { "COD" }
-            val address = binding.etOrderAddress.text?.toString().orEmpty().trim()
-            val note = binding.etOrderNote.text?.toString().orEmpty().trim()
-            val shippingFee = binding.etShippingFee.text?.toString().orEmpty().toLongOrNull() ?: order.shippingFee
-            val totalPayment = binding.etTotalPayment.text?.toString().orEmpty().toLongOrNull() ?: order.totalPayment
-            val shipperName = binding.etShipperName.text?.toString().orEmpty().trim()
-            val shipperPhone = binding.etShipperPhone.text?.toString().orEmpty().trim()
-
-            val updatedOrder = order.copy(
-                orderStatus = selectedStatus,
-                status = selectedStatus,
-                paymentMethod = selectedPayment,
-                address = address,
-                deliveryAddress = address,
-                note = note,
-                shippingFee = shippingFee,
-                totalPayment = totalPayment,
-                shipperName = shipperName,
-                shipperPhone = shipperPhone
-            )
-
-            onSave(updatedOrder)
-            dismiss()
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    companion object {
-        const val TAG = "EditOrderDialogFragment"
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.store
-
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminStoreBinding
-import com.chuyen_de_2.foodorder.core.data.model.Store
-
-class AdminStoreAdapter(
-    private val onStoreClick: (Store) -> Unit
-) : ListAdapter<Store, AdminStoreAdapter.StoreViewHolder>(StoreDiffCallback()) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): StoreViewHolder {
-        val binding = ItemAdminStoreBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return StoreViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: StoreViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class StoreViewHolder(private val binding: ItemAdminStoreBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(store: Store) {
-            val context = itemView.context
-
-            binding.tvStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
-            val ownerOrManager = if (store.merchantName.isNotBlank() && store.merchantName != store.ownerName) {
-                "Chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • QL: ${store.merchantName}"
-            } else {
-                "Chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }}"
-            }
-            binding.tvOwnerInfo.text = "$ownerOrManager • ${store.phone.ifBlank { "Không có SĐT" }}"
-            binding.tvAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật địa chỉ" }}"
-            binding.tvRating.text = "⭐ ${String.format("%.1f", if (store.ratingAvg > 0) store.ratingAvg else 5.0f)}"
-
-            // Chain Badge
-            if (store.bossId.isNotBlank()) {
-                binding.tvChainBadge.text = "CHUỖI"
-                binding.tvChainBadge.visibility = View.VISIBLE
-            } else {
-                binding.tvChainBadge.visibility = View.GONE
-            }
-
-            // CCCD Badge
-            if (store.cccdNumber.isNotBlank()) {
-                binding.tvCccdBadge.text = "CCCD: ${store.cccdNumber}"
-                binding.tvCccdBadge.visibility = View.VISIBLE
-            } else {
-                binding.tvCccdBadge.text = "Chưa nộp CCCD"
-                binding.tvCccdBadge.visibility = View.VISIBLE
-            }
-
-            // Status Badge
-            if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
-                binding.tvStoreStatusBadge.text = "CHỜ DUYỆT CCCD"
-                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-            } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
-                binding.tvStoreStatusBadge.text = "BỊ KHÓA"
-                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-            } else if (store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)) {
-                binding.tvStoreStatusBadge.text = "ĐANG MỞ CỬA"
-                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
-                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-            } else {
-                binding.tvStoreStatusBadge.text = "TẠM ĐÓNG CỬA"
-                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_duty_off)
-                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-            }
-
-            // Penalty Badge
-            if (store.penaltyTier != Store.PenaltyTier.NONE && store.penaltyTier.isNotBlank()) {
-                binding.tvPenaltyBadge.visibility = View.VISIBLE
-                binding.tvPenaltyBadge.text = "PHẠT: ${store.penaltyTier}"
-            } else {
-                binding.tvPenaltyBadge.visibility = View.GONE
-            }
-
-            // Avatar quán đồng bộ URL / Base64
-            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                imageView = binding.ivStoreAvatar,
-                imageUrl = store.effectiveImageUrl,
-                placeholderResId = R.drawable.ic_store,
-                cornerDp = 10
-            )
-
-            binding.root.setOnClickListener {
-                onStoreClick(store)
-            }
-        }
-    }
-
-    class StoreDiffCallback : DiffUtil.ItemCallback<Store>() {
-        override fun areItemsTheSame(oldItem: Store, newItem: Store): Boolean =
-            oldItem.id == newItem.id
-
-        override fun areContentsTheSame(oldItem: Store, newItem: Store): Boolean =
-            oldItem == newItem
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreDetailBottomSheetDialogFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.store
-
-import android.app.Dialog
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.RadioButton
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.BottomSheetAdminStoreDetailBinding
-import com.chuyen_de_2.foodorder.admin.databinding.DialogApplyStorePenaltyBinding
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-
-class AdminStoreDetailBottomSheetDialogFragment(
-    private val store: Store,
-    private val onApprove: (Store) -> Unit,
-    private val onLock: (Store) -> Unit,
-    private val onApplyPenalty: (storeId: String, tier: String, reason: String) -> Unit,
-    private val onEditAll: ((Store) -> Unit)? = null
-) : BottomSheetDialogFragment() {
-
-    private var _binding: BottomSheetAdminStoreDetailBinding? = null
-    private val binding get() = _binding!!
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = BottomSheetAdminStoreDetailBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        populateData()
-        setupActions()
-    }
-
-    private fun populateData() {
-        val context = requireContext()
-        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-            imageView = binding.ivDetailStoreAvatar,
-            imageUrl = store.effectiveImageUrl,
-            placeholderResId = R.drawable.ic_store,
-            cornerDp = 12
-        )
-        binding.tvDetailStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
-        binding.tvDetailStoreId.text = "Mã quán: ${store.id}"
-        binding.tvDetailAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật" }} (${store.district.ifBlank { "Quận chưa rõ" }})"
-        binding.tvDetailPhone.text = "Số điện thoại: ${store.phone.ifBlank { "Chưa cập nhật" }}"
-        binding.tvDetailHours.text = "Giờ mở cửa: ${store.openHours.ifBlank { "08:00 - 22:00" }} (Thời gian làm món: ${store.prepTime.ifBlank { "15 phút" }})"
-
-        // Chain & Manager info
-        if (store.bossId.isNotBlank()) {
-            val managerText = if (store.merchantName.isNotBlank()) " • Quản lý chi nhánh: ${store.merchantName}" else " • Boss trực tiếp quản lý"
-            binding.tvDetailChainInfo.text = "Mô hình: Chuỗi cửa hàng (Boss #${store.bossId.takeLast(6)})$managerText"
-            binding.tvDetailChainInfo.visibility = View.VISIBLE
-        } else {
-            binding.tvDetailChainInfo.text = "Mô hình: Cửa hàng độc lập (Chưa tham gia chuỗi)"
-            binding.tvDetailChainInfo.visibility = View.VISIBLE
-        }
-
-        // Food Categories
-        val cats = if (store.storeCategories.isNotEmpty()) {
-            store.storeCategories.joinToString(", ")
-        } else {
-            store.category.ifBlank { "Chưa phân loại" }
-        }
-        binding.tvDetailCategories.text = "Danh mục ẩm thực: $cats"
-        binding.tvDetailCategories.visibility = View.VISIBLE
-
-        // Bank
-        val bankInfo = StringBuilder()
-        if (store.bankName.isNotBlank()) bankInfo.append(store.bankName).append(" • ")
-        if (store.bankAccountNumber.isNotBlank()) bankInfo.append(store.bankAccountNumber).append(" • ")
-        bankInfo.append(store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa đăng ký" } })
-        binding.tvDetailBank.text = bankInfo.toString()
-
-        val ownerName = store.ownerName.ifBlank { "Chưa cập nhật" }
-        val bankAccountName = store.bankAccountName.ifBlank { "Chưa đăng ký" }
-        binding.tvDetailBankCompare.text = "Hộ kinh doanh: $ownerName • Chủ thẻ NH: $bankAccountName"
-
-        // CCCD
-        binding.tvDetailCccdInfo.text = "Họ tên chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • Số CCCD: ${store.cccdNumber.ifBlank { "Chưa cập nhật" }}"
-
-        // Status badge
-        if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "CHỜ DUYỆT CCCD"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-        } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "BỊ KHÓA"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-        } else if (store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "ĐANG MỞ CỬA"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-        } else {
-            binding.tvDetailStatusBadge.text = "TẠM ĐÓNG CỬA"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_duty_off)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-        }
-
-        // CCCD Photos
-        val cccdFront = store.cccdFrontUrl.ifBlank { store.cccdHoldUrl }
-        if (cccdFront.isNotBlank()) {
-            Glide.with(this).load(cccdFront).placeholder(R.drawable.ic_image).into(binding.ivCccdFront)
-        }
-        if (store.cccdBackUrl.isNotBlank()) {
-            Glide.with(this).load(store.cccdBackUrl).placeholder(R.drawable.ic_image).into(binding.ivCccdBack)
-        }
-
-        // Current Penalty
-        if (store.penaltyTier != Store.PenaltyTier.NONE && store.penaltyTier.isNotBlank()) {
-            binding.tvCurrentPenalty.visibility = View.VISIBLE
-            binding.tvCurrentPenalty.text = "Chế tài đang hiệu lực: ${store.penaltyTier}\nLý do: ${store.penaltyReason.ifBlank { "Vi phạm quy định sàn" }}"
-        } else {
-            binding.tvCurrentPenalty.visibility = View.GONE
-        }
-    }
-
-    private fun setupActions() {
-        binding.btnEditAllStoreDetails.setOnClickListener {
-            dismiss()
-            onEditAll?.invoke(store)
-        }
-
-        binding.btnApproveStore.setOnClickListener {
-            onApprove(store)
-            dismiss()
-        }
-
-        binding.btnLockStore.setOnClickListener {
-            onLock(store)
-            dismiss()
-        }
-
-        binding.btnApplyPenalty.setOnClickListener {
-            showPenaltyDialog()
-        }
-    }
-
-    private fun showPenaltyDialog() {
-        val dialogBinding = DialogApplyStorePenaltyBinding.inflate(layoutInflater)
-        val dialog = AlertDialog.Builder(requireContext())
-            .setView(dialogBinding.root)
-            .create()
-
-        dialogBinding.btnCancelPenalty.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialogBinding.btnConfirmPenalty.setOnClickListener {
-            val selectedTier = when (dialogBinding.rgPenaltyTiers.checkedRadioButtonId) {
-                R.id.rbWarn -> Store.PenaltyTier.WARN
-                R.id.rbHide -> Store.PenaltyTier.HIDE
-                R.id.rbLock -> Store.PenaltyTier.LOCK
-                else -> Store.PenaltyTier.WARN
-            }
-            val reason = dialogBinding.etPenaltyReason.text?.toString().orEmpty().ifBlank {
-                "Quản trị viên xử lý chế tài kiểm duyệt"
-            }
-
-            onApplyPenalty(store.id, selectedTier, reason)
-            dialog.dismiss()
-            dismiss()
-        }
-
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    companion object {
-        const val TAG = "AdminStoreDetailBottomSheet"
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreListFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.store
-
-import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminStoreListBinding
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-
-@AndroidEntryPoint
-class AdminStoreListFragment : Fragment() {
-
-    private var _binding: FragmentAdminStoreListBinding? = null
-    private val binding get() = _binding!!
-
-    private val viewModel: AdminStoreViewModel by viewModels()
-    private lateinit var adapter: AdminStoreAdapter
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentAdminStoreListBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
-        setupListeners()
-        observeViewModel()
-    }
-
-    private fun setupRecyclerView() {
-        adapter = AdminStoreAdapter { store ->
-            val bottomSheet = AdminStoreDetailBottomSheetDialogFragment(
-                store = store,
-                onApprove = { s -> viewModel.approveStore(s.id) },
-                onLock = { s -> viewModel.lockStore(s.id) },
-                onApplyPenalty = { sId, tier, reason -> viewModel.applyPenalty(sId, tier, reason) },
-                onEditAll = { s ->
-                    val editDialog = EditStoreDialogFragment(s) { updatedStore ->
-                        viewModel.saveStoreFull(updatedStore)
-                    }
-                    editDialog.show(childFragmentManager, EditStoreDialogFragment.TAG)
-                }
-            )
-            bottomSheet.show(childFragmentManager, AdminStoreDetailBottomSheetDialogFragment.TAG)
-        }
-
-        binding.rvStores.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvStores.adapter = adapter
-    }
-
-    private fun setupListeners() {
-        binding.swipeRefreshStore.setOnRefreshListener {
-            binding.swipeRefreshStore.isRefreshing = false
-        }
-
-        binding.etSearchStore.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                viewModel.setSearchQuery(s?.toString().orEmpty())
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        binding.chipGroupStoreFilter.setOnCheckedStateChangeListener { _, checkedIds ->
-            when (checkedIds.firstOrNull()) {
-                R.id.chipPendingStores -> viewModel.setFilter(StoreFilter.PENDING)
-                R.id.chipOpenStores -> viewModel.setFilter(StoreFilter.OPEN)
-                R.id.chipLockedStores -> viewModel.setFilter(StoreFilter.LOCKED)
-                R.id.chipChainStores -> viewModel.setFilter(StoreFilter.CHAIN)
-                else -> viewModel.setFilter(StoreFilter.ALL)
-            }
-        }
-    }
-
-    private fun observeViewModel() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.filteredStores.collect { stores ->
-                        adapter.submitList(stores)
-                        binding.tvEmptyStore.visibility = if (stores.isEmpty()) View.VISIBLE else View.GONE
-                    }
-                }
-
-                launch {
-                    viewModel.counts.collect { c ->
-                        binding.chipAllStores.text = "Tất cả (${c.total})"
-                        binding.chipPendingStores.text = "Chờ duyệt (${c.pending})"
-                        binding.chipOpenStores.text = "Đang mở (${c.open})"
-                        binding.chipLockedStores.text = "Bị khóa (${c.locked})"
-                        binding.chipChainStores.text = "Chuỗi chi nhánh (${c.chain})"
-                    }
-                }
-
-                launch {
-                    viewModel.message.collect { msg ->
-                        if (!msg.isNullOrBlank()) {
-                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
-                            viewModel.clearMessage()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.store
-
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-enum class StoreFilter {
-    ALL, PENDING, OPEN, LOCKED, CHAIN
-}
-
-data class StoreCounts(
-    val total: Int = 0,
-    val pending: Int = 0,
-    val open: Int = 0,
-    val locked: Int = 0,
-    val chain: Int = 0
-)
-
-@HiltViewModel
-class AdminStoreViewModel @Inject constructor(
-    private val firebaseRepo: FirebaseRepository
-) : ViewModel() {
-
-    private val _rawStores = MutableStateFlow<List<Store>>(emptyList())
-    private val _filter = MutableStateFlow(StoreFilter.ALL)
-    private val _searchQuery = MutableStateFlow("")
-
-    private val _filteredStores = MutableStateFlow<List<Store>>(emptyList())
-    val filteredStores: StateFlow<List<Store>> = _filteredStores.asStateFlow()
-
-    private val _counts = MutableStateFlow(StoreCounts())
-    val counts: StateFlow<StoreCounts> = _counts.asStateFlow()
-
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
-
-    init {
-        observeStores()
-    }
-
-    private fun observeStores() {
-        viewModelScope.launch {
-            firebaseRepo.observeAllStores().collect { list ->
-                _rawStores.value = list
-                updateCounts(list)
-                applyFilterAndSearch()
-            }
-        }
-    }
-
-    private fun updateCounts(list: List<Store>) {
-        val total = list.size
-        val pending = list.count { !it.isVerified || it.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true) }
-        val open = list.count { it.isVerified && it.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true) }
-        val locked = list.count { it.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true) }
-        val chain = list.count { it.bossId.isNotBlank() }
-        _counts.value = StoreCounts(total, pending, open, locked, chain)
-    }
-
-    fun setFilter(filter: StoreFilter) {
-        _filter.value = filter
-        applyFilterAndSearch()
-    }
-
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
-        applyFilterAndSearch()
-    }
-
-    private fun applyFilterAndSearch() {
-        val currentList = _rawStores.value
-        val filter = _filter.value
-        val query = _searchQuery.value.trim().lowercase()
-
-        val filtered = currentList.filter { store ->
-            val matchesFilter = when (filter) {
-                StoreFilter.ALL -> true
-                StoreFilter.PENDING -> !store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
-                StoreFilter.OPEN -> store.isVerified && store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)
-                StoreFilter.LOCKED -> store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)
-                StoreFilter.CHAIN -> store.bossId.isNotBlank()
-            }
-
-            val matchesSearch = if (query.isBlank()) true else {
-                store.name.lowercase().contains(query) ||
-                store.ownerName.lowercase().contains(query) ||
-                store.phone.lowercase().contains(query) ||
-                store.district.lowercase().contains(query) ||
-                store.cccdNumber.lowercase().contains(query) ||
-                store.merchantName.lowercase().contains(query) ||
-                store.bossId.lowercase().contains(query) ||
-                store.bankAccountName.lowercase().contains(query) ||
-                store.bankAccountNumber.lowercase().contains(query)
-            }
-
-            matchesFilter && matchesSearch
-        }
-
-        _filteredStores.value = filtered
-    }
-
-    fun approveStore(storeId: String) {
-        viewModelScope.launch {
-            val result = firebaseRepo.verifyStore(storeId, isApproved = true)
-            if (result.isSuccess) {
-                _message.value = "Đã phê duyệt và mở quyền hoạt động cho quán!"
-            } else {
-                _message.value = "Phê duyệt thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun lockStore(storeId: String) {
-        viewModelScope.launch {
-            val result = firebaseRepo.verifyStore(storeId, isApproved = false)
-            if (result.isSuccess) {
-                _message.value = "Đã khóa quán thành công!"
-            } else {
-                _message.value = "Khóa quán thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun applyPenalty(storeId: String, penaltyTier: String, reason: String) {
-        viewModelScope.launch {
-            val result = firebaseRepo.updateStorePenalty(storeId, penaltyTier, reason)
-            if (result.isSuccess) {
-                _message.value = "Đã áp dụng mức phạt '$penaltyTier' cho quán!"
-            } else {
-                _message.value = "Áp dụng chế tài thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun saveStoreFull(store: Store) {
-        viewModelScope.launch {
-            val result = firebaseRepo.saveStoreFull(store)
-            if (result.isSuccess) {
-                _message.value = "Đã lưu toàn bộ thông tin quán '${store.name}' thành công!"
-            } else {
-                _message.value = "Cập nhật quán thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun clearMessage() {
-        _message.value = null
     }
 }
 ````
@@ -8317,417 +6737,6 @@ class FoodOrderAdminApp : Application() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
-## File: app-admin/src/main/res/layout/bottom_sheet_admin_store_detail.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="@drawable/bg_dialog_rounded">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="20dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="32dp">
-
-        <!-- Drag Handle -->
-        <View
-            android:layout_width="48dp"
-            android:layout_height="5dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="18dp"
-            android:background="@drawable/bg_choice_card_idle" />
-
-        <!-- Executive Store Header -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <ImageView
-                    android:id="@+id/ivDetailStoreAvatar"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_store"
-                    android:contentDescription="Avatar quán" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvDetailStoreName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/text_primary"
-                    android:textSize="19sp"
-                    android:textStyle="bold"
-                    tools:text="Cơm Tấm Cali Sài Gòn" />
-
-                <TextView
-                    android:id="@+id/tvDetailStoreId"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textColor="@color/text_muted"
-                    android:textSize="12sp"
-                    tools:text="Mã quán: store_12345" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvDetailStatusBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="5dp"
-                android:textColor="@color/brand_orange"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                tools:text="CHỜ DUYỆT CCCD" />
-        </LinearLayout>
-
-        <!-- Current Penalty Alert Banner -->
-        <TextView
-            android:id="@+id/tvCurrentPenalty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:background="@drawable/bg_card_warning"
-            android:padding="12dp"
-            android:textColor="@color/danger"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            android:visibility="gone"
-            tools:text="⚠️ Đang bị chế tài: HIDE - Lý do: Vi phạm chất lượng vệ sinh"
-            tools:visibility="visible" />
-
-        <!-- Section 1: Store Operation Info Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/surface_elevated"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="15dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.04"
-                    android:text="🏢 HỒ SƠ VẬN HÀNH QUÁN"
-                    android:textColor="@color/secondary"
-                    android:textSize="11.5sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvDetailAddress"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13.5sp"
-                    tools:text="Địa chỉ: 123 Võ Văn Ngân, TP. Thủ Đức" />
-
-                <TextView
-                    android:id="@+id/tvDetailPhone"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13.5sp"
-                    tools:text="Số điện thoại: 0987654321" />
-
-                <TextView
-                    android:id="@+id/tvDetailHours"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    tools:text="Giờ mở cửa: 08:00 - 22:00 (Chuẩn bị: 15 phút)" />
-
-                <TextView
-                    android:id="@+id/tvDetailChainInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/primary"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    tools:text="Mô hình: Chuỗi cửa hàng • Quản lý: Nguyễn Văn A" />
-
-                <TextView
-                    android:id="@+id/tvDetailCategories"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12.5sp"
-                    tools:text="Danh mục ẩm thực: Cơm, Phở, Trà sữa" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Section 2: Bank Settlement Account Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/surface_elevated"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="15dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.04"
-                    android:text="💳 TÀI KHOẢN NGÂN HÀNG ĐỐI SOÁT"
-                    android:textColor="@color/brand_green"
-                    android:textSize="11.5sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvDetailBank"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    tools:text="MB Bank • 01234567899 • NGUYEN VAN A" />
-
-                <TextView
-                    android:id="@+id/tvDetailBankCompare"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    tools:text="Chủ hộ KD: Nguyễn Văn A • Tên chủ TK: NGUYEN VAN A" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Section 3: KYC CCCD Verification Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/surface_elevated"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="15dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.04"
-                    android:text="🪪 HỒ SƠ ĐỊNH DANH CCCD CHỦ HỘ"
-                    android:textColor="@color/brand_orange"
-                    android:textSize="11.5sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvDetailCccdInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13.5sp"
-                    android:textStyle="bold"
-                    tools:text="Họ tên: Nguyễn Văn A • Số CCCD: 079123456789" />
-
-                <!-- CCCD Photos Row -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
-
-                    <!-- Front -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="6dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="6dp"
-                            android:text="Mặt trước CCCD"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="match_parent"
-                            android:layout_height="114dp"
-                            app:cardBackgroundColor="@color/white"
-                            app:cardCornerRadius="12dp"
-                            app:cardElevation="0dp"
-                            app:strokeColor="@color/border"
-                            app:strokeWidth="1dp">
-
-                            <ImageView
-                                android:id="@+id/ivCccdFront"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:scaleType="centerCrop"
-                                android:src="@drawable/ic_image" />
-                        </com.google.android.material.card.MaterialCardView>
-                    </LinearLayout>
-
-                    <!-- Back -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="6dp"
-                            android:text="Mặt sau CCCD"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="match_parent"
-                            android:layout_height="114dp"
-                            app:cardBackgroundColor="@color/white"
-                            app:cardCornerRadius="12dp"
-                            app:cardElevation="0dp"
-                            app:strokeColor="@color/border"
-                            app:strokeWidth="1dp">
-
-                            <ImageView
-                                android:id="@+id/ivCccdBack"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:scaleType="centerCrop"
-                                android:src="@drawable/ic_image" />
-                        </com.google.android.material.card.MaterialCardView>
-                    </LinearLayout>
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Executive Command Buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:orientation="vertical">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnEditAllStoreDetails"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginBottom="10dp"
-                android:backgroundTint="@color/secondary"
-                android:text="Tùy Chỉnh Toàn Bộ Thuộc Tính Quán"
-                android:textColor="@color/white"
-                android:textSize="13.5sp"
-                android:textStyle="bold"
-                app:cornerRadius="14dp"
-                app:icon="@drawable/ic_edit"
-                app:iconGravity="textStart"
-                app:iconTint="@color/white" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnApproveStore"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:backgroundTint="@color/brand_green"
-                android:text="Phê Duyệt Mở Quán &amp; Xác Thực KYC"
-                android:textColor="@color/white"
-                android:textSize="13.5sp"
-                android:textStyle="bold"
-                app:cornerRadius="14dp"
-                app:icon="@drawable/ic_check_circle"
-                app:iconGravity="textStart"
-                app:iconTint="@color/white" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnApplyPenalty"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginTop="10dp"
-                android:text="Áp Dụng Chế Tài Xử Phạt Quán"
-                android:textColor="@color/brand_orange"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                app:cornerRadius="14dp"
-                app:icon="@drawable/ic_shield_alert"
-                app:iconGravity="textStart"
-                app:iconTint="@color/brand_orange"
-                app:strokeColor="@color/brand_orange"
-                app:strokeWidth="1.5dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnLockStore"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:layout_marginTop="4dp"
-                android:text="Đình chỉ &amp; Khóa quyền kinh doanh quán này"
-                android:textColor="@color/danger"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-    </LinearLayout>
-</androidx.core.widget.NestedScrollView>
-````
-
 ## File: app-admin/src/main/res/layout/dialog_add_edit_category.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -9277,1573 +7286,6 @@ class FoodOrderAdminApp : Application() {
     </LinearLayout>
 
 </LinearLayout>
-````
-
-## File: app-admin/src/main/res/layout/dialog_edit_order.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/background"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="20dp">
-
-            <!-- Header -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <FrameLayout
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:background="@drawable/bg_circle_icon_orange">
-
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_package"
-                        app:tint="@color/brand_orange" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvOrderDialogTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chỉnh Sửa Toàn Bộ Đơn Hàng"
-                        android:textColor="@color/text_primary"
-                        android:textSize="17sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvOrderIdSubtitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
-                        tools:text="Mã đơn: ord_12345" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/btnCloseOrderDialog"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_close"
-                    app:tint="@color/text_secondary" />
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="14dp"
-                android:background="@color/border" />
-
-            <!-- Trạng thái đơn hàng -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Trạng thái đơn hàng (Order Status):"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Spinner
-                android:id="@+id/spnOrderStatus"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_admin_spinner_box"
-                android:paddingHorizontal="12dp" />
-
-            <!-- Phương thức thanh toán -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Phương thức thanh toán:"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Spinner
-                android:id="@+id/spnPaymentMethod"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_admin_spinner_box"
-                android:paddingHorizontal="12dp" />
-
-            <!-- Địa chỉ giao hàng -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:hint="Địa chỉ giao hàng"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etOrderAddress"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textPostalAddress"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Ghi chú đơn hàng -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Ghi chú đơn hàng (Note)"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etOrderNote"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textMultiLine"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Tiền phí ship & Tổng tiền -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Phí ship (VNĐ)"
-                    android:textColorHint="@color/text_secondary"
-                    app:boxBackgroundColor="@color/white"
-                    app:hintTextColor="@color/primary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etShippingFee"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="Tổng thanh toán (VNĐ)"
-                    android:textColorHint="@color/text_secondary"
-                    app:boxBackgroundColor="@color/white"
-                    app:hintTextColor="@color/primary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etTotalPayment"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <!-- Thông tin Shipper giao hàng -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Thông tin Shipper phụ trách:"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Tên Shipper"
-                    android:textColorHint="@color/text_secondary"
-                    app:boxBackgroundColor="@color/white"
-                    app:hintTextColor="@color/primary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etShipperName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPersonName|textCapWords"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="SĐT Shipper"
-                    android:textColorHint="@color/text_secondary"
-                    app:boxBackgroundColor="@color/white"
-                    app:hintTextColor="@color/primary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etShipperPhone"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="phone"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <!-- Thông tin Hủy Đơn & Yêu Cầu Hủy -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Thông tin hủy đơn / Yêu cầu hủy:"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:hint="Lý do hủy đơn chính thức (cancelReason)"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etCancelReason"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Lý do khách xin hủy"
-                    android:textColorHint="@color/text_secondary"
-                    app:boxBackgroundColor="@color/white"
-                    app:hintTextColor="@color/primary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etCancelRequestReason"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="Trạng thái (PENDING/REJECTED/APPROVED)"
-                    android:textColorHint="@color/text_secondary"
-                    app:boxBackgroundColor="@color/white"
-                    app:hintTextColor="@color/primary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etCancelRequestStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:hint="Lý do quán từ chối hủy (nếu có)"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etCancelRejectReason"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Bottom Actions -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="24dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnCancelEditOrder"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_weight="1"
-                    android:text="Hủy Bỏ"
-                    android:textColor="@color/text_secondary"
-                    app:cornerRadius="12dp"
-                    app:strokeColor="@color/border" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSaveEditOrder"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:backgroundTint="@color/primary"
-                    android:text="Lưu Thay Đổi"
-                    android:textColor="@color/white"
-                    android:textStyle="bold"
-                    app:cornerRadius="12dp" />
-            </LinearLayout>
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
-````
-
-## File: app-admin/src/main/res/layout/dialog_edit_store.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/background"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="20dp">
-
-            <!-- Dialog Header -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <FrameLayout
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:background="@drawable/bg_circle_icon_orange">
-
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_store"
-                        app:tint="@color/brand_orange" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvDialogTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chỉnh Sửa Toàn Bộ Thuộc Tính Quán"
-                        android:textColor="@color/text_primary"
-                        android:textSize="17sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvStoreIdSubtitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
-                        tools:text="ID: store_123456" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/btnCloseDialog"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_close"
-                    app:tint="@color/text_secondary" />
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="14dp"
-                android:background="@color/border" />
-
-            <!-- SECTION 1: CƠ BẢN VỀ QUÁN -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="1. THÔNG TIN QUÁN &amp; KINH DOANH"
-                android:textColor="@color/primary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <!-- Tên quán -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="Tên quán ăn / Nhà hàng *">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etStoreName"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textCapWords"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Ngành hàng / Phân loại -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Ngành hàng / Phân loại (VD: Cơm, Bún - Phở, Trà sữa)">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etStoreCategory"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Số điện thoại -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Số điện thoại quán">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etStorePhone"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="phone"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Địa chỉ quán -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Địa chỉ cụ thể">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etStoreAddress"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textPostalAddress"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Quận / Huyện -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Quận / Huyện">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etStoreDistrict"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Mã Chuỗi Cửa Hàng & Quản Lý Chi Nhánh -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Mã Chuỗi (bossId)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etBossId"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="text"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="Quản lý chi nhánh">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etMerchantName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPersonName"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <!-- Chọn ảnh quán từ thư viện máy -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Ảnh đại diện quán ăn / Banner"
-                android:textColor="@color/text_primary"
-                android:textSize="12.5sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:background="@drawable/bg_card_rounded"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="10dp">
-
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="72dp"
-                    android:layout_height="72dp"
-                    app:cardCornerRadius="10dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <ImageView
-                        android:id="@+id/ivStoreImagePreview"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:scaleType="centerCrop"
-                        android:src="@drawable/ic_store"
-                        app:tint="@color/text_muted" />
-                </com.google.android.material.card.MaterialCardView>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvStoreImageStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chỉ chọn ảnh trực tiếp từ thư viện"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11.5sp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnPickStoreImage"
-                            style="@style/Widget.Material3.Button.TonalButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="34dp"
-                            android:backgroundTint="#EFF6FF"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:paddingHorizontal="10dp"
-                            android:text="Chọn ảnh từ máy"
-                            android:textColor="@color/brand_blue"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold"
-                            app:cornerRadius="8dp"
-                            app:icon="@drawable/ic_image"
-                            app:iconSize="14dp"
-                            app:iconTint="@color/brand_blue" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnClearStoreImage"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="34dp"
-                            android:layout_marginStart="6dp"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:paddingHorizontal="6dp"
-                            android:text="Xóa ảnh"
-                            android:textAllCaps="false"
-                            android:textColor="@color/danger"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- SECTION 2: VẬN HÀNH & ĐÁNH GIÁ -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:text="2. VẬN HÀNH &amp; THỜI GIAN"
-                android:textColor="@color/primary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Giờ mở cửa (VD: 07:00 - 22:00)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etStoreOpenHours"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="text"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="Làm món (VD: 15-20 phút)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etStorePrepTime"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="text"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Thời gian giao dự kiến">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etStoreDeliveryTime"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="text"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="Rating sao (0.0 - 5.0)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etStoreRatingAvg"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <!-- SECTION 3: TRẠNG THÁI & CHẾ TÀI -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:text="3. TRẠNG THÁI HOẠT ĐỘNG &amp; CHẾ TÀI"
-                android:textColor="@color/primary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Trạng thái quán:"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Spinner
-                android:id="@+id/spnStoreStatus"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_admin_spinner_box"
-                android:paddingHorizontal="12dp" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switchStoreVerified"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Đã xác thực CCCD &amp; Hồ sơ kinh doanh"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Mức độ chế tài / Phạt:"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Spinner
-                android:id="@+id/spnPenaltyTier"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_admin_spinner_box"
-                android:paddingHorizontal="12dp" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Lý do chế tài phạt (nếu có)">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etPenaltyReason"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textMultiLine"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- SECTION 4: CCCD & NGÂN HÀNG -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:text="4. CHỦ HỘ KINH DOANH &amp; NGÂN HÀNG"
-                android:textColor="@color/primary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Họ tên chủ quán">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etOwnerName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textCapWords"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="Số CCCD chủ quán">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etCccdNumber"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Tên ngân hàng thụ hưởng">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etBankName"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textCapWords"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:hint="Số tài khoản ngân hàng">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etBankAccountNumber"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:hint="Tên chủ thẻ ngân hàng">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etBankAccountName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textCapCharacters"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-
-            <!-- Bottom Actions -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="24dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnCancelEditStore"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_weight="1"
-                    android:text="Hủy Bỏ"
-                    android:textColor="@color/text_secondary"
-                    app:cornerRadius="12dp"
-                    app:strokeColor="@color/border" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSaveEditStore"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:backgroundTint="@color/primary"
-                    android:text="Lưu Thay Đổi"
-                    android:textColor="@color/white"
-                    android:textStyle="bold"
-                    app:cornerRadius="12dp" />
-            </LinearLayout>
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
-````
-
-## File: app-admin/src/main/res/layout/dialog_edit_user.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/background"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="20dp">
-
-            <!-- Header -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    app:cardBackgroundColor="@color/surface_elevated"
-                    app:cardCornerRadius="22dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1.5dp">
-
-                    <ImageView
-                        android:id="@+id/ivDialogUserAvatar"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:contentDescription="Avatar xem nhanh"
-                        android:scaleType="centerCrop"
-                        android:src="@drawable/ic_user" />
-                </com.google.android.material.card.MaterialCardView>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvUserDialogTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chỉnh Sửa Hồ Sơ &amp; Điểm Uy Tín"
-                        android:textColor="@color/text_primary"
-                        android:textSize="17sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvUserUidSubtitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
-                        tools:text="UID: abc_12345" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/btnCloseUserDialog"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_close"
-                    app:tint="@color/text_secondary" />
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginVertical="14dp"
-                android:background="@color/border" />
-
-            <!-- KHỐI ẢNH ĐẠI DIỆN NGƯỜI DÙNG (AVATAR HERO SECTION) -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_horizontal"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <!-- Avatar Container with Edit Camera Badge -->
-                    <FrameLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-
-                        <com.google.android.material.card.MaterialCardView
-                            android:id="@+id/cardUserAvatarContainer"
-                            android:layout_width="86dp"
-                            android:layout_height="86dp"
-                            android:clickable="true"
-                            android:focusable="true"
-                            app:cardBackgroundColor="@color/surface_elevated"
-                            app:cardCornerRadius="43dp"
-                            app:cardElevation="2dp"
-                            app:rippleColor="@color/primary_light"
-                            app:strokeColor="@color/primary"
-                            app:strokeWidth="2dp">
-
-                            <ImageView
-                                android:id="@+id/ivUserAvatarPreview"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:contentDescription="Ảnh đại diện người dùng"
-                                android:scaleType="centerCrop"
-                                android:src="@drawable/ic_user" />
-                        </com.google.android.material.card.MaterialCardView>
-
-                        <!-- Camera Action Icon Badge -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:id="@+id/btnQuickPickAvatar"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:layout_gravity="bottom|end"
-                            android:clickable="true"
-                            android:focusable="true"
-                            app:cardBackgroundColor="@color/primary"
-                            app:cardCornerRadius="14dp"
-                            app:cardElevation="4dp"
-                            app:strokeColor="@color/white"
-                            app:strokeWidth="1.5dp">
-
-                            <ImageView
-                                android:layout_width="14dp"
-                                android:layout_height="14dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_image"
-                                app:tint="@color/white" />
-                        </com.google.android.material.card.MaterialCardView>
-                    </FrameLayout>
-
-                    <TextView
-                        android:id="@+id/tvAvatarStatusHint"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Ảnh hiện tại đang áp dụng"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <!-- Action Buttons -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnPickAvatarFromGallery"
-                            style="@style/Widget.Material3.Button.TonalButton"
-                            android:layout_width="0dp"
-                            android:layout_height="38dp"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:paddingHorizontal="8dp"
-                            android:backgroundTint="#EFF6FF"
-                            android:text="Chọn ảnh từ máy"
-                            android:textColor="@color/brand_blue"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            app:cornerRadius="10dp"
-                            app:icon="@drawable/ic_image"
-                            app:iconGravity="textStart"
-                            app:iconSize="16dp"
-                            app:iconTint="@color/brand_blue" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnResetAvatarDefault"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="38dp"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:text="Đặt lại mặc định"
-                            android:textAllCaps="false"
-                            android:textColor="@color/danger"
-                            android:textSize="11.5sp" />
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Họ và tên -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Họ và tên *"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etUserName"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textPersonName|textCapWords"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Email -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Email đăng nhập"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etUserEmail"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textEmailAddress"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Số điện thoại -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Số điện thoại"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etUserPhone"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="phone"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- KHỐI QUẢN TRỊ ĐIỂM UY TÍN & THỐNG KÊ ĐƠN HÀNG -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1.5dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="14dp">
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="16dp"
-                            android:layout_height="16dp"
-                            android:src="@drawable/ic_shield_alert"
-                            app:tint="@color/primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:text="ĐIỂM UY TÍN &amp; KIỂM SOÁT BOM HÀNG"
-                            android:textColor="@color/primary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:hint="Điểm uy tín (0-100)">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etUserTrustScore"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="number"
-                                android:text="100"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:layout_weight="1"
-                            android:hint="Đơn hoàn thành">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etUserCompletedOrders"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="number"
-                                android:text="0"
-                                android:textColor="@color/brand_green"
-                                android:textSize="14sp" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:layout_weight="1"
-                            android:hint="Đơn bom">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etUserBoomOrders"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="number"
-                                android:text="0"
-                                android:textColor="@color/danger"
-                                android:textSize="14sp" />
-                        </com.google.android.material.textfield.TextInputLayout>
-                    </LinearLayout>
-
-                    <!-- Quick Preset Buttons -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnQuickPlus10"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:padding="0dp"
-                            android:text="+10 Điểm"
-                            android:textAllCaps="false"
-                            android:textColor="@color/brand_green"
-                            android:textSize="11.5sp"
-                            app:cornerRadius="8dp"
-                            app:strokeColor="@color/brand_green" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnQuickMinus20"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_marginHorizontal="6dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:padding="0dp"
-                            android:text="-20 Phạt"
-                            android:textAllCaps="false"
-                            android:textColor="@color/danger"
-                            android:textSize="11.5sp"
-                            app:cornerRadius="8dp"
-                            app:strokeColor="@color/danger" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnQuickReset100"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="0dp"
-                            android:layout_height="36dp"
-                            android:layout_weight="1"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:padding="0dp"
-                            android:text="Khôi phục 100đ"
-                            android:textAllCaps="false"
-                            android:textColor="@color/brand_blue"
-                            android:textSize="11.5sp"
-                            app:cornerRadius="8dp"
-                            app:strokeColor="@color/brand_blue" />
-                    </LinearLayout>
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:hint="Lý do điều chỉnh điểm uy tín (Lưu vào nhật ký)">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etTrustAdjustReason"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textCapSentences"
-                            android:textColor="@color/text_primary"
-                            android:textSize="13sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Vai trò người dùng -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Vai trò hệ thống (Role):"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Spinner
-                android:id="@+id/spnUserRole"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_admin_spinner_box"
-                android:paddingHorizontal="12dp" />
-
-            <!-- Store ID (dành cho merchant) -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:hint="Mã Store liên kết (Dành cho Merchant)"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etUserStoreId"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Mã Chủ chuỗi (bossId - nếu thuộc chuỗi) -->
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="Mã Chủ chuỗi phụ thuộc (bossId - tùy chọn)"
-                android:textColorHint="@color/text_secondary"
-                app:boxBackgroundColor="@color/white"
-                app:hintTextColor="@color/primary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etUserBossId"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_muted"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Trạng thái chi tiết (Status) -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Trạng thái tài khoản:"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Spinner
-                android:id="@+id/spnUserStatus"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/bg_admin_spinner_box"
-                android:paddingHorizontal="12dp" />
-
-            <!-- Switch IsActive -->
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switchUserActive"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Tài khoản đang hoạt động (IsActive)"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-
-            <!-- Bottom Actions -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="24dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnCancelEditUser"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_weight="1"
-                    android:text="Hủy Bỏ"
-                    android:textColor="@color/text_secondary"
-                    app:cornerRadius="12dp"
-                    app:strokeColor="@color/border" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSaveEditUser"
-                    android:layout_width="0dp"
-                    android:layout_height="50dp"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:backgroundTint="@color/primary"
-                    android:text="Lưu Thay Đổi"
-                    android:textColor="@color/white"
-                    android:textStyle="bold"
-                    app:cornerRadius="12dp" />
-            </LinearLayout>
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
 ````
 
 ## File: app-admin/src/main/res/layout/dialog_resolve_complaint.xml
@@ -11832,212 +8274,6 @@ class FoodOrderAdminApp : Application() {
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 ````
 
-## File: app-admin/src/main/res/layout/fragment_admin_store_list.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipeRefreshStore"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
-
-        <!-- Elevated Command Control Header Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="14dp"
-            android:layout_marginTop="14dp"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <!-- Title Row -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <FrameLayout
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:background="@drawable/bg_circle_icon_orange">
-
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:layout_gravity="center"
-                            android:src="@drawable/ic_store"
-                            app:tint="@color/brand_orange" />
-                    </FrameLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:letterSpacing="0.02"
-                            android:text="QUẢN TRỊ ĐỐI TÁC QUÁN ĂN"
-                            android:textColor="@color/text_primary"
-                            android:textSize="16.5sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="1dp"
-                            android:text="Kiểm duyệt KYC CCCD, chế tài &amp; tùy chỉnh toàn bộ thuộc tính"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="11.5sp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Search Bar -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="46dp"
-                    android:layout_marginTop="14dp"
-                    android:background="@drawable/bg_search_bar_modern"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="14dp">
-
-                    <ImageView
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:src="@drawable/ic_search"
-                        app:tint="@color/text_secondary" />
-
-                    <EditText
-                        android:id="@+id/etSearchStore"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:layout_marginStart="10dp"
-                        android:background="@null"
-                        android:hint="Tìm tên quán, chủ hộ, SĐT, quận, số CCCD..."
-                        android:imeOptions="actionSearch"
-                        android:inputType="text"
-                        android:textColor="@color/text_primary"
-                        android:textColorHint="@color/text_muted"
-                        android:textSize="13sp" />
-                </LinearLayout>
-
-                <!-- Filter Chips -->
-                <HorizontalScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:clipToPadding="false"
-                    android:scrollbars="none">
-
-                    <com.google.android.material.chip.ChipGroup
-                        android:id="@+id/chipGroupStoreFilter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        app:chipSpacingHorizontal="6dp"
-                        app:singleSelection="true">
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipAllStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:checked="true"
-                            android:text="Tất cả (0)"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipPendingStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Chờ duyệt (0)"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipOpenStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Đang mở (0)"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipLockedStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Bị khóa (0)"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipChainStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Chuỗi chi nhánh (0)"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-                    </com.google.android.material.chip.ChipGroup>
-                </HorizontalScrollView>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Empty State -->
-        <TextView
-            android:id="@+id/tvEmptyStore"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="56dp"
-            android:gravity="center"
-            android:paddingHorizontal="32dp"
-            android:drawableTop="@drawable/ic_store"
-            android:drawablePadding="12dp"
-            android:drawableTint="@color/text_muted"
-            android:text="Không tìm thấy cửa hàng nào khớp với bộ lọc hiện tại"
-            android:textColor="@color/text_muted"
-            android:textSize="14sp"
-            android:visibility="gone" />
-
-        <!-- Store RecyclerView -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvStores"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingBottom="28dp"
-            tools:listitem="@layout/item_admin_store" />
-
-    </LinearLayout>
-</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-````
-
 ## File: app-admin/src/main/res/layout/item_admin_category.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -12538,184 +8774,6 @@ class FoodOrderAdminApp : Application() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
-## File: app-admin/src/main/res/layout/item_admin_order.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginHorizontal="14dp"
-    android:layout_marginVertical="5dp"
-    android:clickable="true"
-    android:focusable="true"
-    app:cardBackgroundColor="@color/white"
-    app:cardCornerRadius="18dp"
-    app:cardElevation="2dp"
-    app:rippleColor="@color/primary_light"
-    app:strokeColor="@color/border"
-    app:strokeWidth="1dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <!-- Waybill Header -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <FrameLayout
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_circle_icon_orange">
-
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_package"
-                    app:tint="@color/brand_orange" />
-            </FrameLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvOrderCode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15.5sp"
-                    android:textStyle="bold"
-                    tools:text="#ORD-88219" />
-
-                <TextView
-                    android:id="@+id/tvOrderTime"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="1dp"
-                    android:textColor="@color/text_muted"
-                    android:textSize="11sp"
-                    tools:text="Thời gian đặt: 26/10/2026 12:45" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvOrderStatusBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_green"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_green"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                tools:text="COMPLETED" />
-        </LinearLayout>
-
-        <!-- Cancellation & Request Notice -->
-        <TextView
-            android:id="@+id/tvOrderCancelNotice"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_badge_orange"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="5dp"
-            android:textColor="@color/brand_orange"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:visibility="gone"
-            tools:text="Khách yêu cầu hủy: Đổi địa chỉ nhận • Chờ quán xử lý"
-            tools:visibility="visible" />
-
-        <!-- Route & Financial Info Box -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_search_bar_modern"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="12dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="10dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvOrderShopName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13.5sp"
-                    android:textStyle="bold"
-                    tools:text="Quán: Cơm Tấm Cali" />
-
-                <TextView
-                    android:id="@+id/tvOrderCustomer"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    tools:text="Khách: Nguyễn Văn A (0912345678)" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvOrderPrice"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/primary"
-                android:textSize="17sp"
-                android:textStyle="bold"
-                tools:text="145.000 đ" />
-        </LinearLayout>
-
-        <!-- Footer Edit Prompt -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="end|center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Chạm để tùy chỉnh mọi thuộc tính đơn"
-                android:textColor="@color/secondary"
-                android:textSize="11.5sp"
-                android:textStyle="bold" />
-
-            <ImageView
-                android:layout_width="13dp"
-                android:layout_height="13dp"
-                android:layout_marginStart="4dp"
-                android:src="@drawable/ic_pencil"
-                app:tint="@color/secondary" />
-        </LinearLayout>
-
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
-````
-
 ## File: app-admin/src/main/res/layout/item_admin_spinner_dropdown.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -12748,212 +8806,6 @@ class FoodOrderAdminApp : Application() {
     android:textColor="@color/text_primary"
     android:textSize="13.5sp"
     android:textStyle="bold" />
-````
-
-## File: app-admin/src/main/res/layout/item_admin_store.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginHorizontal="14dp"
-    android:layout_marginVertical="6dp"
-    android:clickable="true"
-    android:focusable="true"
-    app:cardBackgroundColor="@color/white"
-    app:cardCornerRadius="18dp"
-    app:cardElevation="2dp"
-    app:rippleColor="@color/primary_light"
-    app:strokeColor="@color/border"
-    app:strokeWidth="1dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <!-- Top Identity Row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <!-- Store Squircle Avatar -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="58dp"
-                android:layout_height="58dp"
-                app:cardBackgroundColor="@color/surface_elevated"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <ImageView
-                    android:id="@+id/ivStoreAvatar"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_store" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvStoreName"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textColor="@color/text_primary"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        tools:text="Cơm Tấm Sài Gòn 1" />
-
-                    <TextView
-                        android:id="@+id/tvRating"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:background="@drawable/bg_badge_orange"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="2dp"
-                        android:textColor="@color/brand_orange"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold"
-                        tools:text="⭐ 4.8" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvOwnerInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12.5sp"
-                    android:textStyle="bold"
-                    tools:text="Chủ: Nguyễn Văn A • 0987654321" />
-
-                <TextView
-                    android:id="@+id/tvAddress"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/text_muted"
-                    android:textSize="12sp"
-                    tools:text="Địa chỉ: 123 Võ Văn Ngân, TP. Thủ Đức" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginVertical="12dp"
-            android:background="@color/divider" />
-
-        <!-- Bottom Telemetry & Action Row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tvStoreStatusBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_green"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_green"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                tools:text="ĐANG MỞ CỬA" />
-
-            <TextView
-                android:id="@+id/tvChainBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_orange"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                android:visibility="gone"
-                tools:visibility="visible"
-                tools:text="CHUỖI" />
-
-            <TextView
-                android:id="@+id/tvCccdBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_blue"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_blue"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                tools:text="CCCD: 079123456789" />
-
-            <TextView
-                android:id="@+id/tvPenaltyBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_red"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/danger"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                android:visibility="gone"
-                tools:text="PHẠT: HIDE"
-                tools:visibility="visible" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Quản trị"
-                android:textColor="@color/secondary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <ImageView
-                android:layout_width="14dp"
-                android:layout_height="14dp"
-                android:layout_marginStart="3dp"
-                android:src="@drawable/ic_chevron_right"
-                app:tint="@color/secondary" />
-        </LinearLayout>
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
 ````
 
 ## File: app-admin/src/main/res/layout/item_admin_user.xml
@@ -24239,6 +20091,7 @@ class AddressBookAdapter(
 
     <!-- Badge Vị trí GPS hiện tại (b1.html: current-loc-badge) -->
     <LinearLayout
+        android:id="@+id/btnChangeLocationSheet"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="18dp"
@@ -24246,6 +20099,8 @@ class AddressBookAdapter(
         android:background="#EFF6FF"
         android:gravity="center_vertical"
         android:orientation="horizontal"
+        android:clickable="true"
+        android:focusable="true"
         android:paddingHorizontal="12dp"
         android:paddingVertical="8dp">
 
@@ -24264,11 +20119,11 @@ class AddressBookAdapter(
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="#DBEAFE"
-            android:paddingHorizontal="6dp"
-            android:paddingVertical="2dp"
-            android:text="Đang Bật GPS"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:text="🗺️ Đổi trên bản đồ"
             android:textColor="#1D4ED8"
-            android:textSize="10sp"
+            android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -24308,6 +20163,7 @@ class AddressBookAdapter(
                     style="@style/Widget.Material3.Chip.Filter"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:checked="true"
                     android:text="&lt; 1.5 km"
                     android:textSize="11.5sp" />
 
@@ -24316,7 +20172,6 @@ class AddressBookAdapter(
                     style="@style/Widget.Material3.Chip.Filter"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:checked="true"
                     android:text="&lt; 3 km"
                     android:textSize="11.5sp" />
 
@@ -81086,81 +76941,860 @@ class ResolveComplaintDialogFragment(
 }
 ````
 
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/EditUserDialogFragment.kt
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/dashboard/AdminDashboardFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.dashboard
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminDashboardBinding
+import com.chuyen_de_2.foodorder.admin.ui.main.AdminMainActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.text.DecimalFormat
+
+@AndroidEntryPoint
+class AdminDashboardFragment : Fragment() {
+
+    private var _binding: FragmentAdminDashboardBinding? = null
+    private val binding get() = _binding!!
+
+    private val viewModel: AdminDashboardViewModel by viewModels()
+    private val currencyFormatter = DecimalFormat("#,###")
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentAdminDashboardBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        binding.swipeRefresh.setOnRefreshListener {
+            binding.swipeRefresh.isRefreshing = false
+        }
+
+        binding.btnRestoreCategories.setOnClickListener {
+            viewModel.restoreDefaultCategories()
+        }
+
+        binding.btnConfigureCountdown.setOnClickListener {
+            showCountdownConfigDialog()
+        }
+
+        setupNavigationClicks()
+        observeViewModel()
+    }
+
+    private fun setupNavigationClicks() {
+        val mainActivity = activity as? AdminMainActivity
+
+        binding.cardRevenue.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_monitor)
+        }
+
+        binding.cardOrders.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_monitor)
+        }
+
+        binding.cardComplaints.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_complaints)
+        }
+
+        binding.cardStores.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_stores)
+        }
+
+        binding.cardUsers.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_monitor)
+        }
+
+        binding.actionQuickApproveStore.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_stores)
+        }
+
+        binding.actionQuickComplaints.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_complaints)
+        }
+
+        binding.actionQuickAddCategory.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_categories)
+        }
+
+        binding.actionQuickMonitor.setOnClickListener {
+            mainActivity?.selectNavigationTab(R.id.menu_monitor)
+        }
+
+        binding.btnQuickHandleUrgent.setOnClickListener {
+            val kpi = viewModel.kpi.value
+            if (kpi.pendingStores > 0) {
+                mainActivity?.selectNavigationTab(R.id.menu_stores)
+            } else if (kpi.pendingComplaints > 0) {
+                mainActivity?.selectNavigationTab(R.id.menu_complaints)
+            }
+        }
+    }
+
+    private fun observeViewModel() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.kpi.collect { kpi ->
+                        binding.tvRevenue.text = "${currencyFormatter.format(kpi.totalRevenue)} đ"
+                        binding.tvCompletedOrdersChip.text = "${kpi.completedOrders} Đơn hoàn tất"
+                        binding.tvBoomOrdersChip.text = "${kpi.boomOrders} Đơn huỷ/boom"
+                        binding.tvTotalOrders.text = kpi.totalOrders.toString()
+                        binding.tvOrderSubtext.text = "${kpi.completedOrders} hoàn thành • ${kpi.boomOrders} huỷ/boom"
+                        binding.tvPendingComplaints.text = kpi.pendingComplaints.toString()
+                        binding.tvActiveStores.text = kpi.activeStores.toString()
+                        binding.tvPendingStores.text = "${kpi.pendingStores} chờ duyệt • ${kpi.chainStores} chi nhánh chuỗi"
+                        binding.tvTotalUsers.text = (kpi.totalCustomers + kpi.totalDrivers).toString()
+                        binding.tvUserSubtext.text = "${kpi.totalCustomers} Khách • ${kpi.totalDrivers} Tài xế • ${kpi.totalBosses} Boss chuỗi"
+
+                        // Sync alert badge with MainActivity TopBar
+                        (activity as? AdminMainActivity)?.updateAlertBadge(kpi.pendingStores + kpi.pendingComplaints)
+
+                        // Urgent attention banner
+                        if (kpi.pendingStores > 0 || kpi.pendingComplaints > 0) {
+                            binding.cardUrgentBanner.visibility = View.VISIBLE
+                            val parts = mutableListOf<String>()
+                            if (kpi.pendingStores > 0) parts.add("${kpi.pendingStores} quán chờ duyệt CCCD")
+                            if (kpi.pendingComplaints > 0) parts.add("${kpi.pendingComplaints} khiếu nại chờ giải quyết")
+                            binding.tvUrgentMessage.text = "Cần chú ý: ${parts.joinToString(" và ")}."
+                        } else {
+                            binding.cardUrgentBanner.visibility = View.GONE
+                        }
+                    }
+                }
+
+                launch {
+                    viewModel.actionMessage.collect { msg ->
+                        if (!msg.isNullOrBlank()) {
+                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                            viewModel.clearActionMessage()
+                        }
+                    }
+                }
+
+                launch {
+                    viewModel.countdownConfig.collect { config ->
+                        binding.tvCurrentCountdownConfig.text =
+                            "Lần 1: ${config.round1Minutes} phút • Lần 2 (gia hạn): ${config.round2Minutes} phút"
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showCountdownConfigDialog() {
+        val dialogBinding = com.chuyen_de_2.foodorder.admin.databinding.DialogEditCountdownConfigBinding.inflate(layoutInflater)
+        val currentConfig = viewModel.countdownConfig.value
+
+        dialogBinding.etRound1Minutes.setText(currentConfig.round1Minutes.toString())
+        dialogBinding.etRound2Minutes.setText(currentConfig.round2Minutes.toString())
+
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setView(dialogBinding.root)
+            .create()
+
+        dialogBinding.btnResetDefault.setOnClickListener {
+            dialogBinding.etRound1Minutes.setText("15")
+            dialogBinding.etRound2Minutes.setText("15")
+        }
+
+        dialogBinding.btnSaveConfig.setOnClickListener {
+            val r1Str = dialogBinding.etRound1Minutes.text?.toString()?.trim().orEmpty()
+            val r2Str = dialogBinding.etRound2Minutes.text?.toString()?.trim().orEmpty()
+
+            val r1 = r1Str.toIntOrNull()
+            val r2 = r2Str.toIntOrNull()
+
+            if (r1 == null || r1 <= 0 || r1 > 120) {
+                dialogBinding.tilRound1Minutes.error = "Vui lòng nhập từ 1 đến 120 phút"
+                return@setOnClickListener
+            } else {
+                dialogBinding.tilRound1Minutes.error = null
+            }
+
+            if (r2 == null || r2 <= 0 || r2 > 120) {
+                dialogBinding.tilRound2Minutes.error = "Vui lòng nhập từ 1 đến 120 phút"
+                return@setOnClickListener
+            } else {
+                dialogBinding.tilRound2Minutes.error = null
+            }
+
+            viewModel.saveCountdownConfig(r1, r2)
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/dashboard/AdminDashboardViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.dashboard
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Complaint
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+data class DashboardKpi(
+    val totalRevenue: Long = 0L,
+    val totalOrders: Int = 0,
+    val completedOrders: Int = 0,
+    val boomOrders: Int = 0,
+    val totalStores: Int = 0,
+    val activeStores: Int = 0,
+    val pendingStores: Int = 0,
+    val chainStores: Int = 0,
+    val pendingComplaints: Int = 0,
+    val totalCustomers: Int = 0,
+    val totalDrivers: Int = 0,
+    val totalBosses: Int = 0,
+    val totalMerchants: Int = 0
+)
+
+@HiltViewModel
+class AdminDashboardViewModel @Inject constructor(
+    private val firebaseRepo: FirebaseRepository
+) : ViewModel() {
+
+    private val _kpi = MutableStateFlow(DashboardKpi())
+    val kpi: StateFlow<DashboardKpi> = _kpi.asStateFlow()
+
+    private val _countdownConfig = MutableStateFlow(com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig())
+    val countdownConfig: StateFlow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = _countdownConfig.asStateFlow()
+
+    private val _actionMessage = MutableStateFlow<String?>(null)
+    val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
+
+    init {
+        observePlatformData()
+        observeCountdownConfig()
+    }
+
+    private fun observeCountdownConfig() {
+        viewModelScope.launch {
+            firebaseRepo.observeCountdownConfig().collect { config ->
+                _countdownConfig.value = config
+            }
+        }
+    }
+
+    fun saveCountdownConfig(round1Minutes: Int, round2Minutes: Int) {
+        viewModelScope.launch {
+            val result = firebaseRepo.updateCountdownConfig(round1Minutes, round2Minutes)
+            if (result.isSuccess) {
+                _countdownConfig.value = com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig(
+                    round1Minutes = round1Minutes,
+                    round2Minutes = round2Minutes,
+                    updatedAt = System.currentTimeMillis()
+                )
+                _actionMessage.value = "Đã lưu cài đặt: Lần 1 = $round1Minutes phút, Lần 2 = $round2Minutes phút!"
+            } else {
+                _actionMessage.value = "Lưu thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    private fun observePlatformData() {
+        viewModelScope.launch {
+            combine(
+                firebaseRepo.observeAllOrders(),
+                firebaseRepo.observeAllStores(),
+                firebaseRepo.observeAllComplaints(),
+                firebaseRepo.observeAllUsers()
+            ) { orders, stores, complaints, users ->
+                val revenue = orders.filter {
+                    it.orderStatus.equals(Order.OrderStatus.COMPLETED, ignoreCase = true)
+                }.sumOf { it.totalPrice }
+
+                val completed = orders.count {
+                    it.orderStatus.equals(Order.OrderStatus.COMPLETED, ignoreCase = true)
+                }
+
+                val boomed = orders.count {
+                    it.orderStatus.equals(Order.OrderStatus.BOOM, ignoreCase = true) ||
+                    it.orderStatus.equals(Order.OrderStatus.CANCELLED, ignoreCase = true)
+                }
+
+                val activeS = stores.count { it.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true) }
+                val pendingS = stores.count {
+                    !it.isVerified || it.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
+                }
+
+                val pendingC = complaints.count {
+                    it.status.equals(Complaint.ComplaintStatus.PENDING, ignoreCase = true)
+                }
+
+                val chainS = stores.count { it.bossId.isNotBlank() }
+                val customers = users.count { it.role.equals(User.Role.CUSTOMER, ignoreCase = true) }
+                val drivers = users.count {
+                    it.role.equals(User.Role.DRIVER, ignoreCase = true) ||
+                    it.role.equals(User.Role.SHIPPER, ignoreCase = true)
+                }
+                val bosses = users.count {
+                    it.role.equals(User.Role.BOSSMERCHANT, ignoreCase = true) ||
+                    it.role.equals("BOSS", ignoreCase = true)
+                }
+                val merchants = users.count {
+                    it.role.equals(User.Role.MERCHANT, ignoreCase = true)
+                }
+
+                DashboardKpi(
+                    totalRevenue = revenue,
+                    totalOrders = orders.size,
+                    completedOrders = completed,
+                    boomOrders = boomed,
+                    totalStores = stores.size,
+                    activeStores = activeS,
+                    pendingStores = pendingS,
+                    chainStores = chainS,
+                    pendingComplaints = pendingC,
+                    totalCustomers = customers,
+                    totalDrivers = drivers,
+                    totalBosses = bosses,
+                    totalMerchants = merchants
+                )
+            }.collect { kpiData ->
+                _kpi.value = kpiData
+            }
+        }
+    }
+
+    fun restoreDefaultCategories() {
+        viewModelScope.launch {
+            val result = firebaseRepo.restoreDefaultCategories()
+            if (result.isSuccess) {
+                _actionMessage.value = "Đã khôi phục thành công 5 danh mục chính (Cơm, Phở, Trà sữa, Bún đậu, Nước ép)!"
+            } else {
+                _actionMessage.value = "Khôi phục danh mục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun clearActionMessage() {
+        _actionMessage.value = null
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/AdminMonitorViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.monitor
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Customer
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.data.model.User
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+data class UserWithCustomerInfo(
+    val user: User,
+    val customer: Customer? = null
+)
+
+@HiltViewModel
+class AdminMonitorViewModel @Inject constructor(
+    private val firebaseRepo: FirebaseRepository
+) : ViewModel() {
+
+    private val _rawOrders = MutableStateFlow<List<Order>>(emptyList())
+    private val _rawUsers = MutableStateFlow<List<UserWithCustomerInfo>>(emptyList())
+    private val _searchQuery = MutableStateFlow("")
+
+    private val _filteredOrders = MutableStateFlow<List<Order>>(emptyList())
+    val orders: StateFlow<List<Order>> = _filteredOrders.asStateFlow()
+
+    private val _filteredUsers = MutableStateFlow<List<UserWithCustomerInfo>>(emptyList())
+    val users: StateFlow<List<UserWithCustomerInfo>> = _filteredUsers.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    init {
+        observeData()
+    }
+
+    private fun observeData() {
+        viewModelScope.launch {
+            launch {
+                firebaseRepo.observeAllOrders().collect { list ->
+                    _rawOrders.value = list.sortedByDescending { it.createdAt }
+                    applySearch()
+                }
+            }
+
+            launch {
+                combine(
+                    firebaseRepo.observeAllUsers(),
+                    firebaseRepo.observeAllCustomers()
+                ) { userList, customerList ->
+                    val customerMap = customerList.associateBy { it.customerId }
+                    userList.map { u ->
+                        UserWithCustomerInfo(
+                            user = u,
+                            customer = customerMap[u.uid]
+                        )
+                    }
+                }.collect { combined ->
+                    _rawUsers.value = combined
+                    applySearch()
+                }
+            }
+        }
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        applySearch()
+    }
+
+    private fun applySearch() {
+        val q = _searchQuery.value.trim().lowercase()
+
+        // Filter Orders
+        if (q.isBlank()) {
+            _filteredOrders.value = _rawOrders.value
+        } else {
+            _filteredOrders.value = _rawOrders.value.filter { o ->
+                o.orderId.lowercase().contains(q) ||
+                o.shopName.lowercase().contains(q) ||
+                o.customerName.lowercase().contains(q) ||
+                o.customerPhone.lowercase().contains(q) ||
+                o.orderStatus.lowercase().contains(q) ||
+                o.cancelReason.lowercase().contains(q) ||
+                o.cancelRequestReason.lowercase().contains(q)
+            }
+        }
+
+        // Filter Users
+        if (q.isBlank()) {
+            _filteredUsers.value = _rawUsers.value
+        } else {
+            _filteredUsers.value = _rawUsers.value.filter { item ->
+                item.user.name.lowercase().contains(q) ||
+                item.user.email.lowercase().contains(q) ||
+                item.user.phone.lowercase().contains(q) ||
+                item.user.role.lowercase().contains(q) ||
+                item.user.uid.lowercase().contains(q) ||
+                item.user.bossId.lowercase().contains(q) ||
+                item.user.storeId.lowercase().contains(q)
+            }
+        }
+    }
+
+    fun toggleUserLock(user: User) {
+        viewModelScope.launch {
+            val isCurrentlyLocked = !user.isActive ||
+                user.status.equals("LOCKED", ignoreCase = true) ||
+                user.status.equals("SUSPENDED", ignoreCase = true) ||
+                user.status.equals(User.Status.INACTIVE, ignoreCase = true)
+
+            val newIsActive = isCurrentlyLocked
+            val newStatus = if (newIsActive) User.Status.ACTIVE else "LOCKED"
+            val lockReason = if (!newIsActive) "Tài khoản của bạn đã bị Quản trị viên tạm khóa. Vui lòng liên hệ Admin qua email admin@gmail.com để được giải quyết." else ""
+
+            val result = firebaseRepo.updateUserStatus(user.uid, newStatus, newIsActive, lockReason)
+            val displayName = user.email.ifBlank { user.name.ifBlank { user.uid } }
+            if (result.isSuccess) {
+                _message.value = if (newIsActive) "Đã mở khóa tài khoản $displayName" else "Đã khóa tài khoản $displayName"
+            } else {
+                _message.value = "Cập nhật tài khoản thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun saveUserWithTrustScore(
+        user: User,
+        trustScore: Int,
+        completedOrders: Int,
+        boomOrders: Int,
+        adjustReason: String
+    ) {
+        viewModelScope.launch {
+            val result = firebaseRepo.saveUserWithTrustScore(
+                user = user,
+                trustScore = trustScore,
+                completedOrders = completedOrders,
+                boomOrders = boomOrders,
+                adjustReason = adjustReason
+            )
+            if (result.isSuccess) {
+                _message.value = "Đã lưu hồ sơ & Điểm uy tín ($trustScore/100) cho '${user.name.ifBlank { user.email }}'!"
+            } else {
+                _message.value = "Cập nhật thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun saveOrderFull(order: Order) {
+        viewModelScope.launch {
+            val result = firebaseRepo.saveOrderFull(order)
+            if (result.isSuccess) {
+                _message.value = "Đã lưu toàn bộ thông tin đơn hàng #${order.orderId.takeLast(6)}!"
+            } else {
+                _message.value = "Cập nhật đơn hàng thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun clearMessage() {
+        _message.value = null
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/AdminOrderAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.monitor
+
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminOrderBinding
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class AdminOrderAdapter(
+    private val onOrderClick: ((Order) -> Unit)? = null
+) : ListAdapter<Order, AdminOrderAdapter.OrderViewHolder>(OrderDiffCallback()) {
+
+    private val currencyFormat = DecimalFormat("#,### đ")
+    private val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
+        val binding = ItemAdminOrderBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return OrderViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: OrderViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class OrderViewHolder(private val binding: ItemAdminOrderBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(order: Order) {
+            val context = itemView.context
+
+            binding.tvOrderCode.text = "#${order.orderId.takeLast(8)}"
+            val timeStr = if (order.createdAt > 0) dateFormat.format(Date(order.createdAt)) else "Vừa xong"
+            binding.tvOrderTime.text = "Thời gian đặt: $timeStr"
+            binding.tvOrderShopName.text = "Quán: ${order.shopName.ifBlank { "Quán ăn #${order.shopId.takeLast(6)}" }}"
+            binding.tvOrderCustomer.text = "Khách: ${order.customerName.ifBlank { "Khách hàng" }} (${order.customerPhone.ifBlank { "Không có SĐT" }})"
+            binding.tvOrderPrice.text = currencyFormat.format(order.totalPrice)
+
+            val statusUpper = order.orderStatus.uppercase(Locale.getDefault())
+            binding.tvOrderStatusBadge.text = statusUpper
+
+            when (statusUpper) {
+                Order.OrderStatus.COMPLETED -> {
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                }
+                Order.OrderStatus.BOOM, Order.OrderStatus.CANCELLED -> {
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                }
+                Order.OrderStatus.DELIVERING -> {
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_blue)
+                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                }
+                else -> {
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvOrderStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+            }
+
+            if (order.cancelRequested) {
+                binding.tvOrderCancelNotice.visibility = android.view.View.VISIBLE
+                val reason = order.cancelRequestReason.ifBlank { "Khách xin hủy đơn" }
+                val reqStatus = when (order.cancelRequestStatus.uppercase(Locale.getDefault())) {
+                    "PENDING" -> "Chờ quán xử lý"
+                    "REJECTED" -> "Quán từ chối hủy"
+                    "APPROVED" -> "Quán chấp thuận hủy"
+                    else -> order.cancelRequestStatus.ifBlank { "Chờ xử lý" }
+                }
+                binding.tvOrderCancelNotice.text = "Khách yêu cầu hủy: $reason • $reqStatus"
+                binding.tvOrderCancelNotice.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.tvOrderCancelNotice.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+            } else if (statusUpper == Order.OrderStatus.CANCELLED) {
+                binding.tvOrderCancelNotice.visibility = android.view.View.VISIBLE
+                val reason = order.cancelReason.ifBlank { order.cancelRequestReason.ifBlank { "Đã hủy đơn hàng" } }
+                binding.tvOrderCancelNotice.text = "Lý do hủy: $reason"
+                binding.tvOrderCancelNotice.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvOrderCancelNotice.setTextColor(ContextCompat.getColor(context, R.color.danger))
+            } else {
+                binding.tvOrderCancelNotice.visibility = android.view.View.GONE
+            }
+
+            itemView.setOnClickListener {
+                onOrderClick?.invoke(order)
+            }
+        }
+    }
+
+    class OrderDiffCallback : DiffUtil.ItemCallback<Order>() {
+        override fun areItemsTheSame(oldItem: Order, newItem: Order): Boolean =
+            oldItem.orderId == newItem.orderId
+
+        override fun areContentsTheSame(oldItem: Order, newItem: Order): Boolean =
+            oldItem == newItem
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/AdminUserAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.monitor
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.DiffUtil
+import com.bumptech.glide.Glide
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminUserBinding
+import com.chuyen_de_2.foodorder.core.data.model.User
+import java.util.Locale
+
+class AdminUserAdapter(
+    private val onToggleLock: (User) -> Unit,
+    private val onUserClick: ((UserWithCustomerInfo) -> Unit)? = null
+) : ListAdapter<UserWithCustomerInfo, AdminUserAdapter.UserViewHolder>(UserDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
+        val binding = ItemAdminUserBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return UserViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: UserViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class UserViewHolder(private val binding: ItemAdminUserBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(item: UserWithCustomerInfo) {
+            val user = item.user
+            val context = itemView.context
+
+                        binding.tvUserName.text = user.name.ifBlank { "Tài khoản #${user.uid.takeLast(6)}" }
+            val subText = buildString {
+                append(user.email.ifBlank { "Không có email" })
+                if (user.phone.isNotBlank()) append(" • ").append(user.phone)
+                if (user.bossId.isNotBlank()) append(" • Chuỗi: ").append(user.bossId.takeLast(6))
+                else if (user.storeId.isNotBlank()) append(" • Quán: ").append(user.storeId.takeLast(6))
+            }
+            binding.tvUserEmail.text = subText
+
+            val avatar = user.avatarUrl.ifBlank { item.customer?.avatarUrl.orEmpty() }
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
+                binding.ivUserAvatar,
+                avatar,
+                placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
+                tintColorResId = R.color.secondary
+            )
+
+            val roleUpper = user.role.uppercase(Locale.getDefault())
+            binding.tvUserRoleBadge.text = roleUpper
+
+            when (roleUpper) {
+                User.Role.ADMIN -> {
+                    binding.tvUserRoleBadge.text = "ADMIN"
+                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                }
+                User.Role.BOSSMERCHANT, "BOSS" -> {
+                    binding.tvUserRoleBadge.text = "CHỦ CHUỖI"
+                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+                User.Role.MERCHANT, User.Role.MANAGER -> {
+                    binding.tvUserRoleBadge.text = "MERCHANT"
+                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+                User.Role.DRIVER, User.Role.SHIPPER -> {
+                    binding.tvUserRoleBadge.text = "TÀI XẾ"
+                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                }
+                else -> {
+                    binding.tvUserRoleBadge.text = "KHÁCH HÀNG"
+                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_blue)
+                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                }
+            }
+
+            // Customer Trust Score & Tier Badge
+            val c = item.customer
+            val score = c?.trustScore ?: 100
+            val completed = c?.completedOrders ?: 0
+            val boomed = c?.boomOrders ?: 0
+            val tierBadge = c?.tierBadge ?: "💎 Hạng Kim Cương"
+
+            binding.tvCustomerTrust.visibility = View.VISIBLE
+            binding.tvCustomerTrust.text = "$tierBadge ($score/100) • Nhận: $completed • Bom: $boomed"
+
+            when {
+                score >= 95 -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_green)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                }
+                score >= 80 -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+                score >= 50 -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+                else -> {
+                    binding.tvCustomerTrust.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvCustomerTrust.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                }
+            }
+
+            // Lock / Unlock button & indicator
+            val isLocked = !user.isActive ||
+                user.status.equals("LOCKED", ignoreCase = true) ||
+                user.status.equals("SUSPENDED", ignoreCase = true) ||
+                user.status.equals(User.Status.INACTIVE, ignoreCase = true)
+
+            if (!isLocked) {
+                binding.btnToggleLock.text = "Khóa"
+                binding.btnToggleLock.setTextColor(ContextCompat.getColor(context, R.color.danger))
+                binding.btnToggleLock.strokeColor = ContextCompat.getColorStateList(context, R.color.danger)
+            } else {
+                binding.tvUserRoleBadge.text = "$roleUpper • ĐÃ KHÓA"
+                binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+
+                binding.btnToggleLock.text = "Mở khóa"
+                binding.btnToggleLock.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                binding.btnToggleLock.strokeColor = ContextCompat.getColorStateList(context, R.color.brand_green)
+            }
+
+            binding.btnToggleLock.setOnClickListener {
+                onToggleLock(user)
+            }
+
+            itemView.setOnClickListener {
+                onUserClick?.invoke(item)
+            }
+        }
+    }
+
+    class UserDiffCallback : DiffUtil.ItemCallback<UserWithCustomerInfo>() {
+        override fun areItemsTheSame(
+            oldItem: UserWithCustomerInfo,
+            newItem: UserWithCustomerInfo
+        ): Boolean = oldItem.user.uid == newItem.user.uid
+
+        override fun areContentsTheSame(
+            oldItem: UserWithCustomerInfo,
+            newItem: UserWithCustomerInfo
+        ): Boolean = oldItem == newItem
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/EditOrderDialogFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.admin.ui.monitor
 
 import android.app.Dialog
 import android.os.Bundle
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
-import android.util.Base64
-import androidx.activity.result.contract.ActivityResultContracts
-import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
-import java.io.ByteArrayOutputStream
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import com.chuyen_de_2.foodorder.admin.databinding.DialogEditUserBinding
-import com.chuyen_de_2.foodorder.core.data.model.Customer
-import com.chuyen_de_2.foodorder.core.data.model.User
-import androidx.core.content.ContextCompat
-import androidx.core.widget.addTextChangedListener
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.DialogEditOrderBinding
+import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-class EditUserDialogFragment(
-    private val user: User,
-    private val customer: Customer? = null,
-    private val onSave: (User, Int, Int, Int, String) -> Unit
+class EditOrderDialogFragment(
+    private val order: Order,
+    private val onSave: (Order) -> Unit
 ) : BottomSheetDialogFragment() {
 
-    private var _binding: DialogEditUserBinding? = null
+    private var _binding: DialogEditOrderBinding? = null
     private val binding get() = _binding!!
 
-    private var currentAvatar: String = ""
-    private var isAvatarResetToDefault = false
-
-    private val pickAvatarLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        val ctx = context ?: return@registerForActivityResult
-        uri ?: return@registerForActivityResult
-        val base64 = uriToBase64(uri)
-        if (!base64.isNullOrBlank()) {
-            currentAvatar = base64
-            isAvatarResetToDefault = false
-            updateAvatarPreview(currentAvatar)
-            binding.tvAvatarStatusHint.text = "Đã chọn ảnh mới từ thư viện"
-            binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
-            android.widget.Toast.makeText(ctx, "Đã cập nhật ảnh đại diện mới!", android.widget.Toast.LENGTH_SHORT).show()
-        } else {
-            android.widget.Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun uriToBase64(uri: Uri): String? {
-        val ctx = context ?: return null
-        return ImagePickerUtils.compressUriToBase64(ctx, uri, maxDimension = 260, quality = 80)
-    }
-
-    private val roleOptions = listOf(
-        User.Role.CUSTOMER,
-        User.Role.MERCHANT,
-        User.Role.BOSSMERCHANT,
-        User.Role.SHIPPER,
-        User.Role.ADMIN
+    private val statusOptions = listOf(
+        Order.OrderStatus.PENDING,
+        Order.OrderStatus.PREPARING,
+        Order.OrderStatus.READY,
+        Order.OrderStatus.ASSIGNED,
+        Order.OrderStatus.DELIVERING,
+        Order.OrderStatus.COMPLETED,
+        Order.OrderStatus.BOOM,
+        Order.OrderStatus.CANCELLED
     )
 
-    private val statusOptions = listOf(
-        User.Status.ACTIVE,
-        "LOCKED",
-        User.Status.INACTIVE,
-        User.Status.OFFLINE
+    private val paymentOptions = listOf(
+        "COD",
+        "MOMO",
+        "VN_PAY",
+        "ZALO_PAY",
+        "WALLET"
     )
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -81181,7 +77815,7 @@ class EditUserDialogFragment(
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DialogEditUserBinding.inflate(inflater, container, false)
+        _binding = DialogEditOrderBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -81196,245 +77830,85 @@ class EditUserDialogFragment(
     private fun setupSpinners() {
         val context = requireContext()
 
-        val roleAdapter = ArrayAdapter(
-            context,
-            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf(
-                "Khách Hàng (CUSTOMER)",
-                "Chủ Quán / Quản Lý (MERCHANT)",
-                "Chủ Chuỗi Cửa Hàng (BOSSMERCHANT)",
-                "Tài Xế Giao Hàng (SHIPPER)",
-                "Quản Trị Viên (ADMIN)"
-            )
-        ).apply {
+        val statusLabels = listOf(
+            "Đang chờ xác nhận (PENDING)",
+            "Đang chuẩn bị món (PREPARING)",
+            "Quán làm xong (READY)",
+            "Đã điều tài xế (ASSIGNED)",
+            "Đang giao hàng (DELIVERING)",
+            "Giao thành công (COMPLETED)",
+            "Khách boom hàng (BOOM)",
+            "Đã hủy đơn (CANCELLED)"
+        )
+        val statusAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, statusLabels).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
         }
-        binding.spnUserRole.adapter = roleAdapter
+        binding.spnOrderStatus.adapter = statusAdapter
 
-        val statusAdapter = ArrayAdapter(
-            context,
-            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf(
-                "Đang Hoạt Động (ACTIVE)",
-                "Đã Bị Khóa (LOCKED)",
-                "Tạm Ngừng (INACTIVE)",
-                "Ngoại Tuyến (OFFLINE)"
-            )
-        ).apply {
+        val paymentLabels = listOf(
+            "Tiền mặt khi nhận (COD)",
+            "Ví điện tử MoMo",
+            "Cổng VNPAY QR",
+            "Ví ZaloPay",
+            "Ví số Oishi Food"
+        )
+        val paymentAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, paymentLabels).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
         }
-        binding.spnUserStatus.adapter = statusAdapter
-    }
-
-    private fun updateAvatarPreview(avatar: String) {
-        val context = context ?: return
-        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
-            binding.ivUserAvatarPreview,
-            avatar,
-            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
-            tintColorResId = R.color.secondary
-        )
-        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
-            binding.ivDialogUserAvatar,
-            avatar,
-            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
-            tintColorResId = R.color.secondary
-        )
-
-        if (avatar.isNotBlank()) {
-            when {
-                avatar.startsWith("data:image") -> {
-                    binding.tvAvatarStatusHint.text = "✓ Ảnh tải lên từ máy (Base64)"
-                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-                }
-                avatar.startsWith("http://") || avatar.startsWith("https://") -> {
-                    binding.tvAvatarStatusHint.text = "✓ Ảnh trực tuyến (URL)"
-                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-                }
-                else -> {
-                    binding.tvAvatarStatusHint.text = "✓ Ảnh đại diện người dùng"
-                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.text_primary))
-                }
-            }
-        } else {
-            binding.tvAvatarStatusHint.text = "Chưa có ảnh (Đang dùng icon mặc định)"
-            binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-        }
+        binding.spnPaymentMethod.adapter = paymentAdapter
     }
 
     private fun populateCurrentData() {
-        currentAvatar = user.avatarUrl.ifBlank { customer?.avatarUrl.orEmpty() }
-        isAvatarResetToDefault = false
+        binding.tvOrderIdSubtitle.text = "Mã đơn: ${order.orderId}"
 
-        binding.tvUserUidSubtitle.text = "UID: ${user.uid}"
-        binding.etUserName.setText(user.name)
-        binding.etUserEmail.setText(user.email)
-        binding.etUserPhone.setText(user.phone)
-        binding.etUserStoreId.setText(user.storeId)
-        binding.etUserBossId.setText(user.bossId)
+        val currentStatus = order.orderStatus.ifBlank { order.status }.uppercase()
+        val statusIdx = statusOptions.indexOfFirst { it.equals(currentStatus, ignoreCase = true) }.coerceAtLeast(0)
+        binding.spnOrderStatus.setSelection(statusIdx)
 
+        val currentPayment = order.paymentMethod.uppercase()
+        val paymentIdx = paymentOptions.indexOfFirst { currentPayment.contains(it) }.coerceAtLeast(0)
+        binding.spnPaymentMethod.setSelection(paymentIdx)
 
-
-        updateAvatarPreview(currentAvatar)
-
-        val currentScore = customer?.trustScore ?: 100
-        val currentCompleted = customer?.completedOrders ?: 0
-        val currentBoom = customer?.boomOrders ?: 0
-
-        binding.etUserTrustScore.setText(currentScore.toString())
-        binding.etUserCompletedOrders.setText(currentCompleted.toString())
-        binding.etUserBoomOrders.setText(currentBoom.toString())
-
-        val roleIndex = when (user.role.uppercase()) {
-            User.Role.CUSTOMER -> 0
-            User.Role.MERCHANT, User.Role.MANAGER -> 1
-            User.Role.BOSSMERCHANT, "BOSS" -> 2
-            User.Role.SHIPPER, User.Role.DRIVER -> 3
-            User.Role.ADMIN -> 4
-            else -> 0
-        }
-        binding.spnUserRole.setSelection(roleIndex)
-
-        val isLocked = !user.isActive ||
-            user.status.equals("LOCKED", ignoreCase = true) ||
-            user.status.equals("SUSPENDED", ignoreCase = true) ||
-            user.status.equals(User.Status.INACTIVE, ignoreCase = true)
-
-        val statusIndex = when {
-            user.status.equals("LOCKED", ignoreCase = true) || user.status.equals("SUSPENDED", ignoreCase = true) -> 1
-            user.status.equals(User.Status.INACTIVE, ignoreCase = true) -> 2
-            user.status.equals(User.Status.OFFLINE, ignoreCase = true) -> 3
-            !user.isActive -> 1
-            else -> 0
-        }
-        binding.spnUserStatus.setSelection(statusIndex)
-        binding.switchUserActive.isChecked = !isLocked
+        binding.etOrderAddress.setText(order.address.ifBlank { order.deliveryAddress })
+        binding.etOrderNote.setText(order.note)
+        binding.etShippingFee.setText(order.shippingFee.toString())
+        binding.etTotalPayment.setText(order.totalPayment.toString())
+        binding.etShipperName.setText(order.shipperName)
+        binding.etShipperPhone.setText(order.shipperPhone)
+        binding.etCancelReason.setText(order.cancelReason)
+        binding.etCancelRequestReason.setText(order.cancelRequestReason)
+        binding.etCancelRequestStatus.setText(order.cancelRequestStatus)
+        binding.etCancelRejectReason.setText(order.cancelRejectReason)
     }
 
     private fun setupListeners() {
-        binding.btnCloseUserDialog.setOnClickListener { dismiss() }
-        binding.btnCancelEditUser.setOnClickListener { dismiss() }
+        binding.btnCloseOrderDialog.setOnClickListener { dismiss() }
+        binding.btnCancelEditOrder.setOnClickListener { dismiss() }
 
-        binding.cardUserAvatarContainer.setOnClickListener {
-            pickAvatarLauncher.launch("image/*")
-        }
-        binding.ivUserAvatarPreview.setOnClickListener {
-            pickAvatarLauncher.launch("image/*")
-        }
-        binding.ivDialogUserAvatar.setOnClickListener {
-            pickAvatarLauncher.launch("image/*")
-        }
-        binding.btnQuickPickAvatar.setOnClickListener {
-            pickAvatarLauncher.launch("image/*")
-        }
-        binding.btnPickAvatarFromGallery.setOnClickListener {
-            pickAvatarLauncher.launch("image/*")
-        }
+        binding.btnSaveEditOrder.setOnClickListener {
+            val selectedStatus = statusOptions.getOrElse(binding.spnOrderStatus.selectedItemPosition) { Order.OrderStatus.PENDING }
+            val selectedPayment = paymentOptions.getOrElse(binding.spnPaymentMethod.selectedItemPosition) { "COD" }
+            val address = binding.etOrderAddress.text?.toString().orEmpty().trim()
+            val note = binding.etOrderNote.text?.toString().orEmpty().trim()
+            val shippingFee = binding.etShippingFee.text?.toString().orEmpty().toLongOrNull() ?: order.shippingFee
+            val totalPayment = binding.etTotalPayment.text?.toString().orEmpty().toLongOrNull() ?: order.totalPayment
+            val shipperName = binding.etShipperName.text?.toString().orEmpty().trim()
+            val shipperPhone = binding.etShipperPhone.text?.toString().orEmpty().trim()
 
-        binding.btnResetAvatarDefault.setOnClickListener {
-            val ctx = context ?: return@setOnClickListener
-            isAvatarResetToDefault = true
-            currentAvatar = ""
-            updateAvatarPreview("")
-            android.widget.Toast.makeText(ctx, "Đã đặt lại icon mặc định", android.widget.Toast.LENGTH_SHORT).show()
-        }
-
-        // Đồng bộ giữa Switch Kích hoạt và Spinner Trạng thái
-        binding.switchUserActive.setOnCheckedChangeListener { _, isChecked ->
-            if (!isChecked) {
-                if (binding.spnUserStatus.selectedItemPosition == 0) {
-                    binding.spnUserStatus.setSelection(1) // LOCKED
-                }
-            } else {
-                if (binding.spnUserStatus.selectedItemPosition == 1 || binding.spnUserStatus.selectedItemPosition == 2) {
-                    binding.spnUserStatus.setSelection(0) // ACTIVE
-                }
-            }
-        }
-
-        binding.spnUserStatus.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position == 1 || position == 2) {
-                    if (binding.switchUserActive.isChecked) {
-                        binding.switchUserActive.isChecked = false
-                    }
-                } else if (position == 0) {
-                    if (!binding.switchUserActive.isChecked) {
-                        binding.switchUserActive.isChecked = true
-                    }
-                }
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
-
-        binding.btnQuickPlus10.setOnClickListener {
-            val cur = binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100
-            binding.etUserTrustScore.setText((cur + 10).coerceAtMost(100).toString())
-            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
-                binding.etTrustAdjustReason.setText("Cộng thưởng điểm tín nhiệm tích cực")
-            }
-        }
-
-        binding.btnQuickMinus20.setOnClickListener {
-            val cur = binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100
-            binding.etUserTrustScore.setText((cur - 20).coerceAtLeast(0).toString())
-            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
-                binding.etTrustAdjustReason.setText("Trừ điểm do vi phạm quy định đặt hàng / bom đơn")
-            }
-        }
-
-        binding.btnQuickReset100.setOnClickListener {
-            binding.etUserTrustScore.setText("100")
-            binding.switchUserActive.isChecked = true
-            binding.spnUserStatus.setSelection(0)
-            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
-                binding.etTrustAdjustReason.setText("Khôi phục 100 điểm uy tín & mở khóa tài khoản")
-            }
-        }
-
-        binding.btnSaveEditUser.setOnClickListener {
-            val name = binding.etUserName.text?.toString().orEmpty().trim()
-            val email = binding.etUserEmail.text?.toString().orEmpty().trim()
-            val phone = binding.etUserPhone.text?.toString().orEmpty().trim()
-            val storeId = binding.etUserStoreId.text?.toString().orEmpty().trim()
-            val bossId = binding.etUserBossId.text?.toString().orEmpty().trim()
-
-            val finalAvatar = if (isAvatarResetToDefault) "RESET_DEFAULT_AVATAR" else currentAvatar
-
-            val trustScore = (binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100).coerceIn(0, 100)
-            val completedOrders = (binding.etUserCompletedOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)
-            val boomOrders = (binding.etUserBoomOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)
-            val adjustReason = binding.etTrustAdjustReason.text?.toString().orEmpty().trim()
-
-            val selectedRole = roleOptions.getOrElse(binding.spnUserRole.selectedItemPosition) { User.Role.CUSTOMER }
-            val rawStatus = statusOptions.getOrElse(binding.spnUserStatus.selectedItemPosition) { User.Status.ACTIVE }
-            val isCheckedActive = binding.switchUserActive.isChecked
-            val isUnlocked = isCheckedActive && rawStatus != "LOCKED" && rawStatus != User.Status.INACTIVE
-            val finalStatus = if (isUnlocked) rawStatus else "LOCKED"
-
-            val roleId = when (selectedRole) {
-                User.Role.ADMIN -> 1
-                User.Role.CUSTOMER -> 2
-                User.Role.MERCHANT, User.Role.MANAGER -> 3
-                User.Role.BOSSMERCHANT -> 5
-                User.Role.SHIPPER, User.Role.DRIVER -> 4
-                else -> 2
-            }
-
-            val updatedUser = user.copy(
-                name = name,
-                email = email,
-                phone = phone,
-                role = selectedRole,
-                roleId = roleId,
-                storeId = storeId,
-                bossId = bossId,
-                avatarUrl = finalAvatar,
-                status = finalStatus,
-                isActive = isUnlocked
+            val updatedOrder = order.copy(
+                orderStatus = selectedStatus,
+                status = selectedStatus,
+                paymentMethod = selectedPayment,
+                address = address,
+                deliveryAddress = address,
+                note = note,
+                shippingFee = shippingFee,
+                totalPayment = totalPayment,
+                shipperName = shipperName,
+                shipperPhone = shipperPhone
             )
 
-            onSave(updatedUser, trustScore, completedOrders, boomOrders, adjustReason)
+            onSave(updatedOrder)
             dismiss()
         }
     }
@@ -81445,271 +77919,304 @@ class EditUserDialogFragment(
     }
 
     companion object {
-        const val TAG = "EditUserDialogFragment"
+        const val TAG = "EditOrderDialogFragment"
     }
 }
 ````
 
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/EditStoreDialogFragment.kt
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.store
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminStoreBinding
+import com.chuyen_de_2.foodorder.core.data.model.Store
+
+class AdminStoreAdapter(
+    private val onStoreClick: (Store) -> Unit
+) : ListAdapter<Store, AdminStoreAdapter.StoreViewHolder>(StoreDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): StoreViewHolder {
+        val binding = ItemAdminStoreBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return StoreViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: StoreViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class StoreViewHolder(private val binding: ItemAdminStoreBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(store: Store) {
+            val context = itemView.context
+
+            binding.tvStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
+            val ownerOrManager = if (store.merchantName.isNotBlank() && store.merchantName != store.ownerName) {
+                "Chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • QL: ${store.merchantName}"
+            } else {
+                "Chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }}"
+            }
+            binding.tvOwnerInfo.text = "$ownerOrManager • ${store.phone.ifBlank { "Không có SĐT" }}"
+            binding.tvAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật địa chỉ" }}"
+            binding.tvRating.text = "⭐ ${String.format("%.1f", if (store.ratingAvg > 0) store.ratingAvg else 5.0f)}"
+
+            // Chain Badge
+            if (store.bossId.isNotBlank()) {
+                binding.tvChainBadge.text = "CHUỖI"
+                binding.tvChainBadge.visibility = View.VISIBLE
+            } else {
+                binding.tvChainBadge.visibility = View.GONE
+            }
+
+            // CCCD Badge
+            if (store.cccdNumber.isNotBlank()) {
+                binding.tvCccdBadge.text = "CCCD: ${store.cccdNumber}"
+                binding.tvCccdBadge.visibility = View.VISIBLE
+            } else {
+                binding.tvCccdBadge.text = "Chưa nộp CCCD"
+                binding.tvCccdBadge.visibility = View.VISIBLE
+            }
+
+            // Status Badge
+            if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
+                binding.tvStoreStatusBadge.text = "CHỜ DUYỆT CCCD"
+                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+            } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
+                binding.tvStoreStatusBadge.text = "BỊ KHÓA"
+                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+            } else if (store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)) {
+                binding.tvStoreStatusBadge.text = "ĐANG MỞ CỬA"
+                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+            } else {
+                binding.tvStoreStatusBadge.text = "TẠM ĐÓNG CỬA"
+                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_duty_off)
+                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+            }
+
+            // Penalty Badge
+            if (store.penaltyTier != Store.PenaltyTier.NONE && store.penaltyTier.isNotBlank()) {
+                binding.tvPenaltyBadge.visibility = View.VISIBLE
+                binding.tvPenaltyBadge.text = "PHẠT: ${store.penaltyTier}"
+            } else {
+                binding.tvPenaltyBadge.visibility = View.GONE
+            }
+
+            // Avatar quán đồng bộ URL / Base64
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivStoreAvatar,
+                imageUrl = store.effectiveImageUrl,
+                placeholderResId = R.drawable.ic_store,
+                cornerDp = 10
+            )
+
+            binding.root.setOnClickListener {
+                onStoreClick(store)
+            }
+        }
+    }
+
+    class StoreDiffCallback : DiffUtil.ItemCallback<Store>() {
+        override fun areItemsTheSame(oldItem: Store, newItem: Store): Boolean =
+            oldItem.id == newItem.id
+
+        override fun areContentsTheSame(oldItem: Store, newItem: Store): Boolean =
+            oldItem == newItem
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreDetailBottomSheetDialogFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.admin.ui.store
 
 import android.app.Dialog
 import android.os.Bundle
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
-import android.util.Base64
-import androidx.activity.result.contract.ActivityResultContracts
-import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
-import androidx.core.content.ContextCompat
-import com.bumptech.glide.Glide
-import java.io.ByteArrayOutputStream
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
+import android.widget.RadioButton
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.DialogEditStoreBinding
+import com.chuyen_de_2.foodorder.admin.databinding.BottomSheetAdminStoreDetailBinding
+import com.chuyen_de_2.foodorder.admin.databinding.DialogApplyStorePenaltyBinding
 import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-class EditStoreDialogFragment(
+class AdminStoreDetailBottomSheetDialogFragment(
     private val store: Store,
-    private val onSave: (Store) -> Unit
+    private val onApprove: (Store) -> Unit,
+    private val onLock: (Store) -> Unit,
+    private val onApplyPenalty: (storeId: String, tier: String, reason: String) -> Unit,
+    private val onEditAll: ((Store) -> Unit)? = null
 ) : BottomSheetDialogFragment() {
 
-    private var _binding: DialogEditStoreBinding? = null
+    private var _binding: BottomSheetAdminStoreDetailBinding? = null
     private val binding get() = _binding!!
-
-    private val statusOptions = listOf(
-        Store.StoreStatus.OPEN,
-        Store.StoreStatus.CLOSED,
-        Store.StoreStatus.LOCKED,
-        Store.StoreStatus.PENDING
-    )
-
-    private val penaltyOptions = listOf(
-        Store.PenaltyTier.NONE,
-        Store.PenaltyTier.WARN,
-        Store.PenaltyTier.HIDE,
-        Store.PenaltyTier.LOCK
-    )
-
-    private var currentStoreImageUrl: String = ""
-
-    private val pickStoreImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        val ctx = context ?: return@registerForActivityResult
-        uri ?: return@registerForActivityResult
-        val base64 = uriToBase64(uri)
-        if (!base64.isNullOrBlank()) {
-            currentStoreImageUrl = base64
-            updateStoreImagePreview(currentStoreImageUrl)
-            binding.tvStoreImageStatus.text = "Đã chọn ảnh mới từ thư viện"
-            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
-            Toast.makeText(ctx, "Đã chọn ảnh quán thành công!", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun uriToBase64(uri: Uri): String? {
-        val ctx = context ?: return null
-        return ImagePickerUtils.compressUriToBase64(ctx, uri, maxDimension = 400, quality = 80)
-    }
-
-    private fun updateStoreImagePreview(imageSource: String) {
-        val trimmed = imageSource.trim()
-        if (trimmed.isNotBlank()) {
-            binding.ivStoreImagePreview.clearColorFilter()
-            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                imageView = binding.ivStoreImagePreview,
-                imageUrl = trimmed,
-                placeholderResId = R.drawable.ic_store,
-                cornerDp = 10
-            )
-        } else {
-            Glide.with(this).clear(binding.ivStoreImagePreview)
-            binding.ivStoreImagePreview.setImageResource(R.drawable.ic_store)
-            binding.ivStoreImagePreview.setColorFilter(ContextCompat.getColor(requireContext(), R.color.text_muted))
-        }
-    }
-
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
-        dialog.setOnShowListener {
-            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-            bottomSheet?.let { sheet ->
-                val behavior = BottomSheetBehavior.from(sheet)
-                behavior.state = BottomSheetBehavior.STATE_EXPANDED
-                behavior.skipCollapsed = true
-            }
-        }
-        return dialog
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = DialogEditStoreBinding.inflate(inflater, container, false)
+        _binding = BottomSheetAdminStoreDetailBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        setupSpinners()
-        populateCurrentData()
-        setupListeners()
+        populateData()
+        setupActions()
     }
 
-    private fun setupSpinners() {
+    private fun populateData() {
         val context = requireContext()
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+            imageView = binding.ivDetailStoreAvatar,
+            imageUrl = store.effectiveImageUrl,
+            placeholderResId = R.drawable.ic_store,
+            cornerDp = 12
+        )
+        binding.tvDetailStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
+        binding.tvDetailStoreId.text = "Mã quán: ${store.id}"
+        binding.tvDetailAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật" }} (${store.district.ifBlank { "Quận chưa rõ" }})"
+        binding.tvDetailPhone.text = "Số điện thoại: ${store.phone.ifBlank { "Chưa cập nhật" }}"
+        binding.tvDetailHours.text = "Giờ mở cửa: ${store.openHours.ifBlank { "08:00 - 22:00" }} (Thời gian làm món: ${store.prepTime.ifBlank { "15 phút" }})"
 
-        val statusAdapter = ArrayAdapter(
-            context,
-            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf("Đang Mở Cửa (OPEN)", "Tạm Nghỉ (CLOSED)", "Đang Bị Khóa (LOCKED)", "Chờ Duyệt (PENDING)")
-        ).apply {
-            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        // Chain & Manager info
+        if (store.bossId.isNotBlank()) {
+            val managerText = if (store.merchantName.isNotBlank()) " • Quản lý chi nhánh: ${store.merchantName}" else " • Boss trực tiếp quản lý"
+            binding.tvDetailChainInfo.text = "Mô hình: Chuỗi cửa hàng (Boss #${store.bossId.takeLast(6)})$managerText"
+            binding.tvDetailChainInfo.visibility = View.VISIBLE
+        } else {
+            binding.tvDetailChainInfo.text = "Mô hình: Cửa hàng độc lập (Chưa tham gia chuỗi)"
+            binding.tvDetailChainInfo.visibility = View.VISIBLE
         }
-        binding.spnStoreStatus.adapter = statusAdapter
 
-        val penaltyAdapter = ArrayAdapter(
-            context,
-            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf("Bình Thường (NONE)", "Cảnh Cáo (WARN)", "Ẩn Khỏi Tìm Kiếm (HIDE)", "Khóa Quyền Bán (LOCK)")
-        ).apply {
-            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        // Food Categories
+        val cats = if (store.storeCategories.isNotEmpty()) {
+            store.storeCategories.joinToString(", ")
+        } else {
+            store.category.ifBlank { "Chưa phân loại" }
         }
-        binding.spnPenaltyTier.adapter = penaltyAdapter
+        binding.tvDetailCategories.text = "Danh mục ẩm thực: $cats"
+        binding.tvDetailCategories.visibility = View.VISIBLE
+
+        // Bank
+        val bankInfo = StringBuilder()
+        if (store.bankName.isNotBlank()) bankInfo.append(store.bankName).append(" • ")
+        if (store.bankAccountNumber.isNotBlank()) bankInfo.append(store.bankAccountNumber).append(" • ")
+        bankInfo.append(store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa đăng ký" } })
+        binding.tvDetailBank.text = bankInfo.toString()
+
+        val ownerName = store.ownerName.ifBlank { "Chưa cập nhật" }
+        val bankAccountName = store.bankAccountName.ifBlank { "Chưa đăng ký" }
+        binding.tvDetailBankCompare.text = "Hộ kinh doanh: $ownerName • Chủ thẻ NH: $bankAccountName"
+
+        // CCCD
+        binding.tvDetailCccdInfo.text = "Họ tên chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • Số CCCD: ${store.cccdNumber.ifBlank { "Chưa cập nhật" }}"
+
+        // Status badge
+        if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "CHỜ DUYỆT CCCD"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+        } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "BỊ KHÓA"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+        } else if (store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "ĐANG MỞ CỬA"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+        } else {
+            binding.tvDetailStatusBadge.text = "TẠM ĐÓNG CỬA"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_duty_off)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+        }
+
+        // CCCD Photos
+        val cccdFront = store.cccdFrontUrl.ifBlank { store.cccdHoldUrl }
+        if (cccdFront.isNotBlank()) {
+            Glide.with(this).load(cccdFront).placeholder(R.drawable.ic_image).into(binding.ivCccdFront)
+        }
+        if (store.cccdBackUrl.isNotBlank()) {
+            Glide.with(this).load(store.cccdBackUrl).placeholder(R.drawable.ic_image).into(binding.ivCccdBack)
+        }
+
+        // Current Penalty
+        if (store.penaltyTier != Store.PenaltyTier.NONE && store.penaltyTier.isNotBlank()) {
+            binding.tvCurrentPenalty.visibility = View.VISIBLE
+            binding.tvCurrentPenalty.text = "Chế tài đang hiệu lực: ${store.penaltyTier}\nLý do: ${store.penaltyReason.ifBlank { "Vi phạm quy định sàn" }}"
+        } else {
+            binding.tvCurrentPenalty.visibility = View.GONE
+        }
     }
 
-    private fun populateCurrentData() {
-        binding.tvStoreIdSubtitle.text = "Mã cửa hàng: ${store.id}"
-        binding.etStoreName.setText(store.name)
-        binding.etStoreCategory.setText(store.category)
-        binding.etStorePhone.setText(store.phone)
-        binding.etStoreAddress.setText(store.address)
-        binding.etStoreDistrict.setText(store.district)
-        binding.etBossId.setText(store.bossId)
-        binding.etMerchantName.setText(store.merchantName)
-        currentStoreImageUrl = store.effectiveImageUrl
-        updateStoreImagePreview(currentStoreImageUrl)
-        binding.etStoreOpenHours.setText(store.openHours)
-        binding.etStorePrepTime.setText(store.prepTime)
-        binding.etStoreDeliveryTime.setText(store.deliveryTime)
-        binding.etStoreRatingAvg.setText(store.ratingAvg.toString())
-
-        // Trạng thái
-        val statusIndex = when (store.storeStatus.uppercase()) {
-            Store.StoreStatus.OPEN -> 0
-            Store.StoreStatus.CLOSED -> 1
-            Store.StoreStatus.LOCKED -> 2
-            Store.StoreStatus.PENDING -> 3
-            else -> 0
+    private fun setupActions() {
+        binding.btnEditAllStoreDetails.setOnClickListener {
+            dismiss()
+            onEditAll?.invoke(store)
         }
-        binding.spnStoreStatus.setSelection(statusIndex)
 
-        binding.switchStoreVerified.isChecked = store.isVerified
-
-        // Chế tài
-        val penaltyIndex = when (store.penaltyTier.uppercase()) {
-            Store.PenaltyTier.NONE -> 0
-            Store.PenaltyTier.WARN -> 1
-            Store.PenaltyTier.HIDE -> 2
-            Store.PenaltyTier.LOCK -> 3
-            else -> 0
-        }
-        binding.spnPenaltyTier.setSelection(penaltyIndex)
-
-        binding.etPenaltyReason.setText(store.penaltyReason)
-        binding.etOwnerName.setText(store.ownerName)
-        binding.etCccdNumber.setText(store.cccdNumber)
-        binding.etBankName.setText(store.bankName)
-        binding.etBankAccountNumber.setText(store.bankAccountNumber)
-        binding.etBankAccountName.setText(store.bankAccountName)
-    }
-
-    private fun setupListeners() {
-        binding.btnCloseDialog.setOnClickListener { dismiss() }
-        binding.btnPickStoreImage.setOnClickListener { pickStoreImageLauncher.launch("image/*") }
-        binding.ivStoreImagePreview.setOnClickListener { pickStoreImageLauncher.launch("image/*") }
-        binding.btnClearStoreImage.setOnClickListener {
-            currentStoreImageUrl = ""
-            updateStoreImagePreview("")
-            binding.tvStoreImageStatus.text = "Chưa có ảnh"
-            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-        }
-        binding.btnCancelEditStore.setOnClickListener { dismiss() }
-
-        binding.btnSaveEditStore.setOnClickListener {
-            val name = binding.etStoreName.text?.toString().orEmpty().trim()
-            if (name.isBlank()) {
-                Toast.makeText(requireContext(), "Vui lòng nhập tên quán", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val category = binding.etStoreCategory.text?.toString().orEmpty().trim()
-            val phone = binding.etStorePhone.text?.toString().orEmpty().trim()
-            val address = binding.etStoreAddress.text?.toString().orEmpty().trim()
-            val district = binding.etStoreDistrict.text?.toString().orEmpty().trim()
-            val bossId = binding.etBossId.text?.toString().orEmpty().trim()
-            val merchantName = binding.etMerchantName.text?.toString().orEmpty().trim()
-            val imageUrl = currentStoreImageUrl
-            val openHours = binding.etStoreOpenHours.text?.toString().orEmpty().trim().ifBlank { "08:00 - 22:00" }
-            val prepTime = binding.etStorePrepTime.text?.toString().orEmpty().trim().ifBlank { "15-20 phút" }
-            val deliveryTime = binding.etStoreDeliveryTime.text?.toString().orEmpty().trim()
-            val ratingAvg = binding.etStoreRatingAvg.text?.toString().orEmpty().toFloatOrNull() ?: store.ratingAvg
-
-            val selectedStatus = statusOptions.getOrElse(binding.spnStoreStatus.selectedItemPosition) { Store.StoreStatus.OPEN }
-            val isVerified = binding.switchStoreVerified.isChecked
-
-            val selectedPenalty = penaltyOptions.getOrElse(binding.spnPenaltyTier.selectedItemPosition) { Store.PenaltyTier.NONE }
-            val penaltyReason = binding.etPenaltyReason.text?.toString().orEmpty().trim()
-
-            val ownerName = binding.etOwnerName.text?.toString().orEmpty().trim()
-            val cccdNumber = binding.etCccdNumber.text?.toString().orEmpty().trim()
-            val bankName = binding.etBankName.text?.toString().orEmpty().trim()
-            val bankAccountNumber = binding.etBankAccountNumber.text?.toString().orEmpty().trim()
-            val bankAccountName = binding.etBankAccountName.text?.toString().orEmpty().trim()
-
-            val updatedStore = store.copy(
-                name = name,
-                category = category,
-                phone = phone,
-                address = address,
-                district = district,
-                bossId = bossId,
-                merchantName = merchantName,
-                imageUrl = imageUrl,
-                avatarUrl = imageUrl,
-                avatar = imageUrl,
-                logoUrl = imageUrl,
-                image = imageUrl,
-                openHours = openHours,
-                prepTime = prepTime,
-                deliveryTime = deliveryTime,
-                ratingAvg = ratingAvg,
-                storeStatus = selectedStatus,
-                isVerified = isVerified,
-                penaltyTier = selectedPenalty,
-                penaltyReason = penaltyReason,
-                ownerName = ownerName,
-                cccdNumber = cccdNumber,
-                bankName = bankName,
-                bankAccountNumber = bankAccountNumber,
-                bankAccountName = bankAccountName
-            )
-
-            onSave(updatedStore)
+        binding.btnApproveStore.setOnClickListener {
+            onApprove(store)
             dismiss()
         }
+
+        binding.btnLockStore.setOnClickListener {
+            onLock(store)
+            dismiss()
+        }
+
+        binding.btnApplyPenalty.setOnClickListener {
+            showPenaltyDialog()
+        }
+    }
+
+    private fun showPenaltyDialog() {
+        val dialogBinding = DialogApplyStorePenaltyBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogBinding.root)
+            .create()
+
+        dialogBinding.btnCancelPenalty.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialogBinding.btnConfirmPenalty.setOnClickListener {
+            val selectedTier = when (dialogBinding.rgPenaltyTiers.checkedRadioButtonId) {
+                R.id.rbWarn -> Store.PenaltyTier.WARN
+                R.id.rbHide -> Store.PenaltyTier.HIDE
+                R.id.rbLock -> Store.PenaltyTier.LOCK
+                else -> Store.PenaltyTier.WARN
+            }
+            val reason = dialogBinding.etPenaltyReason.text?.toString().orEmpty().ifBlank {
+                "Quản trị viên xử lý chế tài kiểm duyệt"
+            }
+
+            onApplyPenalty(store.id, selectedTier, reason)
+            dialog.dismiss()
+            dismiss()
+        }
+
+        dialog.show()
     }
 
     override fun onDestroyView() {
@@ -81718,7 +78225,298 @@ class EditStoreDialogFragment(
     }
 
     companion object {
-        const val TAG = "EditStoreDialogFragment"
+        const val TAG = "AdminStoreDetailBottomSheet"
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreListFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.store
+
+import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminStoreListBinding
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+
+@AndroidEntryPoint
+class AdminStoreListFragment : Fragment() {
+
+    private var _binding: FragmentAdminStoreListBinding? = null
+    private val binding get() = _binding!!
+
+    private val viewModel: AdminStoreViewModel by viewModels()
+    private lateinit var adapter: AdminStoreAdapter
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentAdminStoreListBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setupRecyclerView()
+        setupListeners()
+        observeViewModel()
+    }
+
+    private fun setupRecyclerView() {
+        adapter = AdminStoreAdapter { store ->
+            val bottomSheet = AdminStoreDetailBottomSheetDialogFragment(
+                store = store,
+                onApprove = { s -> viewModel.approveStore(s.id) },
+                onLock = { s -> viewModel.lockStore(s.id) },
+                onApplyPenalty = { sId, tier, reason -> viewModel.applyPenalty(sId, tier, reason) },
+                onEditAll = { s ->
+                    val editDialog = EditStoreDialogFragment(s) { updatedStore ->
+                        viewModel.saveStoreFull(updatedStore)
+                    }
+                    editDialog.show(childFragmentManager, EditStoreDialogFragment.TAG)
+                }
+            )
+            bottomSheet.show(childFragmentManager, AdminStoreDetailBottomSheetDialogFragment.TAG)
+        }
+
+        binding.rvStores.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvStores.adapter = adapter
+    }
+
+    private fun setupListeners() {
+        binding.swipeRefreshStore.setOnRefreshListener {
+            binding.swipeRefreshStore.isRefreshing = false
+        }
+
+        binding.etSearchStore.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                viewModel.setSearchQuery(s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        binding.chipGroupStoreFilter.setOnCheckedStateChangeListener { _, checkedIds ->
+            when (checkedIds.firstOrNull()) {
+                R.id.chipPendingStores -> viewModel.setFilter(StoreFilter.PENDING)
+                R.id.chipOpenStores -> viewModel.setFilter(StoreFilter.OPEN)
+                R.id.chipLockedStores -> viewModel.setFilter(StoreFilter.LOCKED)
+                R.id.chipChainStores -> viewModel.setFilter(StoreFilter.CHAIN)
+                else -> viewModel.setFilter(StoreFilter.ALL)
+            }
+        }
+    }
+
+    private fun observeViewModel() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.filteredStores.collect { stores ->
+                        adapter.submitList(stores)
+                        binding.tvEmptyStore.visibility = if (stores.isEmpty()) View.VISIBLE else View.GONE
+                    }
+                }
+
+                launch {
+                    viewModel.counts.collect { c ->
+                        binding.chipAllStores.text = "Tất cả (${c.total})"
+                        binding.chipPendingStores.text = "Chờ duyệt (${c.pending})"
+                        binding.chipOpenStores.text = "Đang mở (${c.open})"
+                        binding.chipLockedStores.text = "Bị khóa (${c.locked})"
+                        binding.chipChainStores.text = "Chuỗi chi nhánh (${c.chain})"
+                    }
+                }
+
+                launch {
+                    viewModel.message.collect { msg ->
+                        if (!msg.isNullOrBlank()) {
+                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                            viewModel.clearMessage()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.store
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+enum class StoreFilter {
+    ALL, PENDING, OPEN, LOCKED, CHAIN
+}
+
+data class StoreCounts(
+    val total: Int = 0,
+    val pending: Int = 0,
+    val open: Int = 0,
+    val locked: Int = 0,
+    val chain: Int = 0
+)
+
+@HiltViewModel
+class AdminStoreViewModel @Inject constructor(
+    private val firebaseRepo: FirebaseRepository
+) : ViewModel() {
+
+    private val _rawStores = MutableStateFlow<List<Store>>(emptyList())
+    private val _filter = MutableStateFlow(StoreFilter.ALL)
+    private val _searchQuery = MutableStateFlow("")
+
+    private val _filteredStores = MutableStateFlow<List<Store>>(emptyList())
+    val filteredStores: StateFlow<List<Store>> = _filteredStores.asStateFlow()
+
+    private val _counts = MutableStateFlow(StoreCounts())
+    val counts: StateFlow<StoreCounts> = _counts.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    init {
+        observeStores()
+    }
+
+    private fun observeStores() {
+        viewModelScope.launch {
+            firebaseRepo.observeAllStores().collect { list ->
+                _rawStores.value = list
+                updateCounts(list)
+                applyFilterAndSearch()
+            }
+        }
+    }
+
+    private fun updateCounts(list: List<Store>) {
+        val total = list.size
+        val pending = list.count { !it.isVerified || it.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true) }
+        val open = list.count { it.isVerified && it.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true) }
+        val locked = list.count { it.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true) }
+        val chain = list.count { it.bossId.isNotBlank() }
+        _counts.value = StoreCounts(total, pending, open, locked, chain)
+    }
+
+    fun setFilter(filter: StoreFilter) {
+        _filter.value = filter
+        applyFilterAndSearch()
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        applyFilterAndSearch()
+    }
+
+    private fun applyFilterAndSearch() {
+        val currentList = _rawStores.value
+        val filter = _filter.value
+        val query = _searchQuery.value.trim().lowercase()
+
+        val filtered = currentList.filter { store ->
+            val matchesFilter = when (filter) {
+                StoreFilter.ALL -> true
+                StoreFilter.PENDING -> !store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
+                StoreFilter.OPEN -> store.isVerified && store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)
+                StoreFilter.LOCKED -> store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)
+                StoreFilter.CHAIN -> store.bossId.isNotBlank()
+            }
+
+            val matchesSearch = if (query.isBlank()) true else {
+                store.name.lowercase().contains(query) ||
+                store.ownerName.lowercase().contains(query) ||
+                store.phone.lowercase().contains(query) ||
+                store.district.lowercase().contains(query) ||
+                store.cccdNumber.lowercase().contains(query) ||
+                store.merchantName.lowercase().contains(query) ||
+                store.bossId.lowercase().contains(query) ||
+                store.bankAccountName.lowercase().contains(query) ||
+                store.bankAccountNumber.lowercase().contains(query)
+            }
+
+            matchesFilter && matchesSearch
+        }
+
+        _filteredStores.value = filtered
+    }
+
+    fun approveStore(storeId: String) {
+        viewModelScope.launch {
+            val result = firebaseRepo.verifyStore(storeId, isApproved = true)
+            if (result.isSuccess) {
+                _message.value = "Đã phê duyệt và mở quyền hoạt động cho quán!"
+            } else {
+                _message.value = "Phê duyệt thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun lockStore(storeId: String) {
+        viewModelScope.launch {
+            val result = firebaseRepo.verifyStore(storeId, isApproved = false)
+            if (result.isSuccess) {
+                _message.value = "Đã khóa quán thành công!"
+            } else {
+                _message.value = "Khóa quán thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun applyPenalty(storeId: String, penaltyTier: String, reason: String) {
+        viewModelScope.launch {
+            val result = firebaseRepo.updateStorePenalty(storeId, penaltyTier, reason)
+            if (result.isSuccess) {
+                _message.value = "Đã áp dụng mức phạt '$penaltyTier' cho quán!"
+            } else {
+                _message.value = "Áp dụng chế tài thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun saveStoreFull(store: Store) {
+        viewModelScope.launch {
+            val result = firebaseRepo.saveStoreFull(store)
+            if (result.isSuccess) {
+                _message.value = "Đã lưu toàn bộ thông tin quán '${store.name}' thành công!"
+            } else {
+                _message.value = "Cập nhật quán thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun clearMessage() {
+        _message.value = null
     }
 }
 ````
@@ -81862,6 +78660,1984 @@ class EditStoreDialogFragment(
 </vector>
 ````
 
+## File: app-admin/src/main/res/layout/bottom_sheet_admin_store_detail.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_rounded">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="32dp">
+
+        <!-- Drag Handle -->
+        <View
+            android:layout_width="48dp"
+            android:layout_height="5dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="18dp"
+            android:background="@drawable/bg_choice_card_idle" />
+
+        <!-- Executive Store Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <ImageView
+                    android:id="@+id/ivDetailStoreAvatar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_store"
+                    android:contentDescription="Avatar quán" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvDetailStoreName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textSize="19sp"
+                    android:textStyle="bold"
+                    tools:text="Cơm Tấm Cali Sài Gòn" />
+
+                <TextView
+                    android:id="@+id/tvDetailStoreId"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:text="Mã quán: store_12345" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvDetailStatusBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_orange"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="5dp"
+                android:textColor="@color/brand_orange"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="CHỜ DUYỆT CCCD" />
+        </LinearLayout>
+
+        <!-- Current Penalty Alert Banner -->
+        <TextView
+            android:id="@+id/tvCurrentPenalty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_card_warning"
+            android:padding="12dp"
+            android:textColor="@color/danger"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="⚠️ Đang bị chế tài: HIDE - Lý do: Vi phạm chất lượng vệ sinh"
+            tools:visibility="visible" />
+
+        <!-- Section 1: Store Operation Info Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="15dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.04"
+                    android:text="🏢 HỒ SƠ VẬN HÀNH QUÁN"
+                    android:textColor="@color/secondary"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDetailAddress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13.5sp"
+                    tools:text="Địa chỉ: 123 Võ Văn Ngân, TP. Thủ Đức" />
+
+                <TextView
+                    android:id="@+id/tvDetailPhone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13.5sp"
+                    tools:text="Số điện thoại: 0987654321" />
+
+                <TextView
+                    android:id="@+id/tvDetailHours"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    tools:text="Giờ mở cửa: 08:00 - 22:00 (Chuẩn bị: 15 phút)" />
+
+                <TextView
+                    android:id="@+id/tvDetailChainInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="Mô hình: Chuỗi cửa hàng • Quản lý: Nguyễn Văn A" />
+
+                <TextView
+                    android:id="@+id/tvDetailCategories"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp"
+                    tools:text="Danh mục ẩm thực: Cơm, Phở, Trà sữa" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Section 2: Bank Settlement Account Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="15dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.04"
+                    android:text="💳 TÀI KHOẢN NGÂN HÀNG ĐỐI SOÁT"
+                    android:textColor="@color/brand_green"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDetailBank"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    tools:text="MB Bank • 01234567899 • NGUYEN VAN A" />
+
+                <TextView
+                    android:id="@+id/tvDetailBankCompare"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    tools:text="Chủ hộ KD: Nguyễn Văn A • Tên chủ TK: NGUYEN VAN A" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Section 3: KYC CCCD Verification Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="15dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.04"
+                    android:text="🪪 HỒ SƠ ĐỊNH DANH CCCD CHỦ HỘ"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDetailCccdInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold"
+                    tools:text="Họ tên: Nguyễn Văn A • Số CCCD: 079123456789" />
+
+                <!-- CCCD Photos Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <!-- Front -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="6dp"
+                            android:text="Mặt trước CCCD"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="match_parent"
+                            android:layout_height="114dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="@color/border"
+                            app:strokeWidth="1dp">
+
+                            <ImageView
+                                android:id="@+id/ivCccdFront"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_image" />
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <!-- Back -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="6dp"
+                            android:text="Mặt sau CCCD"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="match_parent"
+                            android:layout_height="114dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="@color/border"
+                            app:strokeWidth="1dp">
+
+                            <ImageView
+                                android:id="@+id/ivCccdBack"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_image" />
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Executive Command Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnEditAllStoreDetails"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginBottom="10dp"
+                android:backgroundTint="@color/secondary"
+                android:text="Tùy Chỉnh Toàn Bộ Thuộc Tính Quán"
+                android:textColor="@color/white"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                app:cornerRadius="14dp"
+                app:icon="@drawable/ic_edit"
+                app:iconGravity="textStart"
+                app:iconTint="@color/white" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnApproveStore"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:backgroundTint="@color/brand_green"
+                android:text="Phê Duyệt Mở Quán &amp; Xác Thực KYC"
+                android:textColor="@color/white"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                app:cornerRadius="14dp"
+                app:icon="@drawable/ic_check_circle"
+                app:iconGravity="textStart"
+                app:iconTint="@color/white" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnApplyPenalty"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="10dp"
+                android:text="Áp Dụng Chế Tài Xử Phạt Quán"
+                android:textColor="@color/brand_orange"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                app:cornerRadius="14dp"
+                app:icon="@drawable/ic_shield_alert"
+                app:iconGravity="textStart"
+                app:iconTint="@color/brand_orange"
+                app:strokeColor="@color/brand_orange"
+                app:strokeWidth="1.5dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnLockStore"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="4dp"
+                android:text="Đình chỉ &amp; Khóa quyền kinh doanh quán này"
+                android:textColor="@color/danger"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
+````
+
+## File: app-admin/src/main/res/layout/dialog_edit_order.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/background"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <FrameLayout
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_circle_icon_orange">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_package"
+                        app:tint="@color/brand_orange" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvOrderDialogTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chỉnh Sửa Toàn Bộ Đơn Hàng"
+                        android:textColor="@color/text_primary"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvOrderIdSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        tools:text="Mã đơn: ord_12345" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btnCloseOrderDialog"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_close"
+                    app:tint="@color/text_secondary" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="14dp"
+                android:background="@color/border" />
+
+            <!-- Trạng thái đơn hàng -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Trạng thái đơn hàng (Order Status):"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Spinner
+                android:id="@+id/spnOrderStatus"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_admin_spinner_box"
+                android:paddingHorizontal="12dp" />
+
+            <!-- Phương thức thanh toán -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Phương thức thanh toán:"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Spinner
+                android:id="@+id/spnPaymentMethod"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_admin_spinner_box"
+                android:paddingHorizontal="12dp" />
+
+            <!-- Địa chỉ giao hàng -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="Địa chỉ giao hàng"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etOrderAddress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPostalAddress"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Ghi chú đơn hàng -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Ghi chú đơn hàng (Note)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etOrderNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Tiền phí ship & Tổng tiền -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Phí ship (VNĐ)"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etShippingFee"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="Tổng thanh toán (VNĐ)"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etTotalPayment"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <!-- Thông tin Shipper giao hàng -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Thông tin Shipper phụ trách:"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Tên Shipper"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etShipperName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPersonName|textCapWords"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="SĐT Shipper"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etShipperPhone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="phone"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <!-- Thông tin Hủy Đơn & Yêu Cầu Hủy -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Thông tin hủy đơn / Yêu cầu hủy:"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:hint="Lý do hủy đơn chính thức (cancelReason)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etCancelReason"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Lý do khách xin hủy"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etCancelRequestReason"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="Trạng thái (PENDING/REJECTED/APPROVED)"
+                    android:textColorHint="@color/text_secondary"
+                    app:boxBackgroundColor="@color/white"
+                    app:hintTextColor="@color/primary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etCancelRequestStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:hint="Lý do quán từ chối hủy (nếu có)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etCancelRejectReason"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Bottom Actions -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCancelEditOrder"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="Hủy Bỏ"
+                    android:textColor="@color/text_secondary"
+                    app:cornerRadius="12dp"
+                    app:strokeColor="@color/border" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSaveEditOrder"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="@color/primary"
+                    android:text="Lưu Thay Đổi"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+````
+
+## File: app-admin/src/main/res/layout/dialog_edit_store.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/background"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Dialog Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <FrameLayout
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_circle_icon_orange">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_store"
+                        app:tint="@color/brand_orange" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvDialogTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chỉnh Sửa Toàn Bộ Thuộc Tính Quán"
+                        android:textColor="@color/text_primary"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvStoreIdSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        tools:text="ID: store_123456" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btnCloseDialog"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_close"
+                    app:tint="@color/text_secondary" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="14dp"
+                android:background="@color/border" />
+
+            <!-- SECTION 1: CƠ BẢN VỀ QUÁN -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1. THÔNG TIN QUÁN &amp; KINH DOANH"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <!-- Tên quán -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Tên quán ăn / Nhà hàng *">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etStoreName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapWords"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Ngành hàng / Phân loại -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Ngành hàng / Phân loại (VD: Cơm, Bún - Phở, Trà sữa)">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etStoreCategory"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Số điện thoại -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Số điện thoại quán">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etStorePhone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="phone"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Địa chỉ quán -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Địa chỉ cụ thể">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etStoreAddress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPostalAddress"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Quận / Huyện -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Quận / Huyện">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etStoreDistrict"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Mã Chuỗi Cửa Hàng & Quản Lý Chi Nhánh -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Mã Chuỗi (bossId)">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etBossId"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="Quản lý chi nhánh">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etMerchantName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPersonName"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <!-- Chọn ảnh quán từ thư viện máy -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Ảnh đại diện quán ăn / Banner"
+                android:textColor="@color/text_primary"
+                android:textSize="12.5sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_card_rounded"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="10dp">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    app:cardCornerRadius="10dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <ImageView
+                        android:id="@+id/ivStoreImagePreview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/ic_store"
+                        app:tint="@color/text_muted" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvStoreImageStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chỉ chọn ảnh trực tiếp từ thư viện"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnPickStoreImage"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="34dp"
+                            android:backgroundTint="#EFF6FF"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:paddingHorizontal="10dp"
+                            android:text="Chọn ảnh từ máy"
+                            android:textColor="@color/brand_blue"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold"
+                            app:cornerRadius="8dp"
+                            app:icon="@drawable/ic_image"
+                            app:iconSize="14dp"
+                            app:iconTint="@color/brand_blue" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnClearStoreImage"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="6dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:paddingHorizontal="6dp"
+                            android:text="Xóa ảnh"
+                            android:textAllCaps="false"
+                            android:textColor="@color/danger"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- SECTION 2: VẬN HÀNH & ĐÁNH GIÁ -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="2. VẬN HÀNH &amp; THỜI GIAN"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Giờ mở cửa (VD: 07:00 - 22:00)">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etStoreOpenHours"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="Làm món (VD: 15-20 phút)">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etStorePrepTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Thời gian giao dự kiến">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etStoreDeliveryTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="Rating sao (0.0 - 5.0)">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etStoreRatingAvg"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <!-- SECTION 3: TRẠNG THÁI & CHẾ TÀI -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="3. TRẠNG THÁI HOẠT ĐỘNG &amp; CHẾ TÀI"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Trạng thái quán:"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Spinner
+                android:id="@+id/spnStoreStatus"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_admin_spinner_box"
+                android:paddingHorizontal="12dp" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchStoreVerified"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Đã xác thực CCCD &amp; Hồ sơ kinh doanh"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Mức độ chế tài / Phạt:"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Spinner
+                android:id="@+id/spnPenaltyTier"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_admin_spinner_box"
+                android:paddingHorizontal="12dp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Lý do chế tài phạt (nếu có)">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etPenaltyReason"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- SECTION 4: CCCD & NGÂN HÀNG -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="4. CHỦ HỘ KINH DOANH &amp; NGÂN HÀNG"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Họ tên chủ quán">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etOwnerName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textCapWords"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="Số CCCD chủ quán">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etCccdNumber"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Tên ngân hàng thụ hưởng">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etBankName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapWords"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Số tài khoản ngân hàng">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etBankAccountNumber"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:hint="Tên chủ thẻ ngân hàng">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etBankAccountName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textCapCharacters"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
+            <!-- Bottom Actions -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCancelEditStore"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="Hủy Bỏ"
+                    android:textColor="@color/text_secondary"
+                    app:cornerRadius="12dp"
+                    app:strokeColor="@color/border" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSaveEditStore"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="@color/primary"
+                    android:text="Lưu Thay Đổi"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+````
+
+## File: app-admin/src/main/res/layout/dialog_edit_user.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/background"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    app:cardBackgroundColor="@color/surface_elevated"
+                    app:cardCornerRadius="22dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1.5dp">
+
+                    <ImageView
+                        android:id="@+id/ivDialogUserAvatar"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="Avatar xem nhanh"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/ic_user" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvUserDialogTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chỉnh Sửa Hồ Sơ &amp; Điểm Uy Tín"
+                        android:textColor="@color/text_primary"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvUserUidSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        tools:text="UID: abc_12345" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btnCloseUserDialog"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_close"
+                    app:tint="@color/text_secondary" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="14dp"
+                android:background="@color/border" />
+
+            <!-- KHỐI ẢNH ĐẠI DIỆN NGƯỜI DÙNG (AVATAR HERO SECTION) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- Avatar Container with Edit Camera Badge -->
+                    <FrameLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content">
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/cardUserAvatarContainer"
+                            android:layout_width="86dp"
+                            android:layout_height="86dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            app:cardBackgroundColor="@color/surface_elevated"
+                            app:cardCornerRadius="43dp"
+                            app:cardElevation="2dp"
+                            app:rippleColor="@color/primary_light"
+                            app:strokeColor="@color/primary"
+                            app:strokeWidth="2dp">
+
+                            <ImageView
+                                android:id="@+id/ivUserAvatarPreview"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:contentDescription="Ảnh đại diện người dùng"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_user" />
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <!-- Camera Action Icon Badge -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/btnQuickPickAvatar"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_gravity="bottom|end"
+                            android:clickable="true"
+                            android:focusable="true"
+                            app:cardBackgroundColor="@color/primary"
+                            app:cardCornerRadius="14dp"
+                            app:cardElevation="4dp"
+                            app:strokeColor="@color/white"
+                            app:strokeWidth="1.5dp">
+
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_image"
+                                app:tint="@color/white" />
+                        </com.google.android.material.card.MaterialCardView>
+                    </FrameLayout>
+
+                    <TextView
+                        android:id="@+id/tvAvatarStatusHint"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Ảnh hiện tại đang áp dụng"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <!-- Action Buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnPickAvatarFromGallery"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:paddingHorizontal="8dp"
+                            android:backgroundTint="#EFF6FF"
+                            android:text="Chọn ảnh từ máy"
+                            android:textColor="@color/brand_blue"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            app:cornerRadius="10dp"
+                            app:icon="@drawable/ic_image"
+                            app:iconGravity="textStart"
+                            app:iconSize="16dp"
+                            app:iconTint="@color/brand_blue" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnResetAvatarDefault"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="Đặt lại mặc định"
+                            android:textAllCaps="false"
+                            android:textColor="@color/danger"
+                            android:textSize="11.5sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Họ và tên -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Họ và tên *"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPersonName|textCapWords"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Email -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Email đăng nhập"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserEmail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textEmailAddress"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Số điện thoại -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Số điện thoại"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserPhone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="phone"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- KHỐI QUẢN TRỊ ĐIỂM UY TÍN & THỐNG KÊ ĐƠN HÀNG -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1.5dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/ic_shield_alert"
+                            app:tint="@color/primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:text="ĐIỂM UY TÍN &amp; KIỂM SOÁT BOM HÀNG"
+                            android:textColor="@color/primary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:hint="Điểm uy tín (0-100)">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etUserTrustScore"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="100"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:hint="Đơn hoàn thành">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etUserCompletedOrders"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="0"
+                                android:textColor="@color/brand_green"
+                                android:textSize="14sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:hint="Đơn bom">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etUserBoomOrders"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:text="0"
+                                android:textColor="@color/danger"
+                                android:textSize="14sp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
+                    <!-- Quick Preset Buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQuickPlus10"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:padding="0dp"
+                            android:text="+10 Điểm"
+                            android:textAllCaps="false"
+                            android:textColor="@color/brand_green"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/brand_green" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQuickMinus20"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_marginHorizontal="6dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:padding="0dp"
+                            android:text="-20 Phạt"
+                            android:textAllCaps="false"
+                            android:textColor="@color/danger"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/danger" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQuickReset100"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="36dp"
+                            android:layout_weight="1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:padding="0dp"
+                            android:text="Khôi phục 100đ"
+                            android:textAllCaps="false"
+                            android:textColor="@color/brand_blue"
+                            android:textSize="11.5sp"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/brand_blue" />
+                    </LinearLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="Lý do điều chỉnh điểm uy tín (Lưu vào nhật ký)">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etTrustAdjustReason"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapSentences"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Vai trò người dùng -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Vai trò hệ thống (Role):"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Spinner
+                android:id="@+id/spnUserRole"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_admin_spinner_box"
+                android:paddingHorizontal="12dp" />
+
+            <!-- Store ID (dành cho merchant) -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="Mã Store liên kết (Dành cho Merchant)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserStoreId"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Mã Chủ chuỗi (bossId - nếu thuộc chuỗi) -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Mã Chủ chuỗi phụ thuộc (bossId - tùy chọn)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserBossId"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Trạng thái chi tiết (Status) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Trạng thái tài khoản:"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <Spinner
+                android:id="@+id/spnUserStatus"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_admin_spinner_box"
+                android:paddingHorizontal="12dp" />
+
+            <!-- Switch IsActive -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchUserActive"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Tài khoản đang hoạt động (IsActive)"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <!-- Bottom Actions -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCancelEditUser"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="Hủy Bỏ"
+                    android:textColor="@color/text_secondary"
+                    app:cornerRadius="12dp"
+                    app:strokeColor="@color/border" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSaveEditUser"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="@color/primary"
+                    android:text="Lưu Thay Đổi"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+````
+
 ## File: app-admin/src/main/res/layout/fragment_admin_category_list.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -82003,100 +80779,47 @@ class EditStoreDialogFragment(
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 ````
 
-## File: app-admin/src/main/res/layout/fragment_admin_dashboard.xml
+## File: app-admin/src/main/res/layout/fragment_admin_store_list.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipeRefresh"
+    android:id="@+id/swipeRefreshStore"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <androidx.core.widget.NestedScrollView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:orientation="vertical">
 
-        <LinearLayout
+        <!-- Elevated Command Control Header Card -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="18dp"
-            android:paddingBottom="28dp">
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="8dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="2dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
 
-            <!-- Executive Telemetry Header -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="vertical"
+                android:padding="16dp">
 
-                <View
-                    android:layout_width="4dp"
-                    android:layout_height="20dp"
-                    android:background="@color/primary" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.03"
-                        android:text="TRUNG TÂM ĐIỀU HÀNH SÀN"
-                        android:textColor="@color/text_primary"
-                        android:textSize="17sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="1dp"
-                        android:text="Số liệu giám sát trực tiếp từ Realtime Database"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11.5sp" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvLiveStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_badge_green"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="5dp"
-                    android:text="● LIVE SYNC"
-                    android:textColor="@color/brand_green"
-                    android:textSize="10.5sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <!-- Urgent Attention Priority Banner -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardUrgentBanner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:visibility="gone"
-                app:cardBackgroundColor="#FFFBEB"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/brand_orange"
-                app:strokeWidth="1.5dp"
-                tools:visibility="visible">
-
+                <!-- Title Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="14dp">
+                    android:orientation="horizontal">
 
                     <FrameLayout
                         android:layout_width="40dp"
@@ -82104,10 +80827,10 @@ class EditStoreDialogFragment(
                         android:background="@drawable/bg_circle_icon_orange">
 
                         <ImageView
-                            android:layout_width="22dp"
-                            android:layout_height="22dp"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
                             android:layout_gravity="center"
-                            android:src="@drawable/ic_alert_triangle"
+                            android:src="@drawable/ic_store"
                             app:tint="@color/brand_orange" />
                     </FrameLayout>
 
@@ -82115,959 +80838,535 @@ class EditStoreDialogFragment(
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
-                        android:layout_marginEnd="8dp"
                         android:layout_weight="1"
                         android:orientation="vertical">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:letterSpacing="0.05"
-                            android:text="⚡ HỒ SƠ CẦN PHÊ DUYỆT NGAY"
-                            android:textColor="@color/brand_orange"
-                            android:textSize="10.5sp"
+                            android:letterSpacing="0.02"
+                            android:text="QUẢN TRỊ ĐỐI TÁC QUÁN ĂN"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16.5sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/tvUrgentMessage"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:textColor="@color/text_primary"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            tools:text="Có 2 quán chờ duyệt CCCD và 1 khiếu nại chưa xử lý." />
+                            android:layout_marginTop="1dp"
+                            android:text="Kiểm duyệt KYC CCCD, chế tài &amp; tùy chỉnh toàn bộ thuộc tính"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11.5sp" />
                     </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnQuickHandleUrgent"
-                        android:layout_width="wrap_content"
-                        android:layout_height="40dp"
-                        android:backgroundTint="@color/primary"
-                        android:text="Xử lý"
-                        android:textColor="@color/white"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="10dp" />
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
-            <!-- Executive GMV Financial Hero Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardRevenue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:layout_marginBottom="14dp"
-                android:clickable="true"
-                android:focusable="true"
-                app:cardCornerRadius="22dp"
-                app:cardElevation="6dp"
-                app:strokeColor="#334155"
-                app:strokeWidth="1dp">
-
+                <!-- Search Bar -->
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_kpi_card_revenue"
-                    android:orientation="vertical"
-                    android:padding="22dp">
+                    android:layout_height="46dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/bg_search_bar_modern"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="14dp">
 
-                    <LinearLayout
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_search"
+                        app:tint="@color/text_secondary" />
+
+                    <EditText
+                        android:id="@+id/etSearchStore"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="10dp"
+                        android:background="@null"
+                        android:hint="Tìm tên quán, chủ hộ, SĐT, quận, số CCCD..."
+                        android:imeOptions="actionSearch"
+                        android:inputType="text"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="13sp" />
+                </LinearLayout>
 
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_glass_pill">
+                <!-- Filter Chips -->
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:clipToPadding="false"
+                    android:scrollbars="none">
 
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_banknote"
-                                app:tint="#FF7849" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:letterSpacing="0.06"
-                                android:text="TỔNG GIÁ TRỊ GIAO DỊCH (GMV)"
-                                android:textColor="#CBD5E1"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Doanh thu lũy kế từ các đơn hoàn tất"
-                                android:textColor="#94A3B8"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-
-                        <FrameLayout
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:background="@drawable/bg_glass_pill">
-
-                            <ImageView
-                                android:layout_width="16dp"
-                                android:layout_height="16dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_chevron_right"
-                                app:tint="@color/white" />
-                        </FrameLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvRevenue"
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chipGroupStoreFilter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:textColor="@color/white"
-                        android:textSize="34sp"
-                        android:textStyle="bold"
-                        tools:text="15.820.000 đ" />
+                        app:chipSpacingHorizontal="6dp"
+                        app:singleSelection="true">
 
-                    <!-- Glassmorphic Order Breakdown Pills -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipAllStores"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_glass_pill"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="12dp"
-                            android:paddingVertical="8dp">
+                            android:checked="true"
+                            android:text="Tất cả (0)"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
 
-                            <TextView
-                                android:id="@+id/tvCompletedOrdersChip"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="🟢 42 Đơn hoàn tất"
-                                android:textColor="#6EE7B7"
-                                android:textSize="11.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipPendingStores"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_glass_pill"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="12dp"
-                            android:paddingVertical="8dp">
+                            android:text="Chờ duyệt (0)"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
 
-                            <TextView
-                                android:id="@+id/tvBoomOrdersChip"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="🔴 6 Đơn huỷ/boom"
-                                android:textColor="#FDA4AF"
-                                android:textSize="11.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipOpenStores"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Đang mở (0)"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
 
-            <!-- Bento KPI Grid: Row 1 (Stores & Complaints) -->
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipLockedStores"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Bị khóa (0)"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipChainStores"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Chuỗi chi nhánh (0)"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </com.google.android.material.chip.ChipGroup>
+                </HorizontalScrollView>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Empty State -->
+        <TextView
+            android:id="@+id/tvEmptyStore"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="56dp"
+            android:gravity="center"
+            android:paddingHorizontal="32dp"
+            android:drawableTop="@drawable/ic_store"
+            android:drawablePadding="12dp"
+            android:drawableTint="@color/text_muted"
+            android:text="Không tìm thấy cửa hàng nào khớp với bộ lọc hiện tại"
+            android:textColor="@color/text_muted"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <!-- Store RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvStores"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="28dp"
+            tools:listitem="@layout/item_admin_store" />
+
+    </LinearLayout>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+````
+
+## File: app-admin/src/main/res/layout/item_admin_order.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="14dp"
+    android:layout_marginVertical="5dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardBackgroundColor="@color/white"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="2dp"
+    app:rippleColor="@color/primary_light"
+    app:strokeColor="@color/border"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Waybill Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_circle_icon_orange">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_package"
+                    app:tint="@color/brand_orange" />
+            </FrameLayout>
+
             <LinearLayout
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-                <!-- 🏪 Quán Ăn Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardStores"
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/tvOrderCode"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/brand_orange_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
+                    android:textColor="@color/text_primary"
+                    android:textSize="15.5sp"
+                    android:textStyle="bold"
+                    tools:text="#ORD-88219" />
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/brand_orange" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_orange">
-
-                                    <ImageView
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_store"
-                                        app:tint="@color/brand_orange" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Đối tác Quán"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvActiveStores"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/text_primary"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="12" />
-
-                            <TextView
-                                android:id="@+id/tvPendingStores"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_orange"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:textColor="@color/brand_orange"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold"
-                                tools:text="3 chờ duyệt CCCD" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- 🚨 Khiếu Nại Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardComplaints"
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/tvOrderTime"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/danger_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/danger" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_red">
-
-                                    <ImageView
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_shield_alert"
-                                        app:tint="@color/danger" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Khiếu nại"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvPendingComplaints"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/danger"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="2" />
-
-                            <TextView
-                                android:id="@+id/tvComplaintSubtext"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_red"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:text="Chờ phán quyết"
-                                android:textColor="@color/danger"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_marginTop="1dp"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    tools:text="Thời gian đặt: 26/10/2026 12:45" />
             </LinearLayout>
 
-            <!-- Bento KPI Grid: Row 2 (Orders & Users) -->
-            <LinearLayout
-                android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/tvOrderStatusBadge"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="18dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+                android:background="@drawable/bg_badge_green"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:textColor="@color/brand_green"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:text="COMPLETED" />
+        </LinearLayout>
 
-                <!-- 📦 Đơn Hàng Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardOrders"
-                    android:layout_width="0dp"
+        <!-- Cancellation & Request Notice -->
+        <TextView
+            android:id="@+id/tvOrderCancelNotice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_badge_orange"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="5dp"
+            android:textColor="@color/brand_orange"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="Khách yêu cầu hủy: Đổi địa chỉ nhận • Chờ quán xử lý"
+            tools:visibility="visible" />
+
+        <!-- Route & Financial Info Box -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_search_bar_modern"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvOrderShopName"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/brand_green_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold"
+                    tools:text="Quán: Cơm Tấm Cali" />
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/brand_green" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_green">
-
-                                    <ImageView
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_package"
-                                        app:tint="@color/brand_green" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Tổng Đơn"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvTotalOrders"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/text_primary"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="48" />
-
-                            <TextView
-                                android:id="@+id/tvOrderSubtext"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_green"
-                                android:ellipsize="end"
-                                android:maxLines="1"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:textColor="@color/brand_green"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold"
-                                tools:text="42 hoàn thành • 6 huỷ" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- 👥 Người Dùng Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardUsers"
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/tvOrderCustomer"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/brand_blue_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/brand_blue" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_blue">
-
-                                    <ImageView
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_users"
-                                        app:tint="@color/brand_blue" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Người dùng"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvTotalUsers"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/text_primary"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="28" />
-
-                            <TextView
-                                android:id="@+id/tvUserSubtext"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_blue"
-                                android:ellipsize="end"
-                                android:maxLines="1"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:textColor="@color/brand_blue"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold"
-                                tools:text="20 Khách • 8 Tài xế" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    tools:text="Khách: Nguyễn Văn A (0912345678)" />
             </LinearLayout>
 
-            <!-- Quick Command Launcher Dock -->
+            <TextView
+                android:id="@+id/tvOrderPrice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/primary"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                tools:text="145.000 đ" />
+        </LinearLayout>
+
+        <!-- Footer Edit Prompt -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="end|center_vertical"
+            android:orientation="horizontal">
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:letterSpacing="0.04"
-                android:text="BẢNG ĐIỀU PHỐI TÁC VỤ NHANH"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp"
+                android:text="Chạm để tùy chỉnh mọi thuộc tính đơn"
+                android:textColor="@color/secondary"
+                android:textSize="11.5sp"
                 android:textStyle="bold" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
+            <ImageView
+                android:layout_width="13dp"
+                android:layout_height="13dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_pencil"
+                app:tint="@color/secondary" />
+        </LinearLayout>
 
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickApproveStore"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+````
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
+## File: app-admin/src/main/res/layout/item_admin_store.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="14dp"
+    android:layout_marginVertical="6dp"
+    android:clickable="true"
+    android:focusable="true"
+    app:cardBackgroundColor="@color/white"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="2dp"
+    app:rippleColor="@color/primary_light"
+    app:strokeColor="@color/border"
+    app:strokeWidth="1dp">
 
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_green">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
 
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_check_circle"
-                                app:tint="@color/brand_green" />
-                        </FrameLayout>
+        <!-- Top Identity Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Duyệt Quán"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickComplaints"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_red">
-
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_shield_alert"
-                                app:tint="@color/danger" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Xử Phạt"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickAddCategory"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_purple">
-
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_tag"
-                                app:tint="@color/purple" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Danh Mục"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickMonitor"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_blue">
-
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_package"
-                                app:tint="@color/brand_blue" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Đơn &amp; User"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
-
-            <!-- System Taxonomy Synchronization Card -->
+            <!-- Store Squircle Avatar -->
             <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="1dp"
+                android:layout_width="58dp"
+                android:layout_height="58dp"
+                app:cardBackgroundColor="@color/surface_elevated"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
                 app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
-                <LinearLayout
+                <ImageView
+                    android:id="@+id/ivStoreAvatar"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="18dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_circle_icon_indigo">
-
-                            <ImageView
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_sparkles"
-                                app:tint="@color/secondary" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Khởi tạo &amp; Đồng bộ 5 Danh Mục Chuẩn"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14.5sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Taxonomy Synchronization Engine"
-                                android:textColor="@color/secondary"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:layout_marginBottom="14dp"
-                        android:text="Tự động đồng bộ 5 nhóm ẩm thực chuẩn (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên toàn bộ ứng dụng Khách hàng và Chủ quán."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnRestoreCategories"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="ĐỒNG BỘ 5 DANH MỤC CHUẨN NGAY"
-                        android:textColor="@color/secondary"
-                        android:textSize="12.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="12dp"
-                        app:icon="@drawable/ic_refresh"
-                        app:iconGravity="textStart"
-                        app:iconTint="@color/secondary"
-                        app:strokeColor="@color/secondary"
-                        app:strokeWidth="1.5dp" />
-                </LinearLayout>
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_store" />
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card Cấu hình thời gian đếm ngược bom hàng / sự cố -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="24dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="#FEE2E2"
-                app:strokeWidth="1dp">
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_circle_icon_orange">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:text="⏱️"
-                                android:textSize="18sp" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Đếm ngược sự cố / Khách bom hàng"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/tvCurrentCountdownConfig"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Lần 1: 15 phút • Lần 2 (gia hạn): 15 phút"
-                                android:textColor="@color/brand_orange"
-                                android:textSize="11.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <TextView
-                        android:layout_width="match_parent"
+                        android:id="@+id/tvStoreName"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:layout_marginBottom="14dp"
-                        android:text="Thiết lập thời gian đếm ngược Lần 1 và Lần 2 khi khách không nhận đơn / không nghe máy. Hệ thống tự động áp dụng thời gian thực cho Shipper và Khách hàng."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnConfigureCountdown"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="⏱️ CHỈNH SỬA THỜI GIAN ĐẾM NGƯỢC"
-                        android:textColor="@color/brand_orange"
-                        android:textSize="12.5sp"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
                         android:textStyle="bold"
-                        app:cornerRadius="12dp"
-                        app:strokeColor="@color/brand_orange"
-                        app:strokeWidth="1.5dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+                        tools:text="Cơm Tấm Sài Gòn 1" />
 
+                    <TextView
+                        android:id="@+id/tvRating"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_badge_orange"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
+                        android:textColor="@color/brand_orange"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold"
+                        tools:text="⭐ 4.8" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvOwnerInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold"
+                    tools:text="Chủ: Nguyễn Văn A • 0987654321" />
+
+                <TextView
+                    android:id="@+id/tvAddress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:text="Địa chỉ: 123 Võ Văn Ngân, TP. Thủ Đức" />
+            </LinearLayout>
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="12dp"
+            android:background="@color/divider" />
+
+        <!-- Bottom Telemetry & Action Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvStoreStatusBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_green"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4dp"
+                android:textColor="@color/brand_green"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:text="ĐANG MỞ CỬA" />
+
+            <TextView
+                android:id="@+id/tvChainBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_orange"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:textColor="@color/brand_orange"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:visibility="visible"
+                tools:text="CHUỖI" />
+
+            <TextView
+                android:id="@+id/tvCccdBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_blue"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="4dp"
+                android:textColor="@color/brand_blue"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:text="CCCD: 079123456789" />
+
+            <TextView
+                android:id="@+id/tvPenaltyBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_red"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:textColor="@color/danger"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="PHẠT: HIDE"
+                tools:visibility="visible" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Quản trị"
+                android:textColor="@color/secondary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="3dp"
+                android:src="@drawable/ic_chevron_right"
+                app:tint="@color/secondary" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/complaint/CustomerComplaintAdapter.kt
@@ -83800,7 +82099,7 @@ class HomeViewModel @Inject constructor(
     private var currentQuery: String? = null
     private var currentCategory: String? = null
     private var currentNearbyOnly: Boolean = false
-    var currentNearbyMaxDistanceKm: Double = 3.0
+    var currentNearbyMaxDistanceKm: Double = 1.5
         private set
     var currentMinPrice: Long? = null
         private set
@@ -83813,6 +82112,8 @@ class HomeViewModel @Inject constructor(
     private var currentPriceSort: PriceSort = PriceSort.NONE
     private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
         com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
 
     fun setUserLocation(lat: Double, lng: Double) {
         if (lat != 0.0 && lng != 0.0) {
@@ -93452,6 +91753,1710 @@ google-services = { id = "com.google.gms.google-services", version.ref = "google
 google-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleCrashlytics" }
 ````
 
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/monitor/EditUserDialogFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.monitor
+
+import android.app.Dialog
+import android.os.Bundle
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
+import java.io.ByteArrayOutputStream
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import com.chuyen_de_2.foodorder.admin.databinding.DialogEditUserBinding
+import com.chuyen_de_2.foodorder.core.data.model.Customer
+import com.chuyen_de_2.foodorder.core.data.model.User
+import androidx.core.content.ContextCompat
+import androidx.core.widget.addTextChangedListener
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.admin.R
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+
+class EditUserDialogFragment(
+    private val user: User,
+    private val customer: Customer? = null,
+    private val onSave: (User, Int, Int, Int, String) -> Unit
+) : BottomSheetDialogFragment() {
+
+    private var _binding: DialogEditUserBinding? = null
+    private val binding get() = _binding!!
+
+    private var currentAvatar: String = ""
+    private var isAvatarResetToDefault = false
+
+    private val pickAvatarLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        val ctx = context ?: return@registerForActivityResult
+        uri ?: return@registerForActivityResult
+        val base64 = uriToBase64(uri)
+        if (!base64.isNullOrBlank()) {
+            currentAvatar = base64
+            isAvatarResetToDefault = false
+            updateAvatarPreview(currentAvatar)
+            binding.tvAvatarStatusHint.text = "Đã chọn ảnh mới từ thư viện"
+            binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
+            android.widget.Toast.makeText(ctx, "Đã cập nhật ảnh đại diện mới!", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            android.widget.Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun uriToBase64(uri: Uri): String? {
+        val ctx = context ?: return null
+        return ImagePickerUtils.compressUriToBase64(ctx, uri, maxDimension = 260, quality = 80)
+    }
+
+    private val roleOptions = listOf(
+        User.Role.CUSTOMER,
+        User.Role.MERCHANT,
+        User.Role.BOSSMERCHANT,
+        User.Role.SHIPPER,
+        User.Role.ADMIN
+    )
+
+    private val statusOptions = listOf(
+        User.Status.ACTIVE,
+        "LOCKED",
+        User.Status.INACTIVE,
+        User.Status.OFFLINE
+    )
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
+        dialog.setOnShowListener {
+            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+            bottomSheet?.let { sheet ->
+                val behavior = BottomSheetBehavior.from(sheet)
+                behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                behavior.skipCollapsed = true
+            }
+        }
+        return dialog
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = DialogEditUserBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupSpinners()
+        populateCurrentData()
+        setupListeners()
+    }
+
+    private fun setupSpinners() {
+        val context = requireContext()
+
+        val roleAdapter = ArrayAdapter(
+            context,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
+            listOf(
+                "Khách Hàng (CUSTOMER)",
+                "Chủ Quán / Quản Lý (MERCHANT)",
+                "Chủ Chuỗi Cửa Hàng (BOSSMERCHANT)",
+                "Tài Xế Giao Hàng (SHIPPER)",
+                "Quản Trị Viên (ADMIN)"
+            )
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
+        binding.spnUserRole.adapter = roleAdapter
+
+        val statusAdapter = ArrayAdapter(
+            context,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
+            listOf(
+                "Đang Hoạt Động (ACTIVE)",
+                "Đã Bị Khóa (LOCKED)",
+                "Tạm Ngừng (INACTIVE)",
+                "Ngoại Tuyến (OFFLINE)"
+            )
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
+        binding.spnUserStatus.adapter = statusAdapter
+    }
+
+    private fun updateAvatarPreview(avatar: String) {
+        val context = context ?: return
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
+            binding.ivUserAvatarPreview,
+            avatar,
+            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
+            tintColorResId = R.color.secondary
+        )
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
+            binding.ivDialogUserAvatar,
+            avatar,
+            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_user,
+            tintColorResId = R.color.secondary
+        )
+
+        if (avatar.isNotBlank()) {
+            when {
+                avatar.startsWith("data:image") -> {
+                    binding.tvAvatarStatusHint.text = "✓ Ảnh tải lên từ máy (Base64)"
+                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                }
+                avatar.startsWith("http://") || avatar.startsWith("https://") -> {
+                    binding.tvAvatarStatusHint.text = "✓ Ảnh trực tuyến (URL)"
+                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+                }
+                else -> {
+                    binding.tvAvatarStatusHint.text = "✓ Ảnh đại diện người dùng"
+                    binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+                }
+            }
+        } else {
+            binding.tvAvatarStatusHint.text = "Chưa có ảnh (Đang dùng icon mặc định)"
+            binding.tvAvatarStatusHint.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+        }
+    }
+
+    private fun populateCurrentData() {
+        currentAvatar = user.avatarUrl.ifBlank { customer?.avatarUrl.orEmpty() }
+        isAvatarResetToDefault = false
+
+        binding.tvUserUidSubtitle.text = "UID: ${user.uid}"
+        binding.etUserName.setText(user.name)
+        binding.etUserEmail.setText(user.email)
+        binding.etUserPhone.setText(user.phone)
+        binding.etUserStoreId.setText(user.storeId)
+        binding.etUserBossId.setText(user.bossId)
+
+
+
+        updateAvatarPreview(currentAvatar)
+
+        val currentScore = customer?.trustScore ?: 100
+        val currentCompleted = customer?.completedOrders ?: 0
+        val currentBoom = customer?.boomOrders ?: 0
+
+        binding.etUserTrustScore.setText(currentScore.toString())
+        binding.etUserCompletedOrders.setText(currentCompleted.toString())
+        binding.etUserBoomOrders.setText(currentBoom.toString())
+
+        val roleIndex = when (user.role.uppercase()) {
+            User.Role.CUSTOMER -> 0
+            User.Role.MERCHANT, User.Role.MANAGER -> 1
+            User.Role.BOSSMERCHANT, "BOSS" -> 2
+            User.Role.SHIPPER, User.Role.DRIVER -> 3
+            User.Role.ADMIN -> 4
+            else -> 0
+        }
+        binding.spnUserRole.setSelection(roleIndex)
+
+        val isLocked = !user.isActive ||
+            user.status.equals("LOCKED", ignoreCase = true) ||
+            user.status.equals("SUSPENDED", ignoreCase = true) ||
+            user.status.equals(User.Status.INACTIVE, ignoreCase = true)
+
+        val statusIndex = when {
+            user.status.equals("LOCKED", ignoreCase = true) || user.status.equals("SUSPENDED", ignoreCase = true) -> 1
+            user.status.equals(User.Status.INACTIVE, ignoreCase = true) -> 2
+            user.status.equals(User.Status.OFFLINE, ignoreCase = true) -> 3
+            !user.isActive -> 1
+            else -> 0
+        }
+        binding.spnUserStatus.setSelection(statusIndex)
+        binding.switchUserActive.isChecked = !isLocked
+    }
+
+    private fun setupListeners() {
+        binding.btnCloseUserDialog.setOnClickListener { dismiss() }
+        binding.btnCancelEditUser.setOnClickListener { dismiss() }
+
+        binding.cardUserAvatarContainer.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        binding.ivUserAvatarPreview.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        binding.ivDialogUserAvatar.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        binding.btnQuickPickAvatar.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        binding.btnPickAvatarFromGallery.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+
+        binding.btnResetAvatarDefault.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
+            isAvatarResetToDefault = true
+            currentAvatar = ""
+            updateAvatarPreview("")
+            android.widget.Toast.makeText(ctx, "Đã đặt lại icon mặc định", android.widget.Toast.LENGTH_SHORT).show()
+        }
+
+        // Đồng bộ giữa Switch Kích hoạt và Spinner Trạng thái
+        binding.switchUserActive.setOnCheckedChangeListener { _, isChecked ->
+            if (!isChecked) {
+                if (binding.spnUserStatus.selectedItemPosition == 0) {
+                    binding.spnUserStatus.setSelection(1) // LOCKED
+                }
+            } else {
+                if (binding.spnUserStatus.selectedItemPosition == 1 || binding.spnUserStatus.selectedItemPosition == 2) {
+                    binding.spnUserStatus.setSelection(0) // ACTIVE
+                }
+            }
+        }
+
+        binding.spnUserStatus.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position == 1 || position == 2) {
+                    if (binding.switchUserActive.isChecked) {
+                        binding.switchUserActive.isChecked = false
+                    }
+                } else if (position == 0) {
+                    if (!binding.switchUserActive.isChecked) {
+                        binding.switchUserActive.isChecked = true
+                    }
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        binding.btnQuickPlus10.setOnClickListener {
+            val cur = binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100
+            binding.etUserTrustScore.setText((cur + 10).coerceAtMost(100).toString())
+            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
+                binding.etTrustAdjustReason.setText("Cộng thưởng điểm tín nhiệm tích cực")
+            }
+        }
+
+        binding.btnQuickMinus20.setOnClickListener {
+            val cur = binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100
+            binding.etUserTrustScore.setText((cur - 20).coerceAtLeast(0).toString())
+            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
+                binding.etTrustAdjustReason.setText("Trừ điểm do vi phạm quy định đặt hàng / bom đơn")
+            }
+        }
+
+        binding.btnQuickReset100.setOnClickListener {
+            binding.etUserTrustScore.setText("100")
+            binding.switchUserActive.isChecked = true
+            binding.spnUserStatus.setSelection(0)
+            if (binding.etTrustAdjustReason.text.isNullOrBlank()) {
+                binding.etTrustAdjustReason.setText("Khôi phục 100 điểm uy tín & mở khóa tài khoản")
+            }
+        }
+
+        binding.btnSaveEditUser.setOnClickListener {
+            val name = binding.etUserName.text?.toString().orEmpty().trim()
+            val email = binding.etUserEmail.text?.toString().orEmpty().trim()
+            val phone = binding.etUserPhone.text?.toString().orEmpty().trim()
+            val storeId = binding.etUserStoreId.text?.toString().orEmpty().trim()
+            val bossId = binding.etUserBossId.text?.toString().orEmpty().trim()
+
+            val finalAvatar = if (isAvatarResetToDefault) "RESET_DEFAULT_AVATAR" else currentAvatar
+
+            val trustScore = (binding.etUserTrustScore.text?.toString()?.toIntOrNull() ?: 100).coerceIn(0, 100)
+            val completedOrders = (binding.etUserCompletedOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)
+            val boomOrders = (binding.etUserBoomOrders.text?.toString()?.toIntOrNull() ?: 0).coerceAtLeast(0)
+            val adjustReason = binding.etTrustAdjustReason.text?.toString().orEmpty().trim()
+
+            val selectedRole = roleOptions.getOrElse(binding.spnUserRole.selectedItemPosition) { User.Role.CUSTOMER }
+            val rawStatus = statusOptions.getOrElse(binding.spnUserStatus.selectedItemPosition) { User.Status.ACTIVE }
+            val isCheckedActive = binding.switchUserActive.isChecked
+            val isUnlocked = isCheckedActive && rawStatus != "LOCKED" && rawStatus != User.Status.INACTIVE
+            val finalStatus = if (isUnlocked) rawStatus else "LOCKED"
+
+            val roleId = when (selectedRole) {
+                User.Role.ADMIN -> 1
+                User.Role.CUSTOMER -> 2
+                User.Role.MERCHANT, User.Role.MANAGER -> 3
+                User.Role.BOSSMERCHANT -> 5
+                User.Role.SHIPPER, User.Role.DRIVER -> 4
+                else -> 2
+            }
+
+            val updatedUser = user.copy(
+                name = name,
+                email = email,
+                phone = phone,
+                role = selectedRole,
+                roleId = roleId,
+                storeId = storeId,
+                bossId = bossId,
+                avatarUrl = finalAvatar,
+                status = finalStatus,
+                isActive = isUnlocked
+            )
+
+            onSave(updatedUser, trustScore, completedOrders, boomOrders, adjustReason)
+            dismiss()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    companion object {
+        const val TAG = "EditUserDialogFragment"
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/EditStoreDialogFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.store
+
+import android.app.Dialog
+import android.os.Bundle
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
+import java.io.ByteArrayOutputStream
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.DialogEditStoreBinding
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+
+class EditStoreDialogFragment(
+    private val store: Store,
+    private val onSave: (Store) -> Unit
+) : BottomSheetDialogFragment() {
+
+    private var _binding: DialogEditStoreBinding? = null
+    private val binding get() = _binding!!
+
+    private val statusOptions = listOf(
+        Store.StoreStatus.OPEN,
+        Store.StoreStatus.CLOSED,
+        Store.StoreStatus.LOCKED,
+        Store.StoreStatus.PENDING
+    )
+
+    private val penaltyOptions = listOf(
+        Store.PenaltyTier.NONE,
+        Store.PenaltyTier.WARN,
+        Store.PenaltyTier.HIDE,
+        Store.PenaltyTier.LOCK
+    )
+
+    private var currentStoreImageUrl: String = ""
+
+    private val pickStoreImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        val ctx = context ?: return@registerForActivityResult
+        uri ?: return@registerForActivityResult
+        val base64 = uriToBase64(uri)
+        if (!base64.isNullOrBlank()) {
+            currentStoreImageUrl = base64
+            updateStoreImagePreview(currentStoreImageUrl)
+            binding.tvStoreImageStatus.text = "Đã chọn ảnh mới từ thư viện"
+            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(ctx, R.color.brand_green))
+            Toast.makeText(ctx, "Đã chọn ảnh quán thành công!", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(ctx, "Không thể đọc ảnh đã chọn. Vui lòng thử ảnh khác!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun uriToBase64(uri: Uri): String? {
+        val ctx = context ?: return null
+        return ImagePickerUtils.compressUriToBase64(ctx, uri, maxDimension = 400, quality = 80)
+    }
+
+    private fun updateStoreImagePreview(imageSource: String) {
+        val trimmed = imageSource.trim()
+        if (trimmed.isNotBlank()) {
+            binding.ivStoreImagePreview.clearColorFilter()
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivStoreImagePreview,
+                imageUrl = trimmed,
+                placeholderResId = R.drawable.ic_store,
+                cornerDp = 10
+            )
+        } else {
+            Glide.with(this).clear(binding.ivStoreImagePreview)
+            binding.ivStoreImagePreview.setImageResource(R.drawable.ic_store)
+            binding.ivStoreImagePreview.setColorFilter(ContextCompat.getColor(requireContext(), R.color.text_muted))
+        }
+    }
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
+        dialog.setOnShowListener {
+            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+            bottomSheet?.let { sheet ->
+                val behavior = BottomSheetBehavior.from(sheet)
+                behavior.state = BottomSheetBehavior.STATE_EXPANDED
+                behavior.skipCollapsed = true
+            }
+        }
+        return dialog
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = DialogEditStoreBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupSpinners()
+        populateCurrentData()
+        setupListeners()
+    }
+
+    private fun setupSpinners() {
+        val context = requireContext()
+
+        val statusAdapter = ArrayAdapter(
+            context,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
+            listOf("Đang Mở Cửa (OPEN)", "Tạm Nghỉ (CLOSED)", "Đang Bị Khóa (LOCKED)", "Chờ Duyệt (PENDING)")
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
+        binding.spnStoreStatus.adapter = statusAdapter
+
+        val penaltyAdapter = ArrayAdapter(
+            context,
+            com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
+            listOf("Bình Thường (NONE)", "Cảnh Cáo (WARN)", "Ẩn Khỏi Tìm Kiếm (HIDE)", "Khóa Quyền Bán (LOCK)")
+        ).apply {
+            setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
+        }
+        binding.spnPenaltyTier.adapter = penaltyAdapter
+    }
+
+    private fun populateCurrentData() {
+        binding.tvStoreIdSubtitle.text = "Mã cửa hàng: ${store.id}"
+        binding.etStoreName.setText(store.name)
+        binding.etStoreCategory.setText(store.category)
+        binding.etStorePhone.setText(store.phone)
+        binding.etStoreAddress.setText(store.address)
+        binding.etStoreDistrict.setText(store.district)
+        binding.etBossId.setText(store.bossId)
+        binding.etMerchantName.setText(store.merchantName)
+        currentStoreImageUrl = store.effectiveImageUrl
+        updateStoreImagePreview(currentStoreImageUrl)
+        binding.etStoreOpenHours.setText(store.openHours)
+        binding.etStorePrepTime.setText(store.prepTime)
+        binding.etStoreDeliveryTime.setText(store.deliveryTime)
+        binding.etStoreRatingAvg.setText(store.ratingAvg.toString())
+
+        // Trạng thái
+        val statusIndex = when (store.storeStatus.uppercase()) {
+            Store.StoreStatus.OPEN -> 0
+            Store.StoreStatus.CLOSED -> 1
+            Store.StoreStatus.LOCKED -> 2
+            Store.StoreStatus.PENDING -> 3
+            else -> 0
+        }
+        binding.spnStoreStatus.setSelection(statusIndex)
+
+        binding.switchStoreVerified.isChecked = store.isVerified
+
+        // Chế tài
+        val penaltyIndex = when (store.penaltyTier.uppercase()) {
+            Store.PenaltyTier.NONE -> 0
+            Store.PenaltyTier.WARN -> 1
+            Store.PenaltyTier.HIDE -> 2
+            Store.PenaltyTier.LOCK -> 3
+            else -> 0
+        }
+        binding.spnPenaltyTier.setSelection(penaltyIndex)
+
+        binding.etPenaltyReason.setText(store.penaltyReason)
+        binding.etOwnerName.setText(store.ownerName)
+        binding.etCccdNumber.setText(store.cccdNumber)
+        binding.etBankName.setText(store.bankName)
+        binding.etBankAccountNumber.setText(store.bankAccountNumber)
+        binding.etBankAccountName.setText(store.bankAccountName)
+    }
+
+    private fun setupListeners() {
+        binding.btnCloseDialog.setOnClickListener { dismiss() }
+        binding.btnPickStoreImage.setOnClickListener { pickStoreImageLauncher.launch("image/*") }
+        binding.ivStoreImagePreview.setOnClickListener { pickStoreImageLauncher.launch("image/*") }
+        binding.btnClearStoreImage.setOnClickListener {
+            currentStoreImageUrl = ""
+            updateStoreImagePreview("")
+            binding.tvStoreImageStatus.text = "Chưa có ảnh"
+            binding.tvStoreImageStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        }
+        binding.btnCancelEditStore.setOnClickListener { dismiss() }
+
+        binding.btnSaveEditStore.setOnClickListener {
+            val name = binding.etStoreName.text?.toString().orEmpty().trim()
+            if (name.isBlank()) {
+                Toast.makeText(requireContext(), "Vui lòng nhập tên quán", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val category = binding.etStoreCategory.text?.toString().orEmpty().trim()
+            val phone = binding.etStorePhone.text?.toString().orEmpty().trim()
+            val address = binding.etStoreAddress.text?.toString().orEmpty().trim()
+            val district = binding.etStoreDistrict.text?.toString().orEmpty().trim()
+            val bossId = binding.etBossId.text?.toString().orEmpty().trim()
+            val merchantName = binding.etMerchantName.text?.toString().orEmpty().trim()
+            val imageUrl = currentStoreImageUrl
+            val openHours = binding.etStoreOpenHours.text?.toString().orEmpty().trim().ifBlank { "08:00 - 22:00" }
+            val prepTime = binding.etStorePrepTime.text?.toString().orEmpty().trim().ifBlank { "15-20 phút" }
+            val deliveryTime = binding.etStoreDeliveryTime.text?.toString().orEmpty().trim()
+            val ratingAvg = binding.etStoreRatingAvg.text?.toString().orEmpty().toFloatOrNull() ?: store.ratingAvg
+
+            val selectedStatus = statusOptions.getOrElse(binding.spnStoreStatus.selectedItemPosition) { Store.StoreStatus.OPEN }
+            val isVerified = binding.switchStoreVerified.isChecked
+
+            val selectedPenalty = penaltyOptions.getOrElse(binding.spnPenaltyTier.selectedItemPosition) { Store.PenaltyTier.NONE }
+            val penaltyReason = binding.etPenaltyReason.text?.toString().orEmpty().trim()
+
+            val ownerName = binding.etOwnerName.text?.toString().orEmpty().trim()
+            val cccdNumber = binding.etCccdNumber.text?.toString().orEmpty().trim()
+            val bankName = binding.etBankName.text?.toString().orEmpty().trim()
+            val bankAccountNumber = binding.etBankAccountNumber.text?.toString().orEmpty().trim()
+            val bankAccountName = binding.etBankAccountName.text?.toString().orEmpty().trim()
+
+            val updatedStore = store.copy(
+                name = name,
+                category = category,
+                phone = phone,
+                address = address,
+                district = district,
+                bossId = bossId,
+                merchantName = merchantName,
+                imageUrl = imageUrl,
+                avatarUrl = imageUrl,
+                avatar = imageUrl,
+                logoUrl = imageUrl,
+                image = imageUrl,
+                openHours = openHours,
+                prepTime = prepTime,
+                deliveryTime = deliveryTime,
+                ratingAvg = ratingAvg,
+                storeStatus = selectedStatus,
+                isVerified = isVerified,
+                penaltyTier = selectedPenalty,
+                penaltyReason = penaltyReason,
+                ownerName = ownerName,
+                cccdNumber = cccdNumber,
+                bankName = bankName,
+                bankAccountNumber = bankAccountNumber,
+                bankAccountName = bankAccountName
+            )
+
+            onSave(updatedStore)
+            dismiss()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    companion object {
+        const val TAG = "EditStoreDialogFragment"
+    }
+}
+````
+
+## File: app-admin/src/main/res/layout/fragment_admin_dashboard.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/swipeRefresh"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="18dp"
+            android:paddingBottom="28dp">
+
+            <!-- Executive Telemetry Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="20dp"
+                    android:background="@color/primary" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:letterSpacing="0.03"
+                        android:text="TRUNG TÂM ĐIỀU HÀNH SÀN"
+                        android:textColor="@color/text_primary"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="Số liệu giám sát trực tiếp từ Realtime Database"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvLiveStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_green"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="5dp"
+                    android:text="● LIVE SYNC"
+                    android:textColor="@color/brand_green"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Urgent Attention Priority Banner -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardUrgentBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="#FFFBEB"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/brand_orange"
+                app:strokeWidth="1.5dp"
+                tools:visibility="visible">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="14dp">
+
+                    <FrameLayout
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/bg_circle_icon_orange">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_alert_triangle"
+                            app:tint="@color/brand_orange" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:letterSpacing="0.05"
+                            android:text="⚡ HỒ SƠ CẦN PHÊ DUYỆT NGAY"
+                            android:textColor="@color/brand_orange"
+                            android:textSize="10.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvUrgentMessage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            tools:text="Có 2 quán chờ duyệt CCCD và 1 khiếu nại chưa xử lý." />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnQuickHandleUrgent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:backgroundTint="@color/primary"
+                        android:text="Xử lý"
+                        android:textColor="@color/white"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Executive GMV Financial Hero Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardRevenue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="14dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="22dp"
+                app:cardElevation="6dp"
+                app:strokeColor="#334155"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_kpi_card_revenue"
+                    android:orientation="vertical"
+                    android:padding="22dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_glass_pill">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_banknote"
+                                app:tint="#FF7849" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:letterSpacing="0.06"
+                                android:text="TỔNG GIÁ TRỊ GIAO DỊCH (GMV)"
+                                android:textColor="#CBD5E1"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Doanh thu lũy kế từ các đơn hoàn tất"
+                                android:textColor="#94A3B8"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <FrameLayout
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:background="@drawable/bg_glass_pill">
+
+                            <ImageView
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_chevron_right"
+                                app:tint="@color/white" />
+                        </FrameLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvRevenue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:textColor="@color/white"
+                        android:textSize="34sp"
+                        android:textStyle="bold"
+                        tools:text="15.820.000 đ" />
+
+                    <!-- Glassmorphic Order Breakdown Pills -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_glass_pill"
+                            android:gravity="center_vertical"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="8dp">
+
+                            <TextView
+                                android:id="@+id/tvCompletedOrdersChip"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🟢 42 Đơn hoàn tất"
+                                android:textColor="#6EE7B7"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_glass_pill"
+                            android:gravity="center_vertical"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="8dp">
+
+                            <TextView
+                                android:id="@+id/tvBoomOrdersChip"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🔴 6 Đơn huỷ/boom"
+                                android:textColor="#FDA4AF"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Bento KPI Grid: Row 1 (Stores & Complaints) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <!-- 🏪 Quán Ăn Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardStores"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/brand_orange_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/brand_orange" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_orange">
+
+                                    <ImageView
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_store"
+                                        app:tint="@color/brand_orange" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Đối tác Quán"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvActiveStores"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="12" />
+
+                            <TextView
+                                android:id="@+id/tvPendingStores"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_orange"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:textColor="@color/brand_orange"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                tools:text="3 chờ duyệt CCCD" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 🚨 Khiếu Nại Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardComplaints"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/danger_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/danger" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_red">
+
+                                    <ImageView
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_shield_alert"
+                                        app:tint="@color/danger" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Khiếu nại"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvPendingComplaints"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/danger"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="2" />
+
+                            <TextView
+                                android:id="@+id/tvComplaintSubtext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_red"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:text="Chờ phán quyết"
+                                android:textColor="@color/danger"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Bento KPI Grid: Row 2 (Orders & Users) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="18dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <!-- 📦 Đơn Hàng Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardOrders"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/brand_green_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/brand_green" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_green">
+
+                                    <ImageView
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_package"
+                                        app:tint="@color/brand_green" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Tổng Đơn"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvTotalOrders"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="48" />
+
+                            <TextView
+                                android:id="@+id/tvOrderSubtext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_green"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:textColor="@color/brand_green"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                tools:text="42 hoàn thành • 6 huỷ" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 👥 Người Dùng Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardUsers"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/brand_blue_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/brand_blue" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_blue">
+
+                                    <ImageView
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_users"
+                                        app:tint="@color/brand_blue" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Người dùng"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvTotalUsers"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="28" />
+
+                            <TextView
+                                android:id="@+id/tvUserSubtext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_blue"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:textColor="@color/brand_blue"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                tools:text="20 Khách • 8 Tài xế" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Quick Command Launcher Dock -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.04"
+                android:text="BẢNG ĐIỀU PHỐI TÁC VỤ NHANH"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickApproveStore"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_green">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_check_circle"
+                                app:tint="@color/brand_green" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Duyệt Quán"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickComplaints"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_red">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_shield_alert"
+                                app:tint="@color/danger" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Xử Phạt"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickAddCategory"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_purple">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_tag"
+                                app:tint="@color/purple" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Danh Mục"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickMonitor"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_blue">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_package"
+                                app:tint="@color/brand_blue" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Đơn &amp; User"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- System Taxonomy Synchronization Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_circle_icon_indigo">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_sparkles"
+                                app:tint="@color/secondary" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Khởi tạo &amp; Đồng bộ 5 Danh Mục Chuẩn"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Taxonomy Synchronization Engine"
+                                android:textColor="@color/secondary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginBottom="14dp"
+                        android:text="Tự động đồng bộ 5 nhóm ẩm thực chuẩn (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên toàn bộ ứng dụng Khách hàng và Chủ quán."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnRestoreCategories"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="ĐỒNG BỘ 5 DANH MỤC CHUẨN NGAY"
+                        android:textColor="@color/secondary"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="12dp"
+                        app:icon="@drawable/ic_refresh"
+                        app:iconGravity="textStart"
+                        app:iconTint="@color/secondary"
+                        app:strokeColor="@color/secondary"
+                        app:strokeWidth="1.5dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card Cấu hình thời gian đếm ngược bom hàng / sự cố -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="24dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:strokeColor="#FEE2E2"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_circle_icon_orange">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:text="⏱️"
+                                android:textSize="18sp" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Đếm ngược sự cố / Khách bom hàng"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvCurrentCountdownConfig"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Lần 1: 15 phút • Lần 2 (gia hạn): 15 phút"
+                                android:textColor="@color/brand_orange"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginBottom="14dp"
+                        android:text="Thiết lập thời gian đếm ngược Lần 1 và Lần 2 khi khách không nhận đơn / không nghe máy. Hệ thống tự động áp dụng thời gian thực cho Shipper và Khách hàng."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnConfigureCountdown"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="⏱️ CHỈNH SỬA THỜI GIAN ĐẾM NGƯỢC"
+                        android:textColor="@color/brand_orange"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="12dp"
+                        app:strokeColor="@color/brand_orange"
+                        app:strokeWidth="1.5dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+````
+
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/checkout/CheckoutActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.checkout
@@ -94801,6 +94806,7 @@ import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryFragment
 import com.chuyen_de_2.foodorder.customer.ui.notification.NotificationFragment
 import com.chuyen_de_2.foodorder.customer.ui.profile.ProfileFragment
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
@@ -94821,6 +94827,7 @@ import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
 import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
 import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
+import com.chuyen_de_2.foodorder.customer.ui.checkout.SelectLocationActivity
 import android.widget.TextView
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -94874,9 +94881,25 @@ class HomeActivity : AppCompatActivity() {
     private var selectedCategory: String? = null
     private var selectedPriceLabel: String? = null
     private var isNearbyFiltered: Boolean = false
-    private var selectedNearbyDistanceKm: Double = 3.0
-    private var selectedNearbyDistanceLabel: String = "< 3 km"
+    private var selectedNearbyDistanceKm: Double = 1.5
+    private var selectedNearbyDistanceLabel: String = "< 1.5 km"
     private var currentLocationName: String = "Đang xác định vị trí..."
+    private var hasAutoFilteredNearbyOnce: Boolean = false
+
+    private val selectLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val data = result.data!!
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+            val fullAddr = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS).orEmpty()
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT).orEmpty()
+            if (lat != 0.0 && lng != 0.0) {
+                applyCustomLocation(lat, lng, fullAddr, district)
+            }
+        }
+    }
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -94954,9 +94977,42 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
+     * Mở bản đồ kéo thả ghim để chọn vị trí mới
+     */
+    private fun openSelectLocationMap() {
+        val intent = Intent(this, SelectLocationActivity::class.java).apply {
+            val current = viewModel.getUserLocation()
+            if (current.latitude != 0.0 && current.longitude != 0.0) {
+                putExtra(SelectLocationActivity.EXTRA_LAT, current.latitude)
+                putExtra(SelectLocationActivity.EXTRA_LNG, current.longitude)
+            }
+        }
+        selectLocationLauncher.launch(intent)
+    }
+
+    /**
+     * Cập nhật vị trí tùy chọn từ bản đồ hoặc GPS và tự động lọc quán gần (< 1.5 km)
+     */
+    private fun applyCustomLocation(lat: Double, lng: Double, fullAddr: String, district: String) {
+        val displayDistrict = district.ifBlank { GoogleMapUtils.findNearestDistrict(lat, lng) }
+        currentLocationName = fullAddr.ifBlank { "$displayDistrict, TP.HCM" }
+        binding.tvLocation.text = "📍 $displayDistrict ▾"
+
+        viewModel.setUserLocation(lat, lng)
+
+        isNearbyFiltered = true
+        selectedNearbyDistanceKm = 1.5
+        selectedNearbyDistanceLabel = "< 1.5 km"
+        updateFilterIndicator()
+        viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+
+        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict\nĐang lọc quán gần nhất (< 1.5 km)", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
      * Tên chức năng: Thiết lập thanh tiêu đề Header và bộ lọc quán gần
      * Cách hoạt động: Bắt sự kiện Click nút "Quán gần đây", chọn địa chỉ, nút "Xem tất cả" và "Xóa lọc".
-     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet] hoặc reset bộ lọc.
+     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet], mở bản đồ chọn vị trí hoặc reset bộ lọc.
      */
     private fun setupHeader() {
         binding.btnNearbyStores.setOnClickListener {
@@ -94964,16 +95020,16 @@ class HomeActivity : AppCompatActivity() {
         }
 
         binding.tvLocation.setOnClickListener {
-            showNearbyStoresBottomSheet()
+            openSelectLocationMap()
         }
 
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
-            selectedNearbyDistanceKm = 3.0
-            selectedNearbyDistanceLabel = "< 3 km"
+            selectedNearbyDistanceKm = 1.5
+            selectedNearbyDistanceLabel = "< 1.5 km"
             clearCategoryHighlight()
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
             binding.etSearch.setText("")
             syncFilterUI()
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
@@ -94983,10 +95039,10 @@ class HomeActivity : AppCompatActivity() {
         binding.btnClearFilter.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
-            selectedNearbyDistanceKm = 3.0
-            selectedNearbyDistanceLabel = "< 3 km"
+            selectedNearbyDistanceKm = 1.5
+            selectedNearbyDistanceLabel = "< 1.5 km"
             clearCategoryHighlight()
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
             syncFilterUI()
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
         }
@@ -95017,6 +95073,14 @@ class HomeActivity : AppCompatActivity() {
                         val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
                         if (coords.latitude != 0.0 && coords.longitude != 0.0) {
                             viewModel.setUserLocation(coords.latitude, coords.longitude)
+                            if (!hasAutoFilteredNearbyOnce) {
+                                hasAutoFilteredNearbyOnce = true
+                                isNearbyFiltered = true
+                                selectedNearbyDistanceKm = 1.5
+                                selectedNearbyDistanceLabel = "< 1.5 km"
+                                updateFilterIndicator()
+                                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+                            }
                         }
                     }
                 }
@@ -95083,6 +95147,15 @@ class HomeActivity : AppCompatActivity() {
             } else {
                 "$nearestDistrict, TP.HCM"
             }
+
+            if (!hasAutoFilteredNearbyOnce) {
+                hasAutoFilteredNearbyOnce = true
+                isNearbyFiltered = true
+                selectedNearbyDistanceKm = 1.5
+                selectedNearbyDistanceLabel = "< 1.5 km"
+                updateFilterIndicator()
+                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+            }
             onComplete?.invoke()
         }
     }
@@ -95101,6 +95174,16 @@ class HomeActivity : AppCompatActivity() {
             sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
         }
         updateSheetLocation()
+
+        sheetBinding.btnChangeLocationSheet.setOnClickListener {
+            dialog.dismiss()
+            openSelectLocationMap()
+        }
+
+        sheetBinding.tvGpsStatusBadge.setOnClickListener {
+            dialog.dismiss()
+            openSelectLocationMap()
+        }
 
         if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
             checkGpsPermissionAndFetch {

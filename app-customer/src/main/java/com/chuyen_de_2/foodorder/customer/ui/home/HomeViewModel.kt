@@ -57,7 +57,7 @@ class HomeViewModel @Inject constructor(
     private var currentQuery: String? = null
     private var currentCategory: String? = null
     private var currentNearbyOnly: Boolean = false
-    var currentNearbyMaxDistanceKm: Double = 3.0
+    var currentNearbyMaxDistanceKm: Double = 1.5
         private set
     var currentMinPrice: Long? = null
         private set
@@ -70,6 +70,8 @@ class HomeViewModel @Inject constructor(
     private var currentPriceSort: PriceSort = PriceSort.NONE
     private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
         com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
 
     fun setUserLocation(lat: Double, lng: Double) {
         if (lat != 0.0 && lng != 0.0) {

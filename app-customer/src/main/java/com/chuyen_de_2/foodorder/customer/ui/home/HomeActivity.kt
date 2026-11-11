@@ -7,6 +7,7 @@ import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryFragment
 import com.chuyen_de_2.foodorder.customer.ui.notification.NotificationFragment
 import com.chuyen_de_2.foodorder.customer.ui.profile.ProfileFragment
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
@@ -27,6 +28,7 @@ import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
 import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
 import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
+import com.chuyen_de_2.foodorder.customer.ui.checkout.SelectLocationActivity
 import android.widget.TextView
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -80,9 +82,25 @@ class HomeActivity : AppCompatActivity() {
     private var selectedCategory: String? = null
     private var selectedPriceLabel: String? = null
     private var isNearbyFiltered: Boolean = false
-    private var selectedNearbyDistanceKm: Double = 3.0
-    private var selectedNearbyDistanceLabel: String = "< 3 km"
+    private var selectedNearbyDistanceKm: Double = 1.5
+    private var selectedNearbyDistanceLabel: String = "< 1.5 km"
     private var currentLocationName: String = "Đang xác định vị trí..."
+    private var hasAutoFilteredNearbyOnce: Boolean = false
+
+    private val selectLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val data = result.data!!
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+            val fullAddr = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS).orEmpty()
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT).orEmpty()
+            if (lat != 0.0 && lng != 0.0) {
+                applyCustomLocation(lat, lng, fullAddr, district)
+            }
+        }
+    }
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -160,9 +178,42 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
+     * Mở bản đồ kéo thả ghim để chọn vị trí mới
+     */
+    private fun openSelectLocationMap() {
+        val intent = Intent(this, SelectLocationActivity::class.java).apply {
+            val current = viewModel.getUserLocation()
+            if (current.latitude != 0.0 && current.longitude != 0.0) {
+                putExtra(SelectLocationActivity.EXTRA_LAT, current.latitude)
+                putExtra(SelectLocationActivity.EXTRA_LNG, current.longitude)
+            }
+        }
+        selectLocationLauncher.launch(intent)
+    }
+
+    /**
+     * Cập nhật vị trí tùy chọn từ bản đồ hoặc GPS và tự động lọc quán gần (< 1.5 km)
+     */
+    private fun applyCustomLocation(lat: Double, lng: Double, fullAddr: String, district: String) {
+        val displayDistrict = district.ifBlank { GoogleMapUtils.findNearestDistrict(lat, lng) }
+        currentLocationName = fullAddr.ifBlank { "$displayDistrict, TP.HCM" }
+        binding.tvLocation.text = "📍 $displayDistrict ▾"
+
+        viewModel.setUserLocation(lat, lng)
+
+        isNearbyFiltered = true
+        selectedNearbyDistanceKm = 1.5
+        selectedNearbyDistanceLabel = "< 1.5 km"
+        updateFilterIndicator()
+        viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+
+        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict\nĐang lọc quán gần nhất (< 1.5 km)", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
      * Tên chức năng: Thiết lập thanh tiêu đề Header và bộ lọc quán gần
      * Cách hoạt động: Bắt sự kiện Click nút "Quán gần đây", chọn địa chỉ, nút "Xem tất cả" và "Xóa lọc".
-     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet] hoặc reset bộ lọc.
+     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet], mở bản đồ chọn vị trí hoặc reset bộ lọc.
      */
     private fun setupHeader() {
         binding.btnNearbyStores.setOnClickListener {
@@ -170,16 +221,16 @@ class HomeActivity : AppCompatActivity() {
         }
 
         binding.tvLocation.setOnClickListener {
-            showNearbyStoresBottomSheet()
+            openSelectLocationMap()
         }
 
         binding.tvViewAll.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
-            selectedNearbyDistanceKm = 3.0
-            selectedNearbyDistanceLabel = "< 3 km"
+            selectedNearbyDistanceKm = 1.5
+            selectedNearbyDistanceLabel = "< 1.5 km"
             clearCategoryHighlight()
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
             binding.etSearch.setText("")
             syncFilterUI()
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
@@ -189,10 +240,10 @@ class HomeActivity : AppCompatActivity() {
         binding.btnClearFilter.setOnClickListener {
             selectedCategory = null
             isNearbyFiltered = false
-            selectedNearbyDistanceKm = 3.0
-            selectedNearbyDistanceLabel = "< 3 km"
+            selectedNearbyDistanceKm = 1.5
+            selectedNearbyDistanceLabel = "< 1.5 km"
             clearCategoryHighlight()
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 3.0, resetPrice = true, resetRating = true)
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
             syncFilterUI()
             binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
         }
@@ -223,6 +274,14 @@ class HomeActivity : AppCompatActivity() {
                         val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
                         if (coords.latitude != 0.0 && coords.longitude != 0.0) {
                             viewModel.setUserLocation(coords.latitude, coords.longitude)
+                            if (!hasAutoFilteredNearbyOnce) {
+                                hasAutoFilteredNearbyOnce = true
+                                isNearbyFiltered = true
+                                selectedNearbyDistanceKm = 1.5
+                                selectedNearbyDistanceLabel = "< 1.5 km"
+                                updateFilterIndicator()
+                                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+                            }
                         }
                     }
                 }
@@ -289,6 +348,15 @@ class HomeActivity : AppCompatActivity() {
             } else {
                 "$nearestDistrict, TP.HCM"
             }
+
+            if (!hasAutoFilteredNearbyOnce) {
+                hasAutoFilteredNearbyOnce = true
+                isNearbyFiltered = true
+                selectedNearbyDistanceKm = 1.5
+                selectedNearbyDistanceLabel = "< 1.5 km"
+                updateFilterIndicator()
+                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+            }
             onComplete?.invoke()
         }
     }
@@ -307,6 +375,16 @@ class HomeActivity : AppCompatActivity() {
             sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
         }
         updateSheetLocation()
+
+        sheetBinding.btnChangeLocationSheet.setOnClickListener {
+            dialog.dismiss()
+            openSelectLocationMap()
+        }
+
+        sheetBinding.tvGpsStatusBadge.setOnClickListener {
+            dialog.dismiss()
+            openSelectLocationMap()
+        }
 
         if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
             checkGpsPermissionAndFetch {

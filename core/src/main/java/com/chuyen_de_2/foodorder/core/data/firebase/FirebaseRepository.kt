@@ -123,26 +123,21 @@ class FirebaseRepository @Inject constructor(
     // ==================== ĐƠN HÀNG (ORDER) ====================
 
     /**
-     * Sinh mã đơn hàng chuẩn thống nhất toàn hệ thống: OISHIyymmdd****
-     * - Tiền tố: OISHI
-     * - yy: 2 số cuối của năm
-     * - mm: 2 số tháng
-     * - dd: 2 số ngày
-     * - ****: 4 ký tự ngẫu nhiên gồm chữ số (0-9) hoặc chữ cái in hoa (A-Z)
+     * Sinh mã đơn hàng chuẩn thống nhất toàn hệ thống: OISHI_******
+     * - Tiền tố: OISHI_
+     * - ******: 6 ký tự ngẫu nhiên gồm chữ số (0-9) hoặc chữ cái in hoa (A-Z)
      */
     fun generateOrderCode(): String {
-        val sdf = SimpleDateFormat("yyMMdd", Locale.getDefault())
-        val datePart = sdf.format(Date())
         val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        val randomPart = (1..4)
+        val randomPart = (1..6)
             .map { chars[Random.nextInt(chars.length)] }
             .joinToString("")
-        return "OISHI$datePart$randomPart"
+        return "OISHI_$randomPart"
     }
 
     /**
      * Tạo đơn hàng mới
-     * Mã đơn hàng đồng bộ toàn hệ thống: OISHIyymmdd****
+     * Mã đơn hàng đồng bộ toàn hệ thống: OISHI_******
      * Node Firebase: orders/{orderId}
      * Auth: Phải có Role CUSTOMER
      */

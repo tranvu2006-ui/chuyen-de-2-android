@@ -98,7 +98,7 @@ class ShopViewModel @Inject constructor(
         val tab = _currentTab.value ?: TabType.NEW
 
         // Cập nhật số lượng đếm trên từng tab
-        _countNew.value = orders.count { it.status == Order.Status.PENDING }
+        _countNew.value = orders.count { it.status == Order.Status.PENDING || it.status == Order.Status.PAID }
         _countCooking.value = orders.count { it.status == Order.Status.PREPARING }
         _countDelivering.value = orders.count {
             it.status == Order.Status.READY ||
@@ -138,7 +138,7 @@ class ShopViewModel @Inject constructor(
 
         // Lọc danh sách theo tab được chọn
         filteredOrders.value = when (tab) {
-            TabType.NEW -> orders.filter { it.status == Order.Status.PENDING }
+            TabType.NEW -> orders.filter { it.status == Order.Status.PENDING || it.status == Order.Status.PAID }
             TabType.COOKING -> orders.filter { it.status == Order.Status.PREPARING }
             TabType.DELIVERING -> orders.filter {
                 it.status == Order.Status.READY ||

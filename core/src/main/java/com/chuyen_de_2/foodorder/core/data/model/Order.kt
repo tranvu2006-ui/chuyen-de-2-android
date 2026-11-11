@@ -210,6 +210,7 @@ data class Order(
     /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
     object Status {
         const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
+        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
         const val PENDING = "PENDING"
         const val PREPARING = "PREPARING"
         const val READY = "READY"
@@ -226,6 +227,7 @@ data class Order(
 
     object OrderStatus {
         const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
+        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
         const val PENDING = "PENDING"
         const val PREPARING = "PREPARING"
         const val READY = "READY"

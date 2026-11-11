@@ -334,7 +334,7 @@ class OrderListFragment : Fragment() {
      */
     private fun handleOrderAction(order: Order) {
         when (order.status) {
-            Order.Status.PENDING -> {
+            Order.Status.PENDING, Order.Status.PAID -> {
                 // BƯỚC 1: QUÁN XÁC NHẬN ĐƠN CỦA KHÁCH -> CHUYỂN SANG BẾP ĐANG NẤU
                 viewModel.confirmCustomerOrder(order.orderId)
                 Toast.makeText(

@@ -586,6 +586,24 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val greenColor = ContextCompat.getColor(this, R.color.status_completed)
 
         when (status) {
+            Order.Status.AWAITING_PAYMENT -> {
+                setTimelineProgress(0)
+                setNodeActive(1)
+                binding.lblStatusIcon.text = "⏳"
+                binding.lblStatusHeadline.text = "Chờ chuyển khoản ngân hàng"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Đang chờ thanh toán VietQR"
+                binding.lblDetailIcon.text = "⏳"
+                binding.lblDetailDesc.text =
+                    "Đơn hàng đang chờ thanh toán VietQR. Quán $currentStoreName sẽ kiểm tra và nấu món ngay khi nhận được tiền."
+                binding.boxCustomerCancelledNotice.isVisible = false
+                binding.boxWarningActiveOnOrder.isVisible = false
+                binding.btnHeaderWarn.isVisible = false
+                binding.ratingCard.isVisible = false
+                binding.qrCompletedBox.isVisible = false
+                binding.qrCodeWrapper.isVisible = true
+                binding.tokenPill.isVisible = true
+            }
+
             Order.Status.PAID -> {
                 setTimelineProgress(0)
                 setNodeActive(1)

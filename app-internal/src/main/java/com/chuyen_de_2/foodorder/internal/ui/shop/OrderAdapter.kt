@@ -163,6 +163,22 @@ class OrderAdapter(
 
         private fun setupStatusAndActions(context: Context, order: Order) {
             when (order.status) {
+                Order.Status.AWAITING_PAYMENT -> {
+                    // Đơn đang chờ khách chuyển khoản ngân hàng
+                    binding.tvOrderBadge.text = "⏳ CHỜ CHUYỂN KHOẢN • CHƯA NHẬN ĐƯỢC TIỀN"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
+
+                    binding.boxDriverStatus.visibility = View.GONE
+
+                    binding.btnMainAction.apply {
+                        isEnabled = true
+                        text = "👁️ ĐÃ CHECK TIỀN ➔ DUYỆT & NẤU"
+                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
+                        setTextColor(Color.WHITE)
+                    }
+                }
+
                 Order.Status.PAID -> {
                     // Đơn đã thanh toán VietQR ngân hàng -> Quán bấm xác nhận nấu
                     binding.tvOrderBadge.text = "💰 ĐÃ THANH TOÁN (VIETQR) • CHỜ NẤU"

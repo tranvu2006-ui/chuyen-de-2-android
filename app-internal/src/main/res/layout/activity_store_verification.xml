@@ -340,6 +340,207 @@
                             android:textStyle="bold" />
                     </LinearLayout>
 
+                    <!-- Khung Quét / Chụp ảnh CCCD tự động điền (AI OCR) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardCccdScanBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        app:cardBackgroundColor="#FFF8F6"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="#FDBA74"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <!-- Tiêu đề tính năng quét AI -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <ImageView
+                                    android:layout_width="20dp"
+                                    android:layout_height="20dp"
+                                    app:srcCompat="@drawable/ic_camera"
+                                    app:tint="#EE4D2D" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="8dp"
+                                    android:layout_weight="1"
+                                    android:text="Quét Thẻ Căn Cước Công Dân (AI)"
+                                    android:textColor="#9A3412"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_badge_orange"
+                                    android:paddingHorizontal="6dp"
+                                    android:paddingVertical="2dp"
+                                    android:text="Tự động điền"
+                                    android:textColor="#EE4D2D"
+                                    android:textSize="10.5sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Chụp hoặc tải ảnh mặt trước CCCD để hệ thống tự nhận diện Họ tên và Số CCCD 12 số."
+                                android:textColor="#7C2D12"
+                                android:textSize="11.5sp" />
+
+                            <!-- Khung xem trước ảnh thẻ đã chụp/chọn -->
+                            <FrameLayout
+                                android:id="@+id/layoutCccdPreview"
+                                android:layout_width="match_parent"
+                                android:layout_height="170dp"
+                                android:layout_marginTop="10dp"
+                                android:visibility="gone">
+
+                                <com.google.android.material.card.MaterialCardView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    app:cardCornerRadius="8dp"
+                                    app:cardElevation="0dp"
+                                    app:strokeColor="#E2E8F0"
+                                    app:strokeWidth="1dp">
+
+                                    <ImageView
+                                        android:id="@+id/ivCccdPreview"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:scaleType="centerCrop" />
+                                </com.google.android.material.card.MaterialCardView>
+
+                                <TextView
+                                    android:id="@+id/tvCccdBadge"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="top|start"
+                                    android:layout_margin="8dp"
+                                    android:background="#D1FAE5"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="3dp"
+                                    android:text="✓ Đã chụp thẻ CCCD"
+                                    android:textColor="#065F46"
+                                    android:textSize="11sp"
+                                    android:textStyle="bold" />
+                            </FrameLayout>
+
+                            <!-- Loading quét OCR -->
+                            <LinearLayout
+                                android:id="@+id/layoutOcrLoading"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:visibility="gone">
+
+                                <ProgressBar
+                                    android:layout_width="18dp"
+                                    android:layout_height="18dp"
+                                    android:indeterminateTint="#EE4D2D" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="8dp"
+                                    android:text="Đang nhận diện ký tự CCCD bằng AI..."
+                                    android:textColor="#EA580C"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- Banner kết quả nhận diện thành công -->
+                            <LinearLayout
+                                android:id="@+id/layoutOcrSuccess"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:background="#ECFDF5"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:padding="8dp"
+                                android:visibility="gone">
+
+                                <ImageView
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    app:srcCompat="@drawable/ic_check"
+                                    app:tint="#059669" />
+
+                                <TextView
+                                    android:id="@+id/tvOcrResultDesc"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:layout_weight="1"
+                                    android:text="Đã nhận diện thành công &amp; điền vào biểu mẫu bên dưới"
+                                    android:textColor="#065F46"
+                                    android:textSize="11.5sp" />
+                            </LinearLayout>
+
+                            <!-- 2 nút Chụp ảnh & Chọn từ máy -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:orientation="horizontal">
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnCaptureCccd"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:backgroundTint="#EE4D2D"
+                                    android:insetTop="0dp"
+                                    android:insetBottom="0dp"
+                                    android:text="Chụp ảnh CCCD"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold"
+                                    app:cornerRadius="8dp"
+                                    app:icon="@drawable/ic_camera"
+                                    app:iconGravity="textStart"
+                                    app:iconSize="16dp"
+                                    app:iconTint="#FFFFFF" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnPickCccdGallery"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="8dp"
+                                    android:layout_weight="1"
+                                    android:insetTop="0dp"
+                                    android:insetBottom="0dp"
+                                    android:text="Chọn từ máy"
+                                    android:textColor="#0F172A"
+                                    android:textSize="12.5sp"
+                                    app:cornerRadius="8dp"
+                                    app:icon="@drawable/ic_image"
+                                    app:iconGravity="textStart"
+                                    app:iconSize="16dp"
+                                    app:iconTint="#64748B"
+                                    app:strokeColor="#CBD5E1" />
+                            </LinearLayout>
+
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
                     <!-- Chủ hộ kinh doanh -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilOwnerName"

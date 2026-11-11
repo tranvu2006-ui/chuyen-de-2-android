@@ -916,6 +916,7 @@ core/
                   AccountLockWatcher.kt
                   BankData.kt
                   CategoryIconCache.kt
+                  CccdOcrHelper.kt
                   Constants.kt
                   GoogleMapUtils.kt
                   ImageLoadUtils.kt
@@ -1014,6 +1015,8 @@ core/
           ic_zap.xml
         layout/
           item_address_suggestion.xml
+        xml/
+          file_paths.xml
       AndroidManifest.xml
   build.gradle.kts
 gradle/
@@ -3439,6 +3442,403 @@ class CustomerComplaintTrackingActivity : AppCompatActivity() {
 </menu>
 ````
 
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/util/CccdOcrHelper.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.util
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import android.net.Uri
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
+import java.text.Normalizer
+import java.util.regex.Pattern
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+data class CccdScanResult(
+    val cccdNumber: String? = null,
+    val fullName: String? = null,
+    val dateOfBirth: String? = null,
+    val gender: String? = null,
+    val address: String? = null,
+    val district: String? = null,
+    val rawText: String = ""
+) {
+    val isSuccess: Boolean
+        get() = !cccdNumber.isNullOrBlank() || !fullName.isNullOrBlank()
+}
+
+object CccdOcrHelper {
+
+    private val DISTRICTS_HCMC = listOf(
+        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
+        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
+        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
+        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
+    )
+
+    private val IGNORED_NAME_KEYWORDS = listOf(
+        "CONG HOA", "CỘNG HÒA", "XA HOI", "XÃ HỘI", "CHU NGHIA", "CHỦ NGHĨA",
+        "DOC LAP", "ĐỘC LẬP", "TU DO", "TỰ DO", "HANH PHUC", "HẠNH PHÚC",
+        "CAN CUOC", "CĂN CƯỚC", "CHUNG MINH", "CHỨNG MINH", "CONG DAN", "CÔNG DÂN",
+        "NHAN DAN", "NHÂN DÂN", "VIET NAM", "VIỆT NAM", "CITIZEN", "IDENTITY", "CARD",
+        "HO VA TEN", "HỌ VÀ TÊN", "FULL NAME", "GIOI TINH", "GIỚI TÍNH", "NGAY SINH",
+        "DATE OF BIRTH", "NOI THUONG TRU", "NƠI THƯỜNG TRÚ", "QUE QUAN", "QUÊ QUÁN",
+        "QUOC TICH", "QUỐC TỊCH", "CO GIA TRI", "CÓ GIÁ TRỊ"
+    )
+
+    /**
+     * Nhận diện thẻ CCCD từ ảnh Bitmap
+     */
+    suspend fun scanCccdFromBitmap(bitmap: Bitmap): Result<CccdScanResult> = withContext(Dispatchers.Default) {
+        try {
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val inputImage = InputImage.fromBitmap(bitmap, 0)
+
+            val text: Text = suspendCancellableCoroutine { cont ->
+                recognizer.process(inputImage)
+                    .addOnSuccessListener { visionText ->
+                        if (cont.isActive) cont.resume(visionText)
+                    }
+                    .addOnFailureListener { error ->
+                        if (cont.isActive) cont.resumeWithException(error)
+                    }
+            }
+
+            val result = parseCccdText(text.text)
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Nhận diện thẻ CCCD từ Uri (chụp ảnh hoặc thư viện)
+     */
+    suspend fun scanCccdFromUri(context: Context, uri: Uri): Result<CccdScanResult> = withContext(Dispatchers.IO) {
+        try {
+            val bitmap = decodeRotatedBitmap(context, uri, maxDimension = 1280)
+                ?: return@withContext Result.failure(IllegalArgumentException("Không thể đọc ảnh thẻ"))
+            scanCccdFromBitmap(bitmap)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Thuật toán phân tích chuỗi văn bản OCR để trích xuất CCCD, Họ tên, Ngày sinh, v.v.
+     */
+    fun parseCccdText(rawText: String): CccdScanResult {
+        if (rawText.isBlank()) return CccdScanResult(rawText = "")
+
+        val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
+
+        var cccdNumber: String? = null
+        var fullName: String? = null
+        var dateOfBirth: String? = null
+        var gender: String? = null
+        var address: String? = null
+        var district: String? = null
+
+        // 1. Tìm số CCCD (12 chữ số) hoặc CMND (9 chữ số)
+        // Ưu tiên dòng có chữ "Số" / "No." / "Số định danh"
+        for (i in lines.indices) {
+            val line = lines[i]
+            val digitsOnly = line.replace(Regex("[^0-9]"), "")
+
+            if (digitsOnly.length == 12) {
+                cccdNumber = digitsOnly
+                break
+            }
+
+            val isNumberLabel = line.contains("Số", true) ||
+                    line.contains("No", true) ||
+                    line.contains("định danh", true) ||
+                    line.contains("identification", true)
+
+            if (isNumberLabel) {
+                // Kiểm tra 12 số trong cùng dòng
+                val match12 = Regex("""\b\d{12}\b""").find(line)
+                if (match12 != null) {
+                    cccdNumber = match12.value
+                    break
+                }
+                // Hoặc kiểm tra dòng kế tiếp
+                if (i + 1 < lines.size) {
+                    val nextDigits = lines[i + 1].replace(Regex("[^0-9]"), "")
+                    if (nextDigits.length == 12) {
+                        cccdNumber = nextDigits
+                        break
+                    }
+                }
+            }
+        }
+
+        // Fallback số 12 số bất kỳ nếu chưa tìm thấy
+        if (cccdNumber == null) {
+            val match = Regex("""\b(\d{12})\b""").find(rawText.replace(" ", ""))
+            if (match != null) {
+                cccdNumber = match.value
+            } else {
+                // Thử tìm regex có thể có khoảng trắng ở giữa: 079 095 012345
+                val spaceMatch = Regex("""\b0\d{2}[\s.-]?\d{3}[\s.-]?\d{6}\b""").find(rawText)
+                if (spaceMatch != null) {
+                    cccdNumber = spaceMatch.value.replace(Regex("""[\s.-]"""), "")
+                }
+            }
+        }
+
+        // 2. Tìm Họ và tên
+        for (i in lines.indices) {
+            val line = lines[i]
+            val isNameLabel = line.contains("Họ và tên", true) ||
+                    line.contains("Họ tên", true) ||
+                    line.contains("Họ, chữ đệm", true) ||
+                    line.contains("Full name", true)
+
+            if (isNameLabel) {
+                // Trường hợp tên nằm sau dấu hai chấm cùng dòng: "Họ và tên / Full name: NGUYỄN VĂN A"
+                val colonIdx = line.indexOf(":")
+                if (colonIdx >= 0 && colonIdx < line.length - 1) {
+                    val afterColon = line.substring(colonIdx + 1).trim()
+                    val cleanCandidate = cleanNameCandidate(afterColon)
+                    if (isValidVietnameseName(cleanCandidate)) {
+                        fullName = cleanCandidate
+                        break
+                    }
+                }
+
+                // Trường hợp tên nằm ở dòng tiếp theo ngay bên dưới (phổ biến nhất trên CCCD gắn chip)
+                if (i + 1 < lines.size) {
+                    val nextLine = lines[i + 1].trim()
+                    val cleanCandidate = cleanNameCandidate(nextLine)
+                    if (isValidVietnameseName(cleanCandidate)) {
+                        fullName = cleanCandidate
+                        break
+                    }
+                }
+            }
+        }
+
+        // Fallback Họ và tên: Quét các dòng chữ IN HOA không chứa số/từ cấm
+        if (fullName == null) {
+            for (line in lines) {
+                val clean = cleanNameCandidate(line)
+                if (isValidVietnameseName(clean)) {
+                    fullName = clean
+                    break
+                }
+            }
+        }
+
+        // 3. Tìm Ngày sinh
+        val dobRegex = Regex("""\b(\d{1,2}[/-]\d{1,2}[/-]\d{4})\b""")
+        for (i in lines.indices) {
+            val line = lines[i]
+            if (line.contains("sinh", true) || line.contains("birth", true)) {
+                val match = dobRegex.find(line)
+                if (match != null) {
+                    dateOfBirth = match.value.replace("-", "/")
+                    break
+                }
+                if (i + 1 < lines.size) {
+                    val nextMatch = dobRegex.find(lines[i + 1])
+                    if (nextMatch != null) {
+                        dateOfBirth = nextMatch.value.replace("-", "/")
+                        break
+                    }
+                }
+            }
+        }
+        if (dateOfBirth == null) {
+            dateOfBirth = dobRegex.find(rawText)?.value?.replace("-", "/")
+        }
+
+        // 4. Tìm Giới tính
+        for (line in lines) {
+            if (line.contains("Giới tính", true) || line.contains("Sex", true)) {
+                when {
+                    line.contains("Nam", true) || line.contains("Male", true) -> gender = "Nam"
+                    line.contains("Nữ", true) || line.contains("Female", true) -> gender = "Nữ"
+                }
+                break
+            }
+        }
+
+        // 5. Tìm Quận/Huyện và Địa chỉ nơi thường trú / nơi cư trú
+        for (i in lines.indices) {
+            val line = lines[i]
+            if (line.contains("thường trú", true) ||
+                line.contains("cư trú", true) ||
+                line.contains("residence", true) ||
+                line.contains("Quê quán", true) ||
+                line.contains("origin", true)
+            ) {
+                val candidateAddress = buildString {
+                    val colonIdx = line.indexOf(":")
+                    if (colonIdx >= 0 && colonIdx < line.length - 1) {
+                        append(line.substring(colonIdx + 1).trim()).append(" ")
+                    }
+                    var k = i + 1
+                    while (k < lines.size && k <= i + 3) {
+                        val nextL = lines[k]
+                        if (nextL.contains("giá trị", true) || nextL.contains("expiry", true)) break
+                        append(nextL).append(" ")
+                        k++
+                    }
+                }.trim()
+
+                if (candidateAddress.isNotBlank()) {
+                    address = candidateAddress
+                    break
+                }
+            }
+        }
+
+        // Trích xuất Quận/Huyện TP.HCM nếu xuất hiện trong address hoặc rawText
+        val searchText = (address ?: rawText)
+        for (d in DISTRICTS_HCMC) {
+            if (searchText.contains(d, ignoreCase = true)) {
+                district = d
+                break
+            }
+        }
+
+        return CccdScanResult(
+            cccdNumber = cccdNumber,
+            fullName = fullName,
+            dateOfBirth = dateOfBirth,
+            gender = gender,
+            address = address,
+            district = district,
+            rawText = rawText
+        )
+    }
+
+    private fun cleanNameCandidate(text: String): String {
+        return text.replace(Regex("""[^a-zA-ZÀ-ỹ\s]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+    }
+
+    private fun isValidVietnameseName(candidate: String): Boolean {
+        if (candidate.length < 5 || candidate.length > 40) return false
+        val words = candidate.split(" ").filter { it.isNotBlank() }
+        if (words.size < 2 || words.size > 7) return false
+
+        val unaccented = removeAccents(candidate).uppercase()
+        for (kw in IGNORED_NAME_KEYWORDS) {
+            if (unaccented.contains(kw)) return false
+        }
+
+        // Tên CCCD phải là chữ in hoa toàn bộ hoặc in hoa từng từ
+        val isAllUpper = candidate.all { !it.isLetter() || it.isUpperCase() }
+        val isTitleCase = words.all { it.first().isUpperCase() }
+        return isAllUpper || isTitleCase
+    }
+
+    /**
+     * Bỏ dấu tiếng Việt (chuẩn hóa ASCII) phục vụ in hoa không dấu cho Tên tài khoản ngân hàng
+     */
+    fun removeAccents(str: String): String {
+        val nfd = Normalizer.normalize(str, Normalizer.Form.NFD)
+        val pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
+        return pattern.matcher(nfd)
+            .replaceAll("")
+            .replace("Đ", "D")
+            .replace("đ", "d")
+            .trim()
+    }
+
+    /**
+     * Chuẩn hóa Họ tên theo dạng Title Case (Nguyễn Văn A)
+     */
+    fun toTitleCase(str: String): String {
+        return str.lowercase().split(" ").joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }.trim()
+    }
+
+    /**
+     * Đọc Bitmap xoay đúng chiều EXIF từ Uri
+     */
+    private fun decodeRotatedBitmap(context: Context, uri: Uri, maxDimension: Int): Bitmap? {
+        val contentResolver = context.contentResolver
+        val rawBytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        if (rawBytes.isEmpty()) return null
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, bounds)
+        val origW = bounds.outWidth
+        val origH = bounds.outHeight
+        if (origW <= 0 || origH <= 0) return null
+
+        var sampleSize = 1
+        var halfW = origW
+        var halfH = origH
+        while (halfW > maxDimension * 2 || halfH > maxDimension * 2) {
+            sampleSize *= 2
+            halfW /= 2
+            halfH /= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, decodeOptions) ?: return null
+
+        var orientation = ExifInterface.ORIENTATION_NORMAL
+        try {
+            ByteArrayInputStream(rawBytes).use { exifInput ->
+                val exif = ExifInterface(exifInput)
+                orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+            }
+        } catch (_: Exception) {}
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
+        }
+
+        val currentW = bitmap.width
+        val currentH = bitmap.height
+        val maxCurr = maxOf(currentW, currentH).toFloat()
+        val scale = if (maxCurr > maxDimension) maxDimension.toFloat() / maxCurr else 1f
+        if (scale < 1f) {
+            matrix.postScale(scale, scale)
+        }
+
+        return Bitmap.createBitmap(bitmap, 0, 0, currentW, currentH, matrix, true)
+    }
+}
+````
+
+## File: core/src/main/res/xml/file_paths.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="camera_cache" path="." />
+    <external-cache-path name="external_camera_cache" path="." />
+    <files-path name="camera_files" path="." />
+</paths>
+````
+
 ## File: .github/github-app.yml
 ````yaml
 automation:
@@ -3557,6 +3957,229 @@ class AdminLoginActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AddEditCategoryDialogFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.category
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.os.Bundle
+import android.util.Base64
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.widget.doAfterTextChanged
+import androidx.fragment.app.DialogFragment
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.DialogAddEditCategoryBinding
+import com.chuyen_de_2.foodorder.core.data.model.Category
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
+import java.io.ByteArrayOutputStream
+
+class AddEditCategoryDialogFragment(
+    private val categoryToEdit: Category? = null,
+    private val defaultOrder: Int = 1,
+    private val onSave: (Category) -> Unit
+) : DialogFragment() {
+
+    private var _binding: DialogAddEditCategoryBinding? = null
+    private val binding get() = _binding!!
+
+    private var uploadedBase64Icon: String = ""
+
+    private val pickIconLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            val base64 = convertUriToBase64Icon(uri)
+            if (base64 != null) {
+                uploadedBase64Icon = base64
+                                updateIconPreview(base64)
+                binding.tvUploadStatus.text = "✓ Đã tải ảnh Icon từ thiết bị"
+                binding.btnClearIcon.visibility = View.VISIBLE
+            } else {
+                Toast.makeText(requireContext(), "Không thể đọc tệp ảnh, vui lòng thử ảnh khác.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = DialogAddEditCategoryBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        populateExistingData()
+        setupListeners()
+    }
+
+    private fun convertUriToBase64Icon(uri: Uri): String? {
+        return try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+            if (originalBitmap == null) return null
+
+            val maxDim = 256
+            val width = originalBitmap.width
+            val height = originalBitmap.height
+            val scale = (maxDim.toFloat() / maxOf(width, height)).coerceAtMost(1.0f)
+            val scaledWidth = (width * scale).toInt().coerceAtLeast(1)
+            val scaledHeight = (height * scale).toInt().coerceAtLeast(1)
+
+            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, scaledWidth, scaledHeight, true)
+            val outputStream = ByteArrayOutputStream()
+            // Nén PNG để giữ nguyên nền trong suốt (transparent background) cho icon danh mục
+            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 90, outputStream)
+            val byteArray = outputStream.toByteArray()
+            "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun populateExistingData() {
+        if (categoryToEdit != null) {
+            binding.tvDialogTitle.text = "Chỉnh Sửa Danh Mục"
+            binding.etCatName.setText(categoryToEdit.categoryName)
+            binding.etCatId.setText(categoryToEdit.categoryId)
+            binding.etCatDescription.setText(categoryToEdit.description)
+            binding.etCatOrder.setText(categoryToEdit.displayOrder.toString())
+            binding.cbIsActive.isChecked = categoryToEdit.isActive
+
+            val existingIcon = categoryToEdit.iconUrl.trim()
+            if (existingIcon.isNotBlank()) {
+                uploadedBase64Icon = existingIcon
+                binding.tvUploadStatus.text = "✓ Đang dùng ảnh hiện tại"
+                binding.btnClearIcon.visibility = View.VISIBLE
+                updateIconPreview(existingIcon)
+            } else {
+                uploadedBase64Icon = ""
+                binding.tvUploadStatus.text = "Chưa có ảnh (Nhấn để chọn PNG/JPG)"
+                binding.btnClearIcon.visibility = View.GONE
+                updateIconPreview("")
+            }
+        } else {
+            binding.tvDialogTitle.text = "Thêm Danh Mục Mới"
+            binding.etCatOrder.setText(defaultOrder.toString())
+            uploadedBase64Icon = ""
+            updateIconPreview("")
+        }
+    }
+
+    private fun updateIconPreview(iconSource: String) {
+        val trimmed = iconSource.trim()
+        if (trimmed.isBlank()) {
+            binding.ivSelectedIcon.setPadding(24, 24, 24, 24)
+            binding.ivSelectedIcon.setImageResource(R.drawable.ic_image)
+            return
+        }
+
+        binding.ivSelectedIcon.setPadding(12, 12, 12, 12)
+        val cachedBmp = com.chuyen_de_2.foodorder.core.util.CategoryIconCache.getOrDecode(trimmed)
+        if (cachedBmp != null) {
+            Glide.with(this).clear(binding.ivSelectedIcon)
+            binding.ivSelectedIcon.setImageBitmap(cachedBmp)
+            return
+        }
+
+        if (trimmed.startsWith("data:image", ignoreCase = true) || trimmed.length > 100) {
+            try {
+                val clean = if (trimmed.contains(",")) trimmed.substringAfter(",") else trimmed
+                val decoded = Base64.decode(clean, Base64.DEFAULT)
+                Glide.with(this)
+                    .asBitmap()
+                    .load(decoded)
+                    .dontAnimate()
+                    .error(R.drawable.ic_image)
+                    .into(binding.ivSelectedIcon)
+                return
+            } catch (_: Exception) {}
+        }
+
+        if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
+            Glide.with(this)
+                .load(trimmed)
+                .dontAnimate()
+                .error(R.drawable.ic_image)
+                .into(binding.ivSelectedIcon)
+        } else {
+            binding.ivSelectedIcon.setImageResource(R.drawable.ic_image)
+        }
+    }
+
+    private fun setupListeners() {
+        binding.btnUploadIcon.setOnClickListener {
+            pickIconLauncher.launch("image/*")
+        }
+
+        binding.cardIconPreview.setOnClickListener {
+            pickIconLauncher.launch("image/*")
+        }
+
+        binding.btnClearIcon.setOnClickListener {
+            uploadedBase64Icon = ""
+            binding.tvUploadStatus.text = "Đã xóa ảnh Icon"
+            binding.btnClearIcon.visibility = View.GONE
+            updateIconPreview("")
+        }
+
+
+
+        binding.btnCancelCat.setOnClickListener {
+            dismiss()
+        }
+
+        binding.btnSaveCat.setOnClickListener {
+            val name = binding.etCatName.text?.toString().orEmpty().trim()
+            if (name.isBlank()) {
+                Toast.makeText(requireContext(), "Vui lòng nhập tên danh mục!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val order = binding.etCatOrder.text?.toString()?.toIntOrNull() ?: 1
+            val isActive = binding.cbIsActive.isChecked
+            val finalIconUrl = uploadedBase64Icon
+            val desc = binding.etCatDescription.text?.toString().orEmpty().trim()
+            val customId = binding.etCatId.text?.toString().orEmpty().trim()
+
+            val finalId = if (customId.isNotBlank()) customId
+            else if (categoryToEdit != null && categoryToEdit.categoryId.isNotBlank()) categoryToEdit.categoryId
+            else "cat_" + System.currentTimeMillis()
+
+            val finalCat = Category(
+                categoryId = finalId,
+                categoryName = name,
+                iconUrl = finalIconUrl,
+                displayOrder = order,
+                isActive = isActive,
+                description = desc
+            )
+
+            onSave(finalCat)
+            dismiss()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    companion object {
+        const val TAG = "AddEditCategoryDialogFragment"
     }
 }
 ````
@@ -10411,6 +11034,277 @@ class FoodOrderAdminApp : Application() {
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
+````
+
+## File: app-admin/src/main/res/layout/dialog_add_edit_category.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_dialog_rounded"
+        android:orientation="vertical"
+        android:paddingHorizontal="22dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:id="@+id/tvDialogTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Thêm / Sửa Danh Mục"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="14dp"
+            android:text="Tải ảnh Icon danh mục từ thiết bị và tùy chỉnh thuộc tính hiển thị"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <!-- Ảnh Icon Danh Mục (Preview + Nút tải lên từ máy) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ảnh Icon Danh Mục:"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardIconPreview"
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                app:cardBackgroundColor="@color/surface_elevated"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1.5dp">
+
+                <ImageView
+                    android:id="@+id/ivSelectedIcon"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="Icon ảnh danh mục"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_image" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnUploadIcon"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:backgroundTint="@color/brand_blue_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="Tải ảnh Icon từ máy"
+                    android:textAllCaps="false"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="10dp"
+                    app:elevation="0dp"
+                    app:icon="@drawable/ic_upload"
+                    app:iconGravity="textStart"
+                    app:iconSize="16dp"
+                    app:iconTint="@color/brand_blue"
+                    app:strokeColor="@color/brand_blue"
+                    app:strokeWidth="1dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvUploadStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Chưa có ảnh (Nhấn để chọn PNG/JPG)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/btnClearIcon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="2dp"
+                        android:text="Xóa ảnh"
+                        android:textColor="@color/danger"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+
+
+        <!-- Name input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilCatName"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:hint="Tên danh mục (ví dụ: Cơm, Bún - Phở, Pizza...)"
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCatName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Category ID input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilCatId"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:hint="Mã định danh ID (ví dụ: cat_com, cat_pho...)"
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCatId"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textNoSuggestions"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Description input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilCatDescription"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:hint="Mô tả danh mục (ví dụ: Cơm trưa, cơm tấm...)"
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:hintTextColor="@color/primary">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCatDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapSentences"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13.5sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Order input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilCatOrder"
+            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:hint="Thứ tự hiển thị (1, 2, 3...)"
+            android:textColorHint="@color/text_secondary"
+            app:boxBackgroundColor="@color/white"
+            app:boxStrokeColor="@color/primary"
+            app:helperText="Nếu thứ tự bị trùng, hệ thống tự động chen vào và đẩy các mục sau xuống"
+            app:helperTextEnabled="true"
+            app:helperTextTextColor="@color/text_muted"
+            app:hintTextColor="@color/primary">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCatOrder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="1"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Active Checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbIsActive"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="Kích hoạt hiển thị cho toàn bộ khách hàng ngay"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp" />
+
+        <!-- Action buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCancelCat"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Hủy"
+                android:textColor="@color/text_secondary" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSaveCat"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="@color/primary"
+                android:text="LƯU DANH MỤC"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                app:cornerRadius="10dp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
 ````
 
 ## File: app-admin/src/main/res/layout/dialog_apply_store_penalty.xml
@@ -49870,6 +50764,7 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.play.services.auth)
     implementation(libs.zxing.core)
+    api(libs.mlkit.text.recognition)
 }
 ````
 
@@ -49914,6 +50809,7 @@ googleCrashlytics = "3.0.2"
 swiperefreshlayout = "1.1.0"
 zxingCore = "3.5.3"
 zxingEmbedded = "4.3.0"
+mlkitTextRecognition = "16.0.1"
 
 [libraries]
 # AndroidX Core
@@ -49970,6 +50866,7 @@ play-services-auth = { group = "com.google.android.gms", name = "play-services-a
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -69036,6 +69933,8178 @@ graphify-out/
 .antigravity/
 ````
 
+## File: admin.html
+````html
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oishi Food - Quản Trị Hệ Thống Nền Tảng (Admin Portal)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #EE4D2D;
+      --primary-hover: #D73211;
+      --primary-light: #FFF0ED;
+      --primary-border: #FDCFC7;
+      --sidebar-bg: #0F172A;
+      --sidebar-hover: #1E293B;
+      --sidebar-active: #EE4D2D;
+      --body-bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --border-light: #F1F5F9;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --text-light: #94A3B8;
+      --success: #10B981;
+      --success-bg: #ECFDF5;
+      --warning: #F59E0B;
+      --warning-bg: #FFFBEB;
+      --danger: #EF4444;
+      --danger-bg: #FEF2F2;
+      --info: #3B82F6;
+      --info-bg: #EFF6FF;
+      --purple: #8B5CF6;
+      --purple-bg: #F5F3FF;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: var(--body-bg);
+      color: var(--text-main);
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #F1F5F9; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+    /* ====== SIDEBAR ====== */
+    .sidebar {
+      width: 260px;
+      background: var(--sidebar-bg);
+      color: #FFF;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 40;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar-brand {
+      padding: 22px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand-logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #EE4D2D 0%, #FF7A59 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      color: #FFF;
+      box-shadow: 0 4px 12px rgba(238, 77, 45, 0.4);
+    }
+
+    .brand-text h1 {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      color: #FFF;
+      line-height: 1.2;
+    }
+
+    .brand-text span {
+      font-size: 11px;
+      color: #94A3B8;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 16px 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .nav-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #64748B;
+      padding: 12px 12px 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      color: #94A3B8;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .nav-item:hover {
+      background: var(--sidebar-hover);
+      color: #FFF;
+    }
+
+    .nav-item.active {
+      background: var(--sidebar-active);
+      color: #FFF;
+      box-shadow: 0 4px 14px rgba(238, 77, 45, 0.35);
+    }
+
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.15);
+      color: #FFF;
+    }
+
+    .nav-badge.danger {
+      background: var(--danger);
+    }
+
+    .nav-badge.warning {
+      background: var(--warning);
+      color: #1E293B;
+    }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .portal-quicklinks {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .portal-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #94A3B8;
+      text-decoration: none;
+      padding: 6px 8px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .portal-link:hover {
+      background: var(--sidebar-hover);
+      color: #FFF;
+    }
+
+    /* ====== MAIN WRAPPER ====== */
+    .main-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ====== TOPBAR ====== */
+    .topbar {
+      height: 70px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .page-title {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .page-title .badge-role {
+      font-size: 11px;
+      background: #EFF6FF;
+      color: #2563EB;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 6px;
+      border: 1px solid #BFDBFE;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .global-search {
+      position: relative;
+      width: 280px;
+    }
+
+    .global-search input {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px 0 38px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #F8FAFC;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .global-search input:focus {
+      border-color: var(--primary);
+      background: #FFF;
+      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.12);
+    }
+
+    .global-search svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-light);
+      pointer-events: none;
+    }
+
+    .admin-profile-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 10px 6px 14px;
+      border-radius: 30px;
+      border: 1px solid var(--border);
+      background: #F8FAFC;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .admin-profile-box:hover {
+      background: #FFF;
+      border-color: var(--primary-border);
+      box-shadow: var(--shadow);
+    }
+
+    .admin-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+      color: #FFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      position: relative;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    }
+
+    .status-dot-online {
+      width: 9px;
+      height: 9px;
+      background: var(--success);
+      border: 2px solid #FFF;
+      border-radius: 50%;
+      position: absolute;
+      bottom: -1px;
+      right: -1px;
+    }
+
+    .admin-info {
+      text-align: left;
+    }
+
+    .admin-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .admin-role {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .admin-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 230px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      padding: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 50;
+    }
+
+    .admin-dropdown.show {
+      display: flex;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .dropdown-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+      transition: all 0.2s;
+    }
+
+    .dropdown-btn:hover {
+      background: #F1F5F9;
+      color: var(--primary);
+    }
+
+    .dropdown-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    /* ====== MAIN CONTENT AREA ====== */
+    .main-content {
+      padding: 26px;
+      flex: 1;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* ====== KPI STATS CARDS ====== */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .stat-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .stat-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.5px;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-light);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-sub.positive { color: var(--success); font-weight: 700; }
+    .stat-sub.danger { color: var(--danger); font-weight: 700; }
+    .stat-sub.warning { color: var(--warning); font-weight: 700; }
+
+    .stat-icon-wrap {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .icon-orange { background: #FFF0ED; color: var(--primary); }
+    .icon-blue { background: #EFF6FF; color: #2563EB; }
+    .icon-green { background: #ECFDF5; color: var(--success); }
+    .icon-purple { background: #FAF5FF; color: #9333EA; }
+    .icon-red { background: #FEF2F2; color: var(--danger); }
+    .icon-yellow { background: #FFFBEB; color: #D97706; }
+
+    /* ====== CARD CONTAINER ====== */
+    .panel-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .panel-header {
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: #FFF;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .panel-title-group h2 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .panel-title-group p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .filter-bar {
+      padding: 14px 24px;
+      background: #F8FAFC;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      position: relative;
+      min-width: 240px;
+    }
+
+    .search-box input {
+      width: 100%;
+      height: 38px;
+      padding: 0 12px 0 36px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: #FFF;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.12);
+    }
+
+    .search-box svg {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-light);
+    }
+
+    .select-filter {
+      height: 38px;
+      padding: 0 30px 0 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: #FFF url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;
+      background-size: 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+    }
+
+    .select-filter:focus {
+      border-color: var(--primary);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #FFF;
+      box-shadow: 0 2px 6px rgba(238, 77, 45, 0.25);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 10px rgba(238, 77, 45, 0.35);
+    }
+
+    .btn-outline {
+      background: #FFF;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+
+    .btn-outline:hover {
+      background: #F1F5F9;
+      border-color: #CBD5E1;
+    }
+
+    .btn-danger-outline {
+      background: #FFF;
+      color: var(--danger);
+      border: 1px solid #FECACA;
+    }
+
+    .btn-danger-outline:hover {
+      background: var(--danger-bg);
+      border-color: var(--danger);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+      border-radius: 6px;
+    }
+
+    /* ====== TABLES ====== */
+    .table-responsive {
+      overflow-x: auto;
+      width: 100%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      padding: 12px 16px;
+      background: #F8FAFC;
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+      color: var(--text-main);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr {
+      transition: background-color 0.15s;
+    }
+
+    tbody tr:hover {
+      background-color: #F8FAFC;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-active {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid #A7F3D0;
+    }
+
+    .badge-locked {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #FECACA;
+    }
+
+    .badge-warning {
+      background: var(--warning-bg);
+      color: #B45309;
+      border: 1px solid #FDE68A;
+    }
+
+    .badge-info {
+      background: var(--info-bg);
+      color: #1D4ED8;
+      border: 1px solid #BFDBFE;
+    }
+
+    .badge-purple {
+      background: var(--purple-bg);
+      color: #6D28D9;
+      border: 1px solid #DDD6FE;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .badge-active .badge-dot { background: var(--success); }
+    .badge-locked .badge-dot { background: var(--danger); }
+    .badge-warning .badge-dot { background: var(--warning); }
+    .badge-info .badge-dot { background: var(--info); }
+    .badge-purple .badge-dot { background: var(--purple); }
+
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-action-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #FFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-action-icon:hover {
+      background: #F1F5F9;
+      color: var(--text-main);
+      border-color: #CBD5E1;
+    }
+
+    .btn-action-icon.lock-btn:hover {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border-color: #FECACA;
+    }
+
+    .btn-action-icon.key-btn:hover {
+      background: var(--warning-bg);
+      color: #D97706;
+      border-color: #FDE68A;
+    }
+
+    /* Category Cards Grid */
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      padding: 20px 24px;
+    }
+
+    .category-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: #FFF;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .category-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .cat-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cat-icon-box {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .cat-info h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .cat-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .cat-stats {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .cat-stats strong {
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .cat-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-state svg {
+      color: var(--text-light);
+      margin-bottom: 12px;
+    }
+
+    .empty-state h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    /* ====== MODALS ====== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .modal-dialog {
+      background: var(--surface);
+      width: 100%;
+      max-width: 540px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-dialog-lg {
+      max-width: 720px;
+    }
+
+    @keyframes zoomIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #FFF;
+    }
+
+    .modal-header h3 {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-close-modal {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: #F1F5F9;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      background: #E2E8F0;
+      color: var(--text-main);
+    }
+
+    .modal-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 75vh;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      background: #F8FAFC;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Form controls */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .form-label span.req { color: var(--danger); }
+
+    .form-control {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: #FFF;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.12);
+    }
+
+    textarea.form-control {
+      height: 80px;
+      padding: 10px 12px;
+      resize: vertical;
+    }
+
+    .input-with-action {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-with-action .form-control {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .warning-callout {
+      background: #FEF2F2;
+      border-left: 4px solid var(--danger);
+      padding: 12px 14px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #991B1B;
+      line-height: 1.5;
+    }
+
+    
+    
+    /* ====== CCCD eKYC CARDS STYLING ====== */
+    .cccd-gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .cccd-card-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .cccd-card-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cccd-card-label span.badge-ekyc {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      background: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+    }
+
+    /* Thẻ Căn Cước Công Dân Mặt Trước */
+    .cccd-front-mockup {
+      width: 100%;
+      height: 200px;
+      background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 35%, #E0F7FA 70%, #CFFAFE 100%);
+      border-radius: 12px;
+      border: 1.5px solid #7DD3FC;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+      position: relative;
+      overflow: hidden;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    .cccd-front-mockup::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(#38BDF8 0.75px, transparent 0.75px), radial-gradient(#0EA5E9 0.75px, #E0F2FE 0.75px);
+      background-size: 30px 30px;
+      background-position: 0 0, 15px 15px;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    .cccd-top-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px dashed rgba(14, 165, 233, 0.4);
+      padding-bottom: 4px;
+    }
+
+    .cccd-emblem-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cccd-emblem {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #EF4444 0%, #DC2626 100%);
+      border: 1px solid #F59E0B;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      box-shadow: 0 1px 3px rgba(220, 38, 38, 0.4);
+    }
+
+    .cccd-header-text {
+      text-align: center;
+      flex: 1;
+    }
+
+    .cccd-header-text .nat-name {
+      font-size: 9px;
+      font-weight: 800;
+      color: #0369A1;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .cccd-header-text .motto {
+      font-size: 7.5px;
+      color: #0284C7;
+      font-weight: 600;
+    }
+
+    .cccd-title-row {
+      text-align: center;
+      margin: 2px 0 4px 0;
+    }
+
+    .cccd-main-title {
+      font-size: 12px;
+      font-weight: 900;
+      color: #0C4A6E;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .cccd-sub-title {
+      font-size: 7.5px;
+      color: #0369A1;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .cccd-body-row {
+      display: flex;
+      gap: 10px;
+      flex: 1;
+      position: relative;
+    }
+
+    .cccd-avatar-box {
+      width: 58px;
+      height: 76px;
+      border-radius: 4px;
+      background: #E2E8F0;
+      border: 1px solid #94A3B8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+
+    .cccd-chip-box {
+      width: 28px;
+      height: 22px;
+      background: linear-gradient(135deg, #FDE047 0%, #EAB308 50%, #CA8A04 100%);
+      border: 1px solid #A16207;
+      border-radius: 4px;
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .cccd-details-col {
+      flex: 1;
+      font-size: 8.5px;
+      color: #0F172A;
+      line-height: 1.35;
+      padding-right: 32px;
+    }
+
+    .cccd-id-num {
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      color: #B91C1C;
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+    }
+
+    .cccd-info-line strong {
+      color: #0369A1;
+    }
+
+    /* Thẻ Căn Cước Công Dân Mặt Sau */
+    .cccd-back-mockup {
+      width: 100%;
+      height: 200px;
+      background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 40%, #E0F2FE 100%);
+      border-radius: 12px;
+      border: 1.5px solid #86EFAC;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.15);
+      position: relative;
+      overflow: hidden;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    .cccd-back-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .cccd-back-desc {
+      font-size: 8px;
+      color: #1E293B;
+      line-height: 1.3;
+      flex: 1;
+    }
+
+    .cccd-back-stamp {
+      width: 44px;
+      height: 44px;
+      border: 1.5px dashed #EF4444;
+      border-radius: 50%;
+      color: #DC2626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: 800;
+      text-align: center;
+      transform: rotate(-12deg);
+      opacity: 0.85;
+      padding: 2px;
+      flex-shrink: 0;
+    }
+
+    .cccd-mrz-code {
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      font-weight: 700;
+      color: #1E293B;
+      letter-spacing: 1px;
+      line-height: 1.25;
+      margin-top: 4px;
+    }
+
+    /* Ảnh Chân Dung Selfie eKYC Lúc Đăng Ký */
+    .cccd-selfie-mockup {
+      width: 100%;
+      height: 200px;
+      background: #0F172A;
+      border-radius: 12px;
+      border: 1.5px solid #334155;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .selfie-face-box {
+      width: 90px;
+      height: 110px;
+      border: 2px dashed #10B981;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: rgba(16, 185, 129, 0.05);
+    }
+
+    .selfie-avatar-circle {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+      color: #FFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .selfie-scan-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #10B981;
+      box-shadow: 0 0 8px #10B981;
+      animation: scanAnim 2s infinite alternate ease-in-out;
+    }
+
+    @keyframes scanAnim {
+      0% { top: 10%; }
+      100% { top: 90%; }
+    }
+
+    .selfie-timestamp-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(2px);
+      padding: 4px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9.5px;
+      color: #94A3B8;
+      font-family: monospace;
+    }
+
+    /* Action Choice Cards in Modal */
+    .action-choice-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .action-choice-card {
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #FFF;
+      padding: 12px 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .action-choice-card:hover {
+      border-color: #CBD5E1;
+      background: #F8FAFC;
+    }
+
+    .action-choice-card.active-warn {
+      border-color: var(--warning);
+      background: #FFFBEB;
+    }
+
+    .action-choice-card.active-hide {
+      border-color: #6366F1;
+      background: #EEF2FF;
+    }
+
+    .action-choice-card.active-lock {
+      border-color: var(--danger);
+      background: #FEF2F2;
+    }
+
+    .action-choice-card input[type="radio"] {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      accent-color: var(--primary);
+    }
+
+    .choice-icon {
+      font-size: 20px;
+    }
+
+    .choice-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .choice-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.3;
+    }
+
+    .choice-action-callout {
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+
+    /* Complaint Detail Callout */
+    .complaint-detail-box {
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .complaint-parties-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .party-card {
+      background: #FFF;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .party-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .party-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .party-sub {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-family: monospace;
+    }
+
+    /* ====== TOAST NOTIFICATION ====== */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      min-width: 300px;
+      max-width: 400px;
+      background: #FFF;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      border-left: 4px solid var(--primary);
+      animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.3s;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast.success { border-left-color: var(--success); }
+    .toast.danger { border-left-color: var(--danger); }
+    .toast.warning { border-left-color: var(--warning); }
+
+    .toast-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .toast-content h4 { font-size: 13px; font-weight: 700; color: var(--text-main); }
+    .toast-content p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .sidebar { width: 80px; }
+      .brand-text, .nav-label, .sidebar-nav span, .sidebar-footer { display: none; }
+      .sidebar-brand { justify-content: center; padding: 18px 0; }
+      .nav-item { justify-content: center; padding: 12px; }
+      .nav-badge { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: static; }
+      .sidebar-nav { flex-direction: row; overflow-x: auto; padding: 8px; }
+      .topbar { padding: 0 16px; }
+      .main-content { padding: 16px; }
+      .global-search { display: none; }
+      .complaint-parties-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ====== STORE CCCD & PORTRAIT THUMBNAILS IN TABLE ====== */
+    .thumb-cell {
+      position: relative;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      padding: 3px;
+      border-radius: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      text-decoration: none;
+    }
+    .thumb-cell:hover {
+      border-color: #3B82F6;
+      background: #EFF6FF;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.18);
+    }
+    .store-img-thumb {
+      width: 58px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid #CBD5E1;
+      background: #E2E8F0;
+      display: block;
+    }
+    .portrait-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1.5px solid #3B82F6;
+    }
+    .thumb-tag {
+      font-size: 9px;
+      font-weight: 700;
+      color: #64748B;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .thumb-cell:hover .thumb-tag {
+      color: #1D4ED8;
+    }
+    .cccd-cell-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #1D4ED8;
+      background: #EFF6FF;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #BFDBFE;
+      display: inline-block;
+      letter-spacing: 0.5px;
+    }
+    /* 4 Distinct Store Status Badges */
+    .badge-status-pending {
+      background: #FEF3C7 !important;
+      color: #B45309 !important;
+      border: 1px solid #FDE68A !important;
+      font-weight: 700 !important;
+    }
+    .badge-status-pending .badge-dot {
+      background: #F59E0B !important;
+    }
+    .badge-status-open {
+      background: #DCFCE7 !important;
+      color: #15803D !important;
+      border: 1px solid #BBF7D0 !important;
+      font-weight: 700 !important;
+    }
+    .badge-status-open .badge-dot {
+      background: #22C55E !important;
+    }
+    .badge-status-locked {
+      background: #FEE2E2 !important;
+      color: #B91C1C !important;
+      border: 1px solid #FECACA !important;
+      font-weight: 700 !important;
+    }
+    .badge-status-locked .badge-dot {
+      background: #EF4444 !important;
+    }
+    .badge-status-closed {
+      background: #F1F5F9 !important;
+      color: #475569 !important;
+      border: 1px solid #CBD5E1 !important;
+      font-weight: 700 !important;
+    }
+    .badge-status-closed .badge-dot {
+      background: #94A3B8 !important;
+    }
+
+
+    /* ====== STORE DETAIL MODAL (ORDERS & DRIVERS) ====== */
+    .store-name-link {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .store-name-link strong {
+      color: #1E40AF;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: color 0.2s;
+    }
+    .store-name-link:hover strong {
+      color: #2563EB;
+    }
+    .store-badge-view {
+      font-size: 10.5px;
+      font-weight: 700;
+      background: #EFF6FF;
+      color: #1D4ED8;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid #BFDBFE;
+      white-space: nowrap;
+    }
+    .store-name-link:hover .store-badge-view {
+      background: #DBEAFE;
+      border-color: #93C5FD;
+    }
+
+    .store-subnav {
+      display: flex;
+      gap: 10px;
+      border-bottom: 2px solid #E2E8F0;
+      margin-bottom: 16px;
+      padding-bottom: 2px;
+    }
+    .store-subnav-btn {
+      background: transparent;
+      border: none;
+      padding: 9px 18px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #64748B;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -4px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 6px 6px 0 0;
+    }
+    .store-subnav-btn:hover {
+      color: #1E40AF;
+      background: #F8FAFC;
+    }
+    .store-subnav-btn.active {
+      color: #2563EB;
+      border-bottom-color: #2563EB;
+      background: #EFF6FF;
+    }
+
+    .driver-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 14px;
+    }
+    .driver-card {
+      background: #FFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+    .driver-card:hover {
+      border-color: #93C5FD;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.1);
+      transform: translateY(-2px);
+    }
+    .driver-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .driver-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #BFDBFE;
+      background: #F1F5F9;
+    }
+    .driver-meta {
+      flex: 1;
+    }
+    .driver-meta h4 {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .driver-meta .driver-code {
+      font-size: 11px;
+      background: #F1F5F9;
+      color: #475569;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+    .driver-meta .driver-phone {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: monospace;
+      margin-top: 2px;
+    }
+    .driver-details-list {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: #F8FAFC;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #F1F5F9;
+    }
+    .driver-details-list div {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .driver-details-list strong {
+      color: var(--text-main);
+    }
+
+    .fb-live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      background: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+      cursor: pointer;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+    .fb-live-pill.connecting {
+      background: #FEF3C7;
+      color: #92400E;
+      border-color: #FDE68A;
+    }
+    .fb-live-pill.offline {
+      background: #FEF2F2;
+      color: #991B1B;
+      border-color: #FECACA;
+    }
+    .fb-live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+      animation: pulseDot 1.8s infinite;
+    }
+    .fb-live-pill.connecting .fb-live-dot {
+      background: #F59E0B;
+    }
+    .fb-live-pill.offline .fb-live-dot {
+      background: #EF4444;
+      animation: none;
+    }
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.25); opacity: 0.65; }
+    }
+
+    /* ====== MINIMALIST CLEAN DESIGN SYSTEM (REFINED UI) ====== */
+    :root {
+      --primary: #18181B;
+      --primary-hover: #27272A;
+      --accent: #EA580C;
+      --sidebar-bg: #FFFFFF;
+      --sidebar-hover: #F4F4F5;
+      --sidebar-active: #18181B;
+      --body-bg: #FAFAFA;
+      --surface: #FFFFFF;
+      --border: #E4E4E7;
+      --border-light: #F4F4F5;
+      --text-main: #09090B;
+      --text-muted: #71717A;
+      --text-light: #A1A1AA;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+      --shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.08);
+    }
+
+    body {
+      background-color: var(--body-bg);
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Clean Light Sidebar */
+    .sidebar {
+      width: 248px;
+      background: #FFFFFF;
+      color: var(--text-main);
+      border-right: 1px solid var(--border);
+    }
+
+    .sidebar-brand {
+      padding: 20px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .brand-logo-icon {
+      width: 32px;
+      height: 32px;
+      background: #09090B;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #FFFFFF;
+      box-shadow: none;
+    }
+
+    .brand-text h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #09090B;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text span {
+      font-size: 10.5px;
+      color: #71717A;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    .nav-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #A1A1AA;
+      letter-spacing: 0.05em;
+      padding: 14px 12px 4px;
+    }
+
+    .nav-item {
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #52525B;
+      font-size: 13px;
+      font-weight: 500;
+      gap: 10px;
+    }
+
+    .nav-item:hover {
+      background: #F4F4F5;
+      color: #09090B;
+    }
+
+    .nav-item.active {
+      background: #09090B;
+      color: #FFFFFF;
+      font-weight: 600;
+      box-shadow: none;
+    }
+
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      opacity: 0.75;
+    }
+
+    .nav-item.active .nav-icon {
+      opacity: 1;
+    }
+
+    .nav-badge {
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #F4F4F5;
+      color: #52525B;
+    }
+
+    .nav-item.active .nav-badge {
+      background: rgba(255, 255, 255, 0.18);
+      color: #FFFFFF;
+    }
+
+    .nav-badge.danger {
+      background: #FEF2F2;
+      color: #DC2626;
+    }
+
+    .sidebar-footer {
+      background: #FAFAFA;
+      border-top: 1px solid var(--border-light);
+      padding: 14px 16px;
+    }
+
+    .portal-link {
+      color: #52525B;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .portal-link:hover {
+      background: #F4F4F5;
+      color: #09090B;
+    }
+
+    /* Clean Topbar */
+    .topbar {
+      height: 60px;
+      padding: 0 28px;
+      box-shadow: none;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(8px);
+    }
+
+    .page-title {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .page-title .badge-role {
+      font-size: 10.5px;
+      background: #F4F4F5;
+      color: #52525B;
+      border: 1px solid #E4E4E7;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .global-search input {
+      height: 34px;
+      border-radius: 8px;
+      background: #FAFAFA;
+      font-size: 12.5px;
+    }
+
+    .global-search input:focus {
+      border-color: #A1A1AA;
+      box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.05);
+    }
+
+    .admin-profile-box {
+      padding: 4px 10px 4px 6px;
+      border-radius: 8px;
+      background: #FFFFFF;
+    }
+
+    .admin-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: #18181B;
+      font-size: 12px;
+      box-shadow: none;
+    }
+
+    /* Minimalist KPI Cards - Hide Decorative Icon Boxes */
+    .stat-icon-wrap, .choice-icon {
+      display: none !important;
+    }
+
+    .stat-card {
+      padding: 18px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .stat-card:hover {
+      transform: none;
+      border-color: #A1A1AA;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      color: #71717A;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin: 4px 0 2px;
+      color: #09090B !important;
+    }
+
+    .stat-sub {
+      font-size: 11.5px;
+      font-weight: 500 !important;
+      color: #71717A !important;
+    }
+
+    /* Panels & Tables */
+    .panel-card {
+      border-radius: 10px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .panel-header {
+      padding: 16px 22px;
+    }
+
+    .panel-title-group h2 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .filter-bar {
+      padding: 12px 22px;
+      background: #FAFAFA;
+    }
+
+    th {
+      background: #FAFAFA;
+      color: #71717A;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      padding: 10px 16px;
+    }
+
+    td {
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+
+    /* Buttons */
+    .btn {
+      font-weight: 500;
+      font-size: 12.5px;
+      border-radius: 6px;
+      padding: 7px 14px;
+    }
+
+    .btn-primary {
+      background: #09090B;
+      color: #FFFFFF;
+      box-shadow: none;
+    }
+
+    .btn-primary:hover {
+      background: #27272A;
+      box-shadow: none;
+    }
+
+    /* Action Buttons in Tables */
+    .btn-action-icon {
+      width: auto;
+      height: 28px;
+      padding: 0 10px;
+      font-size: 11.5px;
+      font-weight: 500;
+      border-radius: 6px;
+      color: #3F3F46;
+      background: #FFFFFF;
+      border: 1px solid #E4E4E7;
+      white-space: nowrap;
+    }
+
+    .btn-action-icon:hover {
+      background: #F4F4F5;
+      color: #09090B;
+      border-color: #D4D4D8;
+    }
+
+    /* Category Icon Box Minimalist */
+    .cat-icon-box {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: #F4F4F5;
+      border: 1px solid #E4E4E7;
+      font-size: 12px;
+      font-weight: 700;
+      color: #18181B;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Badges */
+    .badge {
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+
+    /* ====== DISH REVIEWS MODERATION STYLES ====== */
+    .star-rating {
+      color: #F59E0B;
+      letter-spacing: 2px;
+      font-size: 13.5px;
+    }
+    .review-bubble {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--text-main);
+      margin-top: 4px;
+    }
+    .review-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid #CBD5E1;
+      cursor: pointer;
+      margin-top: 6px;
+      display: inline-block;
+      transition: transform 0.2s;
+    }
+    .review-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    .review-admin-reply-box {
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: #ECFDF5;
+      border-left: 3px solid #10B981;
+      border-radius: 4px;
+      font-size: 11.5px;
+      color: #065F46;
+    }
+    .badge-status-hidden {
+      background: #FEF2F2;
+      color: #B91C1C;
+      border: 1px solid #FECACA;
+    }
+  </style>
+  <!-- Firebase Realtime Database & Auth Web SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</head>
+<body>
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img class="brand-logo-icon" src="logo-app-admin.png" alt="Oishi Admin" style="object-fit: cover;">
+      <div class="brand-text">
+        <h1>Oishi Food</h1>
+        <span>Admin Portal</span>
+      </div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-label">Quản Trị Hệ Thống</div>
+      
+      <a class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        </div>
+        <span>Tổng Quan</span>
+      </a>
+
+      <a class="nav-item" data-tab="categories" onclick="switchTab('categories')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <span>Quản Lý Danh Mục</span>
+        <span class="nav-badge" id="badge-cat-count">0</span>
+      </a>
+
+      <a class="nav-item" data-tab="customers" onclick="switchTab('customers')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <span>Quản Lý Khách Hàng</span>
+        <span class="nav-badge" id="badge-customer-count">0</span>
+      </a>
+
+      <a class="nav-item" data-tab="stores" onclick="switchTab('stores')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        </div>
+        <span>Quản Lý Cửa Hàng</span>
+        <span class="nav-badge danger" id="badge-locked-store" style="display:none;" title="Số cửa hàng bị khóa">0</span>
+      </a>
+
+      <a class="nav-item" data-tab="orders" onclick="switchTab('orders')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16h6"/><path d="M19 13v6"/><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>
+        </div>
+        <span>Đơn Hàng & Tài Xế</span>
+        <span class="nav-badge" id="badge-orders-count" style="background:#EFF6FF; color:#1D4ED8;">0</span>
+      </a>
+
+      <div class="nav-label">Hỗ Trợ & Khiếu Nại</div>
+
+      <!-- NEW: MỤC XỬ LÝ KHIẾU NẠI & BÁO CÁO -->
+      <a class="nav-item" data-tab="complaints" onclick="switchTab('complaints')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
+        </div>
+        <span>Xử Lý Khiếu Nại</span>
+        <span class="nav-badge danger" id="badge-complaints-count" style="display:none;">0 Mới</span>
+      </a>
+
+      <!-- NEW: MỤC KIỂM DUYỆT ĐÁNH GIÁ MÓN ĂN -->
+      <a class="nav-item" data-tab="reviews" onclick="switchTab('reviews')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <span>Kiểm Duyệt Đánh Giá</span>
+        <span class="nav-badge" id="badge-reviews-count" style="display:none; background: #FEF3C7; color: #B45309;">0</span>
+      </a>
+
+      <div class="nav-label">Cài Đặt & Tài Khoản</div>
+
+      <a class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+        <div class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <span>Cài Đặt Admin</span>
+      </a>
+    </div>
+
+
+  </aside>
+
+  <!-- ==================== MAIN WRAPPER ==================== -->
+  <div class="main-wrapper">
+    
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="page-title">
+          <span id="topbar-title">Bảng Điều Khiển Tổng Quan</span>
+          <span class="badge-role">Super Admin Mode</span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <!-- Firebase Realtime Connection Pill -->
+        <div id="fb-conn-badge" class="fb-live-pill connecting" onclick="syncFromFirebaseNow()" title="Bấm để đồng bộ tức thì với Firebase Realtime Database (chuyen-de-2-2f0bc)">
+          <span class="fb-live-dot"></span>
+          <span id="fb-conn-text">Đang kết nối Firebase...</span>
+        </div>
+
+        <!-- Global Search -->
+        <div class="global-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="global-search-input" placeholder="Tìm kiếm nhanh toàn hệ thống (Nhấn Enter)..." onkeydown="if(event.key==='Enter') handleGlobalSearch(this.value)">
+        </div>
+
+        <!-- Admin Profile Box with dropdown -->
+        <div class="admin-profile-box" onclick="toggleAdminDropdown(event)">
+          <div class="admin-avatar">
+            <span id="admin-avatar-char">A</span>
+            <span class="status-dot-online" title="Trực tuyến"></span>
+          </div>
+          <div class="admin-info">
+            <div class="admin-name" id="display-admin-name">Admin Hệ Thống</div>
+            <div class="admin-role">Quản Trị Viên Cấp Cao</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+
+          <!-- Dropdown -->
+          <div class="admin-dropdown" id="admin-dropdown">
+            <button class="dropdown-btn" onclick="openAdminProfileModal()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Hồ sơ Admin</span>
+            </button>
+            <button class="dropdown-btn" onclick="openAdminPasswordModal()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Đổi mật khẩu</span>
+            </button>
+            <button class="dropdown-btn" onclick="syncFromFirebaseNow()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              <span>Đồng bộ Firebase ngay</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-btn" style="color: var(--danger);" onclick="adminLogout()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT BODY -->
+    <main class="main-content">
+
+      <!-- ==================== TAB 1: OVERVIEW ==================== -->
+      <section id="tab-overview" class="tab-pane active">
+        <!-- Stats KPI Grid -->
+        <div class="stats-grid">
+          <div class="stat-card" onclick="switchTab('categories')">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Danh Mục</span>
+              <span class="stat-value" id="kpi-total-cats">0</span>
+              <span class="stat-sub positive">Đồng bộ từ Firebase</span>
+            </div>
+            <div class="stat-icon-wrap icon-purple"></div>
+          </div>
+
+          <div class="stat-card" onclick="switchTab('customers')">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Khách Hàng</span>
+              <span class="stat-value" id="kpi-total-customers">0</span>
+              <span class="stat-sub" id="kpi-active-customers">0 đang hoạt động</span>
+            </div>
+            <div class="stat-icon-wrap icon-blue"></div>
+          </div>
+
+          <div class="stat-card" onclick="switchTab('stores')">
+            <div class="stat-meta">
+              <span class="stat-label">Đối Tác Cửa Hàng</span>
+              <span class="stat-value" id="kpi-total-stores">0</span>
+              <span class="stat-sub" id="kpi-locked-stores">0 hoạt động • 0 chờ duyệt</span>
+            </div>
+            <div class="stat-icon-wrap icon-orange"></div>
+          </div>
+
+          <!-- KPI KHIẾU NẠI MỚI -->
+          <div class="stat-card" onclick="switchTab('complaints')">
+            <div class="stat-meta">
+              <span class="stat-label">Khiếu Nại Chờ Duyệt</span>
+              <span class="stat-value" id="kpi-pending-complaints" style="color: var(--danger);">0</span>
+              <span class="stat-sub warning" id="kpi-complaint-sub">0 đơn đang xử lý</span>
+            </div>
+            <div class="stat-icon-wrap icon-red"></div>
+          </div>
+
+          <div class="stat-card" onclick="switchTab('orders')">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Đơn Đặt Hàng</span>
+              <span class="stat-value" id="kpi-total-orders">0</span>
+              <span class="stat-sub positive" id="kpi-orders-sub">0 hoàn tất • 0 đang xử lý</span>
+            </div>
+            <div class="stat-icon-wrap icon-green"></div>
+          </div>
+        </div>
+
+        <!-- Quick Summary Tables -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+          <!-- Quick Stores Status -->
+          <div class="panel-card">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2>Cửa Hàng Cần Chú Ý</h2>
+                <p>Danh sách các quán bị khóa hoặc có cảnh báo</p>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="switchTab('stores')">Xem tất cả</button>
+            </div>
+            <div class="table-responsive">
+              <table id="table-overview-stores">
+                <thead>
+                  <tr>
+                    <th>Tên Quán</th>
+                    <th>Chủ Quán / SĐT</th>
+                    <th>Trạng Thái</th>
+                    <th>Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-overview-stores">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Quick System Logs -->
+          <div class="panel-card">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2>Nhật Ký Thao Tác Quản Trị</h2>
+                <p>Lịch sử hoạt động của Admin trên nền tảng</p>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="clearLogs()">Xóa log</button>
+            </div>
+            <div style="padding: 16px 24px; max-height: 290px; overflow-y: auto;" id="logs-container">
+              <!-- Rendered logs -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 2: CATEGORIES ==================== -->
+      <section id="tab-categories" class="tab-pane">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Quản Lý Danh Mục Nền Tảng</h2>
+              <p>Thêm mới, chỉnh sửa icon, tên danh mục món ăn hiển thị trên App Khách Hàng</p>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 8px;">
+              <button class="btn btn-outline" onclick="restoreDefaultCategories()" title="Khôi phục 11 danh mục ẩm thực chuẩn của hệ thống">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                <span>Khôi Phục Danh Mục Chuẩn</span>
+              </button>
+              <button class="btn btn-primary" onclick="openAddCategoryModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                <span>Thêm Danh Mục Mới</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter Bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-cat-search" placeholder="Tìm tên danh mục, mô tả..." oninput="filterCategories()">
+              </div>
+              <select class="select-filter" id="filter-cat-status" onchange="filterCategories()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ACTIVE">Đang hiển thị</option>
+                <option value="HIDDEN">Tạm ẩn</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Hiển thị <span id="cat-counter" style="color: var(--primary); font-weight: 800;">0</span> danh mục
+            </div>
+          </div>
+
+          <!-- Grid Cards -->
+          <div class="category-grid" id="category-grid-container">
+            <!-- Categories dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 3: CUSTOMERS ==================== -->
+      <section id="tab-customers" class="tab-pane">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Quản Lý Khách Hàng Nền Tảng</h2>
+              <p>Quản lý tài khoản người dùng, đổi/cấp lại mật khẩu, khóa hoặc mở khóa tài khoản vi phạm</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline" onclick="exportCustomerCSV()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                <span>Xuất Danh Sách</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-customer-search" placeholder="Tìm theo Gmail, tên, SĐT, mã UID, địa chỉ..." oninput="filterCustomers()">
+              </div>
+              <select class="select-filter" id="filter-customer-role" onchange="filterCustomers()">
+                <option value="CUSTOMER">Vai trò: Khách hàng</option>
+                <option value="ALL">Tất cả tài khoản (Khách + Quán + Tài xế)</option>
+                <option value="MERCHANT">Chủ quán (Merchant)</option>
+                <option value="DRIVER">Tài xế (Driver)</option>
+              </select>
+              <select class="select-filter" id="filter-customer-status" onchange="filterCustomers()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ACTIVE">Đang hoạt động</option>
+                <option value="LOCKED">Đã bị khóa</option>
+              </select>
+              <select class="select-filter" id="filter-customer-sort" onchange="filterCustomers()">
+                <option value="NEWEST">Hoạt động gần nhất</option>
+                <option value="ORDERS_HIGH">Đơn hàng nhiều nhất</option>
+                <option value="TRUST_HIGH">Điểm uy tín cao nhất</option>
+                <option value="TRUST_LOW">Điểm uy tín thấp nhất</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Tìm thấy <span id="customer-counter" style="color: var(--primary); font-weight: 800;">0</span> tài khoản
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tài Khoản / Mã Định Danh UID</th>
+                  <th>Gmail Đăng Nhập</th>
+                  <th>Số Điện Thoại</th>
+                  <th>Hoạt Động</th>
+                  <th>Khu Vực / Địa Chỉ Giao</th>
+                  <th>Điểm Uy Tín</th>
+                  <th>Trạng Thái</th>
+                  <th style="text-align: right;">Thao Tác Quản Trị</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-customers">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 4: STORES ==================== -->
+      <section id="tab-stores" class="tab-pane">
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Quản Lý Đối Tác Cửa Hàng (Quán Ăn)</h2>
+              <p>Kiểm duyệt đối tác, cho phép <strong>khóa cửa hàng</strong> vi phạm, cấp lại mật khẩu đăng nhập quán</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-primary" onclick="openAddStoreModal()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                <span>Thêm Cửa Hàng Đối Tác</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-store-search" placeholder="Tìm tên quán, chủ quán, SĐT, số CCCD..." oninput="filterStores()">
+              </div>
+              <select class="select-filter" id="filter-store-status" onchange="filterStores()">
+                <option value="ALL">Tất cả trạng thái (4 loại)</option>
+                <option value="PENDING">Chờ duyệt</option>
+                <option value="OPEN">Đang hoạt động</option>
+                <option value="LOCKED">Bị khóa</option>
+                <option value="CLOSED">Tạm nghỉ</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Tìm thấy <span id="store-counter" style="color: var(--primary); font-weight: 800;">0</span> cửa hàng
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 170px;">CỬA HÀNG / QUÁN ĂN</th>
+                  <th style="min-width: 130px;">CHỦ QUÁN</th>
+                  <th style="min-width: 125px;">SỐ CCCD</th>
+                  <th style="min-width: 95px; text-align: center;">ẢNH TRƯỚC CCCD</th>
+                  <th style="min-width: 95px; text-align: center;">ẢNH SAU CCCD</th>
+                  <th style="min-width: 95px; text-align: center;">ẢNH CHÂN DUNG</th>
+                  <th style="min-width: 110px;">SỐ ĐIỆN THOẠI</th>
+                  <th style="min-width: 75px;">ĐÁNH GIÁ</th>
+                  <th style="min-width: 85px;">SỐ MÓN</th>
+                  <th style="min-width: 135px;">TRẠNG THÁI</th>
+                  <th style="min-width: 165px; text-align: right;">KHÓA / MẬT KHẨU / SỬA</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-stores">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 4B: ORDERS & DRIVERS REALTIME ==================== -->
+      <section id="tab-orders" class="tab-pane">
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 20px;">
+          <div class="stat-card" onclick="setGlobalOrderFilter('ALL')">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Đơn Hàng</span>
+              <span class="stat-value" id="kpi-ord-total">0</span>
+              <span class="stat-sub positive">Đồng bộ từ Firebase</span>
+            </div>
+            <div class="stat-icon-wrap icon-blue"></div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('PROCESSING')">
+            <div class="stat-meta">
+              <span class="stat-label">Chờ & Đang Chế Biến</span>
+              <span class="stat-value" id="kpi-ord-processing" style="color: var(--warning);">0</span>
+              <span class="stat-sub warning">PENDING / PREPARING / READY</span>
+            </div>
+            <div class="stat-icon-wrap icon-yellow"></div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('DELIVERING')">
+            <div class="stat-meta">
+              <span class="stat-label">Đang Giao Hàng</span>
+              <span class="stat-value" id="kpi-ord-delivering" style="color: #2563EB;">0</span>
+              <span class="stat-sub">Tài xế đang vận chuyển</span>
+            </div>
+            <div class="stat-icon-wrap icon-purple"></div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('COMPLETED')">
+            <div class="stat-meta">
+              <span class="stat-label">Hoàn Tất Giao</span>
+              <span class="stat-value" id="kpi-ord-completed" style="color: var(--success);">0</span>
+              <span class="stat-sub positive" id="kpi-ord-revenue">Doanh thu: 0đ</span>
+            </div>
+            <div class="stat-icon-wrap icon-green"></div>
+          </div>
+          <div class="stat-card" onclick="setGlobalOrderFilter('FAILED')">
+            <div class="stat-meta">
+              <span class="stat-label">Bùng Đơn / Đã Hủy</span>
+              <span class="stat-value" id="kpi-ord-failed" style="color: var(--danger);">0</span>
+              <span class="stat-sub danger">BOOM / CANCELLED</span>
+            </div>
+            <div class="stat-icon-wrap icon-red"></div>
+          </div>
+        </div>
+
+        <!-- Global Orders Card -->
+        <div class="panel-card" style="margin-bottom: 24px;">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Điều Phối Đơn Hàng Toàn Hệ Thống (Realtime Firebase)</h2>
+              <p>Theo dõi trực tiếp luồng đơn từ App Khách Hàng → Quán Ăn → Tài Xế, cho phép Admin gán shipper hoặc đổi trạng thái đơn tức thì</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline" onclick="syncFromFirebaseNow()">
+                Làm mới dữ liệu
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-global-order-search" placeholder="Tìm mã đơn, tên khách, SĐT, tên quán, món ăn..." oninput="renderGlobalOrders()">
+              </div>
+              <select class="select-filter" id="filter-global-order-store" onchange="renderGlobalOrders()">
+                <option value="ALL">Tất cả cửa hàng</option>
+              </select>
+              <select class="select-filter" id="filter-global-order-status" onchange="renderGlobalOrders()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="PROCESSING">Chờ xác nhận / Đang nấu / Chờ lấy</option>
+                <option value="PENDING">PENDING (Chờ quán nhận)</option>
+                <option value="PREPARING">PREPARING (Đang chế biến)</option>
+                <option value="READY">READY (Chờ tài xế lấy)</option>
+                <option value="ASSIGNED">ASSIGNED (Tài xế đã nhận)</option>
+                <option value="DELIVERING">DELIVERING (Đang giao)</option>
+                <option value="COMPLETED">COMPLETED (Hoàn thành)</option>
+                <option value="BOOM">BOOM (Khách bùng hàng)</option>
+                <option value="CANCELLED">❌ CANCELLED (Đã hủy)</option>
+                <option value="FAILED">Gộp Bùng đơn & Đã hủy</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Hiển thị <span id="global-order-counter" style="color: var(--primary); font-weight: 800;">0</span> đơn hàng
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 120px;">Mã Đơn & Thời Gian</th>
+                  <th style="min-width: 150px;">Cửa Hàng</th>
+                  <th style="min-width: 150px;">Khách Hàng</th>
+                  <th style="min-width: 220px;">Chi Tiết Món & Tổng Tiền</th>
+                  <th style="min-width: 170px;">Tài Xế Giao Hàng</th>
+                  <th style="min-width: 165px;">Trạng Thái Đơn (Live)</th>
+                  <th style="text-align: right; min-width: 100px;">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-global-orders">
+                <!-- Populated dynamically from Firebase orders -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Global Drivers Fleet Card -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Đội Ngũ Tài Xế / Shipper Trên Hệ Thống (<span id="global-driver-counter">0</span>)</h2>
+              <p>Đồng bộ từ node <code>drivers</code> và <code>users</code> trên Firebase Realtime Database</p>
+            </div>
+          </div>
+          <div style="padding: 20px;">
+            <div class="driver-grid" id="global-drivers-grid">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 5: COMPLAINTS & REPORTS (NEW FEATURE) ==================== -->
+      <section id="tab-complaints" class="tab-pane">
+        <!-- Sub KPI for Complaints -->
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+          <div class="stat-card" onclick="filterComplaintsByStatus('PENDING')">
+            <div class="stat-meta">
+              <span class="stat-label">Chờ Xử Lý</span>
+              <span class="stat-value" id="kpi-c-pending" style="color: var(--danger);">0</span>
+              <span class="stat-sub danger">Cần Admin can thiệp ngay</span>
+            </div>
+            <div class="stat-icon-wrap icon-red"></div>
+          </div>
+          <div class="stat-card" onclick="filterComplaintsByStatus('IN_PROGRESS')">
+            <div class="stat-meta">
+              <span class="stat-label">Đang Điều Tra</span>
+              <span class="stat-value" id="kpi-c-progress" style="color: var(--warning);">0</span>
+              <span class="stat-sub warning">Đang đối soát 2 bên</span>
+            </div>
+            <div class="stat-icon-wrap icon-yellow"></div>
+          </div>
+          <div class="stat-card" onclick="filterComplaintsByStatus('RESOLVED')">
+            <div class="stat-meta">
+              <span class="stat-label">Đã Giải Quyết</span>
+              <span class="stat-value" id="kpi-c-resolved" style="color: var(--success);">0</span>
+              <span class="stat-sub positive">Đã xử lý xong</span>
+            </div>
+            <div class="stat-icon-wrap icon-green"></div>
+          </div>
+          <div class="stat-card" onclick="filterComplaintsByStatus('REJECTED')">
+            <div class="stat-meta">
+              <span class="stat-label">Đã Từ Chối</span>
+              <span class="stat-value" id="kpi-c-rejected" style="color: var(--text-muted);">0</span>
+              <span class="stat-sub">Không đủ bằng chứng</span>
+            </div>
+            <div class="stat-icon-wrap icon-blue">❌</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Trung Tâm Tiếp Nhận & Xử Lý Khiếu Nại Nền Tảng</h2>
+              <p>Giải quyết tranh chấp giữa <strong>Quán ăn</strong> và <strong>Khách hàng / Tài xế</strong>, hỗ trợ cảnh báo, tạm ẩn hoặc khóa tài khoản vi phạm</p>
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-outline" onclick="openNewComplaintModal()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                <span>Tạo Khiếu Nại Mới (Hotline)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-complaint-search" placeholder="Tìm mã KN, mã đơn, tên khách, tên quán..." oninput="filterComplaints()">
+              </div>
+              <select class="select-filter" id="filter-complaint-sender" onchange="filterComplaints()">
+                <option value="ALL">Tất cả nguồn gửi</option>
+                <option value="CUSTOMER">Từ Khách Hàng</option>
+                <option value="STORE">Từ Quán Ăn</option>
+              </select>
+              <select class="select-filter" id="filter-complaint-type" onchange="filterComplaints()">
+                <option value="ALL">Tất cả chủ đề</option>
+                <option value="Chất lượng món & ATTP">Chất lượng món & ATTP</option>
+                <option value="Giao thiếu món">Giao thiếu món</option>
+                <option value="Boom hàng / Bùng đơn">Boom hàng / Bùng đơn</option>
+                <option value="Thái độ phục vụ / Shipper">Thái độ / Shipper</option>
+                <option value="Thanh toán & Chiết khấu">Thanh toán & Chiết khấu</option>
+              </select>
+              <select class="select-filter" id="filter-complaint-status" onchange="filterComplaints()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="PENDING">Chờ xử lý</option>
+                <option value="IN_PROGRESS">Đang xử lý</option>
+                <option value="RESOLVED">Đã giải quyết</option>
+                <option value="REJECTED">Đã từ chối</option>
+              </select>
+              <select class="select-filter" id="filter-complaint-priority" onchange="filterComplaints()">
+                <option value="ALL">Mức độ ưu tiên</option>
+                <option value="CRITICAL">Khẩn cấp</option>
+                <option value="HIGH">Cao</option>
+                <option value="MEDIUM">Bình thường</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Tìm thấy <span id="complaint-counter" style="color: var(--primary); font-weight: 800;">0</span> khiếu nại
+            </div>
+          </div>
+
+          <!-- Complaints Table -->
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã KN & Thời Gian</th>
+                  <th>Người Gửi (Nguồn)</th>
+                  <th>Đối Tượng Bị Khiếu Nại</th>
+                  <th>Đơn Hàng & Chủ Đề</th>
+                  <th>Nội Dung Sự Việc</th>
+                  <th>Mức Độ</th>
+                  <th>Trạng Thái</th>
+                  <th style="text-align: right;">Xử Lý</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-complaints">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 6: DISH REVIEWS MODERATION ==================== -->
+      <section id="tab-reviews" class="tab-pane">
+        <!-- Review KPI Stats -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Điểm TB Đánh Giá</span>
+              <span class="stat-value" id="kpi-rev-avg" style="color: #D97706;">5.0 ⭐</span>
+              <span class="stat-sub positive" id="kpi-rev-avg-sub">Toàn hệ sinh thái Oishi Food</span>
+            </div>
+            <div class="stat-icon-wrap icon-orange">⭐</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Tổng Đánh Giá Món</span>
+              <span class="stat-value" id="kpi-rev-total">0</span>
+              <span class="stat-sub positive">Từ khách hàng hoàn tất đơn</span>
+            </div>
+            <div class="stat-icon-wrap icon-blue">💬</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Đánh Giá Kém (1-2 ⭐)</span>
+              <span class="stat-value" id="kpi-rev-low" style="color: var(--danger);">0</span>
+              <span class="stat-sub danger" id="kpi-rev-low-sub">Cần rà soát chất lượng</span>
+            </div>
+            <div class="stat-icon-wrap icon-red">⚠️</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-meta">
+              <span class="stat-label">Đã Ẩn Kiểm Duyệt</span>
+              <span class="stat-value" id="kpi-rev-hidden" style="color: var(--text-muted);">0</span>
+              <span class="stat-sub">Vi phạm tiêu chuẩn cộng đồng</span>
+            </div>
+            <div class="stat-icon-wrap icon-purple">🚫</div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Trung Tâm Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)</h2>
+              <p>Giám sát chất lượng ẩm thực từ khách hàng, chủ động ẩn các bình luận phản cảm/ác ý hoặc giải đáp khiếu nại</p>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" onclick="seedSampleReviews()" title="Khởi tạo 3 đánh giá mẫu demo nếu Firebase chưa có dữ liệu">
+                <span>🧪 Tạo Đánh Giá Demo</span>
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="openAddReviewModal()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                <span>+ Thêm Đánh Giá Mới</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter Bar -->
+          <div class="filter-bar">
+            <div class="filter-group">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="filter-review-search" placeholder="Tìm tên món, tên quán, khách hàng, nội dung..." oninput="filterReviews()">
+              </div>
+              <select class="select-filter" id="filter-review-rating" onchange="filterReviews()">
+                <option value="ALL">Tất cả số sao</option>
+                <option value="5">⭐⭐⭐⭐⭐ 5 Sao</option>
+                <option value="4">⭐⭐⭐⭐ 4 Sao</option>
+                <option value="3">⭐⭐⭐ 3 Sao</option>
+                <option value="2">⭐⭐ 2 Sao (Kém)</option>
+                <option value="1">⭐ 1 Sao (Rất tệ)</option>
+              </select>
+              <select class="select-filter" id="filter-review-status" onchange="filterReviews()">
+                <option value="ALL">Tất cả trạng thái</option>
+                <option value="ACTIVE">🟢 Đang hiển thị</option>
+                <option value="HIDDEN">🚫 Đã ẩn kiểm duyệt</option>
+              </select>
+              <select class="select-filter" id="filter-review-store" onchange="filterReviews()">
+                <option value="ALL">Tất cả cửa hàng</option>
+              </select>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              Hiển thị <span id="review-counter" style="color: var(--primary); font-weight: 800;">0</span> đánh giá
+            </div>
+          </div>
+
+          <!-- Reviews Table -->
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 110px;">Mã ĐG & Giờ</th>
+                  <th style="min-width: 150px;">Khách Hàng</th>
+                  <th style="min-width: 170px;">Món Ăn & Cửa Hàng</th>
+                  <th style="min-width: 110px;">Số Sao</th>
+                  <th style="min-width: 250px;">Nội Dung Nhận Xét</th>
+                  <th style="min-width: 120px;">Trạng Thái</th>
+                  <th style="text-align: right; min-width: 170px;">Thao Tác Admin</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-reviews">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== TAB 6: ADMIN SETTINGS ==================== -->
+      <section id="tab-settings" class="tab-pane">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px;">
+          <!-- Admin Profile Settings -->
+          <div class="panel-card">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2>Hồ Sơ Quản Trị Viên</h2>
+                <p>Cập nhật họ tên hiển thị của Admin trên thanh Header</p>
+              </div>
+            </div>
+            <form style="padding: 24px;" onsubmit="saveAdminSettings(event)">
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Tên hiển thị Admin <span class="req">*</span></label>
+                <input type="text" class="form-control" id="setting-admin-name" required value="Admin Hệ Thống">
+              </div>
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Email Admin</label>
+                <input type="email" class="form-control" id="setting-admin-email" value="admin@oishifood.vn">
+              </div>
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Chức vụ / Vai trò</label>
+                <input type="text" class="form-control" value="Super Administrator (Toàn quyền hệ thống)" disabled style="background: #F1F5F9;">
+              </div>
+              <div class="form-group" style="margin-bottom: 20px;">
+                <label class="form-label">Số điện thoại liên hệ</label>
+                <input type="text" class="form-control" id="setting-admin-phone" value="">
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <span>Lưu Thay Đổi Hồ Sơ</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Change Admin Password -->
+          <div class="panel-card">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <h2>Đổi Mật Khẩu Admin</h2>
+                <p>Bảo mật tài khoản quản trị viên tối cao</p>
+              </div>
+            </div>
+            <form style="padding: 24px;" onsubmit="changeAdminPassword(event)">
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Mật khẩu hiện tại <span class="req">*</span></label>
+                <input type="password" class="form-control" id="admin-curr-pass" placeholder="••••••••" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Mật khẩu mới <span class="req">*</span></label>
+                <input type="password" class="form-control" id="admin-new-pass" placeholder="Tối thiểu 6 ký tự" required minlength="6">
+              </div>
+              <div class="form-group" style="margin-bottom: 20px;">
+                <label class="form-label">Xác nhận mật khẩu mới <span class="req">*</span></label>
+                <input type="password" class="form-control" id="admin-confirm-pass" placeholder="Nhập lại mật khẩu mới" required minlength="6">
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Cập Nhật Mật Khẩu</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. MODAL ADD / EDIT CATEGORY -->
+  <div class="modal-overlay" id="modal-category">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-cat-title">Thêm Danh Mục Mới</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-category')">&times;</button>
+      </div>
+      <form onsubmit="saveCategory(event)">
+        <input type="hidden" id="form-cat-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Tên Danh Mục <span class="req">*</span></label>
+            <input type="text" class="form-control" id="form-cat-name" placeholder="VD: Bún/Phở, Trà Sữa, Gà Rán..." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Biểu tượng / Emoji <span class="req">*</span></label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="text" class="form-control" id="form-cat-icon" placeholder="VD: 🍚 hoặc link ảnh" style="font-size: 20px; width: 140px; text-align: center;" required oninput="updateCatIconPreview(this.value)">
+              <div id="cat-icon-preview" style="width: 44px; height: 44px; border-radius: 10px; background: var(--bg-hover); display: flex; align-items: center; justify-content: center; font-size: 24px; border: 1px solid var(--border);">🍽️</div>
+            </div>
+            <div style="margin-top: 8px;">
+              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Bấm chọn nhanh biểu tượng:</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;" id="quick-emoji-list">
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍚')" style="font-size: 16px; padding: 4px 8px;">🍚</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🧋')" style="font-size: 16px; padding: 4px 8px;">🧋</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍜')" style="font-size: 16px; padding: 4px 8px;">🍜</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍗')" style="font-size: 16px; padding: 4px 8px;">🍗</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥖')" style="font-size: 16px; padding: 4px 8px;">🥖</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍕')" style="font-size: 16px; padding: 4px 8px;">🍕</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('☕')" style="font-size: 16px; padding: 4px 8px;">☕</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍰')" style="font-size: 16px; padding: 4px 8px;">🍰</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍲')" style="font-size: 16px; padding: 4px 8px;">🍲</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥗')" style="font-size: 16px; padding: 4px 8px;">🥗</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍽️')" style="font-size: 16px; padding: 4px 8px;">🍽️</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍔')" style="font-size: 16px; padding: 4px 8px;">🍔</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥤')" style="font-size: 16px; padding: 4px 8px;">🥤</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍣')" style="font-size: 16px; padding: 4px 8px;">🍣</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍩')" style="font-size: 16px; padding: 4px 8px;">🍩</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Thứ tự ưu tiên hiển thị (1 - 99)</label>
+            <input type="number" class="form-control" id="form-cat-order" min="1" max="99" value="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mô tả ngắn</label>
+            <textarea class="form-control" id="form-cat-desc" placeholder="Mô tả về loại ẩm thực thuộc danh mục này..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Trạng thái hiển thị</label>
+            <select class="form-control" id="form-cat-status">
+              <option value="ACTIVE">Đang hiển thị (Bật)</option>
+              <option value="HIDDEN">Tạm ẩn (Tắt)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-category')">Hủy bỏ</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-cat">Lưu Danh Mục</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. MODAL LOCK / UNLOCK STORE -->
+  <div class="modal-overlay" id="modal-lock-store">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-lock-store-title" style="color: var(--danger);">Khóa Cửa Hàng Đối Tác</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-lock-store')">&times;</button>
+      </div>
+      <form onsubmit="confirmLockStore(event)">
+        <input type="hidden" id="lock-store-id">
+        <input type="hidden" id="lock-store-action">
+        <div class="modal-body">
+          <div class="warning-callout" id="lock-store-warning">
+            <strong>Cảnh báo quản trị:</strong> Khi cửa hàng bị khóa, toàn bộ thực đơn và các món ăn của quán sẽ tạm thời bị ẩn khỏi ứng dụng khách hàng. Quán sẽ không thể nhận thêm đơn hàng mới cho đến khi được mở khóa.
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Tên cửa hàng:</label>
+            <input type="text" class="form-control" id="lock-store-name" readonly style="background: #F8FAFC; font-weight: 700;">
+          </div>
+
+          <div class="form-group" id="group-lock-reason">
+            <label class="form-label">Lý do khóa / tạm dừng <span class="req">*</span></label>
+            <select class="form-control" id="lock-store-reason-select" onchange="handleStoreReasonChange(this.value)">
+              <option value="Vi phạm an toàn vệ sinh thực phẩm (Phản ánh từ khách)">Vi phạm an toàn vệ sinh thực phẩm</option>
+              <option value="Nghi vấn gian lận mã khuyến mãi / Đơn hàng ảo">Gian lận khuyến mãi / Đơn hàng ảo</option>
+              <option value="Hủy quá nhiều đơn hàng không lý do (> 15%)">Tỷ lệ hủy đơn quá cao (> 15%)</option>
+              <option value="Chưa đóng phí dịch vụ hoặc yêu cầu thanh tra">Chưa tất toán đối soát định kỳ</option>
+              <option value="OTHER">Lý do khác (Tự nhập)</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="group-lock-custom-reason" style="display: none;">
+            <label class="form-label">Chi tiết lý do khác <span class="req">*</span></label>
+            <textarea class="form-control" id="lock-store-reason-text" placeholder="Nhập chi tiết biên bản vi phạm..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-lock-store')">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-lock-store" style="background: var(--danger);">Xác Nhận Khóa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. MODAL LOCK / UNLOCK CUSTOMER -->
+  <div class="modal-overlay" id="modal-lock-customer">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-lock-customer-title" style="color: var(--danger);">Khóa Tài Khoản Khách Hàng</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-lock-customer')">&times;</button>
+      </div>
+      <form onsubmit="confirmLockCustomer(event)">
+        <input type="hidden" id="lock-cust-id">
+        <input type="hidden" id="lock-cust-action">
+        <div class="modal-body">
+          <div class="warning-callout" id="lock-cust-warning">
+            Khi khóa tài khoản khách hàng, người dùng sẽ bị đăng xuất ngay lập tức và không thể tạo đơn hàng mới trên Oishi Food.
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Khách hàng:</label>
+            <input type="text" class="form-control" id="lock-cust-name" readonly style="background: #F8FAFC; font-weight: 700;">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Lý do khóa tài khoản <span class="req">*</span></label>
+            <select class="form-control" id="lock-cust-reason">
+              <option value="Bùng hàng nhiều lần không nhận">Bùng hàng nhiều lần không nhận</option>
+              <option value="Spam đơn hàng giả mạo tài xế">Spam đơn hàng giả mạo tài xế</option>
+              <option value="Hành vi lăng mạ tài xế hoặc nhân viên quán">Hành vi xúc phạm tài xế / quán ăn</option>
+              <option value="Nghi vấn tài khoản bị hack / Yêu cầu bảo vệ">Bảo vệ tài khoản theo yêu cầu</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-lock-customer')">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-lock-cust" style="background: var(--danger);">Xác Nhận Khóa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3B. MODAL EDIT CUSTOMER / USER ACCOUNT -->
+  <div class="modal-overlay" id="modal-edit-customer">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Cập Nhật Hồ Sơ Tài Khoản</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-edit-customer')">&times;</button>
+      </div>
+      <form onsubmit="saveEditCustomer(event)">
+        <input type="hidden" id="edit-cust-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Mã định danh Firebase UID</label>
+            <input type="text" class="form-control" id="edit-cust-uid-display" readonly style="background: #F8FAFC; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted);">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Gmail / Email đăng nhập <span class="req">*</span></label>
+            <input type="email" class="form-control" id="edit-cust-email" placeholder="VD: tenkhach@gmail.com" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Họ và tên người dùng <span class="req">*</span></label>
+            <input type="text" class="form-control" id="edit-cust-name" placeholder="VD: Nguyễn Văn A" required>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Số điện thoại</label>
+              <input type="text" class="form-control" id="edit-cust-phone" placeholder="VD: 0901234567">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Điểm uy tín (0 - 100)</label>
+              <input type="number" class="form-control" id="edit-cust-trust" min="0" max="100" value="100">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Khu vực / Địa chỉ nhận hàng</label>
+            <input type="text" class="form-control" id="edit-cust-area" placeholder="VD: Quận 1, TP.HCM">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit-customer')">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu Hồ Sơ Lên Firebase</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. MODAL RESET PASSWORD -->
+  <div class="modal-overlay" id="modal-reset-password">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-reset-pass-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--warning);"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Cấp Lại / Đổi Mật Khẩu</span>
+        </h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-reset-password')">&times;</button>
+      </div>
+      <form onsubmit="saveNewPassword(event)">
+        <input type="hidden" id="reset-target-type">
+        <input type="hidden" id="reset-target-id">
+        <div class="modal-body">
+          <div style="font-size: 13px; color: var(--text-muted);">
+            Đặt mật khẩu mới cho: <strong id="reset-target-name" style="color: var(--text-main);"></strong>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Mật khẩu mới <span class="req">*</span></label>
+            <div class="input-with-action">
+              <input type="text" class="form-control" id="reset-new-pass-input" required minlength="6">
+              <button type="button" class="btn btn-outline" onclick="generateRandomPass()" title="Tạo ngẫu nhiên mật khẩu mạnh">
+                Tạo ngẫu nhiên
+              </button>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+              Admin có thể tự nhập mật khẩu dễ nhớ hoặc bấm "Tạo ngẫu nhiên" để sao chép gửi cho người dùng.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="send-sms-checkbox" checked>
+              <span>Gửi thông báo SMS / Email kèm mật khẩu mới tới số điện thoại</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-reset-password')">Đóng</button>
+          <button type="button" class="btn btn-outline" onclick="copyPasswordToClipboard()" style="color: #2563EB;">
+            Sao chép mật khẩu
+          </button>
+          <button type="submit" class="btn btn-primary">Lưu Mật Khẩu Mới</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. MODAL ADD STORE -->
+  <div class="modal-overlay" id="modal-add-store">
+    <div class="modal-dialog modal-dialog-lg" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3>Thêm Cửa Hàng Đối Tác Mới</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-add-store')">&times;</button>
+      </div>
+      <form onsubmit="saveNewStore(event)">
+        <div class="modal-body">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Tên Quán Ăn / Cửa Hàng <span class="req">*</span></label>
+              <input type="text" class="form-control" id="new-store-name" placeholder="VD: Bún Chả Hà Nội Phố Cổ" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Họ tên Chủ Quán <span class="req">*</span></label>
+              <input type="text" class="form-control" id="new-store-owner" placeholder="VD: Hoàng Văn Thắng" required>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Số điện thoại liên hệ <span class="req">*</span></label>
+              <input type="text" class="form-control" id="new-store-phone" placeholder="VD: 0912.888.999" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Số Căn Cước Công Dân (12 số) <span class="req">*</span></label>
+              <input type="text" class="form-control" id="new-store-cccd" placeholder="VD: 079088012456" required minlength="9" maxlength="12" value="079099008899">
+            </div>
+          </div>
+
+          <!-- 3 LINK ẢNH ĐỊNH DANH (DEMO) -->
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin: 4px 0 12px 0;">
+            <div style="font-size: 12px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">
+              Hình Ảnh Định Danh & Đăng Ký (Demo Link Ảnh)
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 11.5px;">Link Ảnh Mặt Trước CCCD</label>
+              <input type="text" class="form-control" id="new-store-cccd-front" value="https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 11.5px;">Link Ảnh Mặt Sau CCCD</label>
+              <input type="text" class="form-control" id="new-store-cccd-back" value="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 11.5px;">Link Ảnh Chụp Chân Dung Lúc Đăng Ký</label>
+              <input type="text" class="form-control" id="new-store-portrait" value="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80" required>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Danh mục món chính <span class="req">*</span></label>
+              <select class="form-control" id="new-store-category" required>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Trạng thái ban đầu <span class="req">*</span></label>
+              <select class="form-control" id="new-store-status" required style="font-weight: 700;">
+                <option value="PENDING" selected>Chờ duyệt (Khuyến nghị)</option>
+                <option value="OPEN">Đang hoạt động (Mở bán ngay)</option>
+                <option value="LOCKED">Bị khóa</option>
+                <option value="CLOSED">Tạm nghỉ</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Địa chỉ quán</label>
+            <input type="text" class="form-control" id="new-store-address" placeholder="VD: 45 Nguyễn Huệ, P. Bến Nghé, Quận 1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mật khẩu đăng nhập ban đầu <span class="req">*</span></label>
+            <input type="text" class="form-control" id="new-store-password" value="Oishi@123456" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-store')">Hủy</button>
+          <button type="submit" class="btn btn-primary">Tạo Cửa Hàng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. NEW: MODAL RESOLVE COMPLAINT (XỬ LÝ KHIẾU NẠI) -->
+  <div class="modal-overlay" id="modal-resolve-complaint">
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <h3 id="modal-complaint-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary);"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
+          <span>Chi Tiết & Quyết Định Xử Lý Khiếu Nại</span>
+        </h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-resolve-complaint')">&times;</button>
+      </div>
+      <form onsubmit="submitResolveComplaint(event)">
+        <input type="hidden" id="resolve-complaint-id">
+        <div class="modal-body">
+          
+          <!-- Box tổng quan khiếu nại -->
+          <div class="complaint-detail-box">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span class="badge badge-info" id="detail-c-code">#---</span>
+                <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;" id="detail-c-time"></span>
+              </div>
+              <div id="detail-c-priority-badge"></div>
+            </div>
+
+            <!-- Bên khiếu nại vs bên bị khiếu nại -->
+            <div class="complaint-parties-grid">
+              <div class="party-card">
+                <div class="party-title">Người gửi khiếu nại (Nguồn)</div>
+                <div class="party-name" id="detail-c-sender-name">---</div>
+                <div class="party-sub" id="detail-c-sender-contact">---</div>
+              </div>
+              <div class="party-card" style="border-color: #FECACA; background: #FFF8F8;">
+                <div class="party-title" style="color: var(--danger);">Đối tượng bị khiếu nại</div>
+                <div class="party-name" id="detail-c-target-name">---</div>
+                <div class="party-sub" id="detail-c-target-contact">---</div>
+              </div>
+            </div>
+
+            <!-- Đơn hàng & sự cố -->
+            <div style="font-size: 13px; line-height: 1.5; padding-top: 6px; border-top: 1px dashed var(--border);">
+              <div style="margin-bottom: 4px;">
+                Đơn hàng: <strong id="detail-c-order" style="color: #2563EB;">---</strong> • Chủ đề: <strong id="detail-c-type">---</strong>
+              </div>
+              <div style="background: #FFF; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px;">
+                <strong>Nội dung phản ánh:</strong>
+                <p id="detail-c-content" style="color: var(--text-main); margin-top: 4px;"></p>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- PHẦN XỬ LÝ CỦA ADMIN (3 HÌNH THỨC: 1 CẢNH BÁO, 2 ẨN, 3 KHÓA TK) -->
+          <div style="background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: var(--radius-sm); padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="font-size: 14px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; justify-content: space-between;">
+              <span>Phán Quyết & Biện Pháp Xử Lý Của Admin</span>
+              <span style="font-size: 11px; color: #3B82F6; font-weight: 600;">Chọn 1 trong 3 mức xử lý</span>
+            </div>
+
+            <!-- 3 HÌNH THỨC XỬ LÝ: CẢNH BÁO - ẨN - KHÓA TK -->
+            <div class="form-group">
+              <label class="form-label" style="font-size: 13px; font-weight: 800; color: #1E3A8A;">
+                Biện pháp xử lý đối tượng vi phạm: <span class="req">*</span>
+              </label>
+              <div class="action-choice-grid">
+                <!-- 1. CẢNH BÁO -->
+                <div class="action-choice-card active-warn" id="card-action-warn" onclick="selectPenaltyAction('WARN')">
+                  <input type="radio" name="penalty_action" id="penalty-warn" value="WARN" checked>
+                  <div class="choice-icon"></div>
+                  <div class="choice-title" style="color: #D97706;">1. Cảnh Báo</div>
+                  <div class="choice-desc">Gửi cảnh cáo nhắc nhở vi phạm, tài khoản vẫn mở</div>
+                </div>
+
+                <!-- 2. ẨN -->
+                <div class="action-choice-card" id="card-action-hide" onclick="selectPenaltyAction('HIDE')">
+                  <input type="radio" name="penalty_action" id="penalty-hide" value="HIDE">
+                  <div class="choice-icon"></div>
+                  <div class="choice-title" style="color: #4F46E5;">2. Ẩn Tạm Thời</div>
+                  <div class="choice-desc">Tạm ẩn quán khỏi app / Tạm ngưng quyền đặt hàng</div>
+                </div>
+
+                <!-- 3. KHÓA TK -->
+                <div class="action-choice-card" id="card-action-lock" onclick="selectPenaltyAction('LOCK')">
+                  <input type="radio" name="penalty_action" id="penalty-lock" value="LOCK">
+                  <div class="choice-icon"></div>
+                  <div class="choice-title" style="color: var(--danger);">3. Khóa Tài Khoản</div>
+                  <div class="choice-desc">Khóa vĩnh viễn, cấm hoạt động trên Oishi Food</div>
+                </div>
+              </div>
+
+              <!-- Callout chi tiết chế tài -->
+              <div class="choice-action-callout" id="penalty-info-callout" style="background: #FEF3C7; border: 1px solid #FCD34D; color: #92400E;">
+                <strong>Mức 1 - Cảnh báo:</strong> Gửi biên bản cảnh cáo chính thức tới bên vi phạm. Tài khoản được ghi nhận 1 lần vi phạm nhưng vẫn được phép mở cửa / đặt hàng.
+              </div>
+            </div>
+
+
+
+            <!-- Ghi chú giải quyết -->
+            <div class="form-group">
+              <label class="form-label">Phản hồi chính thức của Admin gửi 2 bên <span class="req">*</span></label>
+              <textarea class="form-control" id="resolve-admin-note" placeholder="Nhập lý do phân xử, căn cứ biên bản hoặc hướng dẫn khắc phục..." required style="height: 70px;"></textarea>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-resolve-complaint')">Đóng</button>
+          <button type="button" class="btn btn-danger-outline" onclick="quickRejectComplaint()">Bác Bỏ Khiếu Nại</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-resolve">Lưu Phán Quyết & Đóng Khiếu Nại</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. NEW: MODAL TẠO KHIẾU NẠI MỚI (HOTLINE/CSKH) -->
+  <div class="modal-overlay" id="modal-new-complaint">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Tiếp Nhận Khiếu Nại Mới (CSKH Hotline)</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-new-complaint')">&times;</button>
+      </div>
+      <form onsubmit="saveNewComplaint(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nguồn gửi khiếu nại <span class="req">*</span></label>
+            <select class="form-control" id="new-c-sender-type" required>
+              <option value="CUSTOMER">Khách hàng khiếu nại quán / tài xế</option>
+              <option value="STORE">Quán ăn khiếu nại khách hàng / shipper</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Họ tên & SĐT người khiếu nại <span class="req">*</span></label>
+            <input type="text" class="form-control" id="new-c-sender" placeholder="VD: Trần Minh Anh (0901.234.567)" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Đối tượng bị phản ánh / khiếu nại <span class="req">*</span></label>
+            <input type="text" class="form-control" id="new-c-target" placeholder="VD: Quán Ốc Đêm 77 Cầu Muối" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mã đơn hàng liên quan (nếu có)</label>
+            <input type="text" class="form-control" id="new-c-order" placeholder="VD: #ORD-9912">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Loại sự cố / Chủ đề <span class="req">*</span></label>
+            <select class="form-control" id="new-c-type" required>
+              <option value="Chất lượng món & ATTP">Chất lượng món & ATTP</option>
+              <option value="Giao thiếu món">Giao thiếu món</option>
+              <option value="Boom hàng / Bùng đơn">Boom hàng / Bùng đơn</option>
+              <option value="Thái độ phục vụ / Shipper">Thái độ phục vụ / Shipper</option>
+              <option value="Thanh toán & Chiết khấu">Thanh toán & Chiết khấu</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Chi tiết nội dung phản ánh <span class="req">*</span></label>
+            <textarea class="form-control" id="new-c-content" placeholder="Mô tả sự việc chi tiết từ người gọi..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mức độ ưu tiên</label>
+            <select class="form-control" id="new-c-priority">
+              <option value="CRITICAL">Khẩn cấp (Sức khỏe, ATTP, bạo lực)</option>
+              <option value="HIGH">Cao (Boom hàng, thiếu tiền lớn)</option>
+              <option value="MEDIUM" selected>Bình thường</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-new-complaint')">Hủy</button>
+          <button type="submit" class="btn btn-primary">Tạo Hồ Sơ Khiếu Nại</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  
+  <!-- 8. NEW: MODAL XEM HỒ SƠ CCCD & ẢNH ĐĂNG KÝ CỦA QUÁN -->
+  <div class="modal-overlay" id="modal-store-cccd">
+    <div class="modal-dialog modal-dialog-lg" style="max-width: 960px;">
+      <div class="modal-header">
+        <h3 id="modal-cccd-title">
+          <span>Hồ Sơ CCCD & Ảnh Đăng Ký Đối Tác</span>
+        </h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-store-cccd')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Header tóm tắt đối tác -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 18px; margin-bottom: 16px;">
+          <div>
+            <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="cccd-view-store-name">---</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+              Chủ quán: <strong id="cccd-view-owner" style="color: var(--text-main);">---</strong> • SĐT: <strong id="cccd-view-phone">---</strong>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Số Căn Cước Công Dân (CCCD):</div>
+            <div style="font-size: 17px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #2563EB;" id="cccd-view-number">---</div>
+            <div id="cccd-view-status-badge" style="margin-top: 4px;"></div>
+          </div>
+        </div>
+
+        <!-- 3 KHUNG ẢNH THẬT ĐĂNG KÝ (DEMO LINKS) -->
+        <div style="margin-bottom: 18px;">
+          <div style="font-size: 13px; font-weight: 800; color: var(--text-main); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            <span>Bộ 3 Ảnh Nhận Diện & Định Danh (Bấm vào ảnh để xem phóng to)</span>
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">Hỗ trợ kiểm tra trực quan</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+            
+            <!-- 1. Ảnh trước CCCD -->
+            <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; text-align: center; box-shadow: var(--shadow-sm);">
+              <div style="font-size: 12px; font-weight: 700; color: #1E40AF; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>Ảnh Mặt Trước CCCD</span>
+                <span class="badge-ekyc" style="font-size: 9px; padding: 1px 5px; background: #EFF6FF; color: #1D4ED8; border-radius: 4px;">Demo Link</span>
+              </div>
+              <div style="overflow: hidden; border-radius: 8px; height: 160px; background: #F1F5F9; cursor: pointer; border: 1px solid #CBD5E1;" onclick="previewImage(document.getElementById('cccd-modal-img-front').src, 'Ảnh Mặt Trước CCCD', document.getElementById('cccd-view-owner').textContent)">
+                <img id="cccd-modal-img-front" src="" alt="Mặt trước CCCD" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Bấm để phóng to ảnh gốc</div>
+            </div>
+
+            <!-- 2. Ảnh sau CCCD -->
+            <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; text-align: center; box-shadow: var(--shadow-sm);">
+              <div style="font-size: 12px; font-weight: 700; color: #065F46; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>Ảnh Mặt Sau CCCD</span>
+                <span class="badge-ekyc" style="font-size: 9px; padding: 1px 5px; background: #ECFDF5; color: #065F46; border-radius: 4px;">Demo Link</span>
+              </div>
+              <div style="overflow: hidden; border-radius: 8px; height: 160px; background: #F1F5F9; cursor: pointer; border: 1px solid #CBD5E1;" onclick="previewImage(document.getElementById('cccd-modal-img-back').src, 'Ảnh Mặt Sau CCCD', document.getElementById('cccd-view-owner').textContent)">
+                <img id="cccd-modal-img-back" src="" alt="Mặt sau CCCD" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Bấm để phóng to ảnh gốc</div>
+            </div>
+
+            <!-- 3. Ảnh chân dung đăng ký -->
+            <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; text-align: center; box-shadow: var(--shadow-sm);">
+              <div style="font-size: 12px; font-weight: 700; color: #9333EA; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>Ảnh Chụp Chân Dung Lúc ĐK</span>
+                <span class="badge-ekyc" style="font-size: 9px; padding: 1px 5px; background: #FAF5FF; color: #9333EA; border-radius: 4px;">Camera eKYC</span>
+              </div>
+              <div style="overflow: hidden; border-radius: 8px; height: 160px; background: #F1F5F9; cursor: pointer; border: 1px solid #CBD5E1;" onclick="previewImage(document.getElementById('cccd-modal-img-portrait').src, 'Ảnh Chụp Chân Dung Lúc Đăng Ký', document.getElementById('cccd-view-owner').textContent)">
+                <img id="cccd-modal-img-portrait" src="" alt="Chân dung đăng ký" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Bấm để phóng to ảnh gốc</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 3 KHUNG MÔ PHỎNG CHI TIẾT OCR -->
+        <div class="cccd-gallery-grid">
+          
+          <!-- 1. ẢNH CCCD MẶT TRƯỚC -->
+          <div class="cccd-card-wrapper">
+            <div class="cccd-card-label">
+              <span>Bóc Tách OCR Mặt Trước</span>
+              <span class="badge-ekyc">Chip Hợp Lệ</span>
+            </div>
+            <div class="cccd-front-mockup" id="cccd-front-card">
+              <div class="cccd-top-header">
+                <div class="cccd-emblem-wrap">
+                  <div class="cccd-emblem"></div>
+                </div>
+                <div class="cccd-header-text">
+                  <div class="nat-name">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                  <div class="motto">Độc lập - Tự do - Hạnh phúc</div>
+                </div>
+              </div>
+              <div class="cccd-title-row">
+                <div class="cccd-main-title">CĂN CƯỚC CÔNG DÂN</div>
+                <div class="cccd-sub-title">CITIZEN IDENTITY CARD</div>
+              </div>
+              <div class="cccd-body-row">
+                <div class="cccd-avatar-box">
+                  <div style="font-size: 28px;" id="cccd-front-avatar-char"></div>
+                  <div style="font-size: 7px; color: #64748B; font-weight: 700;">3x4 PHOTO</div>
+                </div>
+                <div class="cccd-chip-box"></div>
+                <div class="cccd-details-col">
+                  <div class="cccd-id-num" id="cccd-front-num">---</div>
+                  <div class="cccd-info-line">Họ và tên: <strong id="cccd-front-name">---</strong></div>
+                  <div class="cccd-info-line">Ngày sinh: <span id="cccd-front-dob">---</span> • GT: <span id="cccd-front-gender">---</span></div>
+                  <div class="cccd-info-line">Quê quán: <span id="cccd-front-hometown">---</span></div>
+                  <div class="cccd-info-line">Thường trú: <span id="cccd-front-residence">---</span></div>
+                  <div class="cccd-info-line" style="margin-top: 2px;">Giá trị đến: <strong id="cccd-front-expiry">---</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. ẢNH CCCD MẶT SAU -->
+          <div class="cccd-card-wrapper">
+            <div class="cccd-card-label">
+              <span>Bóc Tách OCR Mặt Sau</span>
+              <span class="badge-ekyc">MRZ Verified</span>
+            </div>
+            <div class="cccd-back-mockup">
+              <div class="cccd-back-top">
+                <div class="cccd-back-desc">
+                  <div style="font-weight: 800; font-size: 8.5px; color: #065F46;">ĐẶC ĐIỂM NHẬN DẠNG VÀ VÂN TAY:</div>
+                  <div style="margin-top: 2px;">Nốt ruồi / Dấu vết nhận dạng</div>
+                  <div style="margin-top: 4px; font-weight: 700;">Ngày cấp: <span id="cccd-back-issuedate">---</span></div>
+                  <div style="font-size: 7.5px; color: #64748B;">Nơi cấp: Cục Cảnh sát QLHC về TTXH</div>
+                </div>
+                <div class="cccd-back-stamp">
+                  CỤC TRƯỞNG<br>ĐÃ KÝ
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <div style="font-size: 7.5px; color: #64748B; font-weight: 700;">CHIP BẢO MẬT & MÃ VẠCH QUANG HỌC</div>
+                  <div style="font-size: 7.5px; color: #16A34A; font-weight: 700;">✓ CHÍNH CHỦ</div>
+                </div>
+                <div class="cccd-mrz-code" id="cccd-back-mrz">
+                  IDVNM<<<<<<<<<<<<<<<<<<<<<<<<br>
+                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<br>
+                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. ẢNH CHỤP LÚC ĐĂNG KÝ -->
+          <div class="cccd-card-wrapper">
+            <div class="cccd-card-label">
+              <span>Đối Soát Khuôn Mặt</span>
+              <span class="badge-ekyc" style="background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE;">eKYC Live Match</span>
+            </div>
+            <div class="cccd-selfie-mockup">
+              <div class="selfie-face-box">
+                <div class="selfie-scan-line"></div>
+                <div class="selfie-avatar-circle" id="cccd-selfie-char">-</div>
+                <div style="font-size: 8px; color: #10B981; font-weight: 800;">FACE MATCH</div>
+              </div>
+              <div style="margin-top: 6px; font-size: 10px; color: #A7F3D0; font-weight: 700;" id="cccd-ekyc-score-label">
+                ✓ Khớp khuôn mặt: ---
+              </div>
+              <div class="selfie-timestamp-bar">
+                <span>📸 Camera eKYC</span>
+                <span id="cccd-selfie-time">---</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+      <div class="modal-footer" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-store-cccd')">Đóng</button>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-outline" onclick="setStoreStatusFromModal('PENDING')" style="color: #D97706; border-color: #F59E0B;">
+            Đặt Chờ Duyệt
+          </button>
+          <button type="button" class="btn btn-outline" onclick="setStoreStatusFromModal('CLOSED')" style="color: #475569; border-color: #94A3B8;">
+            Đặt Tạm Nghỉ
+          </button>
+          <button type="button" class="btn btn-danger-outline" onclick="setStoreStatusFromModal('LOCKED')">
+            Khóa Cửa Hàng
+          </button>
+          <button type="button" class="btn btn-primary" onclick="setStoreStatusFromModal('OPEN')" style="background: var(--success); border-color: var(--success);">
+            Duyệt & Đang Hoạt Động
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  </div>
+
+  <!-- MODAL REVIEW DETAIL & REPLY -->
+  <div class="modal-overlay" id="modal-review-detail">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3 id="modal-rev-title">Chi Tiết Đánh Giá & Phản Hồi</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-review-detail')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 14px; align-items: center; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; margin-bottom: 14px;">
+          <div id="modal-rev-stars" style="font-size: 20px; color: #F59E0B;"></div>
+          <div>
+            <div style="font-weight: 800; font-size: 14px; color: var(--text-main);" id="modal-rev-dish"></div>
+            <div style="font-size: 12px; color: var(--text-muted);" id="modal-rev-store"></div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Khách hàng:</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0F172A;" id="modal-rev-customer"></div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" id="modal-rev-time"></div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">Nội dung nhận xét:</div>
+          <div class="review-bubble" id="modal-rev-comment"></div>
+          <div id="modal-rev-img-container" style="margin-top: 8px;"></div>
+        </div>
+
+        <!-- Admin Reply Form -->
+        <form onsubmit="saveReviewReply(event)">
+          <input type="hidden" id="modal-rev-id">
+          <div class="form-group">
+            <label class="form-label">Phản hồi của Admin / Cửa Hàng:</label>
+            <textarea class="form-control" id="modal-rev-reply-text" rows="3" placeholder="Nhập lời cảm ơn hoặc giải thích khắc phục sự cố gửi tới khách hàng..."></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-outline" onclick="closeModal('modal-review-detail')">Đóng</button>
+            <button type="submit" class="btn btn-primary">Gửi Phản Hồi Lên Firebase</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ADD REVIEW -->
+  <div class="modal-overlay" id="modal-add-review">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3>+ Thêm Đánh Giá Món Ăn Mới</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-add-review')">&times;</button>
+      </div>
+      <form onsubmit="saveNewReview(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Cửa Hàng & Món Ăn <span class="req">*</span></label>
+            <select class="form-control" id="new-rev-dish-select" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tên khách hàng <span class="req">*</span></label>
+            <input type="text" class="form-control" id="new-rev-customer-name" placeholder="VD: Nguyễn Hoàng Phúc" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Số sao đánh giá <span class="req">*</span></label>
+            <select class="form-control" id="new-rev-rating" required>
+              <option value="5">⭐⭐⭐⭐⭐ 5 Sao - Xuất sắc</option>
+              <option value="4">⭐⭐⭐⭐ 4 Sao - Hài lòng</option>
+              <option value="3">⭐⭐⭐ 3 Sao - Bình thường</option>
+              <option value="2">⭐⭐ 2 Sao - Kém / Không ngon</option>
+              <option value="1">⭐ 1 Sao - Rất tệ / Không hài lòng</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nội dung nhận xét <span class="req">*</span></label>
+            <textarea class="form-control" id="new-rev-comment" rows="3" placeholder="Nhập cảm nhận về hương vị, bao bì, nhiệt độ món ăn..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Link ảnh minh họa (tùy chọn):</label>
+            <input type="url" class="form-control" id="new-rev-image" placeholder="https://images.unsplash.com/...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-review')">Hủy bỏ</button>
+          <button type="submit" class="btn btn-primary">Lưu Đánh Giá Lên Firebase</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ==================== LOGIC JAVASCRIPT ==================== -->
+  <script>
+    /* ========================================================
+       1. INITIAL STATE (100% REAL FIREBASE REALTIME DATA)
+       ======================================================== */
+    const DEFAULT_CATEGORIES = [
+      { id: 'cat-rice', categoryId: 'cat-rice', name: 'Cơm Trưa', categoryName: 'Cơm Trưa', icon: '🍚', iconUrl: '🍚', desc: 'Cơm phần, cơm tấm, cơm văn phòng, cơm gà, cơm sườn', description: 'Cơm phần, cơm tấm, cơm văn phòng, cơm gà, cơm sườn', displayOrder: 1, status: 'ACTIVE', isActive: true },
+      { id: 'cat-milktea', categoryId: 'cat-milktea', name: 'Trà Sữa', categoryName: 'Trà Sữa', icon: '🧋', iconUrl: '🧋', desc: 'Trà sữa trân châu, trà trái cây tươi, macchiato, trà đào', description: 'Trà sữa trân châu, trà trái cây tươi, macchiato, trà đào', displayOrder: 2, status: 'ACTIVE', isActive: true },
+      { id: 'cat-noodle', categoryId: 'cat-noodle', name: 'Bún/Phở', categoryName: 'Bún/Phở', icon: '🍜', iconUrl: '🍜', desc: 'Bún bò Huế, phở bò tái nạm, hủ tiếu, mì Quảng, miến gà', description: 'Bún bò Huế, phở bò tái nạm, hủ tiếu, mì Quảng, miến gà', displayOrder: 3, status: 'ACTIVE', isActive: true },
+      { id: 'cat-chicken', categoryId: 'cat-chicken', name: 'Gà Rán', categoryName: 'Gà Rán', icon: '🍗', iconUrl: '🍗', desc: 'Gà rán giòn cay, gà sốt cay ngọt Hàn Quốc, burger gà', description: 'Gà rán giòn cay, gà sốt cay ngọt Hàn Quốc, burger gà', displayOrder: 4, status: 'ACTIVE', isActive: true },
+      { id: 'cat-bread', categoryId: 'cat-bread', name: 'Bánh Mì', categoryName: 'Bánh Mì', icon: '🥖', iconUrl: '🥖', desc: 'Bánh mì thịt nướng, bánh mì chảo, bánh mì que, bánh mì pate', description: 'Bánh mì thịt nướng, bánh mì chảo, bánh mì que, bánh mì pate', displayOrder: 5, status: 'ACTIVE', isActive: true },
+      { id: 'cat-pizza', categoryId: 'cat-pizza', name: 'Pizza', categoryName: 'Pizza', icon: '🍕', iconUrl: '🍕', desc: 'Pizza phô mai béo ngậy, pizza hải sản, pasta sốt bò băm', description: 'Pizza phô mai béo ngậy, pizza hải sản, pasta sốt bò băm', displayOrder: 6, status: 'ACTIVE', isActive: true },
+      { id: 'cat-coffee', categoryId: 'cat-coffee', name: 'Cà Phê', categoryName: 'Cà Phê', icon: '☕', iconUrl: '☕', desc: 'Cà phê phin truyền thống, bạc xỉu, cappuccino, cold brew', description: 'Cà phê phin truyền thống, bạc xỉu, cappuccino, cold brew', displayOrder: 7, status: 'ACTIVE', isActive: true },
+      { id: 'cat-dessert', categoryId: 'cat-dessert', name: 'Tráng Miệng / Ăn Vặt', categoryName: 'Tráng Miệng / Ăn Vặt', icon: '🍰', iconUrl: '🍰', desc: 'Chè bưởi, bánh ngọt, bánh crepe, kem tươi, đồ ăn vặt', description: 'Chè bưởi, bánh ngọt, bánh crepe, kem tươi, đồ ăn vặt', displayOrder: 8, status: 'ACTIVE', isActive: true },
+      { id: 'cat-hotpot', categoryId: 'cat-hotpot', name: 'Lẩu / Món Nước', categoryName: 'Lẩu / Món Nước', icon: '🍲', iconUrl: '🍲', desc: 'Lẩu thái chua cay, lẩu bò nhúng giấm, lẩu riêu cua, canh hầm', description: 'Lẩu thái chua cay, lẩu bò nhúng giấm, lẩu riêu cua, canh hầm', displayOrder: 9, status: 'ACTIVE', isActive: true },
+      { id: 'cat-vegetarian', categoryId: 'cat-vegetarian', name: 'Đồ Chay', categoryName: 'Đồ Chay', icon: '🥗', iconUrl: '🥗', desc: 'Cơm chay dinh dưỡng, bún nấm thanh đạm, rau củ thanh nhiệt', description: 'Cơm chay dinh dưỡng, bún nấm thanh đạm, rau củ thanh nhiệt', displayOrder: 10, status: 'ACTIVE', isActive: true },
+      { id: 'cat-other', categoryId: 'cat-other', name: 'Món Khác', categoryName: 'Món Khác', icon: '🍽️', iconUrl: '🍽️', desc: 'Món ăn đặc sản địa phương và thực đơn ẩm thực phong phú khác', description: 'Món ăn đặc sản địa phương và thực đơn ẩm thực phong phú khác', displayOrder: 11, status: 'ACTIVE', isActive: true }
+    ];
+    const DEFAULT_CUSTOMERS = [];
+    const DEFAULT_STORES = [];
+    const DEFAULT_COMPLAINTS = [];
+    const DEFAULT_LOGS = [];
+
+    // Xóa cache dữ liệu mẫu cũ trong trình duyệt để chỉ hiển thị dữ liệu thực từ Firebase
+    ['oishi_admin_customers', 'oishi_admin_stores', 'oishi_admin_complaints', 'oishi_admin_reviews', 'oishi_admin_logs'].forEach(k => {
+      try { localStorage.removeItem(k); } catch (_) {}
+    });
+
+    /* ========================================================
+       2. FIREBASE REALTIME DATABASE & STATE CONTROLLER
+       ======================================================== */
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE",
+      authDomain: "chuyen-de-2-2f0bc.firebaseapp.com",
+      databaseURL: "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "chuyen-de-2-2f0bc",
+      storageBucket: "chuyen-de-2-2f0bc.firebasedatabase.app",
+      appId: "1:15744841309:android:c3e22f3ec49b334e18bfb4"
+    };
+
+    let fbApp = null;
+    let fbAuth = null;
+    let fbDb = null;
+    let fbAdminUid = "ysEfpl1NfpZZ46EcBXxnTJT0Y7y2";
+    let isFirebaseReady = false;
+
+    let rawFbUsers = {};
+    let rawFbCustomers = {};
+    let rawFbDrivers = {};
+    let rawFbStores = {};
+    let rawFbOrders = {};
+    let rawFbComplaints = {};
+
+    let categories = [...DEFAULT_CATEGORIES];
+    let customers = [];
+    let stores = [];
+    let complaints = [];
+    let reviews = [];
+    let rawFbReviews = {};
+    let liveOrders = [];
+    let liveDrivers = [];
+
+    let adminProfile = JSON.parse(localStorage.getItem('oishi_admin_profile')) || {
+      name: 'Admin Hệ Thống',
+      email: 'admin@oishifood.vn',
+      phone: '',
+      role: 'Super Administrator'
+    };
+    let systemLogs = [];
+
+    function formatTimeAgo(ts) {
+      if (!ts) return 'Vừa xong';
+      if (typeof ts === 'string' && isNaN(Number(ts))) return ts;
+      const ms = Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts);
+      const diffSec = Math.floor((Date.now() - ms) / 1000);
+      if (diffSec < 60) return 'Vừa xong';
+      if (diffSec < 3600) return `${Math.floor(diffSec / 60)} phút trước`;
+      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} giờ trước`;
+      const d = new Date(ms);
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function formatVnd(amount) {
+      return Number(amount || 0).toLocaleString('vi-VN') + 'đ';
+    }
+
+    function setFirebaseConnectionUI(state, text) {
+      const badge = document.getElementById('fb-conn-badge');
+      const label = document.getElementById('fb-conn-text');
+      if (!badge || !label) return;
+      badge.className = 'fb-live-pill ' + (state === 'online' ? '' : (state === 'connecting' ? 'connecting' : 'offline'));
+      label.textContent = text;
+    }
+
+    // Helper để tương thích đồng thời rule MERCHANT (users/drivers/menus) và ADMIN (customers/merchants) trên Firebase
+    async function writeWithAdminRole(writeFn) {
+      if (!fbDb || !fbAdminUid) return writeFn();
+      const roleRef = fbDb.ref(`users/${fbAdminUid}/role`);
+      try {
+        await roleRef.set('ADMIN');
+        const res = await writeFn();
+        await roleRef.set('MERCHANT');
+        return res;
+      } catch (err) {
+        try { await roleRef.set('MERCHANT'); } catch (_) {}
+        throw err;
+      }
+    }
+
+    async function initFirebaseRealtime() {
+      try {
+        if (typeof firebase === 'undefined') {
+          setFirebaseConnectionUI('offline', 'Firebase SDK Offline');
+          return;
+        }
+        setFirebaseConnectionUI('connecting', 'Đang xác thực Firebase...');
+        fbApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+        fbAuth = firebase.auth();
+        fbDb = firebase.database();
+
+        try {
+          const cred = await fbAuth.signInWithEmailAndPassword('admin@gmail.com', '123456');
+          if (cred && cred.user) fbAdminUid = cred.user.uid;
+        } catch (authErr) {
+          try {
+            const created = await fbAuth.createUserWithEmailAndPassword('admin@gmail.com', '123456');
+            if (created && created.user) fbAdminUid = created.user.uid;
+          } catch (_) {}
+        }
+
+        if (fbAuth.currentUser) {
+          fbAdminUid = fbAuth.currentUser.uid;
+          await fbDb.ref(`users/${fbAdminUid}`).update({
+            uid: fbAdminUid,
+            fullName: adminProfile.name,
+            email: adminProfile.email,
+            phone: adminProfile.phone,
+            role: 'MERCHANT',
+            isActive: true
+          });
+        }
+
+        isFirebaseReady = true;
+
+        fbDb.ref('.info/connected').on('value', snap => {
+          if (snap.val() === true) {
+            setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
+          } else {
+            setFirebaseConnectionUI('connecting', 'Đang kết nối lại Firebase...');
+          }
+        });
+
+        attachRealtimeListeners();
+      } catch (err) {
+        console.error('Firebase Init Error:', err);
+        setFirebaseConnectionUI('offline', 'Lỗi kết nối Firebase');
+      }
+    }
+
+    function normalizeStoreRecord(id, s, idx = 0) {
+      let normStatus = s.storeStatus || s.status || (s.open === false ? 'CLOSED' : 'OPEN');
+      if (normStatus === 'HIDDEN') normStatus = 'CLOSED';
+      if (s.penaltyTier === 'LOCK') normStatus = 'LOCKED';
+      if (!['PENDING', 'OPEN', 'LOCKED', 'CLOSED'].includes(normStatus)) normStatus = 'OPEN';
+
+      const dishesObj = s.dishes && typeof s.dishes === 'object' ? s.dishes : {};
+      const dishCount = Object.keys(dishesObj).length;
+      const ratingNum = s.ratingAvg !== undefined ? Number(s.ratingAvg).toFixed(1) : (s.rating ? String(s.rating).replace('⭐', '').trim() : '5.0');
+
+      return {
+        ...s,
+        id: id,
+        storeId: id,
+        name: s.name || s.storeName || ('Cửa hàng #' + id),
+        owner: s.ownerName || s.owner || 'Chưa cập nhật',
+        ownerName: s.ownerName || s.owner || 'Chưa cập nhật',
+        phone: s.phone || s.ownerPhone || 'Chưa cập nhật',
+        cccdNumber: s.cccdNumber || 'Chưa cập nhật',
+        cccdFront: s.cccdFrontUrl || s.cccdFront || '',
+        cccdFrontUrl: s.cccdFrontUrl || s.cccdFront || '',
+        cccdBack: s.cccdBackUrl || s.cccdBack || '',
+        cccdBackUrl: s.cccdBackUrl || s.cccdBack || '',
+        registerPhoto: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || '',
+        cccdPortraitUrl: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || '',
+        cccdStatus: s.cccdStatus || (normStatus === 'OPEN' ? 'VERIFIED' : 'PENDING'),
+        dob: s.dob || 'Chưa cập nhật',
+        gender: s.gender || 'Chưa cập nhật',
+        hometown: s.hometown || 'Chưa cập nhật',
+        residence: s.residence || s.address || 'Chưa cập nhật',
+        issueDate: s.issueDate || 'Chưa cập nhật',
+        expireDate: s.expireDate || 'Chưa cập nhật',
+        registerTime: s.registerTime || (s.createdAt ? formatTimeAgo(s.createdAt) : 'Chưa cập nhật'),
+        ekycScore: s.ekycScore || 'N/A',
+        category: s.category || 'Chưa phân loại',
+        rating: `${ratingNum}`,
+        ratingAvg: parseFloat(ratingNum) || 5.0,
+        itemCount: dishCount > 0 ? dishCount : (s.itemCount || 0),
+        dishes: dishesObj,
+        status: normStatus,
+        storeStatus: normStatus,
+        open: normStatus === 'OPEN',
+        penaltyTier: s.penaltyTier || (normStatus === 'LOCKED' ? 'LOCK' : 'NONE'),
+        lockReason: s.lockReason || s.penaltyReason || '',
+        address: s.address || 'Chưa cập nhật'
+      };
+    }
+
+    function rebuildCustomersAndDrivers() {
+      // Cross-reference orders & complaints per user/customer
+      const custOrderCounts = {};
+      const custSpentSums = {};
+      const custLatestOrder = {};
+      const custComplaintCounts = {};
+      const driverOrderCounts = {};
+
+      Object.entries(rawFbOrders).forEach(([oid, o]) => {
+        if (!o || typeof o !== 'object') return;
+        if (o.customerId) {
+          const cid = o.customerId;
+          custOrderCounts[cid] = (custOrderCounts[cid] || 0) + 1;
+          custSpentSums[cid] = (custSpentSums[cid] || 0) + Number(o.totalPayment || o.total || o.totalAmount || 0);
+          const ts = Number(o.createdAt || o.timestamp || 0);
+          if (!custLatestOrder[cid] || ts >= (custLatestOrder[cid].ts || 0)) {
+            custLatestOrder[cid] = {
+              id: oid,
+              ts: ts,
+              address: o.address || o.deliveryAddress || '',
+              customerName: o.customerName || '',
+              customerPhone: o.customerPhone || '',
+              shopName: o.shopName || o.storeName || ''
+            };
+          }
+        }
+        if (o.shipperId) {
+          driverOrderCounts[o.shipperId] = (driverOrderCounts[o.shipperId] || 0) + 1;
+        }
+      });
+
+      Object.values(rawFbComplaints).forEach(cp => {
+        if (cp && cp.customerId) {
+          custComplaintCounts[cp.customerId] = (custComplaintCounts[cp.customerId] || 0) + 1;
+        }
+      });
+
+      // Map merchantId -> store object for cross-referencing merchant accounts
+      const merchantStoreMap = {};
+      Object.entries(rawFbStores).forEach(([sid, s]) => {
+        if (s && typeof s === 'object') {
+          const mid = s.merchantId || s.ownerId;
+          if (mid) merchantStoreMap[mid] = { ...s, id: sid };
+        }
+      });
+
+      const mergedCustMap = {};
+
+      // 1. From all users in rawFbUsers (excluding Admin account)
+      Object.entries(rawFbUsers).forEach(([uid, u]) => {
+        if (!u || typeof u !== 'object') return;
+        if (uid === fbAdminUid || u.email === 'admin@gmail.com') return;
+
+        const cNode = rawFbCustomers[uid] || {};
+        const dNode = rawFbDrivers[uid] || {};
+        const sNode = merchantStoreMap[uid] || (u.storeId ? rawFbStores[u.storeId] : null) || {};
+        const lastOrd = custLatestOrder[uid] || {};
+
+        let role = (u.role || cNode.role || '').toUpperCase();
+        if (!role) {
+          if (rawFbDrivers[uid]) role = 'DRIVER';
+          else if (merchantStoreMap[uid]) role = 'MERCHANT';
+          else role = 'CUSTOMER';
+        }
+        if (role === 'MANAGER') role = 'MERCHANT';
+        if (role === 'SHIPPER') role = 'DRIVER';
+
+        const rawSt = (u.status || cNode.status || '').toUpperCase();
+        const isLockedOrSusp = rawSt === 'LOCKED' || rawSt === 'SUSPENDED' || u.isActive === false || u.active === false || cNode.status === 'LOCKED';
+        const status = isLockedOrSusp ? (rawSt === 'SUSPENDED' ? 'SUSPENDED' : 'LOCKED') : 'ACTIVE';
+
+        const resolvedEmail = (u.email || cNode.email || dNode.email || sNode.email || '').trim();
+        const resolvedPhone = (u.phone || cNode.phone || dNode.phone || sNode.phone || lastOrd.customerPhone || '').trim();
+
+        let resolvedName = (u.fullName || u.name || cNode.name || cNode.fullName || dNode.name || sNode.ownerName || lastOrd.customerName || '').trim();
+        if (!resolvedName) {
+          if (resolvedEmail) resolvedName = resolvedEmail.split('@')[0];
+          else if (role === 'MERCHANT' && sNode.name) resolvedName = `Chủ quán: ${sNode.name}`;
+          else resolvedName = `Tài khoản #${uid.slice(0, 8)}`;
+        }
+
+        let resolvedArea = (u.address || cNode.address || cNode.area || lastOrd.address || sNode.district || sNode.address || '').trim();
+        if (resolvedArea.startsWith('Toạ độ:')) {
+          const parts = resolvedArea.split(',').map(p => p.trim());
+          if (parts.length >= 3) resolvedArea = parts.slice(2).join(', ');
+        }
+
+        const ordersCount = role === 'DRIVER'
+          ? (driverOrderCounts[uid] || dNode.totalOrdersCount || 0)
+          : (custOrderCounts[uid] !== undefined ? custOrderCounts[uid] : (cNode.totalOrders || cNode.orders || u.orders || 0));
+
+        mergedCustMap[uid] = {
+          id: uid,
+          uid: uid,
+          role: role,
+          name: resolvedName,
+          phone: resolvedPhone || 'Chưa cập nhật',
+          email: resolvedEmail || 'Chưa đồng bộ Gmail',
+          hasEmail: Boolean(resolvedEmail),
+          orders: ordersCount,
+          totalSpent: custSpentSums[uid] || 0,
+          complaintsCount: custComplaintCounts[uid] || 0,
+          lastOrderInfo: lastOrd.id ? `Đơn #${lastOrd.id.slice(-6)} (${formatTimeAgo(lastOrd.ts)})` : '',
+          storeName: sNode.name || '',
+          joined: u.joined || cNode.joined || (u.createdAt ? formatTimeAgo(u.createdAt) : (lastOrd.ts ? formatTimeAgo(lastOrd.ts) : 'Thành viên App')),
+          lastActiveTs: lastOrd.ts || u.createdAt || dNode.createdAt || 0,
+          area: resolvedArea || 'Chưa cập nhật',
+          trustScore: cNode.trustScore !== undefined ? Number(cNode.trustScore) : (u.trustScore !== undefined ? Number(u.trustScore) : 100),
+          status: status,
+          lockReason: u.lockReason || cNode.lockReason || ''
+        };
+      });
+
+      // 2. Any extra entries in customers node not in users
+      Object.entries(rawFbCustomers).forEach(([cid, c]) => {
+        if (!c || typeof c !== 'object' || mergedCustMap[cid]) return;
+        if (cid === fbAdminUid) return;
+        const lastOrd = custLatestOrder[cid] || {};
+        const resolvedEmail = (c.email || '').trim();
+        const resolvedPhone = (c.phone || lastOrd.customerPhone || '').trim();
+        const resolvedName = (c.name || c.fullName || lastOrd.customerName || (resolvedEmail ? resolvedEmail.split('@')[0] : `Tài khoản #${cid.slice(0, 8)}`)).trim();
+        let resolvedArea = (c.area || c.address || lastOrd.address || '').trim();
+        if (resolvedArea.startsWith('Toạ độ:')) {
+          const parts = resolvedArea.split(',').map(p => p.trim());
+          if (parts.length >= 3) resolvedArea = parts.slice(2).join(', ');
+        }
+        mergedCustMap[cid] = {
+          id: cid,
+          uid: cid,
+          role: 'CUSTOMER',
+          name: resolvedName,
+          phone: resolvedPhone || 'Chưa cập nhật',
+          email: resolvedEmail || 'Chưa đồng bộ Gmail',
+          hasEmail: Boolean(resolvedEmail),
+          orders: custOrderCounts[cid] !== undefined ? custOrderCounts[cid] : (c.totalOrders || c.orders || 0),
+          totalSpent: custSpentSums[cid] || 0,
+          complaintsCount: custComplaintCounts[cid] || 0,
+          lastOrderInfo: lastOrd.id ? `Đơn #${lastOrd.id.slice(-6)} (${formatTimeAgo(lastOrd.ts)})` : '',
+          storeName: '',
+          joined: c.joined || (lastOrd.ts ? formatTimeAgo(lastOrd.ts) : 'Thành viên App'),
+          lastActiveTs: lastOrd.ts || 0,
+          area: resolvedArea || 'Chưa cập nhật',
+          trustScore: c.trustScore !== undefined ? Number(c.trustScore) : 100,
+          status: (c.status || 'ACTIVE').toUpperCase(),
+          lockReason: c.lockReason || ''
+        };
+      });
+
+      customers = Object.values(mergedCustMap);
+
+      // Build liveDrivers from drivers node + users with role DRIVER/SHIPPER
+      const driverMap = {};
+      Object.entries(rawFbDrivers).forEach(([did, d]) => {
+        if (!d || typeof d !== 'object') return;
+        const u = rawFbUsers[did] || {};
+        const isDelivering = liveOrders.some(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+        const activeOrder = liveOrders.find(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+        const st = isDelivering ? 'DELIVERING' : (d.isOnline === false || d.status === 'OFFLINE' ? 'OFFLINE' : 'AVAILABLE');
+        const dRating = d.rating !== undefined ? `${Number(d.rating).toFixed(1)} ⭐` : '5.0 ⭐';
+        driverMap[did] = {
+          id: did,
+          name: d.name || d.fullName || u.fullName || u.name || `Tài xế #${did.slice(0, 6)}`,
+          phone: d.phone || u.phone || 'Chưa cập nhật',
+          bike: d.vehiclePlate || d.licensePlate || d.bike || 'Chưa cập nhật',
+          ordersCount: driverOrderCounts[did] !== undefined ? driverOrderCounts[did] : (d.totalDeliveries || d.ordersCount || 0),
+          rating: `${Number(d.rating || 5.0).toFixed(1)}`,
+          status: st,
+          isActive: u.isActive !== false && d.status !== 'LOCKED',
+          statusText: activeOrder ? `Đang giao đơn #${activeOrder.id.slice(-6)}` : (st === 'AVAILABLE' ? 'Đang trực tuyến nhận đơn' : 'Đang nghỉ ca'),
+          avatar: d.avatarUrl || u.avatarUrl || '',
+          shopId: d.shopId || d.storeId || ''
+        };
+      });
+
+      Object.entries(rawFbUsers).forEach(([uid, u]) => {
+        if (!u || typeof u !== 'object' || driverMap[uid]) return;
+        if (uid === fbAdminUid || u.email === 'admin@gmail.com') return;
+        const role = (u.role || '').toUpperCase();
+        if (role === 'DRIVER' || role === 'SHIPPER') {
+          const isDelivering = liveOrders.some(o => o.shipperId === uid && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
+          const uRating = u.rating !== undefined ? `${Number(u.rating).toFixed(1)} ⭐` : '5.0 ⭐';
+          driverMap[uid] = {
+            id: uid,
+            name: u.fullName || u.name || `Tài xế #${uid.slice(0, 6)}`,
+            phone: u.phone || 'Chưa cập nhật',
+            bike: u.vehiclePlate || 'Chưa cập nhật',
+            ordersCount: driverOrderCounts[uid] || 0,
+            rating: '5.0',
+            status: isDelivering ? 'DELIVERING' : 'AVAILABLE',
+            isActive: u.isActive !== false && u.status !== 'LOCKED',
+            statusText: isDelivering ? 'Đang giao đơn' : 'Đang sẵn sàng nhận đơn',
+            avatar: u.avatarUrl || '',
+            shopId: u.shopId || ''
+          };
+        }
+      });
+
+      liveDrivers = Object.values(driverMap);
+    }
+
+    function rebuildOrders() {
+      const list = [];
+      Object.entries(rawFbOrders).forEach(([oid, o]) => {
+        if (!o || typeof o !== 'object') return;
+        const storeId = o.shopId || o.storeId || '';
+        const storeObj = stores.find(s => s.id === storeId) || rawFbStores[storeId] || {};
+        const custUser = rawFbUsers[o.customerId] || rawFbCustomers[o.customerId] || {};
+        const drvUser = rawFbDrivers[o.shipperId] || rawFbUsers[o.shipperId] || {};
+
+        let itemsSummary = '';
+        if (typeof o.items === 'string') {
+          itemsSummary = o.items;
+        } else if (Array.isArray(o.items)) {
+          itemsSummary = o.items.map(it => `${it.quantity || 1}x ${it.dishName || it.name || 'Món ăn'}`).join(', ');
+        } else if (o.items && typeof o.items === 'object') {
+          itemsSummary = Object.values(o.items).map(it => `${it.quantity || 1}x ${it.dishName || it.name || 'Món ăn'}`).join(', ');
+        }
+        if (!itemsSummary) itemsSummary = 'Đơn đặt món';
+
+        const status = (o.status || o.orderStatus || 'PENDING').toUpperCase();
+        const totalAmount = Number(o.totalPayment || o.total || o.totalAmount || o.totalPrice || o.subtotalAmount || 0);
+        const createdAt = Number(o.createdAt || o.timestamp || Date.now());
+
+        list.push({
+          id: oid,
+          orderId: oid,
+          shopId: storeId,
+          storeName: o.shopName || o.storeName || storeObj.name || storeId || 'Chưa xác định',
+          customerId: o.customerId || '',
+          customer: o.customerName || custUser.fullName || custUser.name || (o.customerId ? `Khách #${o.customerId.slice(0, 6)}` : 'Khách đặt món'),
+          phone: o.customerPhone || custUser.phone || 'Chưa cập nhật',
+          address: o.deliveryAddress || o.address || custUser.address || 'Chưa cập nhật',
+          items: itemsSummary,
+          totalAmount: totalAmount,
+          shipperId: o.shipperId || '',
+          driver: o.shipperName || drvUser.name || drvUser.fullName || (o.shipperId ? `Tài xế (${o.shipperId.slice(0, 6)})` : 'Chưa gán tài xế'),
+          status: status,
+          time: formatTimeAgo(createdAt),
+          createdAt: createdAt,
+          note: o.note || ''
+        });
+      });
+
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      liveOrders = list;
+    }
+
+    function rebuildComplaints() {
+      const list = [];
+      Object.entries(rawFbComplaints).forEach(([cid, c]) => {
+        if (!c || typeof c !== 'object') return;
+        // Hỗ trợ cả định dạng Complaint từ Android App (ComplaintActivity.kt) và từ Admin Portal
+        const isAndroidFormat = !c.senderName && (c.reason || c.customerId || c.storeId);
+        if (isAndroidFormat) {
+          const cust = rawFbUsers[c.customerId] || rawFbCustomers[c.customerId] || {};
+          const st = stores.find(s => s.id === c.storeId) || rawFbStores[c.storeId] || {};
+          let parsedType = 'Khiếu nại dịch vụ';
+          let parsedContent = c.reason || 'Phản ánh từ ứng dụng khách hàng';
+          const bracketMatch = parsedContent.match(/^\[(.*?)\]\s*(.*)$/);
+          if (bracketMatch) {
+            parsedType = bracketMatch[1];
+            parsedContent = bracketMatch[2] || parsedContent;
+          }
+          list.push({
+            id: c.complaintId || cid,
+            senderType: c.senderType || 'CUSTOMER',
+            senderName: c.senderName || cust.fullName || cust.name || (c.customerId ? `Khách hàng (${c.customerId.slice(0, 6)})` : 'Khách hàng'),
+            senderContact: c.senderContact || cust.phone || c.customerId || '',
+            targetName: c.targetName || st.name || c.storeId || 'Chưa xác định',
+            targetContact: c.targetContact || (st.owner ? `${st.owner} (${st.phone || ''})` : ''),
+            storeId: c.storeId || '',
+            customerId: c.customerId || '',
+            orderId: c.orderId || '',
+            type: c.type || parsedType,
+            content: c.content || parsedContent,
+            evidenceImage: c.evidenceImage || '',
+            priority: c.priority || 'HIGH',
+            status: (c.status || 'PENDING').toUpperCase(),
+            adminNote: c.adminNote || '',
+            penaltyAction: c.penaltyApplied || c.penaltyAction || 'NONE',
+            time: c.time || formatTimeAgo(c.createdAt),
+            createdAt: c.createdAt || Date.now()
+          });
+        } else {
+          list.push({
+            ...c,
+            id: c.id || cid,
+            status: (c.status || 'PENDING').toUpperCase(),
+            priority: c.priority || 'MEDIUM',
+            time: c.time || formatTimeAgo(c.createdAt)
+          });
+        }
+      });
+
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      complaints = list;
+    }
+
+    const LEGACY_MOCK_IDS = new Set([
+      'KN-201', 'KN-202', 'KN-203', 'KN-204', 'KN-205', 'KN-206',
+      'store-1', 'store-2', 'store-3', 'store-4', 'store-5', 'store-6', 'store-7', 'store-8',
+      'cust-1', 'cust-2', 'cust-3', 'cust-4', 'cust-5', 'cust-6', 'cust-7', 'cust-8'
+    ]);
+
+    let _isFbListenersAttached = false;
+    function attachRealtimeListeners() {
+      if (!fbDb || _isFbListenersAttached) return;
+      _isFbListenersAttached = true;
+
+      // 1. STORES listener
+      fbDb.ref('stores').on('value', snap => {
+        const val = snap.val();
+        const cleaned = {};
+        if (val && typeof val === 'object') {
+          Object.entries(val).forEach(([id, s]) => {
+            if (LEGACY_MOCK_IDS.has(id)) {
+              fbDb.ref(`stores/${id}`).remove().catch(() => {});
+            } else {
+              cleaned[id] = s;
+            }
+          });
+        }
+        rawFbStores = cleaned;
+        stores = Object.entries(rawFbStores).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
+        rebuildOrders();
+        rebuildComplaints();
+        renderStores();
+        renderOverviewStores();
+        renderKPIs();
+        populateGlobalOrderStoreFilter();
+        if (currentDetailStoreId) refreshOpenStoreDetailModal();
+      });
+
+      // 2. USERS listener
+      fbDb.ref('users').on('value', snap => {
+        rawFbUsers = snap.val() || {};
+        rebuildCustomersAndDrivers();
+        rebuildOrders();
+        rebuildComplaints();
+        renderCustomers();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+        renderComplaints();
+        renderKPIs();
+      });
+
+      // 3. CUSTOMERS listener
+      fbDb.ref('customers').on('value', snap => {
+        rawFbCustomers = snap.val() || {};
+        rebuildCustomersAndDrivers();
+        renderCustomers();
+        renderKPIs();
+      });
+
+      // 4. DRIVERS listener
+      fbDb.ref('drivers').on('value', snap => {
+        rawFbDrivers = snap.val() || {};
+        rebuildCustomersAndDrivers();
+        rebuildOrders();
+        renderGlobalDrivers();
+        renderGlobalOrders();
+        renderKPIs();
+      });
+
+      // 5. ORDERS listener
+      fbDb.ref('orders').on('value', snap => {
+        rawFbOrders = snap.val() || {};
+        rebuildOrders();
+        rebuildCustomersAndDrivers();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+        renderCustomers();
+        renderKPIs();
+        if (currentDetailStoreId) refreshOpenStoreDetailModal();
+      });
+
+      // 6. COMPLAINTS listener
+      fbDb.ref('complaints').on('value', snap => {
+        const val = snap.val();
+        const cleaned = {};
+        if (val && typeof val === 'object') {
+          Object.entries(val).forEach(([id, c]) => {
+            if (LEGACY_MOCK_IDS.has(id)) {
+              fbDb.ref(`complaints/${id}`).remove().catch(() => {});
+            } else {
+              cleaned[id] = c;
+            }
+          });
+        }
+        rawFbComplaints = cleaned;
+        rebuildComplaints();
+        renderComplaints();
+        renderKPIs();
+      });
+
+      // 7. CATEGORIES listener (đồng bộ node categories & menus/categories)
+      const handleCategoriesSnapshot = (val) => {
+        if (val && typeof val === 'object' && Object.keys(val).length > 0) {
+          categories = Object.entries(val).map(([id, c], idx) => ({
+            ...c,
+            id: c.id || c.categoryId || id,
+            categoryId: c.categoryId || c.id || id,
+            name: c.name || c.categoryName || 'Danh mục',
+            categoryName: c.categoryName || c.name || 'Danh mục',
+            icon: c.icon || c.iconUrl || '🍽️',
+            iconUrl: c.iconUrl || c.icon || '🍽️',
+            desc: c.desc || c.description || '',
+            description: c.description || c.desc || '',
+            displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
+            count: c.count || 0,
+            status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
+            isActive: c.isActive !== false && c.status !== 'HIDDEN'
+          })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+        } else {
+          // Nếu rỗng, kiểm tra menus/categories
+          fbDb.ref('menus/categories').once('value').then(mSnap => {
+            const mVal = mSnap.val();
+            if (mVal && typeof mVal === 'object' && Object.keys(mVal).length > 0) {
+              categories = Object.entries(mVal).map(([id, c], idx) => ({
+                ...c,
+                id: c.id || c.categoryId || id,
+                categoryId: c.categoryId || c.id || id,
+                name: c.name || c.categoryName || 'Danh mục',
+                categoryName: c.categoryName || c.name || 'Danh mục',
+                icon: c.icon || c.iconUrl || '🍽️',
+                iconUrl: c.iconUrl || c.icon || '🍽️',
+                desc: c.desc || c.description || '',
+                description: c.description || c.desc || '',
+                displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
+                count: c.count || 0,
+                status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
+                isActive: c.isActive !== false && c.status !== 'HIDDEN'
+              })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+              // Migrate sang cả categories
+              const mig = {};
+              categories.forEach(item => { mig[`categories/${item.id}`] = item; });
+              fbDb.ref().update(mig).catch(() => {});
+            } else {
+              // Cả 2 đều rỗng -> Tự động seed 11 danh mục nền tảng mặc định!
+              categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+              seedDefaultCategories();
+            }
+            renderCategories();
+            renderKPIs();
+            populateStoreCategoryDropdowns();
+          });
+          return;
+        }
+        renderCategories();
+        renderKPIs();
+        populateStoreCategoryDropdowns();
+      };
+
+      fbDb.ref('categories').on('value', snap => {
+        handleCategoriesSnapshot(snap.val());
+      }, err => {
+        fbDb.ref('menus/categories').on('value', mSnap => {
+          handleCategoriesSnapshot(mSnap.val());
+        });
+      });
+
+      fbDb.ref('menus/categories').on('value', snap => {
+        if (snap.val()) handleCategoriesSnapshot(snap.val());
+      });
+
+      // 8. ADMIN LOGS listener (menus/admin_logs)
+      fbDb.ref('menus/admin_logs').limitToLast(25).on('value', snap => {
+        const val = snap.val();
+        if (val && typeof val === 'object') {
+          systemLogs = Object.values(val).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        } else {
+          systemLogs = [];
+        }
+        renderLogs();
+      });
+
+      // 9. DISH REVIEWS listener (dish_reviews)
+      fbDb.ref('dish_reviews').on('value', snap => {
+        const val = snap.val();
+        rawFbReviews = (val && typeof val === 'object') ? val : {};
+        rebuildReviews();
+        renderReviews();
+        renderReviewKPIs();
+        populateReviewStoreFilter();
+      });
+    }
+
+    async function syncFromFirebaseNow() {
+      if (!fbDb) {
+        await initFirebaseRealtime();
+        return;
+      }
+      setFirebaseConnectionUI('connecting', 'Đang đồng bộ...');
+      try {
+        const [stSnap, usSnap, cuSnap, drSnap, odSnap, cpSnap, catSnap, logSnap, rvSnap] = await Promise.all([
+          fbDb.ref('stores').once('value'),
+          fbDb.ref('users').once('value'),
+          fbDb.ref('customers').once('value'),
+          fbDb.ref('drivers').once('value'),
+          fbDb.ref('orders').once('value'),
+          fbDb.ref('complaints').once('value'),
+          fbDb.ref('categories').once('value'),
+          fbDb.ref('menus/admin_logs').limitToLast(25).once('value'),
+          fbDb.ref('dish_reviews').once('value')
+        ]);
+        rawFbStores = stSnap.val() || {};
+        rawFbUsers = usSnap.val() || {};
+        rawFbCustomers = cuSnap.val() || {};
+        rawFbDrivers = drSnap.val() || {};
+        rawFbOrders = odSnap.val() || {};
+        rawFbComplaints = cpSnap.val() || {};
+        let catVal = catSnap.val();
+        if (!catVal || typeof catVal !== 'object' || Object.keys(catVal).length === 0) {
+          const mSnap = await fbDb.ref('menus/categories').once('value');
+          catVal = mSnap.val();
+        }
+        categories = (catVal && typeof catVal === 'object' && Object.keys(catVal).length > 0)
+          ? Object.entries(catVal).map(([id, c], idx) => ({
+              ...c,
+              id: c.id || c.categoryId || id,
+              categoryId: c.categoryId || c.id || id,
+              name: c.name || c.categoryName || 'Danh mục',
+              categoryName: c.categoryName || c.name || 'Danh mục',
+              icon: c.icon || c.iconUrl || '🍽️',
+              iconUrl: c.iconUrl || c.icon || '🍽️',
+              desc: c.desc || c.description || '',
+              description: c.description || c.desc || '',
+              displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
+              count: c.count || 0,
+              status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
+              isActive: c.isActive !== false && c.status !== 'HIDDEN'
+            })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
+          : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+        const logVal = logSnap.val();
+        systemLogs = (logVal && typeof logVal === 'object')
+          ? Object.values(logVal).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+          : [];
+        rawFbReviews = rvSnap ? (rvSnap.val() || {}) : {};
+        stores = Object.entries(rawFbStores).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
+        rebuildOrders();
+        rebuildCustomersAndDrivers();
+        rebuildComplaints();
+        rebuildReviews();
+        renderKPIs();
+        renderOverviewStores();
+        renderLogs();
+        renderCategories();
+        renderCustomers();
+        renderStores();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+        renderComplaints();
+        renderReviews();
+        renderReviewKPIs();
+        populateReviewStoreFilter();
+        setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
+        showToast(`Đã đồng bộ trực tiếp: ${stores.length} quán, ${customers.length} khách, ${liveOrders.length} đơn hàng!`, 'success');
+      } catch (e) {
+        setFirebaseConnectionUI('offline', 'Lỗi đồng bộ Firebase');
+        showToast('Không thể đồng bộ dữ liệu: ' + e.message, 'danger');
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem('oishi_admin_profile', JSON.stringify(adminProfile));
+    }
+
+    function addLog(action, type = 'info') {
+      const logEntry = {
+        time: formatTimeAgo(Date.now()),
+        timestamp: Date.now(),
+        action: action,
+        admin: adminProfile.name.split(' ').slice(-2).join(' ') || 'Admin',
+        type: type
+      };
+      systemLogs.unshift(logEntry);
+      if (systemLogs.length > 25) systemLogs.pop();
+      renderLogs();
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref('menus/admin_logs').push(logEntry).catch(() => {});
+      }
+    }
+
+    /* ========================================================
+       3. DOM INITIALIZATION
+       ======================================================== */
+    window.addEventListener('DOMContentLoaded', () => {
+      updateAdminDisplay();
+      renderKPIs();
+      renderOverviewStores();
+      renderLogs();
+      renderCategories();
+      renderCustomers();
+      renderStores();
+      renderComplaints();
+      renderReviews();
+      populateStoreCategoryDropdowns();
+      populateReviewStoreFilter();
+      initFirebaseRealtime();
+    });
+
+    /* ========================================================
+       4. ADMIN PROFILE & AUTH
+       ======================================================== */
+    function updateAdminDisplay() {
+      const nameEl = document.getElementById('display-admin-name');
+      const charEl = document.getElementById('admin-avatar-char');
+      const nameInput = document.getElementById('setting-admin-name');
+      const emailInput = document.getElementById('setting-admin-email');
+      const phoneInput = document.getElementById('setting-admin-phone');
+
+      if (nameEl) nameEl.textContent = adminProfile.name;
+      if (charEl) {
+        const parts = adminProfile.name.trim().split(' ');
+        charEl.textContent = parts[parts.length - 1].charAt(0).toUpperCase();
+      }
+      if (nameInput) nameInput.value = adminProfile.name;
+      if (emailInput) emailInput.value = adminProfile.email;
+      if (phoneInput) phoneInput.value = adminProfile.phone;
+    }
+
+    function toggleAdminDropdown(e) {
+      e.stopPropagation();
+      const dropdown = document.getElementById('admin-dropdown');
+      dropdown.classList.toggle('show');
+    }
+
+    window.addEventListener('click', () => {
+      const dropdown = document.getElementById('admin-dropdown');
+      if (dropdown) dropdown.classList.remove('show');
+    });
+
+    function openAdminProfileModal() {
+      switchTab('settings');
+    }
+
+    function openAdminPasswordModal() {
+      switchTab('settings');
+      setTimeout(() => {
+        const passInput = document.getElementById('admin-curr-pass');
+        if (passInput) passInput.focus();
+      }, 200);
+    }
+
+    function saveAdminSettings(e) {
+      e.preventDefault();
+      const newName = document.getElementById('setting-admin-name').value.trim();
+      const newEmail = document.getElementById('setting-admin-email').value.trim();
+      const newPhone = document.getElementById('setting-admin-phone').value.trim();
+
+      if (!newName) {
+        showToast('Vui lòng nhập họ tên Admin', 'warning');
+        return;
+      }
+
+      adminProfile.name = newName;
+      adminProfile.email = newEmail;
+      adminProfile.phone = newPhone;
+      saveState();
+      updateAdminDisplay();
+      if (fbDb && fbAdminUid) {
+        fbDb.ref(`users/${fbAdminUid}`).update({
+          fullName: newName,
+          email: newEmail,
+          phone: newPhone
+        }).catch(() => {});
+      }
+      addLog(`Cập nhật thông tin Admin: ${newName}`, 'success');
+      showToast('Đã lưu hồ sơ Admin lên Firebase Realtime Database!', 'success');
+    }
+
+    async function changeAdminPassword(e) {
+      e.preventDefault();
+      const currPass = document.getElementById('admin-curr-pass').value;
+      const newPass = document.getElementById('admin-new-pass').value;
+      const confirmPass = document.getElementById('admin-confirm-pass').value;
+
+      if (newPass !== confirmPass) {
+        showToast('Mật khẩu mới và xác nhận mật khẩu không trùng khớp!', 'danger');
+        return;
+      }
+      if (newPass.length < 6) {
+        showToast('Mật khẩu mới phải có tối thiểu 6 ký tự!', 'warning');
+        return;
+      }
+
+      try {
+        if (fbAuth && fbAuth.currentUser) {
+          await fbAuth.currentUser.updatePassword(newPass);
+        }
+      } catch (_) {}
+
+      document.getElementById('admin-curr-pass').value = '';
+      document.getElementById('admin-new-pass').value = '';
+      document.getElementById('admin-confirm-pass').value = '';
+
+      addLog('Đổi mật khẩu tài khoản Admin thành công', 'info');
+      showToast('Đã đổi mật khẩu Admin thành công!', 'success');
+    }
+
+    function adminLogout() {
+      if (confirm('Bạn có chắc chắn muốn đăng xuất khỏi trang Quản trị Oishi Food?')) {
+        showToast('Đang đăng xuất...', 'info');
+        setTimeout(() => {
+          location.reload();
+        }, 800);
+      }
+    }
+
+    async function resetDefaultData() {
+      if (confirm('Làm mới và đồng bộ lại toàn bộ dữ liệu thực tế từ Firebase Realtime Database?')) {
+        localStorage.removeItem('oishi_admin_stores');
+        localStorage.removeItem('oishi_admin_customers');
+        localStorage.removeItem('oishi_admin_complaints');
+        localStorage.removeItem('oishi_admin_reviews');
+        localStorage.removeItem('oishi_admin_categories');
+        localStorage.removeItem('oishi_admin_logs');
+        await syncFromFirebaseNow();
+        showToast('Đã làm mới dữ liệu từ Firebase thành công!', 'success');
+      }
+    }
+
+
+    /* ========================================================
+       5. TABS & NAVIGATION CONTROLLER
+       ======================================================== */
+    function switchTab(tabId) {
+      document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
+        if (item.getAttribute('data-tab') === tabId) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+
+      document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+      });
+
+      const activePane = document.getElementById('tab-' + tabId);
+      if (activePane) activePane.classList.add('active');
+
+      const titleEl = document.getElementById('topbar-title');
+      if (tabId === 'overview') titleEl.textContent = 'Bảng Điều Khiển Tổng Quan (Firebase Live)';
+      else if (tabId === 'categories') titleEl.textContent = 'Quản Lý Danh Mục Nền Tảng';
+      else if (tabId === 'customers') titleEl.textContent = 'Quản Lý Khách Hàng';
+      else if (tabId === 'stores') titleEl.textContent = 'Quản Lý Đối Tác Cửa Hàng';
+      else if (tabId === 'orders') titleEl.textContent = 'Điều Phối Đơn Hàng & Đội Ngũ Tài Xế (Realtime)';
+      else if (tabId === 'complaints') titleEl.textContent = 'Xử Lý Khiếu Nại & Báo Cáo Vi Phạm';
+      else if (tabId === 'reviews') titleEl.textContent = 'Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)';
+      else if (tabId === 'settings') titleEl.textContent = 'Cài Đặt & Tài Khoản Admin';
+
+      renderKPIs();
+      if (tabId === 'categories') renderCategories();
+      if (tabId === 'customers') renderCustomers();
+      if (tabId === 'stores') renderStores();
+      if (tabId === 'orders') {
+        populateGlobalOrderStoreFilter();
+        renderGlobalOrders();
+        renderGlobalDrivers();
+      }
+      if (tabId === 'complaints') renderComplaints();
+      if (tabId === 'reviews') {
+        populateReviewStoreFilter();
+        renderReviews();
+        renderReviewKPIs();
+      }
+    }
+
+    /* ========================================================
+       6. KPI RENDERING & LOGS
+       ======================================================== */
+    function renderKPIs() {
+      // Categories
+      const catCountEl = document.getElementById('kpi-total-cats');
+      if (catCountEl && catCountEl.textContent !== String(categories.length)) {
+        catCountEl.textContent = categories.length;
+      }
+      const catBadgeEl = document.getElementById('badge-cat-count');
+      if (catBadgeEl && catBadgeEl.textContent !== String(categories.length)) {
+        catBadgeEl.textContent = categories.length;
+      }
+
+      // Customers
+      document.getElementById('kpi-total-customers').textContent = customers.length;
+      document.getElementById('badge-customer-count').textContent = customers.length;
+      const activeCustomers = customers.filter(c => c.status === 'ACTIVE').length;
+      document.getElementById('kpi-active-customers').textContent = `${activeCustomers} đang hoạt động`;
+
+      // Stores (4 trạng thái: Chờ duyệt, Đang hoạt động, Bị khóa, Tạm nghỉ)
+      document.getElementById('kpi-total-stores').textContent = stores.length;
+      const lockedStores = stores.filter(s => s.status === 'LOCKED').length;
+      const pendingStores = stores.filter(s => s.status === 'PENDING').length;
+      const openStores = stores.filter(s => s.status === 'OPEN').length;
+      const closedStores = stores.filter(s => s.status === 'CLOSED').length;
+      const lockedBadge = document.getElementById('badge-locked-store');
+      if (lockedBadge) {
+        if (pendingStores > 0) {
+          lockedBadge.textContent = `${pendingStores} Chờ duyệt`;
+          lockedBadge.style.display = 'inline-block';
+          lockedBadge.style.background = '#FEF3C7';
+          lockedBadge.style.color = '#B45309';
+        } else if (lockedStores > 0) {
+          lockedBadge.textContent = `${lockedStores} Khóa`;
+          lockedBadge.style.display = 'inline-block';
+          lockedBadge.style.background = '#FEE2E2';
+          lockedBadge.style.color = '#B91C1C';
+        } else {
+          lockedBadge.style.display = 'none';
+        }
+      }
+      document.getElementById('kpi-locked-stores').textContent = `${openStores} hoạt động • ${pendingStores} chờ duyệt • ${lockedStores} khóa • ${closedStores} nghỉ`;
+
+      // Orders KPIs
+      const totalOrdersCount = liveOrders.length;
+      const completedOrdersCount = liveOrders.filter(o => o.status === 'COMPLETED').length;
+      const processingOrdersCount = liveOrders.filter(o => ['PENDING', 'PREPARING', 'READY', 'ASSIGNED'].includes(o.status)).length;
+      const deliveringOrdersCount = liveOrders.filter(o => o.status === 'DELIVERING').length;
+      const failedOrdersCount = liveOrders.filter(o => o.status === 'BOOM' || o.status === 'CANCELLED').length;
+      const totalRevenue = liveOrders.filter(o => o.status === 'COMPLETED').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+      if (document.getElementById('kpi-total-orders')) document.getElementById('kpi-total-orders').textContent = totalOrdersCount;
+      if (document.getElementById('badge-orders-count')) document.getElementById('badge-orders-count').textContent = totalOrdersCount;
+      if (document.getElementById('kpi-orders-sub')) {
+        document.getElementById('kpi-orders-sub').textContent = `${completedOrdersCount} hoàn tất • ${deliveringOrdersCount + processingOrdersCount} đang xử lý`;
+      }
+      if (document.getElementById('kpi-ord-total')) document.getElementById('kpi-ord-total').textContent = totalOrdersCount;
+      if (document.getElementById('kpi-ord-processing')) document.getElementById('kpi-ord-processing').textContent = processingOrdersCount;
+      if (document.getElementById('kpi-ord-delivering')) document.getElementById('kpi-ord-delivering').textContent = deliveringOrdersCount;
+      if (document.getElementById('kpi-ord-completed')) document.getElementById('kpi-ord-completed').textContent = completedOrdersCount;
+      if (document.getElementById('kpi-ord-failed')) document.getElementById('kpi-ord-failed').textContent = failedOrdersCount;
+      if (document.getElementById('kpi-ord-revenue')) document.getElementById('kpi-ord-revenue').textContent = `Doanh thu: ${formatVnd(totalRevenue)}`;
+
+      // Complaints KPIs
+      const pendingCount = complaints.filter(c => c.status === 'PENDING').length;
+      const progressCount = complaints.filter(c => c.status === 'IN_PROGRESS').length;
+      const resolvedCount = complaints.filter(c => c.status === 'RESOLVED').length;
+      const rejectedCount = complaints.filter(c => c.status === 'REJECTED').length;
+      const criticalCount = complaints.filter(c => c.priority === 'CRITICAL' && c.status === 'PENDING').length;
+
+      const complaintBadge = document.getElementById('badge-complaints-count');
+      if (complaintBadge) {
+        complaintBadge.textContent = `${pendingCount} Mới`;
+        complaintBadge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
+      }
+
+      const kpiPendingEl = document.getElementById('kpi-pending-complaints');
+      if (kpiPendingEl) kpiPendingEl.textContent = pendingCount;
+
+      const kpiSubEl = document.getElementById('kpi-complaint-sub');
+      if (kpiSubEl) {
+        kpiSubEl.textContent = criticalCount > 0 ? `${criticalCount} khiếu nại khẩn cấp` : `${progressCount} đơn đang xử lý`;
+      }
+
+      if (document.getElementById('kpi-c-pending')) document.getElementById('kpi-c-pending').textContent = pendingCount;
+      if (document.getElementById('kpi-c-progress')) document.getElementById('kpi-c-progress').textContent = progressCount;
+      if (document.getElementById('kpi-c-resolved')) document.getElementById('kpi-c-resolved').textContent = resolvedCount;
+      if (document.getElementById('kpi-c-rejected')) document.getElementById('kpi-c-rejected').textContent = rejectedCount;
+    }
+
+    function renderOverviewStores() {
+      const tbody = document.getElementById('tbody-overview-stores');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (stores.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 12.5px;">Chưa có cửa hàng nào trên Firebase Realtime Database.</td></tr>`;
+        return;
+      }
+
+      const sorted = [...stores].sort((a, b) => {
+        if (a.status === 'PENDING') return -1;
+        if (b.status === 'PENDING') return 1;
+        if (a.status === 'LOCKED') return -1;
+        if (b.status === 'LOCKED') return 1;
+        return 0;
+      }).slice(0, 6);
+      
+      if (sorted.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px; font-size: 13px;">Chưa có cửa hàng nào trên hệ thống Firebase</td></tr>`;
+        return;
+      }
+      
+      sorted.forEach(s => {
+        const tr = document.createElement('tr');
+        let statusBadge = '';
+        if (s.status === 'PENDING') {
+          statusBadge = '<span class="badge badge-status-pending"><span class="badge-dot"></span>Chờ duyệt</span>';
+        } else if (s.status === 'OPEN') {
+          statusBadge = '<span class="badge badge-status-open"><span class="badge-dot"></span>Đang hoạt động</span>';
+        } else if (s.status === 'LOCKED') {
+          statusBadge = '<span class="badge badge-status-locked"><span class="badge-dot"></span>Bị khóa</span>';
+        } else {
+          statusBadge = '<span class="badge badge-status-closed"><span class="badge-dot"></span>Tạm nghỉ</span>';
+        }
+
+        tr.innerHTML = `
+          <td>
+            <strong>${s.name}</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">${s.category} • ${s.itemCount || 0} món</div>
+          </td>
+          <td>
+            <div>${s.owner}</div>
+            <div style="font-size: 11px; color: var(--text-light); font-family: monospace;">${s.phone}</div>
+          </td>
+          <td>
+            ${statusBadge}
+          </td>
+          <td style="text-align: right;">
+            <button class="btn btn-sm btn-outline" onclick="openStoreDetailModal('${s.id}')" style="padding: 2px 8px; font-size: 11px;">
+              Quản lý quán
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('logs-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (systemLogs.length === 0) {
+        container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">Chưa có nhật ký nào.</div>';
+        return;
+      }
+
+      systemLogs.slice(0, 8).forEach(l => {
+        const dotColor = l.type === 'danger' ? 'var(--danger)' : (l.type === 'success' ? 'var(--success)' : 'var(--info)');
+        const div = document.createElement('div');
+        div.style.cssText = 'display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 12px;';
+        div.innerHTML = `
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${dotColor}; margin-top: 5px; flex-shrink: 0;"></div>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; color: var(--text-main);">${l.action}</div>
+            <div style="color: var(--text-light); font-size: 11px;">bởi ${l.admin} • ${l.time}</div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function clearLogs() {
+      if (confirm('Xóa sạch lịch sử nhật ký thao tác?')) {
+        systemLogs = [];
+        saveState();
+        if (fbDb && isFirebaseReady) fbDb.ref('menus/admin_logs').remove().catch(() => {});
+        renderLogs();
+        showToast('Đã xóa nhật ký hoạt động trên Firebase', 'info');
+      }
+    }
+
+    /* ========================================================
+       7. CATEGORY MANAGEMENT (QUẢN LÝ DANH MỤC NỀN TẢNG)
+       ======================================================== */
+    function filterCategories() {
+      renderCategories();
+    }
+
+    function updateCatIconPreview(val) {
+      const preview = document.getElementById('cat-icon-preview');
+      if (!preview) return;
+      const clean = (val || '').trim();
+      if (!clean) {
+        preview.innerHTML = '🍽️';
+        return;
+      }
+      if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('/')) {
+        preview.innerHTML = `<img src="${clean}" style="width: 28px; height: 28px; object-fit: contain;">`;
+      } else {
+        preview.innerHTML = `<span style="font-size: 22px;">${clean}</span>`;
+      }
+    }
+
+    function selectQuickEmoji(emoji) {
+      const input = document.getElementById('form-cat-icon');
+      if (input) {
+        input.value = emoji;
+        updateCatIconPreview(emoji);
+      }
+    }
+
+    function seedDefaultCategories(force = false) {
+      if (!fbDb || !isFirebaseReady) return;
+      const updates = {};
+      DEFAULT_CATEGORIES.forEach((cat, idx) => {
+        const item = {
+          ...cat,
+          id: cat.id,
+          categoryId: cat.id,
+          name: cat.name,
+          categoryName: cat.name,
+          icon: cat.icon,
+          iconUrl: cat.icon,
+          desc: cat.desc,
+          description: cat.desc,
+          displayOrder: idx + 1,
+          status: 'ACTIVE',
+          isActive: true,
+          updatedAt: Date.now()
+        };
+        updates[`categories/${cat.id}`] = item;
+        updates[`menus/categories/${cat.id}`] = item;
+      });
+      fbDb.ref().update(updates).then(() => {
+        addLog('Khởi tạo tự động 11 danh mục nền tảng mặc định trên Firebase', 'success');
+      }).catch(err => {
+        console.error('Lỗi seed default categories:', err);
+      });
+    }
+
+    function restoreDefaultCategories() {
+      if (!confirm('Khôi phục lại 11 danh mục ẩm thực chuẩn của hệ thống? Dữ liệu danh mục chuẩn (Cơm Trưa, Trà Sữa, Bún/Phở, Gà Rán, Bánh Mì, Pizza, Cà Phê, Tráng Miệng, Lẩu, Đồ Chay, Món Khác) sẽ được cập nhật lên Firebase.')) {
+        return;
+      }
+      categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+      if (fbDb && isFirebaseReady) {
+        seedDefaultCategories(true);
+      }
+      renderCategories();
+      renderKPIs();
+      populateStoreCategoryDropdowns();
+      addLog('Admin khôi phục danh mục nền tảng chuẩn', 'info');
+      showToast('Đã khôi phục thành công 11 danh mục nền tảng chuẩn!', 'success');
+    }
+
+    function matchCategoryKeywords(catName, dishName, storeCat) {
+      const c = (catName || '').toLowerCase();
+      const d = (dishName || '').toLowerCase();
+      const s = (storeCat || '').toLowerCase();
+      if (c.includes('cơm')) return d.includes('cơm') || s.includes('cơm');
+      if (c.includes('trà sữa') || c.includes('trà')) return d.includes('trà') || s.includes('trà') || d.includes('milk tea');
+      if (c.includes('bún') || c.includes('phở')) return d.includes('bún') || d.includes('phở') || d.includes('hủ tiếu') || d.includes('mì') || s.includes('bún') || s.includes('phở');
+      if (c.includes('gà')) return d.includes('gà') || s.includes('gà');
+      if (c.includes('bánh mì')) return d.includes('bánh mì') || s.includes('bánh mì');
+      if (c.includes('pizza')) return d.includes('pizza') || d.includes('pasta') || s.includes('pizza');
+      if (c.includes('cà phê')) return d.includes('cà phê') || d.includes('cafe') || d.includes('coffee') || s.includes('cà phê');
+      if (c.includes('tráng miệng') || c.includes('ăn vặt')) return d.includes('chè') || d.includes('kem') || d.includes('bánh') || d.includes('ăn vặt') || s.includes('ăn vặt');
+      if (c.includes('lẩu')) return d.includes('lẩu') || d.includes('canh') || s.includes('lẩu');
+      if (c.includes('chay')) return d.includes('chay') || s.includes('chay');
+      return false;
+    }
+
+    function renderCategories() {
+      const container = document.getElementById('category-grid-container');
+      const counter = document.getElementById('cat-counter');
+      if (!container) return;
+
+      const searchVal = (document.getElementById('filter-cat-search')?.value || '').toLowerCase().trim();
+      const statusVal = document.getElementById('filter-cat-status')?.value || 'ALL';
+
+      // Đếm số món thực tế từ các quán trong Firebase
+      const realDishCounts = {};
+      stores.forEach(s => {
+        if (s.dishes && typeof s.dishes === 'object') {
+          Object.values(s.dishes).forEach(d => {
+            const dPlatform = (d.platformCategory || '').trim();
+            const dStoreCat = (d.category || '').trim();
+            const dCatId = (d.categoryId || '').trim();
+            const dName = (d.name || '').trim();
+
+            categories.forEach(cat => {
+              let matched = false;
+              if (dPlatform && dPlatform.toLowerCase() === cat.name.toLowerCase()) {
+                matched = true;
+              } else if (dCatId && (dCatId === cat.id || dCatId === cat.categoryId)) {
+                matched = true;
+              } else if (dStoreCat && dStoreCat.toLowerCase() === cat.name.toLowerCase()) {
+                matched = true;
+              } else if (matchCategoryKeywords(cat.name, dName, dStoreCat)) {
+                matched = true;
+              }
+              if (matched) {
+                realDishCounts[cat.id] = (realDishCounts[cat.id] || 0) + 1;
+              }
+            });
+          });
+        }
+      });
+
+      const filtered = categories.filter(c => {
+        const matchSearch = c.name.toLowerCase().includes(searchVal) || (c.desc && c.desc.toLowerCase().includes(searchVal));
+        const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
+        return matchSearch && matchStatus;
+      });
+
+      if (counter && counter.textContent !== String(filtered.length)) {
+        counter.textContent = filtered.length;
+      }
+      const catBadgeEl = document.getElementById('badge-cat-count');
+      if (catBadgeEl && catBadgeEl.textContent !== String(categories.length)) {
+        catBadgeEl.textContent = categories.length;
+      }
+      const kpiCatEl = document.getElementById('kpi-total-cats');
+      if (kpiCatEl && kpiCatEl.textContent !== String(categories.length)) {
+        kpiCatEl.textContent = categories.length;
+      }
+
+      const currentSignature = JSON.stringify(filtered.map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon || c.iconUrl,
+        desc: c.desc,
+        status: c.status,
+        order: c.displayOrder,
+        count: realDishCounts[c.id] || 0
+      })));
+
+      if (container.dataset.renderedSig === currentSignature) {
+        return;
+      }
+      container.dataset.renderedSig = currentSignature;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1; padding: 48px 24px; text-align: center;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <h3 style="margin-top: 14px; font-size: 16px;">Không tìm thấy danh mục phù hợp</h3>
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: 6px;">Vui lòng thử từ khóa tìm kiếm khác hoặc bấm "Khôi Phục Danh Mục Chuẩn"</p>
+            <button class="btn btn-outline btn-sm" onclick="restoreDefaultCategories()" style="margin-top: 14px;">Khôi Phục Danh Mục Chuẩn</button>
+          </div>
+        `;
+        return;
+      }
+
+      const htmlCards = filtered.map(c => {
+        const isHidden = c.status === 'HIDDEN';
+        const displayCount = realDishCounts[c.id] !== undefined ? realDishCounts[c.id] : (c.count || 0);
+
+        let iconContent = '';
+        const iconVal = (c.icon || c.iconUrl || '').trim();
+        if (iconVal.startsWith('http://') || iconVal.startsWith('https://') || iconVal.startsWith('/')) {
+          iconContent = `<img src="${iconVal}" alt="${c.name}" style="width: 28px; height: 28px; object-fit: contain;">`;
+        } else if (iconVal) {
+          iconContent = `<span style="font-size: 26px; line-height: 1;">${iconVal}</span>`;
+        } else {
+          iconContent = (c.name || 'DM').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+        }
+
+        return `
+          <div class="category-card" data-cat-id="${c.id}">
+            <div class="cat-header">
+              <div class="cat-icon-box">${iconContent}</div>
+              <div class="cat-info">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                  <h3 style="margin: 0; font-size: 15px; font-weight: 700;">${c.name}</h3>
+                  <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">#${c.displayOrder || 1}</span>
+                </div>
+                <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">${c.desc || c.description || 'Chưa có mô tả chi tiết'}</p>
+              </div>
+            </div>
+            <div class="cat-stats" style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+              <div style="font-size: 12px; color: var(--text-muted);">
+                Số món: <strong style="color: var(--text-main); font-weight: 700;">${displayCount} món</strong>
+              </div>
+              <div>
+                ${isHidden 
+                  ? '<span class="badge badge-warning" style="font-size: 11px;"><span class="badge-dot"></span>Tạm ẩn</span>'
+                  : '<span class="badge badge-active" style="font-size: 11px;"><span class="badge-dot"></span>Hiển thị</span>'
+                }
+              </div>
+            </div>
+            <div class="cat-actions" style="margin-top: 12px; display: flex; gap: 6px;">
+              <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị trên app' : 'Tạm ẩn khỏi app'}">
+                ${isHidden ? '👁️ Bật' : '🚫 Ẩn'}
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')" title="Chỉnh sửa danh mục">
+                ✏️ Sửa
+              </button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')" title="Xóa danh mục">
+                🗑️ Xóa
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = htmlCards;
+    }
+
+    function openAddCategoryModal() {
+      document.getElementById('modal-cat-title').textContent = 'Thêm Danh Mục Món Mới';
+      document.getElementById('form-cat-id').value = '';
+      document.getElementById('form-cat-name').value = '';
+      document.getElementById('form-cat-icon').value = '🍽️';
+      updateCatIconPreview('🍽️');
+      document.getElementById('form-cat-order').value = categories.length + 1;
+      document.getElementById('form-cat-desc').value = '';
+      document.getElementById('form-cat-status').value = 'ACTIVE';
+      openModal('modal-category');
+    }
+
+    function openEditCategoryModal(catId) {
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return;
+      document.getElementById('modal-cat-title').textContent = 'Chỉnh Sửa Danh Mục: ' + cat.name;
+      document.getElementById('form-cat-id').value = cat.id;
+      document.getElementById('form-cat-name').value = cat.name;
+      const iconVal = cat.icon || cat.iconUrl || '🍽️';
+      document.getElementById('form-cat-icon').value = iconVal;
+      updateCatIconPreview(iconVal);
+      document.getElementById('form-cat-order').value = cat.displayOrder || 1;
+      document.getElementById('form-cat-desc').value = cat.desc || cat.description || '';
+      document.getElementById('form-cat-status').value = cat.status || (cat.isActive === false ? 'HIDDEN' : 'ACTIVE');
+      openModal('modal-category');
+    }
+
+    function saveCategory(e) {
+      e.preventDefault();
+      const catId = document.getElementById('form-cat-id').value;
+      const name = document.getElementById('form-cat-name').value.trim();
+      const icon = document.getElementById('form-cat-icon').value.trim() || '🍽️';
+      const order = parseInt(document.getElementById('form-cat-order')?.value, 10) || 1;
+      const desc = document.getElementById('form-cat-desc').value.trim();
+      const status = document.getElementById('form-cat-status').value;
+
+      if (!name) {
+        showToast('Vui lòng nhập tên danh mục!', 'warning');
+        return;
+      }
+
+      const targetId = catId || ('cat-' + Date.now());
+      const targetOrder = Math.max(1, order);
+
+      // Tự động đẩy các danh mục có displayOrder >= targetOrder lên +1 (chen và đẩy)
+      const otherCats = categories.filter(c => (c.id || c.categoryId) !== targetId)
+        .sort((a, b) => (parseInt(a.displayOrder, 10) || 99) - (parseInt(b.displayOrder, 10) || 99));
+
+      const fbBatchUpdates = {};
+      let lastAssignedOrder = targetOrder;
+
+      otherCats.forEach(c => {
+        const curOrder = parseInt(c.displayOrder, 10) || 99;
+        if (curOrder >= targetOrder) {
+          const newOrder = curOrder <= lastAssignedOrder ? (lastAssignedOrder + 1) : curOrder;
+          lastAssignedOrder = newOrder;
+          if (newOrder !== curOrder) {
+            c.displayOrder = newOrder;
+            const cid = c.categoryId || c.id;
+            fbBatchUpdates[`categories/${cid}/displayOrder`] = newOrder;
+            fbBatchUpdates[`categories/${cid}/updatedAt`] = Date.now();
+            fbBatchUpdates[`menus/categories/${cid}/displayOrder`] = newOrder;
+            fbBatchUpdates[`menus/categories/${cid}/updatedAt`] = Date.now();
+          }
+        }
+      });
+
+      const catObj = {
+        id: targetId,
+        categoryId: targetId,
+        name: name,
+        categoryName: name,
+        icon: icon,
+        iconUrl: icon,
+        desc: desc,
+        description: desc,
+        displayOrder: targetOrder,
+        count: 0,
+        status: status,
+        isActive: status === 'ACTIVE',
+        updatedAt: Date.now()
+      };
+
+      if (catId) {
+        const idx = categories.findIndex(c => (c.id || c.categoryId) === catId);
+        if (idx !== -1) {
+          categories[idx] = { ...categories[idx], ...catObj };
+        }
+        addLog(`Chỉnh sửa danh mục "${name}" (Thứ tự #${targetOrder})`, 'info');
+        showToast(`Đã cập nhật danh mục "${name}" trên Firebase!`, 'success');
+      } else {
+        categories.push(catObj);
+        addLog(`Thêm mới danh mục "${name}" (Thứ tự #${targetOrder})`, 'success');
+        showToast(`Đã tạo mới danh mục "${name}" trên Firebase!`, 'success');
+      }
+
+      categories.sort((a, b) => (parseInt(a.displayOrder, 10) || 99) - (parseInt(b.displayOrder, 10) || 99));
+
+      // Đồng bộ cả 2 node trên Firebase nguyên khối atomic
+      if (fbDb && isFirebaseReady) {
+        fbBatchUpdates[`categories/${targetId}`] = catObj;
+        fbBatchUpdates[`menus/categories/${targetId}`] = catObj;
+
+        fbDb.ref().update(fbBatchUpdates).then(() => {
+          showToast(`Đã lưu danh mục "${name}" và cập nhật thứ tự thành công!`, 'success');
+        }).catch(err => {
+          console.error('Lỗi lưu danh mục:', err);
+          showToast('Lỗi khi lưu lên Firebase: ' + (err.message || err), 'danger');
+        });
+      }
+
+      closeModal('modal-category');
+      renderCategories();
+      renderKPIs();
+      populateStoreCategoryDropdowns();
+    }
+
+    function toggleCategoryStatus(catId) {
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return;
+      cat.status = cat.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
+      cat.isActive = cat.status === 'ACTIVE';
+      cat.updatedAt = Date.now();
+
+      if (fbDb && isFirebaseReady) {
+        const updates = {};
+        updates[`categories/${catId}/status`] = cat.status;
+        updates[`categories/${catId}/isActive`] = cat.isActive;
+        updates[`categories/${catId}/updatedAt`] = cat.updatedAt;
+        updates[`menus/categories/${catId}/status`] = cat.status;
+        updates[`menus/categories/${catId}/isActive`] = cat.isActive;
+        updates[`menus/categories/${catId}/updatedAt`] = cat.updatedAt;
+        fbDb.ref().update(updates).catch(() => {});
+      }
+      renderCategories();
+      addLog(`Chuyển trạng thái danh mục "${cat.name}" sang ${cat.status === 'ACTIVE' ? 'Hiển thị' : 'Tạm ẩn'}`, 'info');
+      showToast(`Đã ${cat.status === 'ACTIVE' ? 'bật hiển thị' : 'tạm ẩn'} danh mục ${cat.name}`, 'info');
+    }
+
+    function deleteCategory(catId) {
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return;
+      if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Thao tác này sẽ xóa khỏi hệ thống.`)) {
+        categories = categories.filter(c => c.id !== catId);
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`menus/categories/${catId}`).remove().then(() => {
+            showToast(`Đã xóa danh mục "${cat.name}" khỏi Firebase`, 'info');
+          }).catch(err => {
+            console.error('Lỗi xóa menus/categories:', err);
+          });
+          fbDb.ref(`categories/${catId}`).remove().catch(() => {});
+        }
+        renderCategories();
+        renderKPIs();
+        populateStoreCategoryDropdowns();
+        addLog(`Xóa danh mục "${cat.name}"`, 'danger');
+        showToast(`Đã xóa danh mục "${cat.name}" khỏi Firebase`, 'info');
+      }
+    }
+
+    /* ========================================================
+       8. CUSTOMER MANAGEMENT (FIREBASE USERS + CUSTOMERS)
+       ======================================================== */
+    function filterCustomers() {
+      renderCustomers();
+    }
+
+    function renderCustomers() {
+      const tbody = document.getElementById('tbody-customers');
+      const counter = document.getElementById('customer-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-customer-search')?.value || '').toLowerCase().trim();
+      const roleVal = document.getElementById('filter-customer-role')?.value || 'CUSTOMER';
+      const statusVal = document.getElementById('filter-customer-status')?.value || 'ALL';
+      const sortVal = document.getElementById('filter-customer-sort')?.value || 'NEWEST';
+
+      let filtered = customers.filter(c => {
+        const matchRole = (roleVal === 'ALL') || ((c.role || 'CUSTOMER') === roleVal);
+        const matchSearch = (c.name || '').toLowerCase().includes(searchVal) ||
+                            (c.phone || '').toLowerCase().includes(searchVal) ||
+                            (c.email || '').toLowerCase().includes(searchVal) ||
+                            (c.id || '').toLowerCase().includes(searchVal) ||
+                            (c.area || '').toLowerCase().includes(searchVal);
+        const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
+        return matchRole && matchSearch && matchStatus;
+      });
+
+      if (sortVal === 'TRUST_HIGH') {
+        filtered.sort((a, b) => (b.trustScore || 0) - (a.trustScore || 0));
+      } else if (sortVal === 'TRUST_LOW') {
+        filtered.sort((a, b) => (a.trustScore || 0) - (b.trustScore || 0));
+      } else if (sortVal === 'ORDERS_HIGH') {
+        filtered.sort((a, b) => (b.orders || 0) - (a.orders || 0));
+      } else {
+        filtered.sort((a, b) => {
+          if ((b.hasEmail ? 1 : 0) !== (a.hasEmail ? 1 : 0)) return (b.hasEmail ? 1 : 0) - (a.hasEmail ? 1 : 0);
+          if ((b.orders || 0) !== (a.orders || 0)) return (b.orders || 0) - (a.orders || 0);
+          return (b.lastActiveTs || 0) - (a.lastActiveTs || 0);
+        });
+      }
+
+      if (counter) counter.textContent = filtered.length;
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="empty-state">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <h3>Không tìm thấy tài khoản nào</h3>
+              <p>Thử tìm kiếm với từ khóa khác hoặc chọn "Tất cả tài khoản"</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(c => {
+        const isLocked = c.status === 'LOCKED';
+        const isSuspended = c.status === 'SUSPENDED';
+        const score = (c.trustScore !== undefined && c.trustScore !== null) ? c.trustScore : 100;
+
+        let rolePill = '';
+        if (c.role === 'MERCHANT') {
+          rolePill = `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#FEF3C7; color:#B45309; font-weight:700; margin-left:6px;">Chủ quán${c.storeName ? ': ' + c.storeName : ''}</span>`;
+        } else if (c.role === 'DRIVER') {
+          rolePill = `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#E0E7FF; color:#4338CA; font-weight:700; margin-left:6px;">Tài xế</span>`;
+        }
+
+        let emailCellHtml = '';
+        if (c.hasEmail && c.email && c.email !== 'Chưa đồng bộ Gmail') {
+          emailCellHtml = `
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600; color: #1E40AF;">${c.email}</div>
+            <div style="font-size: 10.5px; color: var(--text-muted);">Đã xác thực Firebase Auth</div>
+          `;
+        } else {
+          emailCellHtml = `
+            <span class="badge" onclick="openEditCustomerModal('${c.id}')" style="cursor:pointer; background:#FFFBEB; color:#B45309; border:1px solid #FDE68A; font-weight:600; font-size:11px;" title="Tài khoản tạo trước khi bật đồng bộ Gmail hoặc chưa đăng nhập lại. Bấm để cập nhật thủ công">
+              Chưa đồng bộ Gmail • Cập nhật
+            </span>
+          `;
+        }
+
+        const phoneDisplay = (c.phone && c.phone !== 'Chưa cập nhật')
+          ? `<span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-main);">${c.phone}</span>`
+          : `<span onclick="openEditCustomerModal('${c.id}')" style="cursor:pointer; color: var(--text-light); font-size: 12px; text-decoration: underline dotted;" title="Bấm để thêm SĐT">Chưa cập nhật</span>`;
+
+        const activityHtml = `
+          <div><strong>${c.orders || 0}</strong> đơn${c.totalSpent > 0 ? ` <span style="font-size:11px; color:#059669; font-weight:600;">(${formatVnd(c.totalSpent)})</span>` : ''}</div>
+          <div style="font-size: 11px; color: var(--text-muted);">
+            ${c.complaintsCount > 0 ? `<span style="color:#DC2626; font-weight:600;">${c.complaintsCount} khiếu nại</span>` : (c.lastOrderInfo || 'Chưa đặt đơn')}
+          </div>
+        `;
+
+        let scoreBadge = '';
+        if (score >= 90) {
+          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Bấm để chỉnh sửa Điểm Uy Tín trên Firebase">${score}/100</span>`;
+        } else if (score >= 70) {
+          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Bấm để chỉnh sửa Điểm Uy Tín trên Firebase">${score}/100</span>`;
+        } else {
+          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Cảnh báo: Khách từng bùng đơn. Bấm để chỉnh sửa">${score}/100</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 34px; height: 34px; border-radius: 50%; background: #EFF6FF; color: #2563EB; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0;">
+                ${(c.name || 'K').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div><strong>${c.name}</strong>${rolePill}</div>
+                <div style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; cursor: pointer;" onclick="copyCustomerUid('${c.id}')" title="Bấm để sao chép đầy đủ UID">
+                  UID: ${c.id}
+                </div>
+              </div>
+            </div>
+          </td>
+          <td>${emailCellHtml}</td>
+          <td>${phoneDisplay}</td>
+          <td>${activityHtml}</td>
+          <td style="color: var(--text-muted); font-size: 12px; max-width: 190px;">${c.area || 'Chưa cập nhật'}</td>
+          <td>${scoreBadge}</td>
+          <td>
+            ${isLocked 
+              ? `<span class="badge badge-locked" title="${c.lockReason || 'Bị khóa do vi phạm'}"><span class="badge-dot"></span>Đã khóa</span>
+                 ${c.lockReason ? `<div style="font-size:10px; color:#B91C1C; margin-top:2px; max-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${c.lockReason}">${c.lockReason}</div>` : ''}` 
+              : (isSuspended
+                  ? `<span class="badge" style="background:#EEF2FF; color:#4F46E5; border:1px solid #C7D2FE;" title="${c.suspendedReason || 'Tạm ngưng'}"><span class="badge-dot" style="background:#4F46E5;"></span>Tạm ngưng</span>`
+                  : `<span class="badge badge-active"><span class="badge-dot"></span>Hoạt động</span>`)
+            }
+          </td>
+          <td>
+            <div class="action-group" style="justify-content: flex-end;">
+              <button class="btn-action-icon" onclick="openEditCustomerModal('${c.id}')">Sửa</button>
+              <button class="btn-action-icon" onclick="adjustCustomerTrustScore('${c.id}')">Uy tín</button>
+              <button class="btn-action-icon key-btn" onclick="openResetPasswordModal('customer', '${c.id}', '${c.name}')">Mật khẩu</button>
+              <button class="btn-action-icon lock-btn" onclick="openLockCustomerModal('${c.id}')">${isLocked ? 'Mở khóa' : 'Khóa'}</button>
+              <button class="btn-action-icon" style="color: var(--danger); border-color: #FECACA;" onclick="deleteCustomerAccount('${c.id}')">Xóa</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function copyCustomerUid(uid) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(uid).catch(() => {});
+      }
+      showToast(`Đã sao chép UID: ${uid}`, 'info');
+    }
+
+    function openEditCustomerModal(custId) {
+      const cust = customers.find(c => c.id === custId);
+      if (!cust) return;
+      document.getElementById('edit-cust-id').value = cust.id;
+      document.getElementById('edit-cust-uid-display').value = cust.id;
+      document.getElementById('edit-cust-email').value = (cust.hasEmail && cust.email !== 'Chưa đồng bộ Gmail') ? cust.email : '';
+      document.getElementById('edit-cust-name').value = cust.name.startsWith('Tài khoản #') ? '' : cust.name;
+      document.getElementById('edit-cust-phone').value = cust.phone !== 'Chưa cập nhật' ? cust.phone : '';
+      document.getElementById('edit-cust-trust').value = cust.trustScore ?? 100;
+      document.getElementById('edit-cust-area').value = cust.area !== 'Chưa cập nhật' ? cust.area : '';
+      openModal('modal-edit-customer');
+    }
+
+    async function saveEditCustomer(e) {
+      e.preventDefault();
+      const custId = document.getElementById('edit-cust-id').value;
+      const email = document.getElementById('edit-cust-email').value.trim();
+      const name = document.getElementById('edit-cust-name').value.trim();
+      const phone = document.getElementById('edit-cust-phone').value.trim();
+      const trust = Math.max(0, Math.min(100, parseInt(document.getElementById('edit-cust-trust').value || '100', 10)));
+      const area = document.getElementById('edit-cust-area').value.trim();
+
+      if (!email || !name) {
+        showToast('Vui lòng nhập đầy đủ Gmail và Họ tên!', 'warning');
+        return;
+      }
+
+      const cust = customers.find(c => c.id === custId);
+      if (cust) {
+        cust.email = email;
+        cust.hasEmail = true;
+        cust.name = name;
+        cust.phone = phone || 'Chưa cập nhật';
+        cust.trustScore = trust;
+        cust.area = area || 'Chưa cập nhật';
+      }
+
+      if (fbDb && isFirebaseReady) {
+        const userUpdates = {
+          uid: custId,
+          email: email,
+          name: name,
+          fullName: name,
+          phone: phone,
+          address: area,
+          trustScore: trust
+        };
+        await fbDb.ref(`users/${custId}`).update(userUpdates).catch(() => {});
+        await writeWithAdminRole(() => fbDb.ref(`customers/${custId}`).update({
+          customerId: custId,
+          uid: custId,
+          email: email,
+          name: name,
+          phone: phone,
+          address: area,
+          area: area,
+          trustScore: trust
+        })).catch(() => {});
+      }
+
+      closeModal('modal-edit-customer');
+      renderCustomers();
+      addLog(`Cập nhật hồ sơ tài khoản "${name}" (${email})`, 'success');
+      showToast(`Đã lưu thông tin tài khoản "${name}" (${email}) lên Firebase!`, 'success');
+    }
+
+    async function deleteCustomerAccount(custId) {
+      const cust = customers.find(c => c.id === custId);
+      if (!cust) return;
+      if (!confirm(`Bạn có chắc chắn muốn xóa bản ghi tài khoản "${cust.name}" (UID: ${custId}) khỏi danh sách trên Firebase Realtime Database?`)) {
+        return;
+      }
+      customers = customers.filter(c => c.id !== custId);
+      renderCustomers();
+      renderKPIs();
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`users/${custId}`).remove().catch(() => {});
+        await writeWithAdminRole(() => fbDb.ref(`customers/${custId}`).remove()).catch(() => {});
+      }
+      addLog(`Xóa bản ghi tài khoản "${cust.name}" (${custId.slice(0, 8)})`, 'danger');
+      showToast(`Đã xóa tài khoản "${cust.name}" khỏi Firebase!`, 'info');
+    }
+
+    async function adjustCustomerTrustScore(custId) {
+      const cust = customers.find(c => c.id === custId);
+      if (!cust) return;
+      const input = prompt(`Điều chỉnh Điểm Uy Tín (0 - 100) cho khách hàng "${cust.name}"\n(Lưu ý: Dưới 50 điểm có thể bị hạn chế thanh toán tiền mặt COD):`, cust.trustScore ?? 95);
+      if (input === null) return;
+      const newScore = Math.max(0, Math.min(100, parseInt(input, 10)));
+      if (isNaN(newScore)) {
+        showToast('Vui lòng nhập số hợp lệ từ 0 đến 100!', 'warning');
+        return;
+      }
+      cust.trustScore = newScore;
+      saveState();
+      renderCustomers();
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`users/${cust.id}`).update({ trustScore: newScore }).catch(() => {});
+        writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({
+          uid: cust.id,
+          name: cust.name,
+          phone: cust.phone,
+          trustScore: newScore,
+          status: cust.status || 'ACTIVE'
+        })).catch(() => {});
+      }
+      addLog(`Cập nhật Điểm Uy Tín của khách "${cust.name}" thành ${newScore}/100`, 'info');
+      showToast(`Đã cập nhật Điểm Uy Tín của "${cust.name}" thành ${newScore}/100 trên Firebase!`, 'success');
+    }
+
+    function openLockCustomerModal(custId) {
+      const cust = customers.find(c => c.id === custId);
+      if (!cust) return;
+      const isLocked = cust.status === 'LOCKED';
+
+      document.getElementById('lock-cust-id').value = cust.id;
+      document.getElementById('lock-cust-name').value = `${cust.name} (${cust.phone})`;
+      document.getElementById('lock-cust-action').value = isLocked ? 'UNLOCK' : 'LOCK';
+
+      const titleEl = document.getElementById('modal-lock-customer-title');
+      const warningEl = document.getElementById('lock-cust-warning');
+      const submitBtn = document.getElementById('btn-submit-lock-cust');
+
+      if (isLocked) {
+        titleEl.textContent = 'Mở Khóa Tài Khoản Khách Hàng';
+        titleEl.style.color = 'var(--success)';
+        warningEl.style.cssText = 'background: #ECFDF5; border-left: 4px solid var(--success); color: #065F46;';
+        warningEl.innerHTML = 'Khách hàng sẽ được phép đăng nhập lại bình thường và tiếp tục đặt món trên nền tảng Oishi Food.';
+        submitBtn.style.background = 'var(--success)';
+        submitBtn.textContent = 'Mở Khóa Tài Khoản';
+      } else {
+        titleEl.textContent = 'Khóa Tài Khoản Khách Hàng';
+        titleEl.style.color = 'var(--danger)';
+        warningEl.style.cssText = '';
+        warningEl.innerHTML = 'Khi khóa tài khoản khách hàng, người dùng sẽ bị chặn đăng nhập trên App Khách Hàng (Android) và không thể tạo đơn hàng mới.';
+        submitBtn.style.background = 'var(--danger)';
+        submitBtn.textContent = 'Xác Nhận Khóa';
+      }
+
+      openModal('modal-lock-customer');
+    }
+
+    function confirmLockCustomer(e) {
+      e.preventDefault();
+      const custId = document.getElementById('lock-cust-id').value;
+      const action = document.getElementById('lock-cust-action').value;
+      const reason = document.getElementById('lock-cust-reason').value;
+
+      const cust = customers.find(c => c.id === custId);
+      if (!cust) return;
+
+      if (action === 'LOCK') {
+        cust.status = 'LOCKED';
+        cust.lockReason = reason;
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`users/${cust.id}`).update({ status: 'LOCKED', isActive: false, lockReason: reason }).catch(() => {});
+          writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({ status: 'LOCKED', lockReason: reason })).catch(() => {});
+        }
+        addLog(`Khóa tài khoản khách "${cust.name}" (${reason})`, 'danger');
+        showToast(`Đã khóa tài khoản khách hàng "${cust.name}" trên Firebase!`, 'danger');
+      } else {
+        cust.status = 'ACTIVE';
+        delete cust.lockReason;
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`users/${cust.id}`).update({ status: 'ACTIVE', isActive: true, lockReason: null }).catch(() => {});
+          writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({ status: 'ACTIVE', lockReason: null })).catch(() => {});
+        }
+        addLog(`Mở khóa tài khoản khách "${cust.name}"`, 'success');
+        showToast(`Đã mở khóa tài khoản cho "${cust.name}" trên Firebase!`, 'success');
+      }
+
+      saveState();
+      closeModal('modal-lock-customer');
+      renderCustomers();
+      renderKPIs();
+    }
+
+    function exportCustomerCSV() {
+      const rows = [
+        "Tên khách,Số điện thoại,Email,Tổng đơn,Điểm uy tín,Khu vực,Trạng thái",
+        ...customers.map(c => `"${c.name}","${c.phone}","${c.email}",${c.orders || 0},${c.trustScore ?? 95},"${c.area || "TP.HCM"}","${c.status}"`)
+      ];
+      const csvContent = "data:text/csv;charset=utf-8," + rows.join(String.fromCharCode(10));
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "oishi_customers.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Đã xuất file danh sách khách hàng!', 'info');
+    }
+
+    /* ========================================================
+       9. STORE MANAGEMENT (FIREBASE STORES)
+       ======================================================== */
+    function populateStoreCategoryDropdowns() {
+      const filterCat = document.getElementById('filter-store-category');
+      const formCat = document.getElementById('new-store-category');
+
+      if (filterCat) {
+        const current = filterCat.value;
+        filterCat.innerHTML = '<option value="ALL">Tất cả danh mục</option>';
+        categories.forEach(c => {
+          filterCat.innerHTML += `<option value="${c.name}">${c.icon} ${c.name}</option>`;
+        });
+        filterCat.value = current || 'ALL';
+      }
+
+      if (formCat) {
+        formCat.innerHTML = '';
+        categories.forEach(c => {
+          formCat.innerHTML += `<option value="${c.name}">${c.icon} ${c.name}</option>`;
+        });
+      }
+    }
+
+    function filterStores() {
+      renderStores();
+    }
+
+    function renderStores() {
+      const tbody = document.getElementById('tbody-stores');
+      const counter = document.getElementById('store-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-store-search')?.value || '').toLowerCase().trim();
+      const catVal = document.getElementById('filter-store-category')?.value || 'ALL';
+      const statusVal = document.getElementById('filter-store-status')?.value || 'ALL';
+
+      const filtered = stores.filter(s => {
+        const matchSearch = (s.name || '').toLowerCase().includes(searchVal) ||
+                            (s.owner || '').toLowerCase().includes(searchVal) ||
+                            (s.phone || '').includes(searchVal) ||
+                            (s.cccdNumber && s.cccdNumber.includes(searchVal)) ||
+                            (s.address && s.address.toLowerCase().includes(searchVal));
+        const matchCat = (catVal === 'ALL') || (s.category === catVal);
+        const matchStatus = (statusVal === 'ALL') || (s.status === statusVal);
+        return matchSearch && matchCat && matchStatus;
+      });
+
+      if (counter) counter.textContent = filtered.length;
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="11" class="empty-state">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <h3>Không tìm thấy cửa hàng nào</h3>
+              <p>Thử tìm kiếm với tên quán, CCCD hoặc trạng thái khác</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(s => {
+        const isLocked = s.status === 'LOCKED';
+
+        let statusBadgeHtml = '';
+        if (s.status === 'PENDING') {
+          statusBadgeHtml = `<span class="badge badge-status-pending" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Chờ duyệt ▾</span>`;
+        } else if (s.status === 'OPEN') {
+          statusBadgeHtml = `<span class="badge badge-status-open" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Đang hoạt động ▾</span>`;
+        } else if (s.status === 'LOCKED') {
+          statusBadgeHtml = `<span class="badge badge-status-locked" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="${s.lockReason || 'Cửa hàng đã bị khóa do vi phạm'}"><span class="badge-dot"></span>Bị khóa ▾</span>`;
+        } else if (s.status === 'CLOSED') {
+          statusBadgeHtml = `<span class="badge badge-status-closed" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Tạm nghỉ ▾</span>`;
+        } else {
+          statusBadgeHtml = `<span class="badge badge-status-open" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;"><span class="badge-dot"></span>Đang hoạt động ▾</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td onclick="openStoreDetailModal('${s.id}')" style="cursor: pointer;" title="Bấm vào tên quán để xem Đơn hàng, Thực đơn & Tài xế thuộc quán">
+            <div class="store-name-link">
+              <strong>${s.name}</strong>
+              <span class="store-badge-view">Đơn / Menu / TX</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">${s.address || 'Hồ Chí Minh'}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700; color: var(--text-main);">${s.owner}</div>
+            <div style="font-size: 10.5px; color: var(--text-muted);">${s.gender || 'Chủ quán'} • ${s.hometown || 'TP.HCM'}</div>
+          </td>
+          <td>
+            <span class="cccd-cell-num" onclick="openStoreCccdModal('${s.id}')" style="cursor:pointer;" title="Bấm để mở bảng đối soát eKYC CCCD">${s.cccdNumber || '079088012456'}</span>
+          </td>
+          <td style="text-align: center;">
+            <div class="thumb-cell" onclick="previewImage('${s.cccdFront}', 'Ảnh CCCD Mặt Trước', '${s.name} • Chủ quán: ${s.owner} (CCCD: ${s.cccdNumber})')" title="Bấm để xem ảnh phóng to">
+              <img src="${s.cccdFront}" class="store-img-thumb" alt="CCCD Trước" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=400&auto=format&fit=crop&q=80'">
+              <span class="thumb-tag">Mặt trước</span>
+            </div>
+          </td>
+          <td style="text-align: center;">
+            <div class="thumb-cell" onclick="previewImage('${s.cccdBack}', 'Ảnh CCCD Mặt Sau', '${s.name} • Chủ quán: ${s.owner} (CCCD: ${s.cccdNumber})')" title="Bấm để xem ảnh phóng to">
+              <img src="${s.cccdBack}" class="store-img-thumb" alt="CCCD Sau" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&auto=format&fit=crop&q=80'">
+              <span class="thumb-tag">Mặt sau</span>
+            </div>
+          </td>
+          <td style="text-align: center;">
+            <div class="thumb-cell" onclick="previewImage('${s.registerPhoto}', 'Ảnh Chụp Chân Dung Lúc Đăng Ký', '${s.name} • Chủ quán: ${s.owner} (SĐT: ${s.phone})')" title="Bấm để xem ảnh chân dung đăng ký">
+              <img src="${s.registerPhoto}" class="portrait-thumb" alt="Chân dung" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80'">
+              <span class="thumb-tag">Chân dung</span>
+            </div>
+          </td>
+          <td style="font-family: monospace; font-weight: 600;">${s.phone}</td>
+          <td style="font-weight: 700; color: #D97706;">${s.rating}</td>
+          <td style="font-weight: 700; color: #2563EB; cursor: pointer;" onclick="openStoreDetailModal('${s.id}', 'dishes')" title="Bấm để quản lý thực đơn của quán">${s.itemCount || 0} món</td>
+          <td>
+            ${statusBadgeHtml}
+          </td>
+          <td>
+            <div class="action-group" style="justify-content: flex-end;">
+              ${s.status === 'PENDING' ? `
+                <button class="btn btn-sm btn-primary" onclick="quickApproveStore('${s.id}')" title="Phê duyệt mở quán ngay" style="padding: 3px 10px; font-size: 11px; font-weight: 700;">
+                  ✓ Duyệt
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="openStoreCccdModal('${s.id}')" title="Kiểm tra hồ sơ CCCD eKYC" style="padding: 3px 8px; font-size: 11px;">
+                  eKYC
+                </button>
+                <button class="btn btn-sm btn-danger-outline" onclick="rejectPendingStore('${s.id}')" title="Hủy / Từ chối hồ sơ đăng ký" style="padding: 3px 10px; font-size: 11px; font-weight: 700;">
+                  ✕ Hủy
+                </button>
+              ` : `
+                <button class="btn-action-icon" onclick="openStoreDetailModal('${s.id}')">Chi tiết</button>
+                <button class="btn-action-icon" onclick="openChangeStatusModal('${s.id}')">Trạng thái</button>
+                <button class="btn-action-icon key-btn" onclick="openResetPasswordModal('store', '${s.id}', '${s.name}')">Mật khẩu</button>
+                <button class="btn-action-icon lock-btn" onclick="openLockStoreModal('${s.id}')">${isLocked ? 'Mở khóa' : 'Khóa'}</button>
+                <button class="btn-action-icon lock-btn" onclick="deleteStore('${s.id}')">Xóa</button>
+              `}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function rejectPendingStore(storeId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+      if (confirm(`Bạn có chắc chắn muốn HỦY / TỪ CHỐI hồ sơ đăng ký của cửa hàng "${store.name}" (Chủ quán: ${store.owner})?`)) {
+        stores = stores.filter(s => s.id !== storeId);
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`stores/${storeId}`).remove().catch(() => {});
+        }
+        saveState();
+        renderStores();
+        renderOverviewStores();
+        renderKPIs();
+        addLog(`Hủy hồ sơ đăng ký của quán "${store.name}"`, 'warning');
+        showToast(`Đã hủy hồ sơ đăng ký của quán "${store.name}" trên Firebase!`, 'warning');
+      }
+    }
+
+    
+    /* ========================================================
+       15. STORE ORDERS, MENU DISHES & DRIVERS DETAIL + GLOBAL ORDERS
+       ======================================================== */
+    const STORE_DRIVERS_DATA = {};
+    const STORE_ORDERS_DATA = {};
+
+    let currentDetailStoreId = null;
+    let currentDetailStoreOrders = [];
+
+    function syncStoreStatusToFirebase(store, newStatus, reason = '', penaltyTier = null) {
+      if (!store) return;
+      store.status = newStatus;
+      store.storeStatus = newStatus;
+      store.open = (newStatus === 'OPEN');
+      if (newStatus === 'OPEN') {
+        store.cccdStatus = 'VERIFIED';
+        store.penaltyTier = 'NONE';
+        delete store.lockReason;
+      } else if (newStatus === 'LOCKED') {
+        store.penaltyTier = penaltyTier || 'LOCK';
+        store.lockReason = reason || store.lockReason || 'Vi phạm quy định nền tảng';
+      } else if (newStatus === 'CLOSED') {
+        store.penaltyTier = penaltyTier || 'NONE';
+        if (reason) store.lockReason = reason;
+      }
+
+      if (fbDb && isFirebaseReady) {
+        const updates = {
+          status: newStatus,
+          storeStatus: newStatus,
+          open: newStatus === 'OPEN',
+          cccdStatus: store.cccdStatus || 'VERIFIED',
+          penaltyTier: store.penaltyTier || 'NONE',
+          lockReason: store.lockReason || null,
+          penaltyReason: store.lockReason || ''
+        };
+        fbDb.ref(`stores/${store.id}`).update(updates).catch(() => {});
+        if (store.ownerId) {
+          fbDb.ref(`users/${store.ownerId}`).update({
+            status: newStatus === 'LOCKED' ? 'LOCKED' : 'ACTIVE',
+            isActive: newStatus !== 'LOCKED'
+          }).catch(() => {});
+        }
+      }
+    }
+
+    function getStoreOrders(storeId, storeName) {
+      const matched = liveOrders.filter(o =>
+        o.shopId === storeId ||
+        (storeName && o.storeName && o.storeName.toLowerCase() === storeName.toLowerCase())
+      );
+      if (matched.length > 0) return matched;
+      return STORE_ORDERS_DATA[storeId] || [];
+    }
+
+    function getStoreDrivers(storeId, storeName) {
+      if (liveDrivers.length > 0) {
+        const storeSpecific = liveDrivers.filter(d =>
+          d.shopId === storeId ||
+          liveOrders.some(o => o.shopId === storeId && o.shipperId === d.id)
+        );
+        return storeSpecific;
+      }
+      return STORE_DRIVERS_DATA[storeId] || [];
+    }
+
+    function refreshOpenStoreDetailModal() {
+      if (!currentDetailStoreId) return;
+      const modal = document.getElementById('modal-store-detail');
+      if (!modal || !modal.classList.contains('show')) return;
+      const activeSubTab = document.getElementById('btn-subtab-dishes')?.classList.contains('active')
+        ? 'dishes'
+        : (document.getElementById('btn-subtab-drivers')?.classList.contains('active') ? 'drivers' : 'orders');
+      openStoreDetailModal(currentDetailStoreId, activeSubTab);
+    }
+
+    function openStoreDetailModal(storeId, initialSubTab = 'orders') {
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+      currentDetailStoreId = store.id;
+
+      const dishesObj = store.dishes && typeof store.dishes === 'object' ? store.dishes : {};
+      const dishesList = Object.entries(dishesObj).map(([did, d]) => ({
+        ...d,
+        id: d.id || d.dishId || did,
+        dishId: d.dishId || d.id || did
+      }));
+
+      document.getElementById('store-detail-modal-title').textContent = `Chi Tiết Hoạt Động: ${store.name}`;
+      document.getElementById('store-detail-modal-sub').textContent = `Mã quán: ${store.id} • Chủ quán: ${store.owner} • SĐT: ${store.phone} • Địa chỉ: ${store.address || 'TP.HCM'}`;
+      
+      document.getElementById('detail-store-name').textContent = store.name;
+      document.getElementById('detail-store-address').textContent = store.address || 'TP. Hồ Chí Minh';
+      document.getElementById('detail-store-owner').textContent = store.owner;
+      document.getElementById('detail-store-phone').textContent = store.phone;
+      document.getElementById('detail-store-cccd').textContent = store.cccdNumber || '079088012456';
+      document.getElementById('detail-store-rating').textContent = store.rating || '4.9';
+      document.getElementById('detail-store-items').textContent = `${dishesList.length || store.itemCount || 0} món`;
+
+      const statusBadgeEl = document.getElementById('detail-store-status-badge');
+      if (store.status === 'PENDING') {
+        statusBadgeEl.innerHTML = '<span class="badge badge-status-pending"><span class="badge-dot"></span>Chờ duyệt</span>';
+      } else if (store.status === 'LOCKED') {
+        statusBadgeEl.innerHTML = `<span class="badge badge-status-locked" title="${store.lockReason || 'Bị khóa'}"><span class="badge-dot"></span>Bị khóa</span>`;
+      } else if (store.status === 'CLOSED') {
+        statusBadgeEl.innerHTML = '<span class="badge badge-status-closed"><span class="badge-dot"></span>Tạm nghỉ</span>';
+      } else {
+        statusBadgeEl.innerHTML = '<span class="badge badge-status-open"><span class="badge-dot"></span>Đang hoạt động</span>';
+      }
+
+      // 1. Load Orders for store
+      currentDetailStoreOrders = getStoreOrders(store.id, store.name);
+      document.getElementById('detail-orders-count-badge').textContent = currentDetailStoreOrders.length;
+      
+      const totalOrders = currentDetailStoreOrders.length;
+      const successOrders = currentDetailStoreOrders.filter(o => o.status === 'COMPLETED').length;
+      const deliveringOrders = currentDetailStoreOrders.filter(o => ['DELIVERING', 'ASSIGNED', 'PREPARING', 'READY', 'PENDING'].includes(o.status)).length;
+      const failedOrders = currentDetailStoreOrders.filter(o => o.status === 'BOOM' || o.status === 'CANCELLED').length;
+
+      document.getElementById('stat-total-orders').textContent = totalOrders;
+      document.getElementById('stat-success-orders').textContent = successOrders;
+      document.getElementById('stat-delivering-orders').textContent = deliveringOrders;
+      document.getElementById('stat-failed-orders').textContent = failedOrders;
+
+      renderStoreOrdersList(currentDetailStoreOrders);
+
+      // 2. Load Menu Dishes for store
+      const dishesBadge = document.getElementById('detail-dishes-count-badge');
+      if (dishesBadge) dishesBadge.textContent = dishesList.length;
+      renderStoreDishesList(store.id, dishesList);
+
+      // 3. Populate Drivers
+      const drivers = getStoreDrivers(store.id, store.name);
+      document.getElementById('detail-drivers-count-badge').textContent = drivers.length;
+      const driverGrid = document.getElementById('driver-grid-container');
+      driverGrid.innerHTML = '';
+
+      if (drivers.length === 0) {
+        driverGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: var(--text-muted);">Chưa có tài xế nào trên hệ thống.</div>`;
+      } else {
+        drivers.forEach(d => {
+          let driverStatusBadge = '';
+          if (d.status === 'AVAILABLE') {
+            driverStatusBadge = '<span class="badge badge-active" style="font-size: 10px;">Đang rảnh (Sẵn sàng)</span>';
+          } else if (d.status === 'DELIVERING') {
+            driverStatusBadge = '<span class="badge" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size: 10px;">Đang giao hàng</span>';
+          } else {
+            driverStatusBadge = '<span class="badge" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; font-size: 10px;">Đang nghỉ ca</span>';
+          }
+
+          const card = document.createElement('div');
+          card.className = 'driver-card';
+          card.innerHTML = `
+            <div class="driver-card-header">
+              <img src="${d.avatar}" class="driver-avatar" alt="${d.name}" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
+              <div class="driver-meta">
+                <h4>
+                  <span>${d.name}</span>
+                  <span class="driver-code">${d.id.slice(0, 8)}</span>
+                </h4>
+                <div class="driver-phone">${d.phone}</div>
+                <div style="margin-top: 4px;">${driverStatusBadge}</div>
+              </div>
+            </div>
+            <div class="driver-details-list">
+              <div>
+                <span>Phương tiện:</span>
+                <strong>${d.bike}</strong>
+              </div>
+              <div>
+                <span>Tổng đơn giao:</span>
+                <strong style="color: #2563EB;">${d.ordersCount} đơn</strong>
+              </div>
+              <div>
+                <span>Đánh giá uy tín:</span>
+                <strong style="color: #D97706;">${d.rating}</strong>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+              <span style="font-size: 11px; color: var(--text-muted);">${d.statusText}</span>
+              <a href="tel:${d.phone}" class="btn btn-sm btn-outline" style="padding: 2px 8px; font-size: 11px; text-decoration: none;">
+                Liên hệ
+              </a>
+            </div>
+          `;
+          driverGrid.appendChild(card);
+        });
+      }
+
+      switchStoreDetailTab(initialSubTab || 'orders');
+      openModal('modal-store-detail');
+    }
+
+    function renderStoreDishesList(storeId, dishesList) {
+      const tbody = document.getElementById('tbody-store-detail-dishes');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (!dishesList || dishesList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--text-muted);">Cửa hàng này chưa có món ăn nào trong node <code>stores/${storeId}/dishes</code>. Bấm <strong>"+ Thêm Món Mới Vào Quán"</strong> để tạo món!</td></tr>`;
+        return;
+      }
+
+      dishesList.forEach(dish => {
+        const isAvailable = dish.isAvailable !== false && dish.available !== false;
+        const isHidden = dish.isHidden === true || dish.hidden === true;
+        const imgUrl = dish.imageUrl || dish.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <img src="${imgUrl}" style="width: 42px; height: 42px; border-radius: 8px; object-fit: cover; border: 1px solid #E2E8F0;" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80'">
+              <div>
+                <strong style="color: var(--text-main);">${dish.name || 'Món ăn'}</strong>
+                <div style="font-size: 11px; color: var(--text-muted); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dish.description || 'Món ngon chuẩn vị Oishi'}</div>
+              </div>
+            </div>
+          </td>
+          <td style="font-weight: 800; color: var(--primary); font-family: monospace;">${formatVnd(dish.price || 0)}</td>
+          <td><span class="badge badge-info">${dish.categoryId || dish.category || 'Món chính'}</span></td>
+          <td>
+            ${isHidden
+              ? '<span class="badge badge-locked">Đã ẩn</span>'
+              : (isAvailable
+                  ? '<span class="badge badge-active">Đang bán</span>'
+                  : '<span class="badge badge-warning">Hết món</span>')
+            }
+          </td>
+          <td style="text-align: right;">
+            <div class="action-group" style="justify-content: flex-end;">
+              <button class="btn btn-outline btn-sm" onclick="toggleStoreDishAvailable('${storeId}', '${dish.id}')" title="Bật/Tắt trạng thái Còn món">
+                ${isAvailable ? 'Báo hết' : 'Mở bán'}
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="openEditDishModal('${storeId}', '${dish.id}')">Sửa</button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteStoreDish('${storeId}', '${dish.id}')">Xóa</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openAddDishModal() {
+      if (!currentDetailStoreId) return;
+      document.getElementById('modal-dish-title').textContent = 'Thêm Món Ăn Mới Vào Quán';
+      document.getElementById('form-dish-id').value = '';
+      document.getElementById('form-dish-name').value = '';
+      document.getElementById('form-dish-price').value = '45000';
+      document.getElementById('form-dish-cat').value = 'Món chính';
+      document.getElementById('form-dish-image').value = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
+      document.getElementById('form-dish-desc').value = '';
+      openModal('modal-dish');
+    }
+
+    function openEditDishModal(storeId, dishId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store || !store.dishes || !store.dishes[dishId]) return;
+      const d = store.dishes[dishId];
+      currentDetailStoreId = storeId;
+      document.getElementById('modal-dish-title').textContent = 'Chỉnh Sửa Món: ' + (d.name || '');
+      document.getElementById('form-dish-id').value = dishId;
+      document.getElementById('form-dish-name').value = d.name || '';
+      document.getElementById('form-dish-price').value = d.price || 45000;
+      document.getElementById('form-dish-cat').value = d.categoryId || d.category || 'Món chính';
+      document.getElementById('form-dish-image').value = d.imageUrl || d.image || '';
+      document.getElementById('form-dish-desc').value = d.description || '';
+      openModal('modal-dish');
+    }
+
+    async function saveStoreDish(e) {
+      e.preventDefault();
+      if (!currentDetailStoreId) return;
+      const store = stores.find(s => s.id === currentDetailStoreId);
+      if (!store) return;
+
+      const existingId = document.getElementById('form-dish-id').value;
+      const dishId = existingId || ('dish_' + Date.now());
+      const name = document.getElementById('form-dish-name').value.trim();
+      const price = Number(document.getElementById('form-dish-price').value || 0);
+      const category = document.getElementById('form-dish-cat').value.trim() || 'Món chính';
+      const imageUrl = document.getElementById('form-dish-image').value.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
+      const description = document.getElementById('form-dish-desc').value.trim();
+
+      const dishData = {
+        id: dishId,
+        dishId: dishId,
+        storeId: store.id,
+        name: name,
+        price: price,
+        categoryId: category,
+        category: category,
+        imageUrl: imageUrl,
+        description: description,
+        isAvailable: true,
+        available: true,
+        isHidden: false
+      };
+
+      if (!store.dishes) store.dishes = {};
+      store.dishes[dishId] = dishData;
+      store.itemCount = Object.keys(store.dishes).length;
+
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`stores/${store.id}/dishes/${dishId}`).update(dishData).catch(() => {});
+      }
+
+      saveState();
+      closeModal('modal-dish');
+      openStoreDetailModal(store.id, 'dishes');
+      renderStores();
+      addLog(`${existingId ? 'Cập nhật' : 'Thêm mới'} món "${name}" (${formatVnd(price)}) tại quán "${store.name}"`, 'success');
+      showToast(`Đã lưu món "${name}" lên Firebase!`, 'success');
+    }
+
+    async function toggleStoreDishAvailable(storeId, dishId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store || !store.dishes || !store.dishes[dishId]) return;
+      const dish = store.dishes[dishId];
+      const nextAvail = !(dish.isAvailable !== false && dish.available !== false);
+      dish.isAvailable = nextAvail;
+      dish.available = nextAvail;
+      dish.isHidden = false;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`stores/${storeId}/dishes/${dishId}`).update({
+          isAvailable: nextAvail,
+          available: nextAvail,
+          isHidden: false
+        }).catch(() => {});
+      }
+      openStoreDetailModal(storeId, 'dishes');
+      showToast(`Đã chuyển món "${dish.name}" sang ${nextAvail ? 'Đang bán' : 'Tạm hết món'}`, 'info');
+    }
+
+    async function deleteStoreDish(storeId, dishId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store || !store.dishes || !store.dishes[dishId]) return;
+      const dishName = store.dishes[dishId].name || dishId;
+      if (!confirm(`Xóa món "${dishName}" khỏi thực đơn của quán "${store.name}"?`)) return;
+      delete store.dishes[dishId];
+      store.itemCount = Object.keys(store.dishes).length;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`stores/${storeId}/dishes/${dishId}`).remove().catch(() => {});
+      }
+      openStoreDetailModal(storeId, 'dishes');
+      renderStores();
+      addLog(`Xóa món "${dishName}" khỏi quán "${store.name}"`, 'danger');
+      showToast(`Đã xóa món "${dishName}" khỏi Firebase!`, 'info');
+    }
+
+    function filterCurrentStoreOrders() {
+      const searchVal = (document.getElementById('filter-store-order-search')?.value || '').toLowerCase().trim();
+      const statusVal = document.getElementById('filter-store-order-status')?.value || 'ALL';
+
+      const filtered = currentDetailStoreOrders.filter(ord => {
+        const matchSearch = (ord.id || '').toLowerCase().includes(searchVal) ||
+                            (ord.customer || '').toLowerCase().includes(searchVal) ||
+                            (ord.phone || '').includes(searchVal) ||
+                            (ord.items || '').toLowerCase().includes(searchVal) ||
+                            (ord.driver || '').toLowerCase().includes(searchVal);
+        const matchStatus = (statusVal === 'ALL') || (ord.status === statusVal);
+        return matchSearch && matchStatus;
+      });
+
+      renderStoreOrdersList(filtered);
+    }
+
+    function renderStoreOrdersList(orders) {
+      const orderTbody = document.getElementById('tbody-store-detail-orders');
+      if (!orderTbody) return;
+      orderTbody.innerHTML = '';
+
+      if (orders.length === 0) {
+        orderTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--text-muted);">Chưa có đơn đặt món nào khớp với bộ lọc tại quán này.</td></tr>`;
+        return;
+      }
+
+      orders.forEach(ord => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <strong style="color: #2563EB; font-family: monospace;">#${ord.id.slice(-8)}</strong>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${ord.time}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700; color: var(--text-main);">${ord.customer}</div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${ord.phone}</div>
+          </td>
+          <td>
+            <div style="font-size: 12.5px; font-weight: 600; color: var(--text-main);">${ord.items}</div>
+            <div style="font-size: 11.5px; font-weight: 800; color: var(--primary); margin-top: 2px;">Tổng: ${formatVnd(ord.totalAmount || 0)}</div>
+            ${ord.note ? `<div style="font-size: 11px; color: #D97706; margin-top: 2px;">Ghi chú: ${ord.note}</div>` : ''}
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div>
+                <strong style="font-size: 12px; color: var(--text-main);">${ord.driver}</strong>
+              </div>
+            </div>
+          </td>
+          <td>
+            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; font-weight: 700;" onchange="updateLiveOrderStatus('${ord.id}', this.value)">
+              <option value="PENDING" ${ord.status === 'PENDING' ? 'selected' : ''}>PENDING (Chờ nhận)</option>
+              <option value="PREPARING" ${ord.status === 'PREPARING' ? 'selected' : ''}>PREPARING (Đang nấu)</option>
+              <option value="READY" ${ord.status === 'READY' ? 'selected' : ''}>READY (Chờ lấy)</option>
+              <option value="ASSIGNED" ${ord.status === 'ASSIGNED' ? 'selected' : ''}>ASSIGNED (Đã nhận)</option>
+              <option value="DELIVERING" ${ord.status === 'DELIVERING' ? 'selected' : ''}>DELIVERING (Đang giao)</option>
+              <option value="COMPLETED" ${ord.status === 'COMPLETED' ? 'selected' : ''}>COMPLETED (Hoàn tất)</option>
+              <option value="BOOM" ${ord.status === 'BOOM' ? 'selected' : ''}>BOOM (Bùng hàng)</option>
+              <option value="CANCELLED" ${ord.status === 'CANCELLED' ? 'selected' : ''}>❌ CANCELLED (Đã hủy)</option>
+            </select>
+          </td>
+        `;
+        orderTbody.appendChild(tr);
+      });
+    }
+
+    function switchStoreDetailTab(tab) {
+      const btnOrders = document.getElementById('btn-subtab-orders');
+      const btnDishes = document.getElementById('btn-subtab-dishes');
+      const btnDrivers = document.getElementById('btn-subtab-drivers');
+      const paneOrders = document.getElementById('pane-store-detail-orders');
+      const paneDishes = document.getElementById('pane-store-detail-dishes');
+      const paneDrivers = document.getElementById('pane-store-detail-drivers');
+
+      if (btnOrders) btnOrders.classList.toggle('active', tab === 'orders');
+      if (btnDishes) btnDishes.classList.toggle('active', tab === 'dishes');
+      if (btnDrivers) btnDrivers.classList.toggle('active', tab === 'drivers');
+
+      if (paneOrders) paneOrders.style.display = (tab === 'orders') ? 'block' : 'none';
+      if (paneDishes) paneDishes.style.display = (tab === 'dishes') ? 'block' : 'none';
+      if (paneDrivers) paneDrivers.style.display = (tab === 'drivers') ? 'block' : 'none';
+    }
+
+    /* ========================================================
+       15B. GLOBAL ORDERS & DRIVERS CONTROLLER (TAB-ORDERS)
+       ======================================================== */
+    function populateGlobalOrderStoreFilter() {
+      const sel = document.getElementById('filter-global-order-store');
+      if (!sel) return;
+      const curr = sel.value || 'ALL';
+      sel.innerHTML = '<option value="ALL">Tất cả cửa hàng</option>';
+      stores.forEach(s => {
+        sel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+      });
+      sel.value = curr;
+    }
+
+    function setGlobalOrderFilter(statusVal) {
+      const sel = document.getElementById('filter-global-order-status');
+      if (sel) {
+        sel.value = statusVal;
+        renderGlobalOrders();
+      }
+    }
+
+    function renderGlobalOrders() {
+      const tbody = document.getElementById('tbody-global-orders');
+      const counter = document.getElementById('global-order-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-global-order-search')?.value || '').toLowerCase().trim();
+      const storeVal = document.getElementById('filter-global-order-store')?.value || 'ALL';
+      const statusVal = document.getElementById('filter-global-order-status')?.value || 'ALL';
+
+      const filtered = liveOrders.filter(o => {
+        const matchSearch = (o.id || '').toLowerCase().includes(searchVal) ||
+                            (o.customer || '').toLowerCase().includes(searchVal) ||
+                            (o.phone || '').includes(searchVal) ||
+                            (o.storeName || '').toLowerCase().includes(searchVal) ||
+                            (o.items || '').toLowerCase().includes(searchVal) ||
+                            (o.driver || '').toLowerCase().includes(searchVal);
+        const matchStore = (storeVal === 'ALL') || (o.shopId === storeVal);
+        let matchStatus = true;
+        if (statusVal === 'PROCESSING') {
+          matchStatus = ['PENDING', 'PREPARING', 'READY', 'ASSIGNED'].includes(o.status);
+        } else if (statusVal === 'FAILED') {
+          matchStatus = ['BOOM', 'CANCELLED'].includes(o.status);
+        } else if (statusVal !== 'ALL') {
+          matchStatus = (o.status === statusVal);
+        }
+        return matchSearch && matchStore && matchStatus;
+      });
+
+      if (counter) counter.textContent = filtered.length;
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="empty-state">
+              <h3>Chưa có đơn hàng nào khớp bộ lọc</h3>
+              <p>Đơn hàng đặt từ App Khách Hàng sẽ xuất hiện tức thì tại đây qua Firebase Realtime Database</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(ord => {
+        const driverOptions = [
+          `<option value="">-- Chưa gán tài xế --</option>`,
+          ...liveDrivers.map(d => `<option value="${d.id}" ${ord.shipperId === d.id ? 'selected' : ''}>${d.name} (${d.phone})</option>`)
+        ].join('');
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <strong style="color: #2563EB; font-family: monospace;">#${ord.id.slice(-8)}</strong>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${ord.time}</div>
+          </td>
+          <td>
+            <strong style="color: var(--text-main); cursor: pointer;" onclick="openStoreDetailModal('${ord.shopId}')">${ord.storeName}</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">Mã quán: ${ord.shopId || 'N/A'}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700;">${ord.customer}</div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${ord.phone}</div>
+            <div style="font-size: 11px; color: var(--text-light); max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${ord.address}">${ord.address}</div>
+          </td>
+          <td>
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-main); max-width: 240px;">${ord.items}</div>
+            <div style="font-size: 12px; font-weight: 800; color: var(--primary); margin-top: 3px;">${formatVnd(ord.totalAmount)}</div>
+          </td>
+          <td>
+            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; max-width: 175px;" onchange="assignLiveOrderDriver('${ord.id}', this.value)">
+              ${driverOptions}
+            </select>
+          </td>
+          <td>
+            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; font-weight: 700;" onchange="updateLiveOrderStatus('${ord.id}', this.value)">
+              <option value="PENDING" ${ord.status === 'PENDING' ? 'selected' : ''}>PENDING (Chờ nhận)</option>
+              <option value="PREPARING" ${ord.status === 'PREPARING' ? 'selected' : ''}>PREPARING (Đang nấu)</option>
+              <option value="READY" ${ord.status === 'READY' ? 'selected' : ''}>READY (Chờ lấy)</option>
+              <option value="ASSIGNED" ${ord.status === 'ASSIGNED' ? 'selected' : ''}>ASSIGNED (Đã nhận)</option>
+              <option value="DELIVERING" ${ord.status === 'DELIVERING' ? 'selected' : ''}>DELIVERING (Đang giao)</option>
+              <option value="COMPLETED" ${ord.status === 'COMPLETED' ? 'selected' : ''}>COMPLETED (Hoàn tất)</option>
+              <option value="BOOM" ${ord.status === 'BOOM' ? 'selected' : ''}>BOOM (Bùng hàng)</option>
+              <option value="CANCELLED" ${ord.status === 'CANCELLED' ? 'selected' : ''}>❌ CANCELLED (Đã hủy)</option>
+            </select>
+          </td>
+          <td style="text-align: right;">
+            <button class="btn-action-icon lock-btn" onclick="deleteLiveOrder('${ord.id}')">Xóa</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function updateLiveOrderStatus(orderId, newStatus) {
+      const ord = liveOrders.find(o => o.id === orderId);
+      if (ord) ord.status = newStatus;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`orders/${orderId}`).update({
+          status: newStatus,
+          orderStatus: newStatus,
+          updatedAt: Date.now()
+        }).catch(() => {});
+      }
+      addLog(`Cập nhật trạng thái đơn #${orderId.slice(-6)} sang ${newStatus}`, newStatus === 'BOOM' ? 'danger' : 'info');
+      showToast(`Đã chuyển đơn #${orderId.slice(-6)} sang trạng thái ${newStatus}!`, 'success');
+    }
+
+    async function assignLiveOrderDriver(orderId, driverId) {
+      const drv = liveDrivers.find(d => d.id === driverId);
+      const shipperName = drv ? drv.name : '';
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`orders/${orderId}`).update({
+          shipperId: driverId || '',
+          shipperName: shipperName,
+          updatedAt: Date.now()
+        }).catch(() => {});
+      }
+      addLog(`Điều phối tài xế "${shipperName || 'Bỏ gán'}" cho đơn #${orderId.slice(-6)}`, 'info');
+      showToast(`Đã gán tài xế "${shipperName || 'Chưa gán'}" cho đơn #${orderId.slice(-6)}!`, 'success');
+    }
+
+    async function deleteLiveOrder(orderId) {
+      if (!confirm(`Xóa đơn hàng #${orderId} khỏi Firebase Realtime Database?`)) return;
+      if (fbDb && isFirebaseReady) {
+        await fbDb.ref(`orders/${orderId}`).remove().catch(() => {});
+      }
+      addLog(`Xóa đơn hàng #${orderId.slice(-6)}`, 'danger');
+      showToast(`Đã xóa đơn hàng #${orderId.slice(-6)}!`, 'info');
+    }
+
+    function renderGlobalDrivers() {
+      const grid = document.getElementById('global-drivers-grid');
+      const counter = document.getElementById('global-driver-counter');
+      if (!grid) return;
+      if (counter) counter.textContent = liveDrivers.length;
+      grid.innerHTML = '';
+
+      if (liveDrivers.length === 0) {
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding: 24px; color: var(--text-muted);">Chưa có tài xế nào trên Firebase.</div>`;
+        return;
+      }
+
+      liveDrivers.forEach(d => {
+        let badge = '<span class="badge badge-active" style="font-size: 10px;">Đang trực tuyến</span>';
+        if (!d.isActive) badge = '<span class="badge badge-locked" style="font-size: 10px;">Đã khóa TK</span>';
+        else if (d.status === 'DELIVERING') badge = '<span class="badge" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size: 10px;">Đang giao đơn</span>';
+        else if (d.status === 'OFFLINE') badge = '<span class="badge" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; font-size: 10px;">Ngoại tuyến</span>';
+
+        const card = document.createElement('div');
+        card.className = 'driver-card';
+        card.innerHTML = `
+          <div class="driver-card-header">
+            <img src="${d.avatar}" class="driver-avatar" alt="${d.name}" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
+            <div class="driver-meta">
+              <h4>
+                <span>${d.name}</span>
+                <span class="driver-code">${d.id.slice(0, 8)}</span>
+              </h4>
+              <div class="driver-phone">${d.phone}</div>
+              <div style="margin-top: 4px;">${badge}</div>
+            </div>
+          </div>
+          <div class="driver-details-list">
+            <div>
+              <span>Biển số / Xe:</span>
+              <strong>${d.bike}</strong>
+            </div>
+            <div>
+              <span>Tổng đơn phụ trách:</span>
+              <strong style="color: #2563EB;">${d.ordersCount} đơn</strong>
+            </div>
+            <div>
+              <span>Đánh giá:</span>
+              <strong style="color: #D97706;">${d.rating}</strong>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <span style="font-size: 11px; color: var(--text-muted);">${d.statusText}</span>
+            <button class="btn btn-sm ${d.isActive ? 'btn-danger-outline' : 'btn-primary'}" style="padding: 2px 8px; font-size: 11px;" onclick="toggleDriverActiveStatus('${d.id}')">
+              ${d.isActive ? 'Khóa TX' : 'Mở khóa'}
+            </button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function toggleDriverActiveStatus(driverId) {
+      const drv = liveDrivers.find(d => d.id === driverId);
+      if (!drv) return;
+      const nextActive = !drv.isActive;
+      drv.isActive = nextActive;
+      if (fbDb && isFirebaseReady) {
+        await Promise.all([
+          fbDb.ref(`users/${driverId}`).update({
+            isActive: nextActive,
+            status: nextActive ? 'ACTIVE' : 'LOCKED'
+          }).catch(() => {}),
+          fbDb.ref(`drivers/${driverId}`).update({
+            isOnline: nextActive,
+            status: nextActive ? 'AVAILABLE' : 'LOCKED'
+          }).catch(() => {})
+        ]);
+      }
+      renderGlobalDrivers();
+      addLog(`${nextActive ? 'Mở khóa' : 'Khóa'} tài khoản tài xế "${drv.name}"`, nextActive ? 'success' : 'danger');
+      showToast(`Đã ${nextActive ? 'mở khóa' : 'khóa'} tài xế "${drv.name}" trên Firebase!`, nextActive ? 'success' : 'danger');
+    }
+
+    function quickApproveStore(storeId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+      syncStoreStatusToFirebase(store, 'OPEN', '', 'NONE');
+      saveState();
+      renderStores();
+      renderOverviewStores();
+      renderKPIs();
+      addLog(`Phê duyệt cửa hàng "${store.name}" sang trạng thái Đang hoạt động`, 'success');
+      showToast(`Đã duyệt quán "${store.name}" trên Firebase! Trạng thái: Đang hoạt động`, 'success');
+    }
+
+    function openChangeStatusModal(storeId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+      document.getElementById('change-status-store-id').value = store.id;
+      document.getElementById('change-status-store-name').value = `${store.name} (Chủ quán: ${store.owner} - ${store.phone})`;
+      document.getElementById('change-status-select').value = store.status;
+      handleStoreStatusDropdownChange(store.status);
+      openModal('modal-change-status');
+    }
+
+    function handleStoreStatusDropdownChange(val) {
+      const reasonBox = document.getElementById('change-status-reason-box');
+      if (reasonBox) {
+        reasonBox.style.display = (val === 'LOCKED') ? 'block' : 'none';
+      }
+    }
+
+    function submitChangeStoreStatus(e) {
+      e.preventDefault();
+      const storeId = document.getElementById('change-status-store-id').value;
+      const newStatus = document.getElementById('change-status-select').value;
+      const reason = document.getElementById('change-status-reason').value.trim();
+
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+
+      const statusLabels = {
+        'PENDING': 'Chờ duyệt',
+        'OPEN': 'Đang hoạt động',
+        'LOCKED': 'Bị khóa',
+        'CLOSED': 'Tạm nghỉ'
+      };
+
+      syncStoreStatusToFirebase(
+        store,
+        newStatus,
+        newStatus === 'LOCKED' ? (reason || 'Vi phạm quy định chính sách nền tảng') : '',
+        newStatus === 'LOCKED' ? 'LOCK' : 'NONE'
+      );
+
+      saveState();
+      closeModal('modal-change-status');
+      renderStores();
+      renderOverviewStores();
+      renderKPIs();
+
+      const label = statusLabels[newStatus] || newStatus;
+      addLog(`Chuyển trạng thái cửa hàng "${store.name}" sang: ${label}`, newStatus === 'LOCKED' ? 'danger' : 'info');
+      showToast(`Đã đồng bộ trạng thái quán "${store.name}" sang "${label}" trên Firebase!`, 'success');
+    }
+
+    function previewImage(url, title, sub) {
+      const modal = document.getElementById('modal-image-preview');
+      if (!modal) return;
+      const img = document.getElementById('preview-image-src');
+      if (img) img.src = url;
+      const tEl = document.getElementById('preview-image-title');
+      if (tEl) tEl.textContent = title || 'Chi tiết hình ảnh';
+      const sEl = document.getElementById('preview-image-sub');
+      if (sEl) sEl.textContent = sub || '';
+      const link = document.getElementById('preview-image-link');
+      if (link) link.href = url;
+      openModal('modal-image-preview');
+    }
+
+    function openLockStoreModal(storeId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+      const isLocked = store.status === 'LOCKED';
+
+      document.getElementById('lock-store-id').value = store.id;
+      document.getElementById('lock-store-name').value = `${store.name} (Chủ quán: ${store.owner} - ${store.phone})`;
+      document.getElementById('lock-store-action').value = isLocked ? 'UNLOCK' : 'LOCK';
+
+      const titleEl = document.getElementById('modal-lock-store-title');
+      const warningEl = document.getElementById('lock-store-warning');
+      const submitBtn = document.getElementById('btn-submit-lock-store');
+      const reasonGroup = document.getElementById('group-lock-reason');
+
+      if (isLocked) {
+        titleEl.textContent = 'Mở Khóa Cửa Hàng Đối Tác';
+        titleEl.style.color = 'var(--success)';
+        warningEl.style.cssText = 'background: #ECFDF5; border-left: 4px solid var(--success); color: #065F46;';
+        warningEl.innerHTML = `<strong>Mở khóa lại quán:</strong> Cửa hàng sẽ được chuyển sang trạng thái <strong>Đang hoạt động</strong> trên Firebase và thực đơn sẽ xuất hiện trở lại ngay trên App Khách Hàng.`;
+        if (reasonGroup) reasonGroup.style.display = 'none';
+        submitBtn.style.background = 'var(--success)';
+        submitBtn.textContent = 'Mở Khóa Cửa Hàng';
+      } else {
+        titleEl.textContent = 'Khóa Cửa Hàng Đối Tác (Cấm Bán)';
+        titleEl.style.color = 'var(--danger)';
+        warningEl.style.cssText = '';
+        warningEl.innerHTML = `<strong>Cảnh báo quản trị:</strong> Khi cửa hàng bị khóa trên Firebase, toàn bộ thực đơn và các món ăn của quán sẽ lập tức bị ẩn khỏi App Khách Hàng và App Chủ Quán bị khóa công tắc mở bán.`;
+        if (reasonGroup) reasonGroup.style.display = 'flex';
+        submitBtn.style.background = 'var(--danger)';
+        submitBtn.textContent = 'Xác Nhận Khóa Quán';
+      }
+
+      openModal('modal-lock-store');
+    }
+
+    function handleStoreReasonChange(val) {
+      const customGroup = document.getElementById('group-lock-custom-reason');
+      if (val === 'OTHER') {
+        customGroup.style.display = 'flex';
+        document.getElementById('lock-store-reason-text').focus();
+      } else {
+        customGroup.style.display = 'none';
+      }
+    }
+
+    function confirmLockStore(e) {
+      e.preventDefault();
+      const storeId = document.getElementById('lock-store-id').value;
+      const action = document.getElementById('lock-store-action').value;
+      const reasonSelect = document.getElementById('lock-store-reason-select').value;
+      const customText = document.getElementById('lock-store-reason-text').value.trim();
+
+      const finalReason = reasonSelect === 'OTHER' ? (customText || 'Vi phạm chính sách nền tảng') : reasonSelect;
+
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+
+      if (action === 'LOCK') {
+        syncStoreStatusToFirebase(store, 'LOCKED', finalReason, 'LOCK');
+        addLog(`Khóa cửa hàng "${store.name}" (${finalReason})`, 'danger');
+        showToast(`Đã KHÓA cửa hàng "${store.name}" trên Firebase!`, 'danger');
+      } else {
+        syncStoreStatusToFirebase(store, 'OPEN', '', 'NONE');
+        addLog(`Mở khóa cửa hàng "${store.name}"`, 'success');
+        showToast(`Đã MỞ KHÓA cửa hàng "${store.name}" trên Firebase!`, 'success');
+      }
+
+      saveState();
+      closeModal('modal-lock-store');
+      renderStores();
+      renderOverviewStores();
+      renderKPIs();
+    }
+
+    function openAddStoreModal() {
+      document.getElementById('new-store-name').value = '';
+      document.getElementById('new-store-owner').value = '';
+      document.getElementById('new-store-phone').value = '';
+      document.getElementById('new-store-address').value = '';
+      document.getElementById('new-store-password').value = 'Oishi@123456';
+      openModal('modal-add-store');
+    }
+
+    function saveNewStore(e) {
+      e.preventDefault();
+      const name = document.getElementById('new-store-name').value.trim();
+      const owner = document.getElementById('new-store-owner').value.trim();
+      const phone = document.getElementById('new-store-phone').value.trim();
+      const cccd = document.getElementById('new-store-cccd')?.value.trim() || ('079099' + Math.floor(100000 + Math.random() * 900000));
+      const cccdFront = document.getElementById('new-store-cccd-front')?.value.trim() || 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80';
+      const cccdBack = document.getElementById('new-store-cccd-back')?.value.trim() || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80';
+      const portrait = document.getElementById('new-store-portrait')?.value.trim() || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
+      const category = document.getElementById('new-store-category').value;
+      const initialStatus = document.getElementById('new-store-status')?.value || 'PENDING';
+      const address = document.getElementById('new-store-address').value.trim();
+
+      if (!name || !owner || !phone) {
+        showToast('Vui lòng điền đủ tên quán, chủ quán và SĐT!', 'warning');
+        return;
+      }
+
+      const newId = 'store_' + Date.now();
+      const newStore = {
+        id: newId,
+        storeId: newId,
+        name: name,
+        owner: owner,
+        ownerName: owner,
+        phone: phone,
+        cccdNumber: cccd,
+        cccdFront: cccdFront,
+        cccdFrontUrl: cccdFront,
+        cccdBack: cccdBack,
+        cccdBackUrl: cccdBack,
+        registerPhoto: portrait,
+        cccdPortraitUrl: portrait,
+        imageUrl: portrait,
+        cccdStatus: initialStatus === 'OPEN' ? 'VERIFIED' : 'PENDING',
+        dob: '01/01/1990',
+        gender: 'Nam',
+        hometown: 'TP.HCM',
+        residence: address || 'TP.HCM',
+        issueDate: '01/01/2022',
+        expireDate: '01/01/2040',
+        registerTime: 'Vừa xong',
+        createdAt: Date.now(),
+        ekycScore: '98.5%',
+        category: category,
+        rating: '5.0',
+        ratingAvg: 5.0,
+        itemCount: 0,
+        status: initialStatus,
+        storeStatus: initialStatus,
+        open: initialStatus === 'OPEN',
+        penaltyTier: 'NONE',
+        address: address || 'TP. Hồ Chí Minh'
+      };
+
+      stores.unshift(newStore);
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`stores/${newId}`).set(newStore).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-add-store');
+      renderStores();
+      renderOverviewStores();
+      renderKPIs();
+      addLog(`Thêm mới đối tác quán "${name}" (CCCD: ${cccd})`, 'success');
+      showToast(`Đã thêm cửa hàng đối tác "${name}" lên Firebase!`, 'success');
+    }
+
+    function deleteStore(storeId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+      if (confirm(`Bạn có chắc chắn muốn xóa đối tác "${store.name}" khỏi hệ thống Firebase?`)) {
+        stores = stores.filter(s => s.id !== storeId);
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`stores/${storeId}`).remove().catch(() => {});
+        }
+        saveState();
+        renderStores();
+        renderOverviewStores();
+        renderKPIs();
+        addLog(`Xóa đối tác quán "${store.name}"`, 'danger');
+        showToast(`Đã xóa cửa hàng "${store.name}" khỏi Firebase`, 'info');
+      }
+    }
+
+    /* ========================================================
+       10. PASSWORD RESET MODULE
+       ======================================================== */
+    function openResetPasswordModal(targetType, targetId, targetName) {
+      document.getElementById('reset-target-type').value = targetType;
+      document.getElementById('reset-target-id').value = targetId;
+      document.getElementById('reset-target-name').textContent = `${targetName} (${targetType === 'customer' ? 'Khách hàng' : 'Cửa hàng'})`;
+      
+      const passInput = document.getElementById('reset-new-pass-input');
+      passInput.value = generateStrongPassword();
+
+      openModal('modal-reset-password');
+    }
+
+    function generateStrongPassword() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+      let pass = '';
+      for (let i = 0; i < 8; i++) {
+        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return 'Oi#' + pass;
+    }
+
+    function generateRandomPass() {
+      const passInput = document.getElementById('reset-new-pass-input');
+      passInput.value = generateStrongPassword();
+      showToast('Đã tạo mật khẩu ngẫu nhiên mới!', 'info');
+    }
+
+    function copyPasswordToClipboard() {
+      const passInput = document.getElementById('reset-new-pass-input');
+      if (passInput && passInput.value) {
+        navigator.clipboard.writeText(passInput.value).then(() => {
+          showToast(`Đã sao chép mật khẩu: "${passInput.value}" vào bộ nhớ tạm!`, 'success');
+        }).catch(() => {
+          showToast(`Mật khẩu là: ${passInput.value}`, 'info');
+        });
+      }
+    }
+
+    function saveNewPassword(e) {
+      e.preventDefault();
+      const targetType = document.getElementById('reset-target-type').value;
+      const targetId = document.getElementById('reset-target-id').value;
+      const newPass = document.getElementById('reset-new-pass-input').value.trim();
+
+      if (!newPass || newPass.length < 6) {
+        showToast('Mật khẩu phải từ 6 ký tự trở lên!', 'warning');
+        return;
+      }
+
+      let name = '';
+      if (targetType === 'customer') {
+        const c = customers.find(x => x.id === targetId);
+        if (c) name = c.name;
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`users/${targetId}`).update({ tempPasswordReset: newPass, updatedAt: Date.now() }).catch(() => {});
+        }
+      } else {
+        const s = stores.find(x => x.id === targetId);
+        if (s) {
+          name = s.name;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`stores/${targetId}`).update({ tempPasswordReset: newPass }).catch(() => {});
+          }
+        }
+      }
+
+      addLog(`Cấp mật khẩu mới cho ${targetType === 'customer' ? 'khách' : 'quán'} "${name}": ${newPass}`, 'info');
+      showToast(`Đã cập nhật mật khẩu mới cho ${name} trên Firebase!`, 'success');
+      closeModal('modal-reset-password');
+    }
+
+    /* ========================================================
+       11. COMPLAINTS & REPORTS MANAGEMENT (FIREBASE COMPLAINTS)
+       ======================================================== */
+    function filterComplaintsByStatus(status) {
+      const statusSelect = document.getElementById('filter-complaint-status');
+      if (statusSelect) {
+        statusSelect.value = status;
+        renderComplaints();
+      }
+    }
+
+    function filterComplaints() {
+      renderComplaints();
+    }
+
+    function renderComplaints() {
+      const tbody = document.getElementById('tbody-complaints');
+      const counter = document.getElementById('complaint-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-complaint-search')?.value || '').toLowerCase().trim();
+      const senderVal = document.getElementById('filter-complaint-sender')?.value || 'ALL';
+      const typeVal = document.getElementById('filter-complaint-type')?.value || 'ALL';
+      const statusVal = document.getElementById('filter-complaint-status')?.value || 'ALL';
+      const priorityVal = document.getElementById('filter-complaint-priority')?.value || 'ALL';
+
+      const filtered = complaints.filter(c => {
+        const matchSearch = (c.id || '').toLowerCase().includes(searchVal) ||
+                            (c.orderId && c.orderId.toLowerCase().includes(searchVal)) ||
+                            (c.senderName || '').toLowerCase().includes(searchVal) ||
+                            (c.targetName || '').toLowerCase().includes(searchVal) ||
+                            (c.content || '').toLowerCase().includes(searchVal);
+        const matchSender = (senderVal === 'ALL') || (c.senderType === senderVal);
+        const matchType = (typeVal === 'ALL') || (c.type === typeVal);
+        const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
+        const matchPriority = (priorityVal === 'ALL') || (c.priority === priorityVal);
+
+        return matchSearch && matchSender && matchType && matchStatus && matchPriority;
+      });
+
+      if (counter) counter.textContent = filtered.length;
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="empty-state">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <h3>Không tìm thấy báo cáo khiếu nại nào</h3>
+              <p>Thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(c => {
+        const isFromCustomer = c.senderType === 'CUSTOMER';
+        const tr = document.createElement('tr');
+
+        let priorityBadge = '<span class="badge badge-warning"><span class="badge-dot"></span>Thường</span>';
+        if (c.priority === 'CRITICAL') priorityBadge = '<span class="badge badge-locked"><span class="badge-dot"></span>Khẩn cấp</span>';
+        else if (c.priority === 'HIGH') priorityBadge = '<span class="badge badge-warning" style="background:#FFF7ED; color:#C2410C; border-color:#FED7AA;"><span class="badge-dot"></span>Cao</span>';
+
+        let statusBadge = '<span class="badge badge-locked"><span class="badge-dot"></span>Chờ xử lý</span>';
+        if (c.status === 'IN_PROGRESS') statusBadge = '<span class="badge badge-warning"><span class="badge-dot"></span>Đang xử lý</span>';
+        else if (c.status === 'RESOLVED') statusBadge = '<span class="badge badge-active"><span class="badge-dot"></span>Đã giải quyết</span>';
+        else if (c.status === 'REJECTED') statusBadge = '<span class="badge" style="background:#F1F5F9; color:#64748B;"><span class="badge-dot"></span>Đã từ chối</span>';
+
+        tr.innerHTML = `
+          <td>
+            <strong style="color: #2563EB;">#${c.id}</strong>
+            <div style="font-size: 11px; color: var(--text-muted);">${c.time}</div>
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+              <span class="badge ${isFromCustomer ? 'badge-info' : 'badge-purple'}">
+                ${isFromCustomer ? 'Khách hàng' : 'Quán ăn'}
+              </span>
+            </div>
+            <strong>${c.senderName}</strong>
+            <div style="font-size: 11px; color: var(--text-light); font-family: monospace;">${c.senderContact || ''}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700; color: var(--danger);">${c.targetName}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${c.targetContact || ''}</div>
+          </td>
+          <td>
+            <div style="font-weight: 700; font-family: monospace; color: #1E293B;">${c.orderId ? '#' + c.orderId : 'Không có mã đơn'}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${c.type}</div>
+          </td>
+          <td>
+            <div style="max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.content}">
+              ${c.content}
+            </div>
+          </td>
+          <td>${priorityBadge}</td>
+          <td>${statusBadge}</td>
+          <td>
+            <div class="action-group" style="justify-content: flex-end;">
+              <button class="btn btn-sm ${c.status === 'PENDING' ? 'btn-primary' : 'btn-outline'}" onclick="openResolveComplaintModal('${c.id}')" title="Xem chi tiết và xử lý">
+                ${c.status === 'PENDING' ? 'Xử lý' : 'Xem'}
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* ========================================================
+       11. COMPLAINTS & PENALTY CONTROLLER (CẢNH BÁO - ẨN - KHÓA)
+       ======================================================== */
+    let currentPenaltyAction = 'WARN';
+
+    function selectPenaltyAction(action) {
+      currentPenaltyAction = action;
+
+      const cardWarn = document.getElementById('card-action-warn');
+      const cardHide = document.getElementById('card-action-hide');
+      const cardLock = document.getElementById('card-action-lock');
+      const callout = document.getElementById('penalty-info-callout');
+      const submitBtn = document.getElementById('btn-submit-resolve');
+
+      if (cardWarn) cardWarn.className = 'action-choice-card' + (action === 'WARN' ? ' active-warn' : '');
+      if (cardHide) cardHide.className = 'action-choice-card' + (action === 'HIDE' ? ' active-hide' : '');
+      if (cardLock) cardLock.className = 'action-choice-card' + (action === 'LOCK' ? ' active-lock' : '');
+
+      const radioWarn = document.getElementById('penalty-warn');
+      const radioHide = document.getElementById('penalty-hide');
+      const radioLock = document.getElementById('penalty-lock');
+      if (radioWarn) radioWarn.checked = (action === 'WARN');
+      if (radioHide) radioHide.checked = (action === 'HIDE');
+      if (radioLock) radioLock.checked = (action === 'LOCK');
+
+      if (callout) {
+        if (action === 'WARN') {
+          callout.style.cssText = 'background: #FEF3C7; border: 1px solid #FCD34D; color: #92400E; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
+          callout.innerHTML = '<strong>Mức 1 - Cảnh Báo (WARN):</strong> Gửi thông báo cảnh cáo vi phạm chính thức trên Firebase. Tài khoản của quán / khách vẫn hoạt động nhưng bị ghi nhận số lần vi phạm vào hồ sơ.';
+          if (submitBtn) { submitBtn.style.background = 'var(--primary)'; submitBtn.textContent = 'Lưu Cảnh Báo & Đóng Khiếu Nại'; }
+        } else if (action === 'HIDE') {
+          callout.style.cssText = 'background: #EEF2FF; border: 1px solid #C7D2FE; color: #3730A3; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
+          callout.innerHTML = '<strong>Mức 2 - Ẩn Tạm Thời (HIDE):</strong> Tạm ẩn cửa hàng khỏi App Khách Hàng (<code>storeStatus = CLOSED</code>, <code>penaltyTier = HIDE</code>) hoặc tạm đình chỉ quyền đặt hàng của khách.';
+          if (submitBtn) { submitBtn.style.background = '#4F46E5'; submitBtn.textContent = 'Tạm Ẩn Đối Tượng & Đóng Khiếu Nại'; }
+        } else if (action === 'LOCK') {
+          callout.style.cssText = 'background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
+          callout.innerHTML = '<strong>Mức 3 - Khóa Tài Khoản (LOCK):</strong> Khóa hoàn toàn tài khoản đối tượng vi phạm trên Firebase (<code>storeStatus = LOCKED</code> / <code>users.status = LOCKED</code>).';
+          if (submitBtn) { submitBtn.style.background = 'var(--danger)'; submitBtn.textContent = 'Khóa Tài Khoản & Đóng Khiếu Nại'; }
+        }
+      }
+    }
+
+    function toggleRefundInput(checked) {
+      const refundGroup = document.getElementById('resolve-refund-group');
+      if (refundGroup) {
+        refundGroup.style.display = checked ? 'block' : 'none';
+      }
+    }
+
+    function openResolveComplaintModal(complaintId) {
+      const c = complaints.find(x => x.id === complaintId);
+      if (!c) return;
+
+      document.getElementById('resolve-complaint-id').value = c.id;
+      document.getElementById('detail-c-code').textContent = '#' + c.id;
+      document.getElementById('detail-c-time').textContent = 'Tiếp nhận lúc: ' + c.time;
+      document.getElementById('detail-c-sender-name').textContent = c.senderName + (c.senderType === 'CUSTOMER' ? ' (Khách hàng)' : ' (Đối tác Quán)');
+      document.getElementById('detail-c-sender-contact').textContent = c.senderContact;
+      document.getElementById('detail-c-target-name').textContent = c.targetName;
+      document.getElementById('detail-c-target-contact').textContent = c.targetContact || 'Đối tượng bị phản ánh';
+      document.getElementById('detail-c-order').textContent = c.orderId ? '#' + c.orderId : 'N/A';
+      document.getElementById('detail-c-type').textContent = c.type;
+      document.getElementById('detail-c-content').textContent = c.content;
+      const priorityContainer = document.getElementById('detail-c-priority-badge');
+      if (c.priority === 'CRITICAL') priorityContainer.innerHTML = '<span class="badge badge-locked">Khẩn cấp</span>';
+      else if (c.priority === 'HIGH') priorityContainer.innerHTML = '<span class="badge badge-warning">Mức độ cao</span>';
+      else priorityContainer.innerHTML = '<span class="badge badge-info">Bình thường</span>';
+
+      if (c.priority === 'CRITICAL') selectPenaltyAction('LOCK');
+      else if (c.priority === 'HIGH') selectPenaltyAction('HIDE');
+      else selectPenaltyAction('WARN');
+
+      const noteInput = document.getElementById('resolve-admin-note');
+      if (noteInput) {
+        noteInput.value = c.adminNote || (c.status === 'RESOLVED' ? 'Đã hoàn tất giải quyết khiếu nại.' : `Căn cứ phản ánh về sự cố "${c.type}", Admin quyết định xử lý theo quy chế nền tảng.`);
+      }
+
+      openModal('modal-resolve-complaint');
+    }
+
+    function quickRejectComplaint() {
+      const cid = document.getElementById('resolve-complaint-id').value;
+      const c = complaints.find(x => x.id === cid);
+      if (!c) return;
+
+      if (confirm(`Bạn có chắc chắn muốn BÁC BỎ khiếu nại #${c.id} của "${c.senderName}" do không đủ chứng cứ?`)) {
+        c.status = 'REJECTED';
+        c.adminNote = 'Bác bỏ khiếu nại do không đủ chứng cứ vi phạm xác thực hoặc nội dung phản ánh không đúng thực tế.';
+        if (fbDb && isFirebaseReady) {
+          fbDb.ref(`complaints/${c.id}`).update({
+            status: 'REJECTED',
+            penaltyApplied: 'NONE',
+            adminNote: c.adminNote
+          }).catch(() => {});
+        }
+        addLog(`Bác bỏ khiếu nại #${c.id} của "${c.senderName}"`, 'info');
+        showToast(`Đã bác bỏ khiếu nại #${c.id} trên Firebase`, 'info');
+        saveState();
+        closeModal('modal-resolve-complaint');
+        renderComplaints();
+        renderKPIs();
+      }
+    }
+
+    function submitResolveComplaint(e) {
+      e.preventDefault();
+      const cid = document.getElementById('resolve-complaint-id').value;
+      const action = currentPenaltyAction; // 'WARN', 'HIDE', 'LOCK'
+      const adminNote = document.getElementById('resolve-admin-note').value.trim();
+
+      const c = complaints.find(x => x.id === cid);
+      if (!c) return;
+
+      c.status = 'RESOLVED';
+      c.penaltyAction = action;
+      c.adminNote = adminNote;
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`complaints/${c.id}`).update({
+          status: 'RESOLVED',
+          penaltyAction: action,
+          penaltyApplied: action,
+          adminNote: adminNote,
+          resolvedAt: Date.now()
+        }).catch(() => {});
+      }
+
+      // XỬ LÝ THEO 3 MỨC TRÊN FIREBASE: CẢNH BÁO (WARN), ẨN (HIDE), KHÓA TK (LOCK)
+      const targetQuery = (c.targetName || '').toLowerCase().trim();
+      const targetStore = stores.find(s =>
+        (c.storeId && s.id === c.storeId) ||
+        (s.name && (s.name.toLowerCase().includes(targetQuery) || targetQuery.includes(s.name.toLowerCase())))
+      );
+      const targetCust = customers.find(x =>
+        (c.customerId && x.id === c.customerId) ||
+        (x.name && x.name.toLowerCase().includes(targetQuery)) ||
+        (c.targetContact && x.phone && c.targetContact.includes(x.phone))
+      );
+
+      if (action === 'WARN') {
+        if (targetStore) {
+          targetStore.warningCount = (targetStore.warningCount || 0) + 1;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`stores/${targetStore.id}`).update({
+              warningCount: targetStore.warningCount,
+              penaltyTier: 'WARN',
+              penaltyReason: `Cảnh báo từ khiếu nại #${c.id}: ${adminNote}`
+            }).catch(() => {});
+          }
+        }
+        if (targetCust) {
+          targetCust.warningCount = (targetCust.warningCount || 0) + 1;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`users/${targetCust.id}`).update({ warningCount: targetCust.warningCount }).catch(() => {});
+          }
+        }
+        addLog(`[CẢNH BÁO] Phạt cảnh cáo đối tượng "${c.targetName}" theo khiếu nại #${c.id}`, 'warning');
+        showToast(`Đã gửi CẢNH BÁO vi phạm tới "${c.targetName}" trên Firebase!`, 'warning');
+      } else if (action === 'HIDE') {
+        if (targetStore) {
+          const reason = `Tạm ẩn do khiếu nại #${c.id}: ${c.type}`;
+          syncStoreStatusToFirebase(targetStore, 'CLOSED', reason, 'HIDE');
+          renderStores();
+          renderOverviewStores();
+        }
+        if (targetCust) {
+          targetCust.status = 'SUSPENDED';
+          targetCust.suspendedReason = `Tạm ngưng 7 ngày do khiếu nại #${c.id}`;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`users/${targetCust.id}`).update({
+              status: 'SUSPENDED',
+              isActive: false,
+              lockReason: targetCust.suspendedReason
+            }).catch(() => {});
+            writeWithAdminRole(() => fbDb.ref(`customers/${targetCust.id}`).update({
+              status: 'SUSPENDED',
+              lockReason: targetCust.suspendedReason
+            })).catch(() => {});
+          }
+          renderCustomers();
+        }
+        addLog(`[TẠM ẨN] Tạm ẩn đối tượng "${c.targetName}" khỏi nền tảng theo khiếu nại #${c.id}`, 'warning');
+        showToast(`Đã TẠM ẨN "${c.targetName}" khỏi App Khách Hàng trên Firebase!`, 'warning');
+      } else if (action === 'LOCK') {
+        if (targetStore) {
+          const reason = `Bị khóa theo khiếu nại #${c.id}: ${c.type} - ${adminNote}`;
+          syncStoreStatusToFirebase(targetStore, 'LOCKED', reason, 'LOCK');
+          renderStores();
+          renderOverviewStores();
+        }
+        if (targetCust) {
+          targetCust.status = 'LOCKED';
+          targetCust.lockReason = `Bị khóa theo khiếu nại #${c.id}: ${c.type}`;
+          if (fbDb && isFirebaseReady) {
+            fbDb.ref(`users/${targetCust.id}`).update({
+              status: 'LOCKED',
+              isActive: false,
+              lockReason: targetCust.lockReason
+            }).catch(() => {});
+            writeWithAdminRole(() => fbDb.ref(`customers/${targetCust.id}`).update({
+              status: 'LOCKED',
+              lockReason: targetCust.lockReason
+            })).catch(() => {});
+          }
+          renderCustomers();
+        }
+        addLog(`[KHÓA TK] Khóa vĩnh viễn tài khoản "${c.targetName}" theo khiếu nại #${c.id}`, 'danger');
+        showToast(`Đã KHÓA TÀI KHOẢN "${c.targetName}" trên toàn hệ thống Firebase!`, 'danger');
+      }
+
+      saveState();
+      closeModal('modal-resolve-complaint');
+      renderComplaints();
+      renderKPIs();
+    }
+
+    function openNewComplaintModal() {
+      document.getElementById('new-c-sender').value = '';
+      document.getElementById('new-c-target').value = '';
+      document.getElementById('new-c-order').value = '';
+      document.getElementById('new-c-content').value = '';
+      openModal('modal-new-complaint');
+    }
+
+    function saveNewComplaint(e) {
+      e.preventDefault();
+      const senderType = document.getElementById('new-c-sender-type').value;
+      const sender = document.getElementById('new-c-sender').value.trim();
+      const target = document.getElementById('new-c-target').value.trim();
+      const order = document.getElementById('new-c-order').value.trim();
+      const type = document.getElementById('new-c-type').value;
+      const content = document.getElementById('new-c-content').value.trim();
+      const priority = document.getElementById('new-c-priority').value;
+
+      if (!sender || !target || !content) {
+        showToast('Vui lòng nhập đầy đủ thông tin khiếu nại!', 'warning');
+        return;
+      }
+
+      const newId = 'KN-' + Date.now().toString().slice(-5);
+      const newComplaint = {
+        id: newId,
+        complaintId: newId,
+        senderType: senderType,
+        senderName: sender.split('(')[0].trim(),
+        senderContact: sender.includes('(') ? sender.split('(')[1].replace(')', '').trim() : '09xx.xxx.xxx',
+        targetName: target,
+        targetContact: 'Cần xác minh',
+        orderId: order ? order.replace('#', '') : '',
+        type: type,
+        reason: `[${type}] ${content}`,
+        content: content,
+        priority: priority,
+        status: 'PENDING',
+        penaltyApplied: 'NONE',
+        createdAt: Date.now(),
+        time: 'Vừa xong'
+      };
+
+      complaints.unshift(newComplaint);
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`complaints/${newId}`).set(newComplaint).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-new-complaint');
+      renderComplaints();
+      renderKPIs();
+      addLog(`Tiếp nhận khiếu nại mới #${newId} từ ${sender}`, 'warning');
+      showToast(`Đã ghi nhận khiếu nại mới #${newId} lên Firebase!`, 'success');
+    }
+
+    /* ========================================================
+       12. DISH REVIEWS MODERATION CONTROLLER (dish_reviews)
+       ======================================================== */
+    function rebuildReviews() {
+      const list = [];
+      Object.entries(rawFbReviews).forEach(([rid, r]) => {
+        if (!r || typeof r !== 'object') return;
+        const cust = rawFbUsers[r.customerId] || rawFbCustomers[r.customerId] || {};
+        
+        let dishName = r.dishName || '';
+        let storeName = r.storeName || '';
+        let storeId = r.shopId || r.storeId || '';
+        
+        if (r.dishId) {
+          for (const s of stores) {
+            if (s.dishes && typeof s.dishes === 'object') {
+              if (s.dishes[r.dishId]) {
+                if (!dishName) dishName = s.dishes[r.dishId].name;
+                if (!storeName) storeName = s.name;
+                if (!storeId) storeId = s.id;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!dishName || !storeName) {
+          const matchedOrder = liveOrders.find(o => o.id === r.orderId);
+          if (matchedOrder) {
+            if (!storeName) storeName = matchedOrder.storeName;
+            if (!storeId) storeId = matchedOrder.shopId;
+          }
+        }
+        
+        if (!dishName) dishName = 'Món ăn Oishi';
+        if (!storeName) storeName = 'Quán Oishi';
+
+        const status = (r.status || (r.isHidden ? 'HIDDEN' : 'ACTIVE')).toUpperCase();
+        
+        list.push({
+          id: rid,
+          reviewId: r.reviewId || rid,
+          orderId: r.orderId || '',
+          dishId: r.dishId || '',
+          dishName: dishName,
+          storeId: storeId,
+          storeName: storeName,
+          customerId: r.customerId || '',
+          customerName: r.customerName || cust.fullName || cust.name || 'Khách hàng Oishi',
+          customerPhone: cust.phone || '',
+          customerTrustScore: cust.trustScore !== undefined ? cust.trustScore : 100,
+          rating: Number(r.rating || 5),
+          comment: r.comment || 'Khách hàng không để lại nhận xét chi tiết.',
+          imageUrl: r.imageUrl || '',
+          status: status,
+          isHidden: (status === 'HIDDEN' || r.isHidden === true),
+          adminReply: r.adminReply || '',
+          adminReplyTime: r.adminReplyTime || '',
+          createdAt: Number(r.createdAt || r.timestamp || Date.now())
+        });
+      });
+
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      reviews = list;
+      localStorage.setItem('oishi_admin_reviews', JSON.stringify(reviews));
+    }
+
+    function filterReviews() {
+      renderReviews();
+    }
+
+    function populateReviewStoreFilter() {
+      const select = document.getElementById('filter-review-store');
+      if (select) {
+        const current = select.value;
+        select.innerHTML = '<option value="ALL">Tất cả cửa hàng</option>';
+        stores.forEach(s => {
+          select.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+        });
+        select.value = current || 'ALL';
+      }
+
+      const dishSelect = document.getElementById('new-rev-dish-select');
+      if (dishSelect) {
+        dishSelect.innerHTML = '';
+        stores.forEach(s => {
+          if (s.dishes && typeof s.dishes === 'object') {
+            Object.entries(s.dishes).forEach(([did, d]) => {
+              dishSelect.innerHTML += `<option value="${did}|${s.id}">${s.name} - ${d.name || did} (${formatVnd(d.price)})</option>`;
+            });
+          }
+        });
+        if (!dishSelect.innerHTML) {
+          dishSelect.innerHTML = '<option value="dish-demo|store_mgr3gAsX">Quán Ăn Của Tôi - Phở Bò Tái Nạm (45.000đ)</option>';
+        }
+      }
+    }
+
+    function renderReviewKPIs() {
+      const total = reviews.length;
+      const low = reviews.filter(r => r.rating <= 2).length;
+      const hidden = reviews.filter(r => r.isHidden || r.status === 'HIDDEN').length;
+      const avg = total > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / total).toFixed(1) : '5.0';
+
+      const avgEl = document.getElementById('kpi-rev-avg');
+      if (avgEl) avgEl.textContent = `${avg} ⭐`;
+      const totEl = document.getElementById('kpi-rev-total');
+      if (totEl) totEl.textContent = total;
+      const lowEl = document.getElementById('kpi-rev-low');
+      if (lowEl) lowEl.textContent = low;
+      const hidEl = document.getElementById('kpi-rev-hidden');
+      if (hidEl) hidEl.textContent = hidden;
+
+      const badge = document.getElementById('badge-reviews-count');
+      if (badge) {
+        if (low > 0) {
+          badge.textContent = `${low} Kém`;
+          badge.style.display = 'inline-block';
+        } else if (hidden > 0) {
+          badge.textContent = `${hidden} Ẩn`;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }
+
+    function renderReviews() {
+      const tbody = document.getElementById('tbody-reviews');
+      const counter = document.getElementById('review-counter');
+      if (!tbody) return;
+
+      const searchVal = (document.getElementById('filter-review-search')?.value || '').toLowerCase().trim();
+      const ratingVal = document.getElementById('filter-review-rating')?.value || 'ALL';
+      const statusVal = document.getElementById('filter-review-status')?.value || 'ALL';
+      const storeVal = document.getElementById('filter-review-store')?.value || 'ALL';
+
+      const filtered = reviews.filter(r => {
+        const matchSearch = (r.dishName || '').toLowerCase().includes(searchVal) ||
+                            (r.storeName || '').toLowerCase().includes(searchVal) ||
+                            (r.customerName || '').toLowerCase().includes(searchVal) ||
+                            (r.comment || '').toLowerCase().includes(searchVal) ||
+                            (r.id || '').toLowerCase().includes(searchVal);
+        const matchRating = (ratingVal === 'ALL') || (String(r.rating) === ratingVal);
+        const matchStatus = (statusVal === 'ALL') || (r.status === statusVal);
+        const matchStore = (storeVal === 'ALL') || (r.storeId === storeVal);
+        return matchSearch && matchRating && matchStatus && matchStore;
+      });
+
+      if (counter) counter.textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
+              <div style="font-size: 28px; margin-bottom: 8px;">💬</div>
+              <div style="font-weight: 700; font-size: 14px;">Chưa có đánh giá nào phù hợp bộ lọc</div>
+              <div style="font-size: 12px; margin-top: 4px;">Khách hàng hoàn tất đơn sẽ hiển thị đánh giá tại đây, hoặc bấm nút "Tạo Đánh Giá Demo" phía trên để thử nghiệm.</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const rowsHtml = filtered.map(r => {
+        const isHidden = r.status === 'HIDDEN' || r.isHidden;
+        const starsText = '⭐'.repeat(Math.max(1, Math.min(5, r.rating)));
+        const timeAgo = formatTimeAgo(r.createdAt);
+        
+        let statusBadge = isHidden
+          ? `<span class="badge badge-status-hidden"><span class="badge-dot"></span>Đã ẩn kiểm duyệt</span>`
+          : `<span class="badge badge-active"><span class="badge-dot"></span>Đang hiển thị</span>`;
+
+        let photoThumb = r.imageUrl
+          ? `<a href="${r.imageUrl}" target="_blank" title="Bấm để xem ảnh phóng to"><img src="${r.imageUrl}" class="review-thumb" alt="Ảnh review" onerror="this.style.display='none'"></a>`
+          : '';
+
+        let replyHtml = r.adminReply
+          ? `<div class="review-admin-reply-box"><strong>Phản hồi của Admin:</strong> ${r.adminReply}</div>`
+          : '';
+
+        return `
+          <tr style="${isHidden ? 'background: #FFF7ED;' : ''}">
+            <td>
+              <div style="font-family: monospace; font-weight: 700; color: var(--primary);">#${r.id.slice(-6)}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${timeAgo}</div>
+            </td>
+            <td>
+              <div style="font-weight: 700; color: var(--text-main);">${r.customerName}</div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                ${r.customerPhone ? `📞 ${r.customerPhone} • ` : ''}Điểm: <strong>${r.customerTrustScore}</strong>
+              </div>
+            </td>
+            <td>
+              <div style="font-weight: 700; color: #1E40AF;">🍲 ${r.dishName}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">🏪 ${r.storeName}</div>
+            </td>
+            <td>
+              <div class="star-rating" title="${r.rating} sao">${starsText}</div>
+              <div style="font-size: 11px; font-weight: 700; color: #B45309; margin-top: 2px;">${r.rating}.0 / 5</div>
+            </td>
+            <td>
+              <div class="review-bubble">${r.comment}</div>
+              ${photoThumb}
+              ${replyHtml}
+            </td>
+            <td>${statusBadge}</td>
+            <td style="text-align: right;">
+              <div style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap;">
+                <button class="btn btn-outline btn-sm" onclick="toggleReviewStatus('${r.id}')" title="${isHidden ? 'Bật hiển thị lại lên app' : 'Tạm ẩn khỏi app do phản cảm/tiêu cực'}">
+                  ${isHidden ? '👁️ Bật lại' : '🚫 Ẩn'}
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="openReviewDetailModal('${r.id}')" title="Xem chi tiết & gửi phản hồi">
+                  💬 Phản hồi
+                </button>
+                <button class="btn btn-danger-outline btn-sm" onclick="deleteReview('${r.id}')" title="Xóa đánh giá vĩnh viễn">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.innerHTML = rowsHtml;
+    }
+
+    function toggleReviewStatus(reviewId) {
+      const rev = reviews.find(r => r.id === reviewId);
+      if (!rev) return;
+      const nextStatus = rev.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
+      rev.status = nextStatus;
+      rev.isHidden = (nextStatus === 'HIDDEN');
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${reviewId}`).update({
+          status: nextStatus,
+          isHidden: rev.isHidden
+        }).catch(() => {});
+      }
+      saveState();
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Chuyển trạng thái đánh giá #${reviewId.slice(-6)} sang ${nextStatus === 'ACTIVE' ? 'Hiển thị' : 'Đã ẩn'}`, 'info');
+      showToast(`Đã ${nextStatus === 'ACTIVE' ? 'mở hiển thị' : 'tạm ẩn'} đánh giá #${reviewId.slice(-6)}!`, 'success');
+    }
+
+    function deleteReview(reviewId) {
+      if (!confirm('Bạn có chắc chắn muốn xóa đánh giá này khỏi hệ thống Firebase?')) return;
+      reviews = reviews.filter(r => r.id !== reviewId);
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${reviewId}`).remove().catch(() => {});
+      }
+      saveState();
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Xóa vĩnh viễn đánh giá #${reviewId.slice(-6)}`, 'danger');
+      showToast('Đã xóa đánh giá khỏi Firebase!', 'info');
+    }
+
+    function openReviewDetailModal(reviewId) {
+      const rev = reviews.find(r => r.id === reviewId);
+      if (!rev) return;
+
+      document.getElementById('modal-rev-id').value = rev.id;
+      document.getElementById('modal-rev-stars').textContent = '⭐'.repeat(rev.rating);
+      document.getElementById('modal-rev-dish').textContent = `Món ăn: ${rev.dishName}`;
+      document.getElementById('modal-rev-store').textContent = `Cửa hàng: ${rev.storeName}`;
+      document.getElementById('modal-rev-customer').textContent = `${rev.customerName} (${rev.customerPhone || 'Không có SĐT'})`;
+      document.getElementById('modal-rev-time').textContent = `Thời gian: ${formatTimeAgo(rev.createdAt)}`;
+      document.getElementById('modal-rev-comment').textContent = rev.comment;
+      document.getElementById('modal-rev-reply-text').value = rev.adminReply || '';
+
+      const imgContainer = document.getElementById('modal-rev-img-container');
+      if (imgContainer) {
+        if (rev.imageUrl) {
+          imgContainer.innerHTML = `<img src="${rev.imageUrl}" style="max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid #CBD5E1; margin-top: 6px;" alt="Review photo">`;
+        } else {
+          imgContainer.innerHTML = '';
+        }
+      }
+
+      openModal('modal-review-detail');
+    }
+
+    function saveReviewReply(e) {
+      e.preventDefault();
+      const revId = document.getElementById('modal-rev-id').value;
+      const reply = document.getElementById('modal-rev-reply-text').value.trim();
+      const rev = reviews.find(r => r.id === revId);
+      if (!rev) return;
+
+      rev.adminReply = reply;
+      rev.adminReplyTime = Date.now();
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${revId}`).update({
+          adminReply: reply,
+          adminReplyTime: rev.adminReplyTime
+        }).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-review-detail');
+      renderReviews();
+      addLog(`Phản hồi đánh giá #${revId.slice(-6)}: "${reply.slice(0, 30)}..."`, 'success');
+      showToast('Đã lưu phản hồi của Admin lên Firebase!', 'success');
+    }
+
+    function openAddReviewModal() {
+      populateReviewStoreFilter();
+      document.getElementById('new-rev-customer-name').value = '';
+      document.getElementById('new-rev-rating').value = '5';
+      document.getElementById('new-rev-comment').value = '';
+      document.getElementById('new-rev-image').value = '';
+      openModal('modal-add-review');
+    }
+
+    function saveNewReview(e) {
+      e.preventDefault();
+      const dishVal = document.getElementById('new-rev-dish-select').value;
+      const [dishId, storeId] = dishVal.split('|');
+      const custName = document.getElementById('new-rev-customer-name').value.trim();
+      const rating = parseInt(document.getElementById('new-rev-rating').value);
+      const comment = document.getElementById('new-rev-comment').value.trim();
+      const image = document.getElementById('new-rev-image').value.trim();
+
+      const newId = 'REV-' + Date.now().toString().slice(-6);
+      const storeObj = stores.find(s => s.id === storeId) || {};
+      const dishObj = storeObj.dishes ? storeObj.dishes[dishId] : {};
+
+      const newRev = {
+        reviewId: newId,
+        dishId: dishId,
+        dishName: dishObj.name || 'Món ăn Oishi',
+        storeId: storeId,
+        storeName: storeObj.name || 'Quán Oishi',
+        customerId: 'cust-demo',
+        customerName: custName,
+        rating: rating,
+        comment: comment,
+        imageUrl: image,
+        status: 'ACTIVE',
+        createdAt: Date.now()
+      };
+
+      reviews.unshift({ ...newRev, id: newId, isHidden: false, customerTrustScore: 100 });
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref(`dish_reviews/${newId}`).set(newRev).catch(() => {});
+      }
+      saveState();
+      closeModal('modal-add-review');
+      renderReviews();
+      renderReviewKPIs();
+      addLog(`Tạo đánh giá mới cho món "${newRev.dishName}" (${rating}⭐)`, 'success');
+      showToast(`Đã thêm đánh giá món ăn lên Firebase!`, 'success');
+    }
+
+    function seedSampleReviews() {
+      if (!confirm('Khởi tạo 3 đánh giá mẫu demo (5⭐ ngon, 4⭐ tốt, 2⭐ kém cần ẩn) lên Firebase Realtime Database?')) return;
+      
+      const firstStore = stores[0] || {};
+      let dishId = 'dish-1';
+      let dishName = 'Phở Bò Tái Nạm Đặc Biệt';
+      if (firstStore.dishes && typeof firstStore.dishes === 'object') {
+        const entries = Object.entries(firstStore.dishes);
+        if (entries.length > 0) {
+          dishId = entries[0][0];
+          dishName = entries[0][1].name || dishName;
+        }
+      }
+
+      const samples = [
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-1',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-phuc',
+          customerName: 'Nguyễn Hoàng Phúc',
+          rating: 5,
+          comment: 'Nước dùng phở cực kỳ thanh ngọt và đậm đà, thịt bò mềm tươi, rau thơm đi kèm rất sạch sẽ. Chắc chắn sẽ ủng hộ quán lâu dài!',
+          imageUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500&auto=format&fit=crop&q=80',
+          status: 'ACTIVE',
+          createdAt: Date.now() - 3600000
+        },
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-2',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-tam',
+          customerName: 'Trần Minh Tâm',
+          rating: 4,
+          comment: 'Đồ ăn giao nhanh, đóng gói hộp giấy thân thiện môi trường. Hương vị ổn, giá cả hợp lý với phần ăn sinh viên.',
+          imageUrl: '',
+          status: 'ACTIVE',
+          createdAt: Date.now() - 7200000
+        },
+        {
+          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-3',
+          dishId: dishId,
+          dishName: dishName,
+          storeId: firstStore.id || 'store_mgr3gAsX',
+          storeName: firstStore.name || 'Quán Ăn Của Tôi',
+          customerId: 'cust-bad',
+          customerName: 'Lê Hoàng Nam',
+          rating: 2,
+          comment: 'Món ăn bị nguội ngắt khi giao đến, quán lại quên cho tương ớt và chanh. Đề nghị cải thiện chất lượng phục vụ!',
+          imageUrl: '',
+          status: 'HIDDEN',
+          isHidden: true,
+          adminReply: 'Admin Oishi đã liên hệ quán gửi bù voucher và nhắc nhở bộ phận đóng gói.',
+          createdAt: Date.now() - 14400000
+        }
+      ];
+
+      const updates = {};
+      samples.forEach(s => {
+        updates[s.reviewId] = s;
+      });
+
+      if (fbDb && isFirebaseReady) {
+        fbDb.ref('dish_reviews').update(updates).catch(() => {});
+      } else {
+        samples.forEach(s => { rawFbReviews[s.reviewId] = s; });
+        rebuildReviews();
+        renderReviews();
+        renderReviewKPIs();
+      }
+
+      showToast('Đã khởi tạo 3 đánh giá mẫu lên Firebase!', 'success');
+      addLog('Khởi tạo bộ dữ liệu mẫu đánh giá món ăn (dish_reviews)', 'info');
+    }
+
+    /* ========================================================
+       12. GLOBAL SEARCH CONTROLLER
+       ======================================================== */
+    function handleGlobalSearch(query) {
+      query = query.toLowerCase().trim();
+      if (!query) return;
+
+      const matchOrder = liveOrders.some(o => (o.id || '').toLowerCase().includes(query) || (o.items || '').toLowerCase().includes(query));
+      const matchComplaint = complaints.some(c => (c.id || '').toLowerCase().includes(query) || (c.content || '').toLowerCase().includes(query));
+      const matchStore = stores.some(s => (s.name || '').toLowerCase().includes(query) || (s.phone || '').includes(query));
+      const matchCust = customers.some(c => (c.name || '').toLowerCase().includes(query) || (c.phone || '').includes(query));
+      const matchCat = categories.some(c => (c.name || '').toLowerCase().includes(query));
+      const matchReview = reviews.some(r => (r.comment || '').toLowerCase().includes(query) || (r.dishName || '').toLowerCase().includes(query) || (r.customerName || '').toLowerCase().includes(query));
+
+      if (matchStore) {
+        switchTab('stores');
+        const input = document.getElementById('filter-store-search');
+        if (input) { input.value = query; filterStores(); }
+      } else if (matchOrder) {
+        switchTab('orders');
+        const input = document.getElementById('filter-global-order-search');
+        if (input) { input.value = query; renderGlobalOrders(); }
+      } else if (matchComplaint) {
+        switchTab('complaints');
+        const input = document.getElementById('filter-complaint-search');
+        if (input) { input.value = query; filterComplaints(); }
+      } else if (matchCust) {
+        switchTab('customers');
+        const input = document.getElementById('filter-customer-search');
+        if (input) { input.value = query; filterCustomers(); }
+      } else if (matchCat) {
+        switchTab('categories');
+        const input = document.getElementById('filter-cat-search');
+        if (input) { input.value = query; filterCategories(); }
+      } else if (matchReview) {
+        switchTab('reviews');
+        const input = document.getElementById('filter-review-search');
+        if (input) { input.value = query; filterReviews(); }
+      }
+    }
+
+    /* ========================================================
+       14. CCCD & eKYC VERIFICATION MODAL CONTROLLER
+       ======================================================== */
+    let currentViewingStoreId = null;
+
+    function openStoreCccdModal(storeId) {
+      const store = stores.find(s => s.id === storeId);
+      if (!store) return;
+      currentViewingStoreId = store.id;
+
+      document.getElementById('modal-cccd-title').innerHTML = `
+        <span>Hồ Sơ CCCD & Ảnh Đăng Ký Quán: <strong>${store.name}</strong></span>
+      `;
+      document.getElementById('cccd-view-store-name').textContent = store.name;
+      document.getElementById('cccd-view-owner').textContent = store.owner;
+      document.getElementById('cccd-view-phone').textContent = store.phone;
+      document.getElementById('cccd-view-number').textContent = store.cccdNumber || '079088012456';
+
+      const statusBadge = document.getElementById('cccd-view-status-badge');
+      if (store.status === 'PENDING') {
+        statusBadge.innerHTML = '<span class="badge badge-status-pending"><span class="badge-dot"></span>Trạng thái: Chờ duyệt</span>';
+      } else if (store.status === 'LOCKED') {
+        statusBadge.innerHTML = '<span class="badge badge-status-locked"><span class="badge-dot"></span>Trạng thái: Bị khóa</span>';
+      } else if (store.status === 'CLOSED') {
+        statusBadge.innerHTML = '<span class="badge badge-status-closed"><span class="badge-dot"></span>Trạng thái: Tạm nghỉ</span>';
+      } else {
+        statusBadge.innerHTML = '<span class="badge badge-status-open"><span class="badge-dot"></span>Trạng thái: Đang hoạt động</span>';
+      }
+
+      const imgFront = document.getElementById('cccd-modal-img-front');
+      if (imgFront) imgFront.src = store.cccdFront || 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80';
+      const imgBack = document.getElementById('cccd-modal-img-back');
+      if (imgBack) imgBack.src = store.cccdBack || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80';
+      const imgPortrait = document.getElementById('cccd-modal-img-portrait');
+      if (imgPortrait) imgPortrait.src = store.registerPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
+
+      document.getElementById('cccd-front-num').textContent = store.cccdNumber || '079088012456';
+      document.getElementById('cccd-front-name').textContent = store.owner.toUpperCase();
+      document.getElementById('cccd-front-dob').textContent = store.dob || '15/04/1988';
+      document.getElementById('cccd-front-gender').textContent = store.gender || 'Nam';
+      document.getElementById('cccd-front-hometown').textContent = store.hometown || 'TP. Hồ Chí Minh';
+      document.getElementById('cccd-front-residence').textContent = store.residence || store.address || 'Quận 1, TP.HCM';
+      document.getElementById('cccd-front-expiry').textContent = store.expireDate || '15/04/2048';
+      document.getElementById('cccd-front-avatar-char').textContent = store.gender === 'Nữ' ? '' : '';
+
+      document.getElementById('cccd-back-issuedate').textContent = store.issueDate || '10/06/2021';
+      const cleanNum = (store.cccdNumber || '079088012456').replace(/\s+/g, '');
+      const cleanName = store.owner.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Đ/g, 'D').replace(/\s+/g, '<');
+      document.getElementById('cccd-back-mrz').innerHTML = `
+        IDVNM${cleanNum}<<<<<<<<<<<<<<br>
+        8804155M4804152VNM<<<<<<<<<<<8<br>
+        ${cleanName}<<<<<<<<<<<<<<<<<<
+      `;
+
+      document.getElementById('cccd-selfie-char').textContent = store.owner.trim().split(' ').pop().charAt(0).toUpperCase();
+      document.getElementById('cccd-selfie-time').textContent = store.registerTime || '10:15 15/03/2026';
+      document.getElementById('cccd-ekyc-score-label').textContent = `✓ Khớp khuôn mặt: ${store.ekycScore || '99.2%'}`;
+
+      openModal('modal-store-cccd');
+    }
+
+    function setStoreStatusFromModal(newStatus) {
+      if (!currentViewingStoreId) return;
+      const store = stores.find(s => s.id === currentViewingStoreId);
+      if (!store) return;
+
+      const statusLabels = {
+        'PENDING': 'Chờ duyệt',
+        'OPEN': 'Đang hoạt động',
+        'LOCKED': 'Bị khóa',
+        'CLOSED': 'Tạm nghỉ'
+      };
+
+      syncStoreStatusToFirebase(
+        store,
+        newStatus,
+        newStatus === 'LOCKED' ? 'Admin khóa tài khoản qua bảng kiểm duyệt CCCD' : '',
+        newStatus === 'LOCKED' ? 'LOCK' : 'NONE'
+      );
+
+      saveState();
+      closeModal('modal-store-cccd');
+      renderStores();
+      renderOverviewStores();
+      renderKPIs();
+
+      const label = statusLabels[newStatus] || newStatus;
+      addLog(`Cập nhật trạng thái quán "${store.name}" sang ${label}`, newStatus === 'LOCKED' ? 'danger' : 'success');
+      showToast(`Đã chuyển cửa hàng "${store.name}" sang "${label}" trên Firebase!`, 'success');
+    }
+
+    function openModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) modal.classList.add('show');
+    }
+
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) modal.classList.remove('show');
+    }
+
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.classList.remove('show');
+        }
+      });
+    });
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      let icon = '';
+      let title = 'Thông báo';
+      if (type === 'success') { icon = ''; title = 'Thành công'; }
+      if (type === 'danger') { icon = ''; title = 'Cảnh báo / Khóa'; }
+      if (type === 'warning') { icon = ''; title = 'Lưu ý'; }
+
+      toast.innerHTML = `
+        
+        <div class="toast-content">
+          <h4>${title}</h4>
+          <p>${message}</p>
+        </div>
+      `;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+  </script>
+
+  <!-- MODAL ĐỔI TRẠNG THÁI CỬA HÀNG (4 TRẠNG THÁI) -->
+  <div class="modal-overlay" id="modal-change-status">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <span>Chuyển Đổi Trạng Thái Quán Ăn</span>
+        </h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-change-status')">&times;</button>
+      </div>
+      <form onsubmit="submitChangeStoreStatus(event)">
+        <div class="modal-body">
+          <input type="hidden" id="change-status-store-id">
+          <div class="form-group">
+            <label class="form-label">Cửa hàng áp dụng</label>
+            <input type="text" class="form-control" id="change-status-store-name" readonly style="background: var(--bg-hover); font-weight: 700;">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Chọn 1 trong 4 trạng thái quản trị <span class="req">*</span></label>
+            <select class="form-control" id="change-status-select" onchange="handleStoreStatusDropdownChange(this.value)" required style="font-weight: 700; font-size: 14px;">
+              <option value="PENDING">Chờ duyệt (Chưa mở bán)</option>
+              <option value="OPEN">Đang hoạt động (Hiển thị đầy đủ menu)</option>
+              <option value="LOCKED">Bị khóa (Khóa tài khoản, cấm kinh doanh)</option>
+              <option value="CLOSED">Tạm nghỉ (Tạm dừng nhận đơn)</option>
+            </select>
+          </div>
+          <div class="form-group" id="change-status-reason-box" style="display: none;">
+            <label class="form-label">Lý do khóa cửa hàng <span class="req">*</span></label>
+            <input type="text" class="form-control" id="change-status-reason" placeholder="VD: Vi phạm vệ sinh ATTP hoặc khiếu nại chưa xử lý">
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); background: #F8FAFC; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">
+            <strong>Quy tắc 4 trạng thái đối tác:</strong>
+            <ul style="margin: 4px 0 0 16px; padding: 0; line-height: 1.5;">
+              <li><strong>Chờ duyệt:</strong> Quán mới đăng ký, chờ Admin duyệt CCCD & giấy tờ.</li>
+              <li><strong>Đang hoạt động:</strong> Thực đơn xuất hiện trên App Khách Hàng.</li>
+              <li><strong>Bị khóa:</strong> Cấm nhận đơn hàng, tài khoản quán bị vô hiệu hóa.</li>
+              <li><strong>Tạm nghỉ:</strong> Quán tự đóng cửa hoặc Admin tạm hoãn nhận đơn.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-change-status')">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu Thay Đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL XEM PHÓNG TO ẢNH (LIGHTBOX) -->
+  <div class="modal-overlay" id="modal-image-preview" style="z-index: 9999;">
+    <div class="modal-dialog" style="max-width: 640px; background: #0F172A; color: #F8FAFC; border-radius: 16px; overflow: hidden; padding: 0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #1E293B; background: #1E293B;">
+        <div>
+          <h4 id="preview-image-title" style="margin: 0; font-size: 15px; color: #F8FAFC; font-weight: 700;">Chi tiết ảnh</h4>
+          <div id="preview-image-sub" style="font-size: 11.5px; color: #94A3B8; margin-top: 3px;"></div>
+        </div>
+        <button class="btn-close-modal" onclick="closeModal('modal-image-preview')" style="color: #94A3B8; font-size: 24px; background: transparent; border: none; cursor: pointer;">&times;</button>
+      </div>
+      <div style="padding: 16px; background: #020617; display: flex; justify-content: center; align-items: center; min-height: 300px;">
+        <img id="preview-image-src" src="" alt="Xem ảnh phóng to" style="max-width: 100%; max-height: 65vh; border-radius: 8px; object-fit: contain; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+      </div>
+      <div style="padding: 12px 20px; border-top: 1px solid #1E293B; display: flex; justify-content: space-between; align-items: center; background: #0F172A;">
+        <a id="preview-image-link" href="#" target="_blank" class="btn btn-outline btn-sm" style="color: #93C5FD; border-color: #3B82F6; text-decoration: none;">
+          Mở ảnh gốc kích thước lớn
+        </a>
+        <button type="button" class="btn btn-primary btn-sm" onclick="closeModal('modal-image-preview')">Đóng cửa sổ</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL XEM CHI TIẾT HOẠT ĐỘNG, ĐƠN HÀNG VÀ TÀI XẾ THUỘC QUÁN -->
+  <div class="modal-overlay" id="modal-store-detail" style="z-index: 9998;">
+    <div class="modal-dialog modal-dialog-lg" style="max-width: 950px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div>
+            <h3 id="store-detail-modal-title" style="margin: 0; font-size: 17px;">Chi Tiết Hoạt Động Cửa Hàng</h3>
+            <div id="store-detail-modal-sub" style="font-size: 12px; color: var(--text-muted); margin-top: 2px;"></div>
+          </div>
+        </div>
+        <button class="btn-close-modal" onclick="closeModal('modal-store-detail')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding-top: 14px;">
+        
+        <!-- Store Banner Profile Summary -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%); border: 1px solid #BFDBFE; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px;">
+          <div>
+            <div style="font-size: 17px; font-weight: 800; color: #1E40AF;" id="detail-store-name">---</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
+              📍 Địa chỉ: <span id="detail-store-address" style="color: var(--text-main); font-weight: 600;">---</span> • Chủ quán: <span id="detail-store-owner" style="font-weight: 700; color: var(--text-main);">---</span> (📞 <span id="detail-store-phone" style="font-family: monospace;">---</span>)
+            </div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+              🪪 Số CCCD: <strong id="detail-store-cccd" style="font-family: monospace; color: #2563EB;">---</strong> • Đánh giá: <strong id="detail-store-rating" style="color: #D97706;">---</strong> • Món bán: <strong id="detail-store-items" style="color: #2563EB;">0 món</strong>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Trạng Thái Quán:</div>
+            <div id="detail-store-status-badge" style="margin-top: 4px;"></div>
+          </div>
+        </div>
+
+        <!-- Sub Tabs Navigation -->
+        <div class="store-subnav">
+          <button class="store-subnav-btn active" id="btn-subtab-orders" onclick="switchStoreDetailTab('orders')">
+            <span>Lịch Sử Đơn Hàng Của Quán</span>
+            <span id="detail-orders-count-badge" style="background: #2563EB; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
+          </button>
+          <button class="store-subnav-btn" id="btn-subtab-dishes" onclick="switchStoreDetailTab('dishes')">
+            <span>Thực Đơn Quán (Menu)</span>
+            <span id="detail-dishes-count-badge" style="background: #D97706; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
+          </button>
+          <button class="store-subnav-btn" id="btn-subtab-drivers" onclick="switchStoreDetailTab('drivers')">
+            <span>Đội Ngũ Tài Xế Thuộc Quán</span>
+            <span id="detail-drivers-count-badge" style="background: #059669; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
+          </button>
+        </div>
+
+        <!-- SUBTAB 1: LỊCH SỬ ĐƠN HÀNG -->
+        <div id="pane-store-detail-orders">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="font-size: 14.5px; font-weight: 800; color: #0F172A;">
+                Danh Sách Đơn Đặt Món Toàn Bộ Tại Quán
+              </div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                Quản lý toàn bộ lịch sử đơn hàng đã và đang phục vụ của quán
+              </div>
+            </div>
+            
+            <!-- Quick Mini Stats -->
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="store-orders-stat-bar">
+              <span class="badge" style="background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-size: 11px;">
+                Tổng: <strong id="stat-total-orders">0</strong> đơn
+              </span>
+              <span class="badge" style="background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; font-size: 11px;">
+                ✓ Thành công: <strong id="stat-success-orders">0</strong>
+              </span>
+              <span class="badge" style="background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-size: 11px;">
+                Đang giao: <strong id="stat-delivering-orders">0</strong>
+              </span>
+              <span class="badge" style="background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; font-size: 11px;">
+                Bùng / Hủy: <strong id="stat-failed-orders">0</strong>
+              </span>
+            </div>
+          </div>
+
+          <!-- Order Filter Bar -->
+          <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 8px 12px; border-radius: 8px;">
+            <div class="search-box" style="flex: 1; min-width: 220px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="filter-store-order-search" placeholder="Tìm theo mã đơn (#ORD-xxx), khách hàng, món ăn, tài xế..." oninput="filterCurrentStoreOrders()" style="font-size: 12.5px;">
+            </div>
+            <select class="select-filter" id="filter-store-order-status" onchange="filterCurrentStoreOrders()" style="font-size: 12px; padding: 6px 12px;">
+              <option value="ALL">Tất cả trạng thái đơn</option>
+              <option value="PENDING">Chờ xác nhận</option>
+              <option value="PREPARING">Đang chế biến</option>
+              <option value="READY">Chờ lấy hàng</option>
+              <option value="DELIVERING">Đang giao hàng</option>
+              <option value="COMPLETED">Đã giao thành công</option>
+              <option value="BOOM">Bị bùng đơn (Bom hàng)</option>
+              <option value="CANCELLED">❌ Khách / Quán hủy đơn</option>
+            </select>
+          </div>
+
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 120px;">Mã Đơn & Giờ Đặt</th>
+                  <th style="min-width: 140px;">Khách Hàng & SĐT</th>
+                  <th style="min-width: 240px;">Món Đã Đặt</th>
+                  <th style="min-width: 160px;">Tài Xế Phụ Trách</th>
+                  <th style="min-width: 135px;">Trạng Thái Đơn</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-store-detail-orders">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SUBTAB 1B: QUẢN LÝ THỰC ĐƠN (MENU DISHES) -->
+        <div id="pane-store-detail-dishes" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="font-size: 14.5px; font-weight: 800; color: #0F172A;">
+                Danh Sách Món Ăn Trong Thực Đơn Quán (Firebase <code>stores/{id}/dishes</code>)
+              </div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                Thêm món mới, chỉnh sửa giá, tạm ẩn hoặc bật/tắt trạng thái còn món trực tiếp trên App Khách Hàng
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openAddDishModal()">
+              + Thêm Món Mới Vào Quán
+            </button>
+          </div>
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width: 220px;">Món Ăn</th>
+                  <th style="min-width: 110px;">Giá Bán</th>
+                  <th style="min-width: 120px;">Danh Mục</th>
+                  <th style="min-width: 120px;">Trạng Thái</th>
+                  <th style="text-align: right; min-width: 150px;">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-store-detail-dishes">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SUBTAB 2: ĐỘI NGŨ TÀI XẾ THUỘC QUÁN -->
+        <div id="pane-store-detail-drivers" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">
+              Danh sách các tài xế chuyên tuyến / gắn bó nhận đơn của quán
+            </div>
+            <div style="font-size: 12px; color: #059669; font-weight: 700;">
+              ✓ Đối soát định danh & phương tiện hợp lệ
+            </div>
+          </div>
+          <div class="driver-grid" id="driver-grid-container">
+            <!-- Dynamically populated driver cards -->
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modal-store-detail')">Đóng Cửa Sổ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL THÊM / SỬA MÓN ĂN TRONG QUÁN -->
+  <div class="modal-overlay" id="modal-dish" style="z-index: 9999;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-dish-title">Thêm Món Ăn Mới</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-dish')">&times;</button>
+      </div>
+      <form onsubmit="saveStoreDish(event)">
+        <input type="hidden" id="form-dish-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Tên món ăn <span class="req">*</span></label>
+            <input type="text" class="form-control" id="form-dish-name" placeholder="VD: Phở Bò Tái Nạm Gầu" required>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Giá bán (VNĐ) <span class="req">*</span></label>
+              <input type="number" class="form-control" id="form-dish-price" placeholder="55000" required min="1000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Danh mục món</label>
+              <input type="text" class="form-control" id="form-dish-cat" placeholder="Món chính">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Link ảnh món ăn (URL)</label>
+            <input type="text" class="form-control" id="form-dish-image" placeholder="https://images.unsplash.com/...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mô tả món</label>
+            <textarea class="form-control" id="form-dish-desc" placeholder="Mô tả hương vị, thành phần món ăn..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-dish')">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu Món Ăn</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>
+````
+
 ## File: BANG_PHAN_CONG_CONG_VIEC_TRELLO.md
 ````markdown
 # BẢNG PHÂN CÔNG CÔNG VIỆC DỰ ÁN (TRELLO WORK BREAKDOWN)
@@ -74583,229 +83652,6 @@ class AdminAuthViewModel @Inject constructor(
 }
 ````
 
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AddEditCategoryDialogFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.category
-
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
-import android.os.Bundle
-import android.util.Base64
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.DialogFragment
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.DialogAddEditCategoryBinding
-import com.chuyen_de_2.foodorder.core.data.model.Category
-import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
-import java.io.ByteArrayOutputStream
-
-class AddEditCategoryDialogFragment(
-    private val categoryToEdit: Category? = null,
-    private val defaultOrder: Int = 1,
-    private val onSave: (Category) -> Unit
-) : DialogFragment() {
-
-    private var _binding: DialogAddEditCategoryBinding? = null
-    private val binding get() = _binding!!
-
-    private var uploadedBase64Icon: String = ""
-
-    private val pickIconLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
-            val base64 = convertUriToBase64Icon(uri)
-            if (base64 != null) {
-                uploadedBase64Icon = base64
-                                updateIconPreview(base64)
-                binding.tvUploadStatus.text = "✓ Đã tải ảnh Icon từ thiết bị"
-                binding.btnClearIcon.visibility = View.VISIBLE
-            } else {
-                Toast.makeText(requireContext(), "Không thể đọc tệp ảnh, vui lòng thử ảnh khác.", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = DialogAddEditCategoryBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        populateExistingData()
-        setupListeners()
-    }
-
-    private fun convertUriToBase64Icon(uri: Uri): String? {
-        return try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-            if (originalBitmap == null) return null
-
-            val maxDim = 256
-            val width = originalBitmap.width
-            val height = originalBitmap.height
-            val scale = (maxDim.toFloat() / maxOf(width, height)).coerceAtMost(1.0f)
-            val scaledWidth = (width * scale).toInt().coerceAtLeast(1)
-            val scaledHeight = (height * scale).toInt().coerceAtLeast(1)
-
-            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, scaledWidth, scaledHeight, true)
-            val outputStream = ByteArrayOutputStream()
-            // Nén PNG để giữ nguyên nền trong suốt (transparent background) cho icon danh mục
-            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 90, outputStream)
-            val byteArray = outputStream.toByteArray()
-            "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    private fun populateExistingData() {
-        if (categoryToEdit != null) {
-            binding.tvDialogTitle.text = "Chỉnh Sửa Danh Mục"
-            binding.etCatName.setText(categoryToEdit.categoryName)
-            binding.etCatId.setText(categoryToEdit.categoryId)
-            binding.etCatDescription.setText(categoryToEdit.description)
-            binding.etCatOrder.setText(categoryToEdit.displayOrder.toString())
-            binding.cbIsActive.isChecked = categoryToEdit.isActive
-
-            val existingIcon = categoryToEdit.iconUrl.trim()
-            if (existingIcon.isNotBlank()) {
-                uploadedBase64Icon = existingIcon
-                binding.tvUploadStatus.text = "✓ Đang dùng ảnh hiện tại"
-                binding.btnClearIcon.visibility = View.VISIBLE
-                updateIconPreview(existingIcon)
-            } else {
-                uploadedBase64Icon = ""
-                binding.tvUploadStatus.text = "Chưa có ảnh (Nhấn để chọn PNG/JPG)"
-                binding.btnClearIcon.visibility = View.GONE
-                updateIconPreview("")
-            }
-        } else {
-            binding.tvDialogTitle.text = "Thêm Danh Mục Mới"
-            binding.etCatOrder.setText(defaultOrder.toString())
-            uploadedBase64Icon = ""
-            updateIconPreview("")
-        }
-    }
-
-    private fun updateIconPreview(iconSource: String) {
-        val trimmed = iconSource.trim()
-        if (trimmed.isBlank()) {
-            binding.ivSelectedIcon.setPadding(24, 24, 24, 24)
-            binding.ivSelectedIcon.setImageResource(R.drawable.ic_image)
-            return
-        }
-
-        binding.ivSelectedIcon.setPadding(12, 12, 12, 12)
-        val cachedBmp = com.chuyen_de_2.foodorder.core.util.CategoryIconCache.getOrDecode(trimmed)
-        if (cachedBmp != null) {
-            Glide.with(this).clear(binding.ivSelectedIcon)
-            binding.ivSelectedIcon.setImageBitmap(cachedBmp)
-            return
-        }
-
-        if (trimmed.startsWith("data:image", ignoreCase = true) || trimmed.length > 100) {
-            try {
-                val clean = if (trimmed.contains(",")) trimmed.substringAfter(",") else trimmed
-                val decoded = Base64.decode(clean, Base64.DEFAULT)
-                Glide.with(this)
-                    .asBitmap()
-                    .load(decoded)
-                    .dontAnimate()
-                    .error(R.drawable.ic_image)
-                    .into(binding.ivSelectedIcon)
-                return
-            } catch (_: Exception) {}
-        }
-
-        if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
-            Glide.with(this)
-                .load(trimmed)
-                .dontAnimate()
-                .error(R.drawable.ic_image)
-                .into(binding.ivSelectedIcon)
-        } else {
-            binding.ivSelectedIcon.setImageResource(R.drawable.ic_image)
-        }
-    }
-
-    private fun setupListeners() {
-        binding.btnUploadIcon.setOnClickListener {
-            pickIconLauncher.launch("image/*")
-        }
-
-        binding.cardIconPreview.setOnClickListener {
-            pickIconLauncher.launch("image/*")
-        }
-
-        binding.btnClearIcon.setOnClickListener {
-            uploadedBase64Icon = ""
-            binding.tvUploadStatus.text = "Đã xóa ảnh Icon"
-            binding.btnClearIcon.visibility = View.GONE
-            updateIconPreview("")
-        }
-
-
-
-        binding.btnCancelCat.setOnClickListener {
-            dismiss()
-        }
-
-        binding.btnSaveCat.setOnClickListener {
-            val name = binding.etCatName.text?.toString().orEmpty().trim()
-            if (name.isBlank()) {
-                Toast.makeText(requireContext(), "Vui lòng nhập tên danh mục!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val order = binding.etCatOrder.text?.toString()?.toIntOrNull() ?: 1
-            val isActive = binding.cbIsActive.isChecked
-            val finalIconUrl = uploadedBase64Icon
-            val desc = binding.etCatDescription.text?.toString().orEmpty().trim()
-            val customId = binding.etCatId.text?.toString().orEmpty().trim()
-
-            val finalId = if (customId.isNotBlank()) customId
-            else if (categoryToEdit != null && categoryToEdit.categoryId.isNotBlank()) categoryToEdit.categoryId
-            else "cat_" + System.currentTimeMillis()
-
-            val finalCat = Category(
-                categoryId = finalId,
-                categoryName = name,
-                iconUrl = finalIconUrl,
-                displayOrder = order,
-                isActive = isActive,
-                description = desc
-            )
-
-            onSave(finalCat)
-            dismiss()
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    companion object {
-        const val TAG = "AddEditCategoryDialogFragment"
-    }
-}
-````
-
 ## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.admin.ui.category
@@ -74919,6 +83765,133 @@ class AdminCategoryAdapter(
 
         override fun areContentsTheSame(oldItem: Category, newItem: Category): Boolean =
             oldItem == newItem
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryListFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.category
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminCategoryListBinding
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+
+@AndroidEntryPoint
+class AdminCategoryListFragment : Fragment() {
+
+    private var _binding: FragmentAdminCategoryListBinding? = null
+    private val binding get() = _binding!!
+
+    private val viewModel: AdminCategoryViewModel by viewModels()
+    private lateinit var adapter: AdminCategoryAdapter
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentAdminCategoryListBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setupRecyclerView()
+        setupListeners()
+        observeViewModel()
+    }
+
+    private fun setupRecyclerView() {
+        adapter = AdminCategoryAdapter(
+            onEdit = { category ->
+                val dialog = AddEditCategoryDialogFragment(categoryToEdit = category) { updatedCat ->
+                    viewModel.saveCategory(updatedCat)
+                }
+                dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
+            },
+            onDelete = { category ->
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Xóa danh mục")
+                    .setMessage("Bạn có chắc chắn muốn xóa danh mục '${category.name}' khỏi sàn?")
+                    .setNegativeButton("Hủy", null)
+                    .setPositiveButton("Xóa") { _, _ ->
+                        viewModel.deleteCategory(category.categoryId)
+                    }
+                    .show()
+            },
+            onToggleActive = { category, isChecked ->
+                viewModel.toggleCategoryActive(category, isChecked)
+            }
+        )
+
+        binding.rvCategories.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvCategories.adapter = adapter
+    }
+
+    private fun setupListeners() {
+        binding.swipeRefreshCategory.setOnRefreshListener {
+            binding.swipeRefreshCategory.isRefreshing = false
+        }
+
+        binding.btnAddCategory.setOnClickListener {
+            val nextOrder = (viewModel.categories.value.maxOfOrNull { it.displayOrder } ?: 0) + 1
+            val dialog = AddEditCategoryDialogFragment(defaultOrder = nextOrder) { newCat ->
+                viewModel.saveCategory(newCat)
+            }
+            dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
+        }
+
+        binding.btnRestoreCategoryDefaults.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Khôi phục danh mục mẫu")
+                .setMessage("Thao tác này sẽ đồng bộ lại 5 danh mục chính của Oishi Food (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên cơ sở dữ liệu.")
+                .setNegativeButton("Hủy", null)
+                .setPositiveButton("Đồng ý") { _, _ ->
+                    viewModel.restoreDefaults()
+                }
+                .show()
+        }
+    }
+
+    private fun observeViewModel() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.categories.collect { list ->
+                        adapter.submitList(list)
+                        val activeCount = list.count { it.isActive }
+                        binding.tvCategoryStats.text = "Tổng: ${list.size} nhóm món • $activeCount đang hiển thị trên app Khách"
+                    }
+                }
+
+                launch {
+                    viewModel.message.collect { msg ->
+                        if (!msg.isNullOrBlank()) {
+                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                            viewModel.clearMessage()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }
 ````
@@ -75900,277 +84873,6 @@ class EditStoreDialogFragment(
         const val TAG = "EditStoreDialogFragment"
     }
 }
-````
-
-## File: app-admin/src/main/res/layout/dialog_add_edit_category.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@drawable/bg_dialog_rounded"
-        android:orientation="vertical"
-        android:paddingHorizontal="22dp"
-        android:paddingTop="20dp"
-        android:paddingBottom="24dp">
-
-        <TextView
-            android:id="@+id/tvDialogTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Thêm / Sửa Danh Mục"
-            android:textColor="@color/text_primary"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:layout_marginBottom="14dp"
-            android:text="Tải ảnh Icon danh mục từ thiết bị và tùy chỉnh thuộc tính hiển thị"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
-
-        <!-- Ảnh Icon Danh Mục (Preview + Nút tải lên từ máy) -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ảnh Icon Danh Mục:"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardIconPreview"
-                android:layout_width="68dp"
-                android:layout_height="68dp"
-                app:cardBackgroundColor="@color/surface_elevated"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1.5dp">
-
-                <ImageView
-                    android:id="@+id/ivSelectedIcon"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:contentDescription="Icon ảnh danh mục"
-                    android:padding="10dp"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/ic_image" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnUploadIcon"
-                    android:layout_width="match_parent"
-                    android:layout_height="42dp"
-                    android:backgroundTint="@color/brand_blue_bg"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:text="Tải ảnh Icon từ máy"
-                    android:textAllCaps="false"
-                    android:textColor="@color/brand_blue"
-                    android:textSize="12.5sp"
-                    android:textStyle="bold"
-                    app:cornerRadius="10dp"
-                    app:elevation="0dp"
-                    app:icon="@drawable/ic_upload"
-                    app:iconGravity="textStart"
-                    app:iconSize="16dp"
-                    app:iconTint="@color/brand_blue"
-                    app:strokeColor="@color/brand_blue"
-                    app:strokeWidth="1dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvUploadStatus"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Chưa có ảnh (Nhấn để chọn PNG/JPG)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
-
-                    <TextView
-                        android:id="@+id/btnClearIcon"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingHorizontal="6dp"
-                        android:paddingVertical="2dp"
-                        android:text="Xóa ảnh"
-                        android:textColor="@color/danger"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold"
-                        android:visibility="gone" />
-                </LinearLayout>
-            </LinearLayout>
-        </LinearLayout>
-
-
-
-        <!-- Name input -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilCatName"
-            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:hint="Tên danh mục (ví dụ: Cơm, Bún - Phở, Pizza...)"
-            android:textColorHint="@color/text_secondary"
-            app:boxBackgroundColor="@color/white"
-            app:boxStrokeColor="@color/primary"
-            app:hintTextColor="@color/primary">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etCatName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textCapWords"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_muted"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Category ID input -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilCatId"
-            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:hint="Mã định danh ID (ví dụ: cat_com, cat_pho...)"
-            android:textColorHint="@color/text_secondary"
-            app:boxBackgroundColor="@color/white"
-            app:boxStrokeColor="@color/primary"
-            app:hintTextColor="@color/primary">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etCatId"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textNoSuggestions"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_muted"
-                android:textSize="13sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Description input -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilCatDescription"
-            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:hint="Mô tả danh mục (ví dụ: Cơm trưa, cơm tấm...)"
-            android:textColorHint="@color/text_secondary"
-            app:boxBackgroundColor="@color/white"
-            app:boxStrokeColor="@color/primary"
-            app:hintTextColor="@color/primary">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etCatDescription"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textCapSentences"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_muted"
-                android:textSize="13.5sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Order input -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/tilCatOrder"
-            style="@style/Widget.FoodOrder.Admin.TextInputLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:hint="Thứ tự hiển thị (1, 2, 3...)"
-            android:textColorHint="@color/text_secondary"
-            app:boxBackgroundColor="@color/white"
-            app:boxStrokeColor="@color/primary"
-            app:helperText="Nếu thứ tự bị trùng, hệ thống tự động chen vào và đẩy các mục sau xuống"
-            app:helperTextEnabled="true"
-            app:helperTextTextColor="@color/text_muted"
-            app:hintTextColor="@color/primary">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etCatOrder"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:text="1"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_muted"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Active Checkbox -->
-        <com.google.android.material.checkbox.MaterialCheckBox
-            android:id="@+id/cbIsActive"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:text="Kích hoạt hiển thị cho toàn bộ khách hàng ngay"
-            android:textColor="@color/text_primary"
-            android:textSize="13sp" />
-
-        <!-- Action buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:gravity="end"
-            android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnCancelCat"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Hủy"
-                android:textColor="@color/text_secondary" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSaveCat"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:layout_marginStart="8dp"
-                android:backgroundTint="@color/primary"
-                android:text="LƯU DANH MỤC"
-                android:textColor="@color/white"
-                android:textStyle="bold"
-                app:cornerRadius="10dp" />
-        </LinearLayout>
-    </LinearLayout>
-</ScrollView>
 ````
 
 ## File: app-admin/src/main/res/layout/fragment_admin_category_list.xml
@@ -86439,8305 +95141,6 @@ object OtpSessionManager {
 }
 ````
 
-## File: admin.html
-````html
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Oishi Food - Quản Trị Hệ Thống Nền Tảng (Admin Portal)</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --primary: #EE4D2D;
-      --primary-hover: #D73211;
-      --primary-light: #FFF0ED;
-      --primary-border: #FDCFC7;
-      --sidebar-bg: #0F172A;
-      --sidebar-hover: #1E293B;
-      --sidebar-active: #EE4D2D;
-      --body-bg: #F8FAFC;
-      --surface: #FFFFFF;
-      --border: #E2E8F0;
-      --border-light: #F1F5F9;
-      --text-main: #0F172A;
-      --text-muted: #64748B;
-      --text-light: #94A3B8;
-      --success: #10B981;
-      --success-bg: #ECFDF5;
-      --warning: #F59E0B;
-      --warning-bg: #FFFBEB;
-      --danger: #EF4444;
-      --danger-bg: #FEF2F2;
-      --info: #3B82F6;
-      --info-bg: #EFF6FF;
-      --purple: #8B5CF6;
-      --purple-bg: #F5F3FF;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --radius-lg: 16px;
-      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-      --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-
-    body {
-      background-color: var(--body-bg);
-      color: var(--text-main);
-      display: flex;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #F1F5F9; }
-    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 999px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
-
-    /* ====== SIDEBAR ====== */
-    .sidebar {
-      width: 260px;
-      background: var(--sidebar-bg);
-      color: #FFF;
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      z-index: 40;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .sidebar-brand {
-      padding: 22px 20px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .brand-logo-icon {
-      width: 40px;
-      height: 40px;
-      background: linear-gradient(135deg, #EE4D2D 0%, #FF7A59 100%);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 20px;
-      color: #FFF;
-      box-shadow: 0 4px 12px rgba(238, 77, 45, 0.4);
-    }
-
-    .brand-text h1 {
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: -0.3px;
-      color: #FFF;
-      line-height: 1.2;
-    }
-
-    .brand-text span {
-      font-size: 11px;
-      color: #94A3B8;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      font-weight: 600;
-    }
-
-    .sidebar-nav {
-      flex: 1;
-      padding: 16px 12px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    .nav-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: #64748B;
-      padding: 12px 12px 6px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 14px;
-      border-radius: var(--radius-sm);
-      color: #94A3B8;
-      font-size: 13.5px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.2s;
-    }
-
-    .nav-item:hover {
-      background: var(--sidebar-hover);
-      color: #FFF;
-    }
-
-    .nav-item.active {
-      background: var(--sidebar-active);
-      color: #FFF;
-      box-shadow: 0 4px 14px rgba(238, 77, 45, 0.35);
-    }
-
-    .nav-icon {
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .nav-badge {
-      margin-left: auto;
-      padding: 2px 7px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      background: rgba(255, 255, 255, 0.15);
-      color: #FFF;
-    }
-
-    .nav-badge.danger {
-      background: var(--danger);
-    }
-
-    .nav-badge.warning {
-      background: var(--warning);
-      color: #1E293B;
-    }
-
-    .sidebar-footer {
-      padding: 16px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(0, 0, 0, 0.15);
-    }
-
-    .portal-quicklinks {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .portal-link {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      color: #94A3B8;
-      text-decoration: none;
-      padding: 6px 8px;
-      border-radius: 6px;
-      transition: all 0.2s;
-    }
-
-    .portal-link:hover {
-      background: var(--sidebar-hover);
-      color: #FFF;
-    }
-
-    /* ====== MAIN WRAPPER ====== */
-    .main-wrapper {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    /* ====== TOPBAR ====== */
-    .topbar {
-      height: 70px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0 28px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .topbar-left {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-
-    .page-title {
-      font-size: 19px;
-      font-weight: 800;
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .page-title .badge-role {
-      font-size: 11px;
-      background: #EFF6FF;
-      color: #2563EB;
-      font-weight: 700;
-      padding: 3px 9px;
-      border-radius: 6px;
-      border: 1px solid #BFDBFE;
-    }
-
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-
-    .global-search {
-      position: relative;
-      width: 280px;
-    }
-
-    .global-search input {
-      width: 100%;
-      height: 38px;
-      padding: 0 12px 0 38px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      background: #F8FAFC;
-      font-size: 13px;
-      outline: none;
-      transition: all 0.2s;
-    }
-
-    .global-search input:focus {
-      border-color: var(--primary);
-      background: #FFF;
-      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.12);
-    }
-
-    .global-search svg {
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-light);
-      pointer-events: none;
-    }
-
-    .admin-profile-box {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 6px 10px 6px 14px;
-      border-radius: 30px;
-      border: 1px solid var(--border);
-      background: #F8FAFC;
-      cursor: pointer;
-      position: relative;
-      transition: all 0.2s;
-    }
-
-    .admin-profile-box:hover {
-      background: #FFF;
-      border-color: var(--primary-border);
-      box-shadow: var(--shadow);
-    }
-
-    .admin-avatar {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
-      color: #FFF;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 14px;
-      position: relative;
-      flex-shrink: 0;
-      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
-    }
-
-    .status-dot-online {
-      width: 9px;
-      height: 9px;
-      background: var(--success);
-      border: 2px solid #FFF;
-      border-radius: 50%;
-      position: absolute;
-      bottom: -1px;
-      right: -1px;
-    }
-
-    .admin-info {
-      text-align: left;
-    }
-
-    .admin-name {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-main);
-      line-height: 1.2;
-    }
-
-    .admin-role {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-
-    .admin-dropdown {
-      position: absolute;
-      top: calc(100% + 8px);
-      right: 0;
-      width: 230px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-lg);
-      padding: 8px;
-      display: none;
-      flex-direction: column;
-      gap: 4px;
-      z-index: 50;
-    }
-
-    .admin-dropdown.show {
-      display: flex;
-      animation: fadeIn 0.15s ease-out;
-    }
-
-    .dropdown-btn {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 12px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-main);
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      cursor: pointer;
-      border: none;
-      background: transparent;
-      width: 100%;
-      text-align: left;
-      transition: all 0.2s;
-    }
-
-    .dropdown-btn:hover {
-      background: #F1F5F9;
-      color: var(--primary);
-    }
-
-    .dropdown-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 4px 0;
-    }
-
-    /* ====== MAIN CONTENT AREA ====== */
-    .main-content {
-      padding: 26px;
-      flex: 1;
-      max-width: 1600px;
-      width: 100%;
-      margin: 0 auto;
-    }
-
-    .tab-pane {
-      display: none;
-    }
-
-    .tab-pane.active {
-      display: block;
-    }
-
-    /* ====== KPI STATS CARDS ====== */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-
-    .stat-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 18px 20px;
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: transform 0.2s, box-shadow 0.2s;
-      cursor: pointer;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-
-    .stat-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .stat-label {
-      font-size: 11.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-    }
-
-    .stat-value {
-      font-size: 24px;
-      font-weight: 800;
-      color: var(--text-main);
-      letter-spacing: -0.5px;
-    }
-
-    .stat-sub {
-      font-size: 11px;
-      color: var(--text-light);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .stat-sub.positive { color: var(--success); font-weight: 700; }
-    .stat-sub.danger { color: var(--danger); font-weight: 700; }
-    .stat-sub.warning { color: var(--warning); font-weight: 700; }
-
-    .stat-icon-wrap {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-    }
-
-    .icon-orange { background: #FFF0ED; color: var(--primary); }
-    .icon-blue { background: #EFF6FF; color: #2563EB; }
-    .icon-green { background: #ECFDF5; color: var(--success); }
-    .icon-purple { background: #FAF5FF; color: #9333EA; }
-    .icon-red { background: #FEF2F2; color: var(--danger); }
-    .icon-yellow { background: #FFFBEB; color: #D97706; }
-
-    /* ====== CARD CONTAINER ====== */
-    .panel-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-      overflow: hidden;
-      margin-bottom: 24px;
-    }
-
-    .panel-header {
-      padding: 18px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-      background: #FFF;
-      flex-wrap: wrap;
-      gap: 14px;
-    }
-
-    .panel-title-group h2 {
-      font-size: 17px;
-      font-weight: 800;
-      color: var(--text-main);
-    }
-
-    .panel-title-group p {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .panel-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .filter-bar {
-      padding: 14px 24px;
-      background: #F8FAFC;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .filter-group {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .search-box {
-      position: relative;
-      min-width: 240px;
-    }
-
-    .search-box input {
-      width: 100%;
-      height: 38px;
-      padding: 0 12px 0 36px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: #FFF;
-      font-size: 13px;
-      outline: none;
-      transition: all 0.2s;
-    }
-
-    .search-box input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.12);
-    }
-
-    .search-box svg {
-      position: absolute;
-      left: 11px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-light);
-    }
-
-    .select-filter {
-      height: 38px;
-      padding: 0 30px 0 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: #FFF url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;
-      background-size: 14px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-main);
-      outline: none;
-      cursor: pointer;
-      appearance: none;
-    }
-
-    .select-filter:focus {
-      border-color: var(--primary);
-    }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      border: none;
-      transition: all 0.2s;
-      text-decoration: none;
-      white-space: nowrap;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: #FFF;
-      box-shadow: 0 2px 6px rgba(238, 77, 45, 0.25);
-    }
-
-    .btn-primary:hover {
-      background: var(--primary-hover);
-      box-shadow: 0 4px 10px rgba(238, 77, 45, 0.35);
-    }
-
-    .btn-outline {
-      background: #FFF;
-      color: var(--text-main);
-      border: 1px solid var(--border);
-    }
-
-    .btn-outline:hover {
-      background: #F1F5F9;
-      border-color: #CBD5E1;
-    }
-
-    .btn-danger-outline {
-      background: #FFF;
-      color: var(--danger);
-      border: 1px solid #FECACA;
-    }
-
-    .btn-danger-outline:hover {
-      background: var(--danger-bg);
-      border-color: var(--danger);
-    }
-
-    .btn-sm {
-      padding: 5px 10px;
-      font-size: 12px;
-      border-radius: 6px;
-    }
-
-    /* ====== TABLES ====== */
-    .table-responsive {
-      overflow-x: auto;
-      width: 100%;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 13px;
-    }
-
-    th {
-      padding: 12px 16px;
-      background: #F8FAFC;
-      color: var(--text-muted);
-      font-weight: 700;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    td {
-      padding: 13px 16px;
-      border-bottom: 1px solid var(--border-light);
-      vertical-align: middle;
-      color: var(--text-main);
-    }
-
-    tr:last-child td {
-      border-bottom: none;
-    }
-
-    tbody tr {
-      transition: background-color 0.15s;
-    }
-
-    tbody tr:hover {
-      background-color: #F8FAFC;
-    }
-
-    /* Badges */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .badge-active {
-      background: var(--success-bg);
-      color: var(--success);
-      border: 1px solid #A7F3D0;
-    }
-
-    .badge-locked {
-      background: var(--danger-bg);
-      color: var(--danger);
-      border: 1px solid #FECACA;
-    }
-
-    .badge-warning {
-      background: var(--warning-bg);
-      color: #B45309;
-      border: 1px solid #FDE68A;
-    }
-
-    .badge-info {
-      background: var(--info-bg);
-      color: #1D4ED8;
-      border: 1px solid #BFDBFE;
-    }
-
-    .badge-purple {
-      background: var(--purple-bg);
-      color: #6D28D9;
-      border: 1px solid #DDD6FE;
-    }
-
-    .badge-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-    }
-
-    .badge-active .badge-dot { background: var(--success); }
-    .badge-locked .badge-dot { background: var(--danger); }
-    .badge-warning .badge-dot { background: var(--warning); }
-    .badge-info .badge-dot { background: var(--info); }
-    .badge-purple .badge-dot { background: var(--purple); }
-
-    .action-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .btn-action-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: #FFF;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .btn-action-icon:hover {
-      background: #F1F5F9;
-      color: var(--text-main);
-      border-color: #CBD5E1;
-    }
-
-    .btn-action-icon.lock-btn:hover {
-      background: var(--danger-bg);
-      color: var(--danger);
-      border-color: #FECACA;
-    }
-
-    .btn-action-icon.key-btn:hover {
-      background: var(--warning-bg);
-      color: #D97706;
-      border-color: #FDE68A;
-    }
-
-    /* Category Cards Grid */
-    .category-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
-      padding: 20px 24px;
-    }
-
-    .category-card {
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-      background: #FFF;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      position: relative;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    .category-card:hover {
-      border-color: var(--primary);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .cat-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .cat-icon-box {
-      width: 46px;
-      height: 46px;
-      border-radius: 12px;
-      background: #F8FAFC;
-      border: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-    }
-
-    .cat-info h3 {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    .cat-info p {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .cat-stats {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-top: 10px;
-      border-top: 1px dashed var(--border);
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .cat-stats strong {
-      color: var(--text-main);
-      font-weight: 700;
-    }
-
-    .cat-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-
-    /* Empty state */
-    .empty-state {
-      padding: 48px 24px;
-      text-align: center;
-      color: var(--text-muted);
-    }
-
-    .empty-state svg {
-      color: var(--text-light);
-      margin-bottom: 12px;
-    }
-
-    .empty-state h3 {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text-main);
-      margin-bottom: 6px;
-    }
-
-    /* ====== MODALS ====== */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.65);
-      backdrop-filter: blur(4px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      padding: 20px;
-    }
-
-    .modal-overlay.show {
-      display: flex;
-      animation: fadeIn 0.15s ease-out;
-    }
-
-    .modal-dialog {
-      background: var(--surface);
-      width: 100%;
-      max-width: 540px;
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-lg);
-      overflow: hidden;
-      animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .modal-dialog-lg {
-      max-width: 720px;
-    }
-
-    @keyframes zoomIn {
-      from { transform: scale(0.95); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
-    }
-
-    .modal-header {
-      padding: 18px 24px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #FFF;
-    }
-
-    .modal-header h3 {
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .btn-close-modal {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      border: none;
-      background: #F1F5F9;
-      color: var(--text-muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      transition: all 0.2s;
-    }
-
-    .btn-close-modal:hover {
-      background: #E2E8F0;
-      color: var(--text-main);
-    }
-
-    .modal-body {
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      max-height: 75vh;
-      overflow-y: auto;
-    }
-
-    .modal-footer {
-      padding: 16px 24px;
-      background: #F8FAFC;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-    }
-
-    /* Form controls */
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .form-label {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    .form-label span.req { color: var(--danger); }
-
-    .form-control {
-      width: 100%;
-      height: 40px;
-      padding: 0 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: #FFF;
-      font-size: 13px;
-      outline: none;
-      transition: all 0.2s;
-    }
-
-    .form-control:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.12);
-    }
-
-    textarea.form-control {
-      height: 80px;
-      padding: 10px 12px;
-      resize: vertical;
-    }
-
-    .input-with-action {
-      display: flex;
-      gap: 8px;
-    }
-
-    .input-with-action .form-control {
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 600;
-      letter-spacing: 1px;
-    }
-
-    .warning-callout {
-      background: #FEF2F2;
-      border-left: 4px solid var(--danger);
-      padding: 12px 14px;
-      border-radius: 4px;
-      font-size: 12px;
-      color: #991B1B;
-      line-height: 1.5;
-    }
-
-    
-    
-    /* ====== CCCD eKYC CARDS STYLING ====== */
-    .cccd-gallery-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-      gap: 16px;
-      margin-top: 10px;
-    }
-
-    .cccd-card-wrapper {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .cccd-card-label {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .cccd-card-label span.badge-ekyc {
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-weight: 700;
-      background: #ECFDF5;
-      color: #065F46;
-      border: 1px solid #A7F3D0;
-    }
-
-    /* Thẻ Căn Cước Công Dân Mặt Trước */
-    .cccd-front-mockup {
-      width: 100%;
-      height: 200px;
-      background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 35%, #E0F7FA 70%, #CFFAFE 100%);
-      border-radius: 12px;
-      border: 1.5px solid #7DD3FC;
-      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
-      position: relative;
-      overflow: hidden;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      user-select: none;
-    }
-
-    .cccd-front-mockup::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image: radial-gradient(#38BDF8 0.75px, transparent 0.75px), radial-gradient(#0EA5E9 0.75px, #E0F2FE 0.75px);
-      background-size: 30px 30px;
-      background-position: 0 0, 15px 15px;
-      opacity: 0.15;
-      pointer-events: none;
-    }
-
-    .cccd-top-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px dashed rgba(14, 165, 233, 0.4);
-      padding-bottom: 4px;
-    }
-
-    .cccd-emblem-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .cccd-emblem {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      background: radial-gradient(circle, #EF4444 0%, #DC2626 100%);
-      border: 1px solid #F59E0B;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      box-shadow: 0 1px 3px rgba(220, 38, 38, 0.4);
-    }
-
-    .cccd-header-text {
-      text-align: center;
-      flex: 1;
-    }
-
-    .cccd-header-text .nat-name {
-      font-size: 9px;
-      font-weight: 800;
-      color: #0369A1;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
-
-    .cccd-header-text .motto {
-      font-size: 7.5px;
-      color: #0284C7;
-      font-weight: 600;
-    }
-
-    .cccd-title-row {
-      text-align: center;
-      margin: 2px 0 4px 0;
-    }
-
-    .cccd-main-title {
-      font-size: 12px;
-      font-weight: 900;
-      color: #0C4A6E;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .cccd-sub-title {
-      font-size: 7.5px;
-      color: #0369A1;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
-
-    .cccd-body-row {
-      display: flex;
-      gap: 10px;
-      flex: 1;
-      position: relative;
-    }
-
-    .cccd-avatar-box {
-      width: 58px;
-      height: 76px;
-      border-radius: 4px;
-      background: #E2E8F0;
-      border: 1px solid #94A3B8;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
-      flex-shrink: 0;
-    }
-
-    .cccd-chip-box {
-      width: 28px;
-      height: 22px;
-      background: linear-gradient(135deg, #FDE047 0%, #EAB308 50%, #CA8A04 100%);
-      border: 1px solid #A16207;
-      border-radius: 4px;
-      position: absolute;
-      top: 2px;
-      right: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    }
-
-    .cccd-details-col {
-      flex: 1;
-      font-size: 8.5px;
-      color: #0F172A;
-      line-height: 1.35;
-      padding-right: 32px;
-    }
-
-    .cccd-id-num {
-      font-size: 12px;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 800;
-      color: #B91C1C;
-      letter-spacing: 1px;
-      margin-bottom: 2px;
-    }
-
-    .cccd-info-line strong {
-      color: #0369A1;
-    }
-
-    /* Thẻ Căn Cước Công Dân Mặt Sau */
-    .cccd-back-mockup {
-      width: 100%;
-      height: 200px;
-      background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 40%, #E0F2FE 100%);
-      border-radius: 12px;
-      border: 1.5px solid #86EFAC;
-      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.15);
-      position: relative;
-      overflow: hidden;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      user-select: none;
-    }
-
-    .cccd-back-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 10px;
-    }
-
-    .cccd-back-desc {
-      font-size: 8px;
-      color: #1E293B;
-      line-height: 1.3;
-      flex: 1;
-    }
-
-    .cccd-back-stamp {
-      width: 44px;
-      height: 44px;
-      border: 1.5px dashed #EF4444;
-      border-radius: 50%;
-      color: #DC2626;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 8px;
-      font-weight: 800;
-      text-align: center;
-      transform: rotate(-12deg);
-      opacity: 0.85;
-      padding: 2px;
-      flex-shrink: 0;
-    }
-
-    .cccd-mrz-code {
-      background: rgba(255, 255, 255, 0.6);
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      border-radius: 4px;
-      padding: 4px 6px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 8px;
-      font-weight: 700;
-      color: #1E293B;
-      letter-spacing: 1px;
-      line-height: 1.25;
-      margin-top: 4px;
-    }
-
-    /* Ảnh Chân Dung Selfie eKYC Lúc Đăng Ký */
-    .cccd-selfie-mockup {
-      width: 100%;
-      height: 200px;
-      background: #0F172A;
-      border-radius: 12px;
-      border: 1.5px solid #334155;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-
-    .selfie-face-box {
-      width: 90px;
-      height: 110px;
-      border: 2px dashed #10B981;
-      border-radius: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      background: rgba(16, 185, 129, 0.05);
-    }
-
-    .selfie-avatar-circle {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
-      color: #FFF;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      font-weight: 800;
-      margin-bottom: 4px;
-    }
-
-    .selfie-scan-line {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: #10B981;
-      box-shadow: 0 0 8px #10B981;
-      animation: scanAnim 2s infinite alternate ease-in-out;
-    }
-
-    @keyframes scanAnim {
-      0% { top: 10%; }
-      100% { top: 90%; }
-    }
-
-    .selfie-timestamp-bar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(2px);
-      padding: 4px 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 9.5px;
-      color: #94A3B8;
-      font-family: monospace;
-    }
-
-    /* Action Choice Cards in Modal */
-    .action-choice-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .action-choice-card {
-      border: 2px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: #FFF;
-      padding: 12px 10px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      transition: all 0.2s;
-      position: relative;
-    }
-
-    .action-choice-card:hover {
-      border-color: #CBD5E1;
-      background: #F8FAFC;
-    }
-
-    .action-choice-card.active-warn {
-      border-color: var(--warning);
-      background: #FFFBEB;
-    }
-
-    .action-choice-card.active-hide {
-      border-color: #6366F1;
-      background: #EEF2FF;
-    }
-
-    .action-choice-card.active-lock {
-      border-color: var(--danger);
-      background: #FEF2F2;
-    }
-
-    .action-choice-card input[type="radio"] {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      accent-color: var(--primary);
-    }
-
-    .choice-icon {
-      font-size: 20px;
-    }
-
-    .choice-title {
-      font-size: 13px;
-      font-weight: 800;
-      color: var(--text-main);
-    }
-
-    .choice-desc {
-      font-size: 11px;
-      color: var(--text-muted);
-      line-height: 1.3;
-    }
-
-    .choice-action-callout {
-      padding: 10px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      line-height: 1.4;
-      margin-top: 4px;
-    }
-
-    /* Complaint Detail Callout */
-    .complaint-detail-box {
-      background: #F8FAFC;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .complaint-parties-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .party-card {
-      background: #FFF;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-    }
-
-    .party-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-
-    .party-name {
-      font-size: 13.5px;
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    .party-sub {
-      font-size: 11.5px;
-      color: var(--text-muted);
-      margin-top: 2px;
-      font-family: monospace;
-    }
-
-    /* ====== TOAST NOTIFICATION ====== */
-    .toast-container {
-      position: fixed;
-      top: 24px;
-      right: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      z-index: 999;
-      pointer-events: none;
-    }
-
-    .toast {
-      pointer-events: auto;
-      min-width: 300px;
-      max-width: 400px;
-      background: #FFF;
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-lg);
-      padding: 14px 18px;
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      border-left: 4px solid var(--primary);
-      animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      transition: all 0.3s;
-    }
-
-    @keyframes slideInRight {
-      from { transform: translateX(100%); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-
-    .toast.success { border-left-color: var(--success); }
-    .toast.danger { border-left-color: var(--danger); }
-    .toast.warning { border-left-color: var(--warning); }
-
-    .toast-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-    .toast-content h4 { font-size: 13px; font-weight: 700; color: var(--text-main); }
-    .toast-content p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-
-    /* Responsive */
-    @media (max-width: 1024px) {
-      .sidebar { width: 80px; }
-      .brand-text, .nav-label, .sidebar-nav span, .sidebar-footer { display: none; }
-      .sidebar-brand { justify-content: center; padding: 18px 0; }
-      .nav-item { justify-content: center; padding: 12px; }
-      .nav-badge { display: none; }
-    }
-
-    @media (max-width: 768px) {
-      body { flex-direction: column; }
-      .sidebar { width: 100%; height: auto; position: static; }
-      .sidebar-nav { flex-direction: row; overflow-x: auto; padding: 8px; }
-      .topbar { padding: 0 16px; }
-      .main-content { padding: 16px; }
-      .global-search { display: none; }
-      .complaint-parties-grid { grid-template-columns: 1fr; }
-    }
-
-    /* ====== STORE CCCD & PORTRAIT THUMBNAILS IN TABLE ====== */
-    .thumb-cell {
-      position: relative;
-      display: inline-flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 3px;
-      cursor: pointer;
-      padding: 3px;
-      border-radius: 6px;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      background: #F8FAFC;
-      border: 1px solid #E2E8F0;
-      text-decoration: none;
-    }
-    .thumb-cell:hover {
-      border-color: #3B82F6;
-      background: #EFF6FF;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.18);
-    }
-    .store-img-thumb {
-      width: 58px;
-      height: 40px;
-      object-fit: cover;
-      border-radius: 4px;
-      border: 1px solid #CBD5E1;
-      background: #E2E8F0;
-      display: block;
-    }
-    .portrait-thumb {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 1.5px solid #3B82F6;
-    }
-    .thumb-tag {
-      font-size: 9px;
-      font-weight: 700;
-      color: #64748B;
-      line-height: 1;
-      white-space: nowrap;
-    }
-    .thumb-cell:hover .thumb-tag {
-      color: #1D4ED8;
-    }
-    .cccd-cell-num {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11.5px;
-      font-weight: 700;
-      color: #1D4ED8;
-      background: #EFF6FF;
-      padding: 3px 8px;
-      border-radius: 4px;
-      border: 1px solid #BFDBFE;
-      display: inline-block;
-      letter-spacing: 0.5px;
-    }
-    /* 4 Distinct Store Status Badges */
-    .badge-status-pending {
-      background: #FEF3C7 !important;
-      color: #B45309 !important;
-      border: 1px solid #FDE68A !important;
-      font-weight: 700 !important;
-    }
-    .badge-status-pending .badge-dot {
-      background: #F59E0B !important;
-    }
-    .badge-status-open {
-      background: #DCFCE7 !important;
-      color: #15803D !important;
-      border: 1px solid #BBF7D0 !important;
-      font-weight: 700 !important;
-    }
-    .badge-status-open .badge-dot {
-      background: #22C55E !important;
-    }
-    .badge-status-locked {
-      background: #FEE2E2 !important;
-      color: #B91C1C !important;
-      border: 1px solid #FECACA !important;
-      font-weight: 700 !important;
-    }
-    .badge-status-locked .badge-dot {
-      background: #EF4444 !important;
-    }
-    .badge-status-closed {
-      background: #F1F5F9 !important;
-      color: #475569 !important;
-      border: 1px solid #CBD5E1 !important;
-      font-weight: 700 !important;
-    }
-    .badge-status-closed .badge-dot {
-      background: #94A3B8 !important;
-    }
-
-
-    /* ====== STORE DETAIL MODAL (ORDERS & DRIVERS) ====== */
-    .store-name-link {
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-    .store-name-link strong {
-      color: #1E40AF;
-      text-decoration: underline;
-      text-underline-offset: 3px;
-      transition: color 0.2s;
-    }
-    .store-name-link:hover strong {
-      color: #2563EB;
-    }
-    .store-badge-view {
-      font-size: 10.5px;
-      font-weight: 700;
-      background: #EFF6FF;
-      color: #1D4ED8;
-      padding: 1px 6px;
-      border-radius: 4px;
-      border: 1px solid #BFDBFE;
-      white-space: nowrap;
-    }
-    .store-name-link:hover .store-badge-view {
-      background: #DBEAFE;
-      border-color: #93C5FD;
-    }
-
-    .store-subnav {
-      display: flex;
-      gap: 10px;
-      border-bottom: 2px solid #E2E8F0;
-      margin-bottom: 16px;
-      padding-bottom: 2px;
-    }
-    .store-subnav-btn {
-      background: transparent;
-      border: none;
-      padding: 9px 18px;
-      font-size: 13.5px;
-      font-weight: 700;
-      color: #64748B;
-      cursor: pointer;
-      border-bottom: 3px solid transparent;
-      margin-bottom: -4px;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 6px 6px 0 0;
-    }
-    .store-subnav-btn:hover {
-      color: #1E40AF;
-      background: #F8FAFC;
-    }
-    .store-subnav-btn.active {
-      color: #2563EB;
-      border-bottom-color: #2563EB;
-      background: #EFF6FF;
-    }
-
-    .driver-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-      gap: 14px;
-    }
-    .driver-card {
-      background: #FFF;
-      border: 1px solid #E2E8F0;
-      border-radius: 12px;
-      padding: 14px 16px;
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: all 0.2s ease;
-    }
-    .driver-card:hover {
-      border-color: #93C5FD;
-      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.1);
-      transform: translateY(-2px);
-    }
-    .driver-card-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .driver-avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 2px solid #BFDBFE;
-      background: #F1F5F9;
-    }
-    .driver-meta {
-      flex: 1;
-    }
-    .driver-meta h4 {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--text-main);
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .driver-meta .driver-code {
-      font-size: 11px;
-      background: #F1F5F9;
-      color: #475569;
-      padding: 1px 5px;
-      border-radius: 4px;
-      font-weight: 700;
-    }
-    .driver-meta .driver-phone {
-      font-size: 11.5px;
-      color: var(--text-muted);
-      font-family: monospace;
-      margin-top: 2px;
-    }
-    .driver-details-list {
-      font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background: #F8FAFC;
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1px solid #F1F5F9;
-    }
-    .driver-details-list div {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .driver-details-list strong {
-      color: var(--text-main);
-    }
-
-    .fb-live-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 11.5px;
-      font-weight: 700;
-      background: #ECFDF5;
-      color: #065F46;
-      border: 1px solid #A7F3D0;
-      cursor: pointer;
-      transition: var(--transition);
-      white-space: nowrap;
-    }
-    .fb-live-pill.connecting {
-      background: #FEF3C7;
-      color: #92400E;
-      border-color: #FDE68A;
-    }
-    .fb-live-pill.offline {
-      background: #FEF2F2;
-      color: #991B1B;
-      border-color: #FECACA;
-    }
-    .fb-live-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #10B981;
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-      animation: pulseDot 1.8s infinite;
-    }
-    .fb-live-pill.connecting .fb-live-dot {
-      background: #F59E0B;
-    }
-    .fb-live-pill.offline .fb-live-dot {
-      background: #EF4444;
-      animation: none;
-    }
-    @keyframes pulseDot {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.25); opacity: 0.65; }
-    }
-
-    /* ====== MINIMALIST CLEAN DESIGN SYSTEM (REFINED UI) ====== */
-    :root {
-      --primary: #18181B;
-      --primary-hover: #27272A;
-      --accent: #EA580C;
-      --sidebar-bg: #FFFFFF;
-      --sidebar-hover: #F4F4F5;
-      --sidebar-active: #18181B;
-      --body-bg: #FAFAFA;
-      --surface: #FFFFFF;
-      --border: #E4E4E7;
-      --border-light: #F4F4F5;
-      --text-main: #09090B;
-      --text-muted: #71717A;
-      --text-light: #A1A1AA;
-      --radius: 10px;
-      --radius-sm: 6px;
-      --radius-lg: 12px;
-      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
-      --shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-      --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.08);
-    }
-
-    body {
-      background-color: var(--body-bg);
-      color: var(--text-main);
-      letter-spacing: -0.01em;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* Clean Light Sidebar */
-    .sidebar {
-      width: 248px;
-      background: #FFFFFF;
-      color: var(--text-main);
-      border-right: 1px solid var(--border);
-    }
-
-    .sidebar-brand {
-      padding: 20px 20px;
-      border-bottom: 1px solid var(--border-light);
-    }
-
-    .brand-logo-icon {
-      width: 32px;
-      height: 32px;
-      background: #09090B;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 14px;
-      color: #FFFFFF;
-      box-shadow: none;
-    }
-
-    .brand-text h1 {
-      font-size: 15px;
-      font-weight: 700;
-      color: #09090B;
-      letter-spacing: -0.02em;
-    }
-
-    .brand-text span {
-      font-size: 10.5px;
-      color: #71717A;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-    }
-
-    .nav-label {
-      font-size: 10.5px;
-      font-weight: 600;
-      color: #A1A1AA;
-      letter-spacing: 0.05em;
-      padding: 14px 12px 4px;
-    }
-
-    .nav-item {
-      padding: 8px 12px;
-      border-radius: 6px;
-      color: #52525B;
-      font-size: 13px;
-      font-weight: 500;
-      gap: 10px;
-    }
-
-    .nav-item:hover {
-      background: #F4F4F5;
-      color: #09090B;
-    }
-
-    .nav-item.active {
-      background: #09090B;
-      color: #FFFFFF;
-      font-weight: 600;
-      box-shadow: none;
-    }
-
-    .nav-icon {
-      width: 16px;
-      height: 16px;
-      opacity: 0.75;
-    }
-
-    .nav-item.active .nav-icon {
-      opacity: 1;
-    }
-
-    .nav-badge {
-      padding: 1px 7px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 600;
-      background: #F4F4F5;
-      color: #52525B;
-    }
-
-    .nav-item.active .nav-badge {
-      background: rgba(255, 255, 255, 0.18);
-      color: #FFFFFF;
-    }
-
-    .nav-badge.danger {
-      background: #FEF2F2;
-      color: #DC2626;
-    }
-
-    .sidebar-footer {
-      background: #FAFAFA;
-      border-top: 1px solid var(--border-light);
-      padding: 14px 16px;
-    }
-
-    .portal-link {
-      color: #52525B;
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    .portal-link:hover {
-      background: #F4F4F5;
-      color: #09090B;
-    }
-
-    /* Clean Topbar */
-    .topbar {
-      height: 60px;
-      padding: 0 28px;
-      box-shadow: none;
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(8px);
-    }
-
-    .page-title {
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-
-    .page-title .badge-role {
-      font-size: 10.5px;
-      background: #F4F4F5;
-      color: #52525B;
-      border: 1px solid #E4E4E7;
-      font-weight: 500;
-      padding: 2px 8px;
-      border-radius: 999px;
-    }
-
-    .global-search input {
-      height: 34px;
-      border-radius: 8px;
-      background: #FAFAFA;
-      font-size: 12.5px;
-    }
-
-    .global-search input:focus {
-      border-color: #A1A1AA;
-      box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.05);
-    }
-
-    .admin-profile-box {
-      padding: 4px 10px 4px 6px;
-      border-radius: 8px;
-      background: #FFFFFF;
-    }
-
-    .admin-avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      background: #18181B;
-      font-size: 12px;
-      box-shadow: none;
-    }
-
-    /* Minimalist KPI Cards - Hide Decorative Icon Boxes */
-    .stat-icon-wrap, .choice-icon {
-      display: none !important;
-    }
-
-    .stat-card {
-      padding: 18px 20px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .stat-card:hover {
-      transform: none;
-      border-color: #A1A1AA;
-      box-shadow: var(--shadow);
-    }
-
-    .stat-label {
-      font-size: 12px;
-      font-weight: 500;
-      text-transform: none;
-      letter-spacing: 0;
-      color: #71717A;
-    }
-
-    .stat-value {
-      font-size: 26px;
-      font-weight: 600;
-      letter-spacing: -0.03em;
-      margin: 4px 0 2px;
-      color: #09090B !important;
-    }
-
-    .stat-sub {
-      font-size: 11.5px;
-      font-weight: 500 !important;
-      color: #71717A !important;
-    }
-
-    /* Panels & Tables */
-    .panel-card {
-      border-radius: 10px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .panel-header {
-      padding: 16px 22px;
-    }
-
-    .panel-title-group h2 {
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
-
-    .filter-bar {
-      padding: 12px 22px;
-      background: #FAFAFA;
-    }
-
-    th {
-      background: #FAFAFA;
-      color: #71717A;
-      font-weight: 600;
-      font-size: 11px;
-      letter-spacing: 0.03em;
-      padding: 10px 16px;
-    }
-
-    td {
-      padding: 12px 16px;
-      font-size: 13px;
-    }
-
-    /* Buttons */
-    .btn {
-      font-weight: 500;
-      font-size: 12.5px;
-      border-radius: 6px;
-      padding: 7px 14px;
-    }
-
-    .btn-primary {
-      background: #09090B;
-      color: #FFFFFF;
-      box-shadow: none;
-    }
-
-    .btn-primary:hover {
-      background: #27272A;
-      box-shadow: none;
-    }
-
-    /* Action Buttons in Tables */
-    .btn-action-icon {
-      width: auto;
-      height: 28px;
-      padding: 0 10px;
-      font-size: 11.5px;
-      font-weight: 500;
-      border-radius: 6px;
-      color: #3F3F46;
-      background: #FFFFFF;
-      border: 1px solid #E4E4E7;
-      white-space: nowrap;
-    }
-
-    .btn-action-icon:hover {
-      background: #F4F4F5;
-      color: #09090B;
-      border-color: #D4D4D8;
-    }
-
-    /* Category Icon Box Minimalist */
-    .cat-icon-box {
-      width: 38px;
-      height: 38px;
-      border-radius: 8px;
-      background: #F4F4F5;
-      border: 1px solid #E4E4E7;
-      font-size: 12px;
-      font-weight: 700;
-      color: #18181B;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* Badges */
-    .badge {
-      padding: 2px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 500;
-    }
-
-
-    /* ====== DISH REVIEWS MODERATION STYLES ====== */
-    .star-rating {
-      color: #F59E0B;
-      letter-spacing: 2px;
-      font-size: 13.5px;
-    }
-    .review-bubble {
-      background: #F8FAFC;
-      border: 1px solid #E2E8F0;
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 12.5px;
-      line-height: 1.5;
-      color: var(--text-main);
-      margin-top: 4px;
-    }
-    .review-thumb {
-      width: 44px;
-      height: 44px;
-      border-radius: 6px;
-      object-fit: cover;
-      border: 1px solid #CBD5E1;
-      cursor: pointer;
-      margin-top: 6px;
-      display: inline-block;
-      transition: transform 0.2s;
-    }
-    .review-thumb:hover {
-      transform: scale(1.15);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    }
-    .review-admin-reply-box {
-      margin-top: 6px;
-      padding: 6px 10px;
-      background: #ECFDF5;
-      border-left: 3px solid #10B981;
-      border-radius: 4px;
-      font-size: 11.5px;
-      color: #065F46;
-    }
-    .badge-status-hidden {
-      background: #FEF2F2;
-      color: #B91C1C;
-      border: 1px solid #FECACA;
-    }
-  </style>
-  <!-- Firebase Realtime Database & Auth Web SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-</head>
-<body>
-
-  <!-- ==================== SIDEBAR ==================== -->
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <img class="brand-logo-icon" src="logo-app-admin.png" alt="Oishi Admin" style="object-fit: cover;">
-      <div class="brand-text">
-        <h1>Oishi Food</h1>
-        <span>Admin Portal</span>
-      </div>
-    </div>
-
-    <div class="sidebar-nav">
-      <div class="nav-label">Quản Trị Hệ Thống</div>
-      
-      <a class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-        </div>
-        <span>Tổng Quan</span>
-      </a>
-
-      <a class="nav-item" data-tab="categories" onclick="switchTab('categories')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        </div>
-        <span>Quản Lý Danh Mục</span>
-        <span class="nav-badge" id="badge-cat-count">0</span>
-      </a>
-
-      <a class="nav-item" data-tab="customers" onclick="switchTab('customers')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <span>Quản Lý Khách Hàng</span>
-        <span class="nav-badge" id="badge-customer-count">0</span>
-      </a>
-
-      <a class="nav-item" data-tab="stores" onclick="switchTab('stores')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        </div>
-        <span>Quản Lý Cửa Hàng</span>
-        <span class="nav-badge danger" id="badge-locked-store" style="display:none;" title="Số cửa hàng bị khóa">0</span>
-      </a>
-
-      <a class="nav-item" data-tab="orders" onclick="switchTab('orders')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16h6"/><path d="M19 13v6"/><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>
-        </div>
-        <span>Đơn Hàng & Tài Xế</span>
-        <span class="nav-badge" id="badge-orders-count" style="background:#EFF6FF; color:#1D4ED8;">0</span>
-      </a>
-
-      <div class="nav-label">Hỗ Trợ & Khiếu Nại</div>
-
-      <!-- NEW: MỤC XỬ LÝ KHIẾU NẠI & BÁO CÁO -->
-      <a class="nav-item" data-tab="complaints" onclick="switchTab('complaints')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
-        </div>
-        <span>Xử Lý Khiếu Nại</span>
-        <span class="nav-badge danger" id="badge-complaints-count" style="display:none;">0 Mới</span>
-      </a>
-
-      <!-- NEW: MỤC KIỂM DUYỆT ĐÁNH GIÁ MÓN ĂN -->
-      <a class="nav-item" data-tab="reviews" onclick="switchTab('reviews')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-        </div>
-        <span>Kiểm Duyệt Đánh Giá</span>
-        <span class="nav-badge" id="badge-reviews-count" style="display:none; background: #FEF3C7; color: #B45309;">0</span>
-      </a>
-
-      <div class="nav-label">Cài Đặt & Tài Khoản</div>
-
-      <a class="nav-item" data-tab="settings" onclick="switchTab('settings')">
-        <div class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        </div>
-        <span>Cài Đặt Admin</span>
-      </a>
-    </div>
-
-
-  </aside>
-
-  <!-- ==================== MAIN WRAPPER ==================== -->
-  <div class="main-wrapper">
-    
-    <!-- TOPBAR -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <div class="page-title">
-          <span id="topbar-title">Bảng Điều Khiển Tổng Quan</span>
-          <span class="badge-role">Super Admin Mode</span>
-        </div>
-      </div>
-
-      <div class="topbar-right">
-        <!-- Firebase Realtime Connection Pill -->
-        <div id="fb-conn-badge" class="fb-live-pill connecting" onclick="syncFromFirebaseNow()" title="Bấm để đồng bộ tức thì với Firebase Realtime Database (chuyen-de-2-2f0bc)">
-          <span class="fb-live-dot"></span>
-          <span id="fb-conn-text">Đang kết nối Firebase...</span>
-        </div>
-
-        <!-- Global Search -->
-        <div class="global-search">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="global-search-input" placeholder="Tìm kiếm nhanh toàn hệ thống (Nhấn Enter)..." onkeydown="if(event.key==='Enter') handleGlobalSearch(this.value)">
-        </div>
-
-        <!-- Admin Profile Box with dropdown -->
-        <div class="admin-profile-box" onclick="toggleAdminDropdown(event)">
-          <div class="admin-avatar">
-            <span id="admin-avatar-char">A</span>
-            <span class="status-dot-online" title="Trực tuyến"></span>
-          </div>
-          <div class="admin-info">
-            <div class="admin-name" id="display-admin-name">Admin Hệ Thống</div>
-            <div class="admin-role">Quản Trị Viên Cấp Cao</div>
-          </div>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-
-          <!-- Dropdown -->
-          <div class="admin-dropdown" id="admin-dropdown">
-            <button class="dropdown-btn" onclick="openAdminProfileModal()">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span>Hồ sơ Admin</span>
-            </button>
-            <button class="dropdown-btn" onclick="openAdminPasswordModal()">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span>Đổi mật khẩu</span>
-            </button>
-            <button class="dropdown-btn" onclick="syncFromFirebaseNow()">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
-              <span>Đồng bộ Firebase ngay</span>
-            </button>
-            <div class="dropdown-divider"></div>
-            <button class="dropdown-btn" style="color: var(--danger);" onclick="adminLogout()">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-              <span>Đăng xuất</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <!-- CONTENT BODY -->
-    <main class="main-content">
-
-      <!-- ==================== TAB 1: OVERVIEW ==================== -->
-      <section id="tab-overview" class="tab-pane active">
-        <!-- Stats KPI Grid -->
-        <div class="stats-grid">
-          <div class="stat-card" onclick="switchTab('categories')">
-            <div class="stat-meta">
-              <span class="stat-label">Tổng Danh Mục</span>
-              <span class="stat-value" id="kpi-total-cats">0</span>
-              <span class="stat-sub positive">Đồng bộ từ Firebase</span>
-            </div>
-            <div class="stat-icon-wrap icon-purple"></div>
-          </div>
-
-          <div class="stat-card" onclick="switchTab('customers')">
-            <div class="stat-meta">
-              <span class="stat-label">Tổng Khách Hàng</span>
-              <span class="stat-value" id="kpi-total-customers">0</span>
-              <span class="stat-sub" id="kpi-active-customers">0 đang hoạt động</span>
-            </div>
-            <div class="stat-icon-wrap icon-blue"></div>
-          </div>
-
-          <div class="stat-card" onclick="switchTab('stores')">
-            <div class="stat-meta">
-              <span class="stat-label">Đối Tác Cửa Hàng</span>
-              <span class="stat-value" id="kpi-total-stores">0</span>
-              <span class="stat-sub" id="kpi-locked-stores">0 hoạt động • 0 chờ duyệt</span>
-            </div>
-            <div class="stat-icon-wrap icon-orange"></div>
-          </div>
-
-          <!-- KPI KHIẾU NẠI MỚI -->
-          <div class="stat-card" onclick="switchTab('complaints')">
-            <div class="stat-meta">
-              <span class="stat-label">Khiếu Nại Chờ Duyệt</span>
-              <span class="stat-value" id="kpi-pending-complaints" style="color: var(--danger);">0</span>
-              <span class="stat-sub warning" id="kpi-complaint-sub">0 đơn đang xử lý</span>
-            </div>
-            <div class="stat-icon-wrap icon-red"></div>
-          </div>
-
-          <div class="stat-card" onclick="switchTab('orders')">
-            <div class="stat-meta">
-              <span class="stat-label">Tổng Đơn Đặt Hàng</span>
-              <span class="stat-value" id="kpi-total-orders">0</span>
-              <span class="stat-sub positive" id="kpi-orders-sub">0 hoàn tất • 0 đang xử lý</span>
-            </div>
-            <div class="stat-icon-wrap icon-green"></div>
-          </div>
-        </div>
-
-        <!-- Quick Summary Tables -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
-          <!-- Quick Stores Status -->
-          <div class="panel-card">
-            <div class="panel-header">
-              <div class="panel-title-group">
-                <h2>Cửa Hàng Cần Chú Ý</h2>
-                <p>Danh sách các quán bị khóa hoặc có cảnh báo</p>
-              </div>
-              <button class="btn btn-outline btn-sm" onclick="switchTab('stores')">Xem tất cả</button>
-            </div>
-            <div class="table-responsive">
-              <table id="table-overview-stores">
-                <thead>
-                  <tr>
-                    <th>Tên Quán</th>
-                    <th>Chủ Quán / SĐT</th>
-                    <th>Trạng Thái</th>
-                    <th>Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody id="tbody-overview-stores">
-                  <!-- Rendered dynamically -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Quick System Logs -->
-          <div class="panel-card">
-            <div class="panel-header">
-              <div class="panel-title-group">
-                <h2>Nhật Ký Thao Tác Quản Trị</h2>
-                <p>Lịch sử hoạt động của Admin trên nền tảng</p>
-              </div>
-              <button class="btn btn-outline btn-sm" onclick="clearLogs()">Xóa log</button>
-            </div>
-            <div style="padding: 16px 24px; max-height: 290px; overflow-y: auto;" id="logs-container">
-              <!-- Rendered logs -->
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 2: CATEGORIES ==================== -->
-      <section id="tab-categories" class="tab-pane">
-        <div class="panel-card">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Quản Lý Danh Mục Nền Tảng</h2>
-              <p>Thêm mới, chỉnh sửa icon, tên danh mục món ăn hiển thị trên App Khách Hàng</p>
-            </div>
-            <div class="panel-actions" style="display: flex; gap: 8px;">
-              <button class="btn btn-outline" onclick="restoreDefaultCategories()" title="Khôi phục 11 danh mục ẩm thực chuẩn của hệ thống">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                <span>Khôi Phục Danh Mục Chuẩn</span>
-              </button>
-              <button class="btn btn-primary" onclick="openAddCategoryModal()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                <span>Thêm Danh Mục Mới</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Filter Bar -->
-          <div class="filter-bar">
-            <div class="filter-group">
-              <div class="search-box">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="filter-cat-search" placeholder="Tìm tên danh mục, mô tả..." oninput="filterCategories()">
-              </div>
-              <select class="select-filter" id="filter-cat-status" onchange="filterCategories()">
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="ACTIVE">Đang hiển thị</option>
-                <option value="HIDDEN">Tạm ẩn</option>
-              </select>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
-              Hiển thị <span id="cat-counter" style="color: var(--primary); font-weight: 800;">0</span> danh mục
-            </div>
-          </div>
-
-          <!-- Grid Cards -->
-          <div class="category-grid" id="category-grid-container">
-            <!-- Categories dynamically populated -->
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 3: CUSTOMERS ==================== -->
-      <section id="tab-customers" class="tab-pane">
-        <div class="panel-card">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Quản Lý Khách Hàng Nền Tảng</h2>
-              <p>Quản lý tài khoản người dùng, đổi/cấp lại mật khẩu, khóa hoặc mở khóa tài khoản vi phạm</p>
-            </div>
-            <div class="panel-actions">
-              <button class="btn btn-outline" onclick="exportCustomerCSV()">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                <span>Xuất Danh Sách</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Filter bar -->
-          <div class="filter-bar">
-            <div class="filter-group">
-              <div class="search-box">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="filter-customer-search" placeholder="Tìm theo Gmail, tên, SĐT, mã UID, địa chỉ..." oninput="filterCustomers()">
-              </div>
-              <select class="select-filter" id="filter-customer-role" onchange="filterCustomers()">
-                <option value="CUSTOMER">Vai trò: Khách hàng</option>
-                <option value="ALL">Tất cả tài khoản (Khách + Quán + Tài xế)</option>
-                <option value="MERCHANT">Chủ quán (Merchant)</option>
-                <option value="DRIVER">Tài xế (Driver)</option>
-              </select>
-              <select class="select-filter" id="filter-customer-status" onchange="filterCustomers()">
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="ACTIVE">Đang hoạt động</option>
-                <option value="LOCKED">Đã bị khóa</option>
-              </select>
-              <select class="select-filter" id="filter-customer-sort" onchange="filterCustomers()">
-                <option value="NEWEST">Hoạt động gần nhất</option>
-                <option value="ORDERS_HIGH">Đơn hàng nhiều nhất</option>
-                <option value="TRUST_HIGH">Điểm uy tín cao nhất</option>
-                <option value="TRUST_LOW">Điểm uy tín thấp nhất</option>
-              </select>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
-              Tìm thấy <span id="customer-counter" style="color: var(--primary); font-weight: 800;">0</span> tài khoản
-            </div>
-          </div>
-
-          <!-- Table -->
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tài Khoản / Mã Định Danh UID</th>
-                  <th>Gmail Đăng Nhập</th>
-                  <th>Số Điện Thoại</th>
-                  <th>Hoạt Động</th>
-                  <th>Khu Vực / Địa Chỉ Giao</th>
-                  <th>Điểm Uy Tín</th>
-                  <th>Trạng Thái</th>
-                  <th style="text-align: right;">Thao Tác Quản Trị</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-customers">
-                <!-- Populated dynamically -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 4: STORES ==================== -->
-      <section id="tab-stores" class="tab-pane">
-        <div class="panel-card">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Quản Lý Đối Tác Cửa Hàng (Quán Ăn)</h2>
-              <p>Kiểm duyệt đối tác, cho phép <strong>khóa cửa hàng</strong> vi phạm, cấp lại mật khẩu đăng nhập quán</p>
-            </div>
-            <div class="panel-actions">
-              <button class="btn btn-primary" onclick="openAddStoreModal()">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                <span>Thêm Cửa Hàng Đối Tác</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Filter bar -->
-          <div class="filter-bar">
-            <div class="filter-group">
-              <div class="search-box">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="filter-store-search" placeholder="Tìm tên quán, chủ quán, SĐT, số CCCD..." oninput="filterStores()">
-              </div>
-              <select class="select-filter" id="filter-store-status" onchange="filterStores()">
-                <option value="ALL">Tất cả trạng thái (4 loại)</option>
-                <option value="PENDING">Chờ duyệt</option>
-                <option value="OPEN">Đang hoạt động</option>
-                <option value="LOCKED">Bị khóa</option>
-                <option value="CLOSED">Tạm nghỉ</option>
-              </select>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
-              Tìm thấy <span id="store-counter" style="color: var(--primary); font-weight: 800;">0</span> cửa hàng
-            </div>
-          </div>
-
-          <!-- Table -->
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th style="min-width: 170px;">CỬA HÀNG / QUÁN ĂN</th>
-                  <th style="min-width: 130px;">CHỦ QUÁN</th>
-                  <th style="min-width: 125px;">SỐ CCCD</th>
-                  <th style="min-width: 95px; text-align: center;">ẢNH TRƯỚC CCCD</th>
-                  <th style="min-width: 95px; text-align: center;">ẢNH SAU CCCD</th>
-                  <th style="min-width: 95px; text-align: center;">ẢNH CHÂN DUNG</th>
-                  <th style="min-width: 110px;">SỐ ĐIỆN THOẠI</th>
-                  <th style="min-width: 75px;">ĐÁNH GIÁ</th>
-                  <th style="min-width: 85px;">SỐ MÓN</th>
-                  <th style="min-width: 135px;">TRẠNG THÁI</th>
-                  <th style="min-width: 165px; text-align: right;">KHÓA / MẬT KHẨU / SỬA</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-stores">
-                <!-- Populated dynamically -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 4B: ORDERS & DRIVERS REALTIME ==================== -->
-      <section id="tab-orders" class="tab-pane">
-        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 20px;">
-          <div class="stat-card" onclick="setGlobalOrderFilter('ALL')">
-            <div class="stat-meta">
-              <span class="stat-label">Tổng Đơn Hàng</span>
-              <span class="stat-value" id="kpi-ord-total">0</span>
-              <span class="stat-sub positive">Đồng bộ từ Firebase</span>
-            </div>
-            <div class="stat-icon-wrap icon-blue"></div>
-          </div>
-          <div class="stat-card" onclick="setGlobalOrderFilter('PROCESSING')">
-            <div class="stat-meta">
-              <span class="stat-label">Chờ & Đang Chế Biến</span>
-              <span class="stat-value" id="kpi-ord-processing" style="color: var(--warning);">0</span>
-              <span class="stat-sub warning">PENDING / PREPARING / READY</span>
-            </div>
-            <div class="stat-icon-wrap icon-yellow"></div>
-          </div>
-          <div class="stat-card" onclick="setGlobalOrderFilter('DELIVERING')">
-            <div class="stat-meta">
-              <span class="stat-label">Đang Giao Hàng</span>
-              <span class="stat-value" id="kpi-ord-delivering" style="color: #2563EB;">0</span>
-              <span class="stat-sub">Tài xế đang vận chuyển</span>
-            </div>
-            <div class="stat-icon-wrap icon-purple"></div>
-          </div>
-          <div class="stat-card" onclick="setGlobalOrderFilter('COMPLETED')">
-            <div class="stat-meta">
-              <span class="stat-label">Hoàn Tất Giao</span>
-              <span class="stat-value" id="kpi-ord-completed" style="color: var(--success);">0</span>
-              <span class="stat-sub positive" id="kpi-ord-revenue">Doanh thu: 0đ</span>
-            </div>
-            <div class="stat-icon-wrap icon-green"></div>
-          </div>
-          <div class="stat-card" onclick="setGlobalOrderFilter('FAILED')">
-            <div class="stat-meta">
-              <span class="stat-label">Bùng Đơn / Đã Hủy</span>
-              <span class="stat-value" id="kpi-ord-failed" style="color: var(--danger);">0</span>
-              <span class="stat-sub danger">BOOM / CANCELLED</span>
-            </div>
-            <div class="stat-icon-wrap icon-red"></div>
-          </div>
-        </div>
-
-        <!-- Global Orders Card -->
-        <div class="panel-card" style="margin-bottom: 24px;">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Điều Phối Đơn Hàng Toàn Hệ Thống (Realtime Firebase)</h2>
-              <p>Theo dõi trực tiếp luồng đơn từ App Khách Hàng → Quán Ăn → Tài Xế, cho phép Admin gán shipper hoặc đổi trạng thái đơn tức thì</p>
-            </div>
-            <div class="panel-actions">
-              <button class="btn btn-outline" onclick="syncFromFirebaseNow()">
-                Làm mới dữ liệu
-              </button>
-            </div>
-          </div>
-
-          <div class="filter-bar">
-            <div class="filter-group">
-              <div class="search-box">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="filter-global-order-search" placeholder="Tìm mã đơn, tên khách, SĐT, tên quán, món ăn..." oninput="renderGlobalOrders()">
-              </div>
-              <select class="select-filter" id="filter-global-order-store" onchange="renderGlobalOrders()">
-                <option value="ALL">Tất cả cửa hàng</option>
-              </select>
-              <select class="select-filter" id="filter-global-order-status" onchange="renderGlobalOrders()">
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="PROCESSING">Chờ xác nhận / Đang nấu / Chờ lấy</option>
-                <option value="PENDING">PENDING (Chờ quán nhận)</option>
-                <option value="PREPARING">PREPARING (Đang chế biến)</option>
-                <option value="READY">READY (Chờ tài xế lấy)</option>
-                <option value="ASSIGNED">ASSIGNED (Tài xế đã nhận)</option>
-                <option value="DELIVERING">DELIVERING (Đang giao)</option>
-                <option value="COMPLETED">COMPLETED (Hoàn thành)</option>
-                <option value="BOOM">BOOM (Khách bùng hàng)</option>
-                <option value="CANCELLED">❌ CANCELLED (Đã hủy)</option>
-                <option value="FAILED">Gộp Bùng đơn & Đã hủy</option>
-              </select>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
-              Hiển thị <span id="global-order-counter" style="color: var(--primary); font-weight: 800;">0</span> đơn hàng
-            </div>
-          </div>
-
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th style="min-width: 120px;">Mã Đơn & Thời Gian</th>
-                  <th style="min-width: 150px;">Cửa Hàng</th>
-                  <th style="min-width: 150px;">Khách Hàng</th>
-                  <th style="min-width: 220px;">Chi Tiết Món & Tổng Tiền</th>
-                  <th style="min-width: 170px;">Tài Xế Giao Hàng</th>
-                  <th style="min-width: 165px;">Trạng Thái Đơn (Live)</th>
-                  <th style="text-align: right; min-width: 100px;">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-global-orders">
-                <!-- Populated dynamically from Firebase orders -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Global Drivers Fleet Card -->
-        <div class="panel-card">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Đội Ngũ Tài Xế / Shipper Trên Hệ Thống (<span id="global-driver-counter">0</span>)</h2>
-              <p>Đồng bộ từ node <code>drivers</code> và <code>users</code> trên Firebase Realtime Database</p>
-            </div>
-          </div>
-          <div style="padding: 20px;">
-            <div class="driver-grid" id="global-drivers-grid">
-              <!-- Populated dynamically -->
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 5: COMPLAINTS & REPORTS (NEW FEATURE) ==================== -->
-      <section id="tab-complaints" class="tab-pane">
-        <!-- Sub KPI for Complaints -->
-        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
-          <div class="stat-card" onclick="filterComplaintsByStatus('PENDING')">
-            <div class="stat-meta">
-              <span class="stat-label">Chờ Xử Lý</span>
-              <span class="stat-value" id="kpi-c-pending" style="color: var(--danger);">0</span>
-              <span class="stat-sub danger">Cần Admin can thiệp ngay</span>
-            </div>
-            <div class="stat-icon-wrap icon-red"></div>
-          </div>
-          <div class="stat-card" onclick="filterComplaintsByStatus('IN_PROGRESS')">
-            <div class="stat-meta">
-              <span class="stat-label">Đang Điều Tra</span>
-              <span class="stat-value" id="kpi-c-progress" style="color: var(--warning);">0</span>
-              <span class="stat-sub warning">Đang đối soát 2 bên</span>
-            </div>
-            <div class="stat-icon-wrap icon-yellow"></div>
-          </div>
-          <div class="stat-card" onclick="filterComplaintsByStatus('RESOLVED')">
-            <div class="stat-meta">
-              <span class="stat-label">Đã Giải Quyết</span>
-              <span class="stat-value" id="kpi-c-resolved" style="color: var(--success);">0</span>
-              <span class="stat-sub positive">Đã xử lý xong</span>
-            </div>
-            <div class="stat-icon-wrap icon-green"></div>
-          </div>
-          <div class="stat-card" onclick="filterComplaintsByStatus('REJECTED')">
-            <div class="stat-meta">
-              <span class="stat-label">Đã Từ Chối</span>
-              <span class="stat-value" id="kpi-c-rejected" style="color: var(--text-muted);">0</span>
-              <span class="stat-sub">Không đủ bằng chứng</span>
-            </div>
-            <div class="stat-icon-wrap icon-blue">❌</div>
-          </div>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Trung Tâm Tiếp Nhận & Xử Lý Khiếu Nại Nền Tảng</h2>
-              <p>Giải quyết tranh chấp giữa <strong>Quán ăn</strong> và <strong>Khách hàng / Tài xế</strong>, hỗ trợ cảnh báo, tạm ẩn hoặc khóa tài khoản vi phạm</p>
-            </div>
-            <div class="panel-actions">
-              <button class="btn btn-outline" onclick="openNewComplaintModal()">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                <span>Tạo Khiếu Nại Mới (Hotline)</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Filter bar -->
-          <div class="filter-bar">
-            <div class="filter-group">
-              <div class="search-box">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="filter-complaint-search" placeholder="Tìm mã KN, mã đơn, tên khách, tên quán..." oninput="filterComplaints()">
-              </div>
-              <select class="select-filter" id="filter-complaint-sender" onchange="filterComplaints()">
-                <option value="ALL">Tất cả nguồn gửi</option>
-                <option value="CUSTOMER">Từ Khách Hàng</option>
-                <option value="STORE">Từ Quán Ăn</option>
-              </select>
-              <select class="select-filter" id="filter-complaint-type" onchange="filterComplaints()">
-                <option value="ALL">Tất cả chủ đề</option>
-                <option value="Chất lượng món & ATTP">Chất lượng món & ATTP</option>
-                <option value="Giao thiếu món">Giao thiếu món</option>
-                <option value="Boom hàng / Bùng đơn">Boom hàng / Bùng đơn</option>
-                <option value="Thái độ phục vụ / Shipper">Thái độ / Shipper</option>
-                <option value="Thanh toán & Chiết khấu">Thanh toán & Chiết khấu</option>
-              </select>
-              <select class="select-filter" id="filter-complaint-status" onchange="filterComplaints()">
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="PENDING">Chờ xử lý</option>
-                <option value="IN_PROGRESS">Đang xử lý</option>
-                <option value="RESOLVED">Đã giải quyết</option>
-                <option value="REJECTED">Đã từ chối</option>
-              </select>
-              <select class="select-filter" id="filter-complaint-priority" onchange="filterComplaints()">
-                <option value="ALL">Mức độ ưu tiên</option>
-                <option value="CRITICAL">Khẩn cấp</option>
-                <option value="HIGH">Cao</option>
-                <option value="MEDIUM">Bình thường</option>
-              </select>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
-              Tìm thấy <span id="complaint-counter" style="color: var(--primary); font-weight: 800;">0</span> khiếu nại
-            </div>
-          </div>
-
-          <!-- Complaints Table -->
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>Mã KN & Thời Gian</th>
-                  <th>Người Gửi (Nguồn)</th>
-                  <th>Đối Tượng Bị Khiếu Nại</th>
-                  <th>Đơn Hàng & Chủ Đề</th>
-                  <th>Nội Dung Sự Việc</th>
-                  <th>Mức Độ</th>
-                  <th>Trạng Thái</th>
-                  <th style="text-align: right;">Xử Lý</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-complaints">
-                <!-- Populated dynamically -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 6: DISH REVIEWS MODERATION ==================== -->
-      <section id="tab-reviews" class="tab-pane">
-        <!-- Review KPI Stats -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-meta">
-              <span class="stat-label">Điểm TB Đánh Giá</span>
-              <span class="stat-value" id="kpi-rev-avg" style="color: #D97706;">5.0 ⭐</span>
-              <span class="stat-sub positive" id="kpi-rev-avg-sub">Toàn hệ sinh thái Oishi Food</span>
-            </div>
-            <div class="stat-icon-wrap icon-orange">⭐</div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-meta">
-              <span class="stat-label">Tổng Đánh Giá Món</span>
-              <span class="stat-value" id="kpi-rev-total">0</span>
-              <span class="stat-sub positive">Từ khách hàng hoàn tất đơn</span>
-            </div>
-            <div class="stat-icon-wrap icon-blue">💬</div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-meta">
-              <span class="stat-label">Đánh Giá Kém (1-2 ⭐)</span>
-              <span class="stat-value" id="kpi-rev-low" style="color: var(--danger);">0</span>
-              <span class="stat-sub danger" id="kpi-rev-low-sub">Cần rà soát chất lượng</span>
-            </div>
-            <div class="stat-icon-wrap icon-red">⚠️</div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-meta">
-              <span class="stat-label">Đã Ẩn Kiểm Duyệt</span>
-              <span class="stat-value" id="kpi-rev-hidden" style="color: var(--text-muted);">0</span>
-              <span class="stat-sub">Vi phạm tiêu chuẩn cộng đồng</span>
-            </div>
-            <div class="stat-icon-wrap icon-purple">🚫</div>
-          </div>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Trung Tâm Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)</h2>
-              <p>Giám sát chất lượng ẩm thực từ khách hàng, chủ động ẩn các bình luận phản cảm/ác ý hoặc giải đáp khiếu nại</p>
-            </div>
-            <div class="panel-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="btn btn-outline btn-sm" onclick="seedSampleReviews()" title="Khởi tạo 3 đánh giá mẫu demo nếu Firebase chưa có dữ liệu">
-                <span>🧪 Tạo Đánh Giá Demo</span>
-              </button>
-              <button class="btn btn-primary btn-sm" onclick="openAddReviewModal()">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                <span>+ Thêm Đánh Giá Mới</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Filter Bar -->
-          <div class="filter-bar">
-            <div class="filter-group">
-              <div class="search-box">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input type="text" id="filter-review-search" placeholder="Tìm tên món, tên quán, khách hàng, nội dung..." oninput="filterReviews()">
-              </div>
-              <select class="select-filter" id="filter-review-rating" onchange="filterReviews()">
-                <option value="ALL">Tất cả số sao</option>
-                <option value="5">⭐⭐⭐⭐⭐ 5 Sao</option>
-                <option value="4">⭐⭐⭐⭐ 4 Sao</option>
-                <option value="3">⭐⭐⭐ 3 Sao</option>
-                <option value="2">⭐⭐ 2 Sao (Kém)</option>
-                <option value="1">⭐ 1 Sao (Rất tệ)</option>
-              </select>
-              <select class="select-filter" id="filter-review-status" onchange="filterReviews()">
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="ACTIVE">🟢 Đang hiển thị</option>
-                <option value="HIDDEN">🚫 Đã ẩn kiểm duyệt</option>
-              </select>
-              <select class="select-filter" id="filter-review-store" onchange="filterReviews()">
-                <option value="ALL">Tất cả cửa hàng</option>
-              </select>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
-              Hiển thị <span id="review-counter" style="color: var(--primary); font-weight: 800;">0</span> đánh giá
-            </div>
-          </div>
-
-          <!-- Reviews Table -->
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th style="min-width: 110px;">Mã ĐG & Giờ</th>
-                  <th style="min-width: 150px;">Khách Hàng</th>
-                  <th style="min-width: 170px;">Món Ăn & Cửa Hàng</th>
-                  <th style="min-width: 110px;">Số Sao</th>
-                  <th style="min-width: 250px;">Nội Dung Nhận Xét</th>
-                  <th style="min-width: 120px;">Trạng Thái</th>
-                  <th style="text-align: right; min-width: 170px;">Thao Tác Admin</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-reviews">
-                <!-- Populated dynamically -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== TAB 6: ADMIN SETTINGS ==================== -->
-      <section id="tab-settings" class="tab-pane">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px;">
-          <!-- Admin Profile Settings -->
-          <div class="panel-card">
-            <div class="panel-header">
-              <div class="panel-title-group">
-                <h2>Hồ Sơ Quản Trị Viên</h2>
-                <p>Cập nhật họ tên hiển thị của Admin trên thanh Header</p>
-              </div>
-            </div>
-            <form style="padding: 24px;" onsubmit="saveAdminSettings(event)">
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label">Tên hiển thị Admin <span class="req">*</span></label>
-                <input type="text" class="form-control" id="setting-admin-name" required value="Admin Hệ Thống">
-              </div>
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label">Email Admin</label>
-                <input type="email" class="form-control" id="setting-admin-email" value="admin@oishifood.vn">
-              </div>
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label">Chức vụ / Vai trò</label>
-                <input type="text" class="form-control" value="Super Administrator (Toàn quyền hệ thống)" disabled style="background: #F1F5F9;">
-              </div>
-              <div class="form-group" style="margin-bottom: 20px;">
-                <label class="form-label">Số điện thoại liên hệ</label>
-                <input type="text" class="form-control" id="setting-admin-phone" value="">
-              </div>
-              <button type="submit" class="btn btn-primary">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                <span>Lưu Thay Đổi Hồ Sơ</span>
-              </button>
-            </form>
-          </div>
-
-          <!-- Change Admin Password -->
-          <div class="panel-card">
-            <div class="panel-header">
-              <div class="panel-title-group">
-                <h2>Đổi Mật Khẩu Admin</h2>
-                <p>Bảo mật tài khoản quản trị viên tối cao</p>
-              </div>
-            </div>
-            <form style="padding: 24px;" onsubmit="changeAdminPassword(event)">
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label">Mật khẩu hiện tại <span class="req">*</span></label>
-                <input type="password" class="form-control" id="admin-curr-pass" placeholder="••••••••" required>
-              </div>
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label class="form-label">Mật khẩu mới <span class="req">*</span></label>
-                <input type="password" class="form-control" id="admin-new-pass" placeholder="Tối thiểu 6 ký tự" required minlength="6">
-              </div>
-              <div class="form-group" style="margin-bottom: 20px;">
-                <label class="form-label">Xác nhận mật khẩu mới <span class="req">*</span></label>
-                <input type="password" class="form-control" id="admin-confirm-pass" placeholder="Nhập lại mật khẩu mới" required minlength="6">
-              </div>
-              <button type="submit" class="btn btn-primary">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <span>Cập Nhật Mật Khẩu</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-    </main>
-  </div>
-
-  <!-- ==================== MODALS ==================== -->
-
-  <!-- 1. MODAL ADD / EDIT CATEGORY -->
-  <div class="modal-overlay" id="modal-category">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modal-cat-title">Thêm Danh Mục Mới</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-category')">&times;</button>
-      </div>
-      <form onsubmit="saveCategory(event)">
-        <input type="hidden" id="form-cat-id">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Tên Danh Mục <span class="req">*</span></label>
-            <input type="text" class="form-control" id="form-cat-name" placeholder="VD: Bún/Phở, Trà Sữa, Gà Rán..." required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Biểu tượng / Emoji <span class="req">*</span></label>
-            <div style="display: flex; gap: 10px; align-items: center;">
-              <input type="text" class="form-control" id="form-cat-icon" placeholder="VD: 🍚 hoặc link ảnh" style="font-size: 20px; width: 140px; text-align: center;" required oninput="updateCatIconPreview(this.value)">
-              <div id="cat-icon-preview" style="width: 44px; height: 44px; border-radius: 10px; background: var(--bg-hover); display: flex; align-items: center; justify-content: center; font-size: 24px; border: 1px solid var(--border);">🍽️</div>
-            </div>
-            <div style="margin-top: 8px;">
-              <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Bấm chọn nhanh biểu tượng:</div>
-              <div style="display: flex; flex-wrap: wrap; gap: 6px;" id="quick-emoji-list">
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍚')" style="font-size: 16px; padding: 4px 8px;">🍚</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🧋')" style="font-size: 16px; padding: 4px 8px;">🧋</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍜')" style="font-size: 16px; padding: 4px 8px;">🍜</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍗')" style="font-size: 16px; padding: 4px 8px;">🍗</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥖')" style="font-size: 16px; padding: 4px 8px;">🥖</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍕')" style="font-size: 16px; padding: 4px 8px;">🍕</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('☕')" style="font-size: 16px; padding: 4px 8px;">☕</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍰')" style="font-size: 16px; padding: 4px 8px;">🍰</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍲')" style="font-size: 16px; padding: 4px 8px;">🍲</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥗')" style="font-size: 16px; padding: 4px 8px;">🥗</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍽️')" style="font-size: 16px; padding: 4px 8px;">🍽️</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍔')" style="font-size: 16px; padding: 4px 8px;">🍔</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🥤')" style="font-size: 16px; padding: 4px 8px;">🥤</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍣')" style="font-size: 16px; padding: 4px 8px;">🍣</button>
-                <button type="button" class="btn btn-outline btn-sm" onclick="selectQuickEmoji('🍩')" style="font-size: 16px; padding: 4px 8px;">🍩</button>
-              </div>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Thứ tự ưu tiên hiển thị (1 - 99)</label>
-            <input type="number" class="form-control" id="form-cat-order" min="1" max="99" value="1">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mô tả ngắn</label>
-            <textarea class="form-control" id="form-cat-desc" placeholder="Mô tả về loại ẩm thực thuộc danh mục này..."></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Trạng thái hiển thị</label>
-            <select class="form-control" id="form-cat-status">
-              <option value="ACTIVE">Đang hiển thị (Bật)</option>
-              <option value="HIDDEN">Tạm ẩn (Tắt)</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-category')">Hủy bỏ</button>
-          <button type="submit" class="btn btn-primary" id="btn-save-cat">Lưu Danh Mục</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 2. MODAL LOCK / UNLOCK STORE -->
-  <div class="modal-overlay" id="modal-lock-store">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modal-lock-store-title" style="color: var(--danger);">Khóa Cửa Hàng Đối Tác</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-lock-store')">&times;</button>
-      </div>
-      <form onsubmit="confirmLockStore(event)">
-        <input type="hidden" id="lock-store-id">
-        <input type="hidden" id="lock-store-action">
-        <div class="modal-body">
-          <div class="warning-callout" id="lock-store-warning">
-            <strong>Cảnh báo quản trị:</strong> Khi cửa hàng bị khóa, toàn bộ thực đơn và các món ăn của quán sẽ tạm thời bị ẩn khỏi ứng dụng khách hàng. Quán sẽ không thể nhận thêm đơn hàng mới cho đến khi được mở khóa.
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tên cửa hàng:</label>
-            <input type="text" class="form-control" id="lock-store-name" readonly style="background: #F8FAFC; font-weight: 700;">
-          </div>
-
-          <div class="form-group" id="group-lock-reason">
-            <label class="form-label">Lý do khóa / tạm dừng <span class="req">*</span></label>
-            <select class="form-control" id="lock-store-reason-select" onchange="handleStoreReasonChange(this.value)">
-              <option value="Vi phạm an toàn vệ sinh thực phẩm (Phản ánh từ khách)">Vi phạm an toàn vệ sinh thực phẩm</option>
-              <option value="Nghi vấn gian lận mã khuyến mãi / Đơn hàng ảo">Gian lận khuyến mãi / Đơn hàng ảo</option>
-              <option value="Hủy quá nhiều đơn hàng không lý do (> 15%)">Tỷ lệ hủy đơn quá cao (> 15%)</option>
-              <option value="Chưa đóng phí dịch vụ hoặc yêu cầu thanh tra">Chưa tất toán đối soát định kỳ</option>
-              <option value="OTHER">Lý do khác (Tự nhập)</option>
-            </select>
-          </div>
-
-          <div class="form-group" id="group-lock-custom-reason" style="display: none;">
-            <label class="form-label">Chi tiết lý do khác <span class="req">*</span></label>
-            <textarea class="form-control" id="lock-store-reason-text" placeholder="Nhập chi tiết biên bản vi phạm..."></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-lock-store')">Hủy</button>
-          <button type="submit" class="btn btn-primary" id="btn-submit-lock-store" style="background: var(--danger);">Xác Nhận Khóa</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 3. MODAL LOCK / UNLOCK CUSTOMER -->
-  <div class="modal-overlay" id="modal-lock-customer">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modal-lock-customer-title" style="color: var(--danger);">Khóa Tài Khoản Khách Hàng</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-lock-customer')">&times;</button>
-      </div>
-      <form onsubmit="confirmLockCustomer(event)">
-        <input type="hidden" id="lock-cust-id">
-        <input type="hidden" id="lock-cust-action">
-        <div class="modal-body">
-          <div class="warning-callout" id="lock-cust-warning">
-            Khi khóa tài khoản khách hàng, người dùng sẽ bị đăng xuất ngay lập tức và không thể tạo đơn hàng mới trên Oishi Food.
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Khách hàng:</label>
-            <input type="text" class="form-control" id="lock-cust-name" readonly style="background: #F8FAFC; font-weight: 700;">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Lý do khóa tài khoản <span class="req">*</span></label>
-            <select class="form-control" id="lock-cust-reason">
-              <option value="Bùng hàng nhiều lần không nhận">Bùng hàng nhiều lần không nhận</option>
-              <option value="Spam đơn hàng giả mạo tài xế">Spam đơn hàng giả mạo tài xế</option>
-              <option value="Hành vi lăng mạ tài xế hoặc nhân viên quán">Hành vi xúc phạm tài xế / quán ăn</option>
-              <option value="Nghi vấn tài khoản bị hack / Yêu cầu bảo vệ">Bảo vệ tài khoản theo yêu cầu</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-lock-customer')">Hủy</button>
-          <button type="submit" class="btn btn-primary" id="btn-submit-lock-cust" style="background: var(--danger);">Xác Nhận Khóa</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 3B. MODAL EDIT CUSTOMER / USER ACCOUNT -->
-  <div class="modal-overlay" id="modal-edit-customer">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>Cập Nhật Hồ Sơ Tài Khoản</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-edit-customer')">&times;</button>
-      </div>
-      <form onsubmit="saveEditCustomer(event)">
-        <input type="hidden" id="edit-cust-id">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Mã định danh Firebase UID</label>
-            <input type="text" class="form-control" id="edit-cust-uid-display" readonly style="background: #F8FAFC; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted);">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Gmail / Email đăng nhập <span class="req">*</span></label>
-            <input type="email" class="form-control" id="edit-cust-email" placeholder="VD: tenkhach@gmail.com" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Họ và tên người dùng <span class="req">*</span></label>
-            <input type="text" class="form-control" id="edit-cust-name" placeholder="VD: Nguyễn Văn A" required>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group">
-              <label class="form-label">Số điện thoại</label>
-              <input type="text" class="form-control" id="edit-cust-phone" placeholder="VD: 0901234567">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Điểm uy tín (0 - 100)</label>
-              <input type="number" class="form-control" id="edit-cust-trust" min="0" max="100" value="100">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Khu vực / Địa chỉ nhận hàng</label>
-            <input type="text" class="form-control" id="edit-cust-area" placeholder="VD: Quận 1, TP.HCM">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit-customer')">Hủy</button>
-          <button type="submit" class="btn btn-primary">Lưu Hồ Sơ Lên Firebase</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 4. MODAL RESET PASSWORD -->
-  <div class="modal-overlay" id="modal-reset-password">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modal-reset-pass-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--warning);"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <span>Cấp Lại / Đổi Mật Khẩu</span>
-        </h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-reset-password')">&times;</button>
-      </div>
-      <form onsubmit="saveNewPassword(event)">
-        <input type="hidden" id="reset-target-type">
-        <input type="hidden" id="reset-target-id">
-        <div class="modal-body">
-          <div style="font-size: 13px; color: var(--text-muted);">
-            Đặt mật khẩu mới cho: <strong id="reset-target-name" style="color: var(--text-main);"></strong>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Mật khẩu mới <span class="req">*</span></label>
-            <div class="input-with-action">
-              <input type="text" class="form-control" id="reset-new-pass-input" required minlength="6">
-              <button type="button" class="btn btn-outline" onclick="generateRandomPass()" title="Tạo ngẫu nhiên mật khẩu mạnh">
-                Tạo ngẫu nhiên
-              </button>
-            </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-              Admin có thể tự nhập mật khẩu dễ nhớ hoặc bấm "Tạo ngẫu nhiên" để sao chép gửi cho người dùng.
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-              <input type="checkbox" id="send-sms-checkbox" checked>
-              <span>Gửi thông báo SMS / Email kèm mật khẩu mới tới số điện thoại</span>
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-reset-password')">Đóng</button>
-          <button type="button" class="btn btn-outline" onclick="copyPasswordToClipboard()" style="color: #2563EB;">
-            Sao chép mật khẩu
-          </button>
-          <button type="submit" class="btn btn-primary">Lưu Mật Khẩu Mới</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 5. MODAL ADD STORE -->
-  <div class="modal-overlay" id="modal-add-store">
-    <div class="modal-dialog modal-dialog-lg" style="max-width: 680px;">
-      <div class="modal-header">
-        <h3>Thêm Cửa Hàng Đối Tác Mới</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-add-store')">&times;</button>
-      </div>
-      <form onsubmit="saveNewStore(event)">
-        <div class="modal-body">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group">
-              <label class="form-label">Tên Quán Ăn / Cửa Hàng <span class="req">*</span></label>
-              <input type="text" class="form-control" id="new-store-name" placeholder="VD: Bún Chả Hà Nội Phố Cổ" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Họ tên Chủ Quán <span class="req">*</span></label>
-              <input type="text" class="form-control" id="new-store-owner" placeholder="VD: Hoàng Văn Thắng" required>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group">
-              <label class="form-label">Số điện thoại liên hệ <span class="req">*</span></label>
-              <input type="text" class="form-control" id="new-store-phone" placeholder="VD: 0912.888.999" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Số Căn Cước Công Dân (12 số) <span class="req">*</span></label>
-              <input type="text" class="form-control" id="new-store-cccd" placeholder="VD: 079088012456" required minlength="9" maxlength="12" value="079099008899">
-            </div>
-          </div>
-
-          <!-- 3 LINK ẢNH ĐỊNH DANH (DEMO) -->
-          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin: 4px 0 12px 0;">
-            <div style="font-size: 12px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">
-              Hình Ảnh Định Danh & Đăng Ký (Demo Link Ảnh)
-            </div>
-            <div class="form-group" style="margin-bottom: 8px;">
-              <label class="form-label" style="font-size: 11.5px;">Link Ảnh Mặt Trước CCCD</label>
-              <input type="text" class="form-control" id="new-store-cccd-front" value="https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80" required>
-            </div>
-            <div class="form-group" style="margin-bottom: 8px;">
-              <label class="form-label" style="font-size: 11.5px;">Link Ảnh Mặt Sau CCCD</label>
-              <input type="text" class="form-control" id="new-store-cccd-back" value="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80" required>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label" style="font-size: 11.5px;">Link Ảnh Chụp Chân Dung Lúc Đăng Ký</label>
-              <input type="text" class="form-control" id="new-store-portrait" value="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80" required>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group">
-              <label class="form-label">Danh mục món chính <span class="req">*</span></label>
-              <select class="form-control" id="new-store-category" required>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Trạng thái ban đầu <span class="req">*</span></label>
-              <select class="form-control" id="new-store-status" required style="font-weight: 700;">
-                <option value="PENDING" selected>Chờ duyệt (Khuyến nghị)</option>
-                <option value="OPEN">Đang hoạt động (Mở bán ngay)</option>
-                <option value="LOCKED">Bị khóa</option>
-                <option value="CLOSED">Tạm nghỉ</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Địa chỉ quán</label>
-            <input type="text" class="form-control" id="new-store-address" placeholder="VD: 45 Nguyễn Huệ, P. Bến Nghé, Quận 1">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mật khẩu đăng nhập ban đầu <span class="req">*</span></label>
-            <input type="text" class="form-control" id="new-store-password" value="Oishi@123456" required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-store')">Hủy</button>
-          <button type="submit" class="btn btn-primary">Tạo Cửa Hàng</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 6. NEW: MODAL RESOLVE COMPLAINT (XỬ LÝ KHIẾU NẠI) -->
-  <div class="modal-overlay" id="modal-resolve-complaint">
-    <div class="modal-dialog modal-dialog-lg">
-      <div class="modal-header">
-        <h3 id="modal-complaint-title">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary);"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>
-          <span>Chi Tiết & Quyết Định Xử Lý Khiếu Nại</span>
-        </h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-resolve-complaint')">&times;</button>
-      </div>
-      <form onsubmit="submitResolveComplaint(event)">
-        <input type="hidden" id="resolve-complaint-id">
-        <div class="modal-body">
-          
-          <!-- Box tổng quan khiếu nại -->
-          <div class="complaint-detail-box">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <span class="badge badge-info" id="detail-c-code">#---</span>
-                <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;" id="detail-c-time"></span>
-              </div>
-              <div id="detail-c-priority-badge"></div>
-            </div>
-
-            <!-- Bên khiếu nại vs bên bị khiếu nại -->
-            <div class="complaint-parties-grid">
-              <div class="party-card">
-                <div class="party-title">Người gửi khiếu nại (Nguồn)</div>
-                <div class="party-name" id="detail-c-sender-name">---</div>
-                <div class="party-sub" id="detail-c-sender-contact">---</div>
-              </div>
-              <div class="party-card" style="border-color: #FECACA; background: #FFF8F8;">
-                <div class="party-title" style="color: var(--danger);">Đối tượng bị khiếu nại</div>
-                <div class="party-name" id="detail-c-target-name">---</div>
-                <div class="party-sub" id="detail-c-target-contact">---</div>
-              </div>
-            </div>
-
-            <!-- Đơn hàng & sự cố -->
-            <div style="font-size: 13px; line-height: 1.5; padding-top: 6px; border-top: 1px dashed var(--border);">
-              <div style="margin-bottom: 4px;">
-                Đơn hàng: <strong id="detail-c-order" style="color: #2563EB;">---</strong> • Chủ đề: <strong id="detail-c-type">---</strong>
-              </div>
-              <div style="background: #FFF; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px;">
-                <strong>Nội dung phản ánh:</strong>
-                <p id="detail-c-content" style="color: var(--text-main); margin-top: 4px;"></p>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- PHẦN XỬ LÝ CỦA ADMIN (3 HÌNH THỨC: 1 CẢNH BÁO, 2 ẨN, 3 KHÓA TK) -->
-          <div style="background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: var(--radius-sm); padding: 16px; display: flex; flex-direction: column; gap: 14px;">
-            <div style="font-size: 14px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; justify-content: space-between;">
-              <span>Phán Quyết & Biện Pháp Xử Lý Của Admin</span>
-              <span style="font-size: 11px; color: #3B82F6; font-weight: 600;">Chọn 1 trong 3 mức xử lý</span>
-            </div>
-
-            <!-- 3 HÌNH THỨC XỬ LÝ: CẢNH BÁO - ẨN - KHÓA TK -->
-            <div class="form-group">
-              <label class="form-label" style="font-size: 13px; font-weight: 800; color: #1E3A8A;">
-                Biện pháp xử lý đối tượng vi phạm: <span class="req">*</span>
-              </label>
-              <div class="action-choice-grid">
-                <!-- 1. CẢNH BÁO -->
-                <div class="action-choice-card active-warn" id="card-action-warn" onclick="selectPenaltyAction('WARN')">
-                  <input type="radio" name="penalty_action" id="penalty-warn" value="WARN" checked>
-                  <div class="choice-icon"></div>
-                  <div class="choice-title" style="color: #D97706;">1. Cảnh Báo</div>
-                  <div class="choice-desc">Gửi cảnh cáo nhắc nhở vi phạm, tài khoản vẫn mở</div>
-                </div>
-
-                <!-- 2. ẨN -->
-                <div class="action-choice-card" id="card-action-hide" onclick="selectPenaltyAction('HIDE')">
-                  <input type="radio" name="penalty_action" id="penalty-hide" value="HIDE">
-                  <div class="choice-icon"></div>
-                  <div class="choice-title" style="color: #4F46E5;">2. Ẩn Tạm Thời</div>
-                  <div class="choice-desc">Tạm ẩn quán khỏi app / Tạm ngưng quyền đặt hàng</div>
-                </div>
-
-                <!-- 3. KHÓA TK -->
-                <div class="action-choice-card" id="card-action-lock" onclick="selectPenaltyAction('LOCK')">
-                  <input type="radio" name="penalty_action" id="penalty-lock" value="LOCK">
-                  <div class="choice-icon"></div>
-                  <div class="choice-title" style="color: var(--danger);">3. Khóa Tài Khoản</div>
-                  <div class="choice-desc">Khóa vĩnh viễn, cấm hoạt động trên Oishi Food</div>
-                </div>
-              </div>
-
-              <!-- Callout chi tiết chế tài -->
-              <div class="choice-action-callout" id="penalty-info-callout" style="background: #FEF3C7; border: 1px solid #FCD34D; color: #92400E;">
-                <strong>Mức 1 - Cảnh báo:</strong> Gửi biên bản cảnh cáo chính thức tới bên vi phạm. Tài khoản được ghi nhận 1 lần vi phạm nhưng vẫn được phép mở cửa / đặt hàng.
-              </div>
-            </div>
-
-
-
-            <!-- Ghi chú giải quyết -->
-            <div class="form-group">
-              <label class="form-label">Phản hồi chính thức của Admin gửi 2 bên <span class="req">*</span></label>
-              <textarea class="form-control" id="resolve-admin-note" placeholder="Nhập lý do phân xử, căn cứ biên bản hoặc hướng dẫn khắc phục..." required style="height: 70px;"></textarea>
-            </div>
-          </div>
-
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-resolve-complaint')">Đóng</button>
-          <button type="button" class="btn btn-danger-outline" onclick="quickRejectComplaint()">Bác Bỏ Khiếu Nại</button>
-          <button type="submit" class="btn btn-primary" id="btn-submit-resolve">Lưu Phán Quyết & Đóng Khiếu Nại</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 7. NEW: MODAL TẠO KHIẾU NẠI MỚI (HOTLINE/CSKH) -->
-  <div class="modal-overlay" id="modal-new-complaint">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>Tiếp Nhận Khiếu Nại Mới (CSKH Hotline)</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-new-complaint')">&times;</button>
-      </div>
-      <form onsubmit="saveNewComplaint(event)">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Nguồn gửi khiếu nại <span class="req">*</span></label>
-            <select class="form-control" id="new-c-sender-type" required>
-              <option value="CUSTOMER">Khách hàng khiếu nại quán / tài xế</option>
-              <option value="STORE">Quán ăn khiếu nại khách hàng / shipper</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Họ tên & SĐT người khiếu nại <span class="req">*</span></label>
-            <input type="text" class="form-control" id="new-c-sender" placeholder="VD: Trần Minh Anh (0901.234.567)" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Đối tượng bị phản ánh / khiếu nại <span class="req">*</span></label>
-            <input type="text" class="form-control" id="new-c-target" placeholder="VD: Quán Ốc Đêm 77 Cầu Muối" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mã đơn hàng liên quan (nếu có)</label>
-            <input type="text" class="form-control" id="new-c-order" placeholder="VD: #ORD-9912">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Loại sự cố / Chủ đề <span class="req">*</span></label>
-            <select class="form-control" id="new-c-type" required>
-              <option value="Chất lượng món & ATTP">Chất lượng món & ATTP</option>
-              <option value="Giao thiếu món">Giao thiếu món</option>
-              <option value="Boom hàng / Bùng đơn">Boom hàng / Bùng đơn</option>
-              <option value="Thái độ phục vụ / Shipper">Thái độ phục vụ / Shipper</option>
-              <option value="Thanh toán & Chiết khấu">Thanh toán & Chiết khấu</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Chi tiết nội dung phản ánh <span class="req">*</span></label>
-            <textarea class="form-control" id="new-c-content" placeholder="Mô tả sự việc chi tiết từ người gọi..." required></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mức độ ưu tiên</label>
-            <select class="form-control" id="new-c-priority">
-              <option value="CRITICAL">Khẩn cấp (Sức khỏe, ATTP, bạo lực)</option>
-              <option value="HIGH">Cao (Boom hàng, thiếu tiền lớn)</option>
-              <option value="MEDIUM" selected>Bình thường</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-new-complaint')">Hủy</button>
-          <button type="submit" class="btn btn-primary">Tạo Hồ Sơ Khiếu Nại</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  
-  <!-- 8. NEW: MODAL XEM HỒ SƠ CCCD & ẢNH ĐĂNG KÝ CỦA QUÁN -->
-  <div class="modal-overlay" id="modal-store-cccd">
-    <div class="modal-dialog modal-dialog-lg" style="max-width: 960px;">
-      <div class="modal-header">
-        <h3 id="modal-cccd-title">
-          <span>Hồ Sơ CCCD & Ảnh Đăng Ký Đối Tác</span>
-        </h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-store-cccd')">&times;</button>
-      </div>
-      <div class="modal-body">
-        
-        <!-- Header tóm tắt đối tác -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 18px; margin-bottom: 16px;">
-          <div>
-            <div style="font-size: 16px; font-weight: 800; color: var(--text-main);" id="cccd-view-store-name">---</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-              Chủ quán: <strong id="cccd-view-owner" style="color: var(--text-main);">---</strong> • SĐT: <strong id="cccd-view-phone">---</strong>
-            </div>
-          </div>
-          <div style="text-align: right;">
-            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Số Căn Cước Công Dân (CCCD):</div>
-            <div style="font-size: 17px; font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #2563EB;" id="cccd-view-number">---</div>
-            <div id="cccd-view-status-badge" style="margin-top: 4px;"></div>
-          </div>
-        </div>
-
-        <!-- 3 KHUNG ẢNH THẬT ĐĂNG KÝ (DEMO LINKS) -->
-        <div style="margin-bottom: 18px;">
-          <div style="font-size: 13px; font-weight: 800; color: var(--text-main); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
-            <span>Bộ 3 Ảnh Nhận Diện & Định Danh (Bấm vào ảnh để xem phóng to)</span>
-            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">Hỗ trợ kiểm tra trực quan</span>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-            
-            <!-- 1. Ảnh trước CCCD -->
-            <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; text-align: center; box-shadow: var(--shadow-sm);">
-              <div style="font-size: 12px; font-weight: 700; color: #1E40AF; margin-bottom: 6px; display: flex; justify-content: space-between;">
-                <span>Ảnh Mặt Trước CCCD</span>
-                <span class="badge-ekyc" style="font-size: 9px; padding: 1px 5px; background: #EFF6FF; color: #1D4ED8; border-radius: 4px;">Demo Link</span>
-              </div>
-              <div style="overflow: hidden; border-radius: 8px; height: 160px; background: #F1F5F9; cursor: pointer; border: 1px solid #CBD5E1;" onclick="previewImage(document.getElementById('cccd-modal-img-front').src, 'Ảnh Mặt Trước CCCD', document.getElementById('cccd-view-owner').textContent)">
-                <img id="cccd-modal-img-front" src="" alt="Mặt trước CCCD" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-              </div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Bấm để phóng to ảnh gốc</div>
-            </div>
-
-            <!-- 2. Ảnh sau CCCD -->
-            <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; text-align: center; box-shadow: var(--shadow-sm);">
-              <div style="font-size: 12px; font-weight: 700; color: #065F46; margin-bottom: 6px; display: flex; justify-content: space-between;">
-                <span>Ảnh Mặt Sau CCCD</span>
-                <span class="badge-ekyc" style="font-size: 9px; padding: 1px 5px; background: #ECFDF5; color: #065F46; border-radius: 4px;">Demo Link</span>
-              </div>
-              <div style="overflow: hidden; border-radius: 8px; height: 160px; background: #F1F5F9; cursor: pointer; border: 1px solid #CBD5E1;" onclick="previewImage(document.getElementById('cccd-modal-img-back').src, 'Ảnh Mặt Sau CCCD', document.getElementById('cccd-view-owner').textContent)">
-                <img id="cccd-modal-img-back" src="" alt="Mặt sau CCCD" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-              </div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Bấm để phóng to ảnh gốc</div>
-            </div>
-
-            <!-- 3. Ảnh chân dung đăng ký -->
-            <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; text-align: center; box-shadow: var(--shadow-sm);">
-              <div style="font-size: 12px; font-weight: 700; color: #9333EA; margin-bottom: 6px; display: flex; justify-content: space-between;">
-                <span>Ảnh Chụp Chân Dung Lúc ĐK</span>
-                <span class="badge-ekyc" style="font-size: 9px; padding: 1px 5px; background: #FAF5FF; color: #9333EA; border-radius: 4px;">Camera eKYC</span>
-              </div>
-              <div style="overflow: hidden; border-radius: 8px; height: 160px; background: #F1F5F9; cursor: pointer; border: 1px solid #CBD5E1;" onclick="previewImage(document.getElementById('cccd-modal-img-portrait').src, 'Ảnh Chụp Chân Dung Lúc Đăng Ký', document.getElementById('cccd-view-owner').textContent)">
-                <img id="cccd-modal-img-portrait" src="" alt="Chân dung đăng ký" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-              </div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Bấm để phóng to ảnh gốc</div>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- 3 KHUNG MÔ PHỎNG CHI TIẾT OCR -->
-        <div class="cccd-gallery-grid">
-          
-          <!-- 1. ẢNH CCCD MẶT TRƯỚC -->
-          <div class="cccd-card-wrapper">
-            <div class="cccd-card-label">
-              <span>Bóc Tách OCR Mặt Trước</span>
-              <span class="badge-ekyc">Chip Hợp Lệ</span>
-            </div>
-            <div class="cccd-front-mockup" id="cccd-front-card">
-              <div class="cccd-top-header">
-                <div class="cccd-emblem-wrap">
-                  <div class="cccd-emblem"></div>
-                </div>
-                <div class="cccd-header-text">
-                  <div class="nat-name">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-                  <div class="motto">Độc lập - Tự do - Hạnh phúc</div>
-                </div>
-              </div>
-              <div class="cccd-title-row">
-                <div class="cccd-main-title">CĂN CƯỚC CÔNG DÂN</div>
-                <div class="cccd-sub-title">CITIZEN IDENTITY CARD</div>
-              </div>
-              <div class="cccd-body-row">
-                <div class="cccd-avatar-box">
-                  <div style="font-size: 28px;" id="cccd-front-avatar-char"></div>
-                  <div style="font-size: 7px; color: #64748B; font-weight: 700;">3x4 PHOTO</div>
-                </div>
-                <div class="cccd-chip-box"></div>
-                <div class="cccd-details-col">
-                  <div class="cccd-id-num" id="cccd-front-num">---</div>
-                  <div class="cccd-info-line">Họ và tên: <strong id="cccd-front-name">---</strong></div>
-                  <div class="cccd-info-line">Ngày sinh: <span id="cccd-front-dob">---</span> • GT: <span id="cccd-front-gender">---</span></div>
-                  <div class="cccd-info-line">Quê quán: <span id="cccd-front-hometown">---</span></div>
-                  <div class="cccd-info-line">Thường trú: <span id="cccd-front-residence">---</span></div>
-                  <div class="cccd-info-line" style="margin-top: 2px;">Giá trị đến: <strong id="cccd-front-expiry">---</strong></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. ẢNH CCCD MẶT SAU -->
-          <div class="cccd-card-wrapper">
-            <div class="cccd-card-label">
-              <span>Bóc Tách OCR Mặt Sau</span>
-              <span class="badge-ekyc">MRZ Verified</span>
-            </div>
-            <div class="cccd-back-mockup">
-              <div class="cccd-back-top">
-                <div class="cccd-back-desc">
-                  <div style="font-weight: 800; font-size: 8.5px; color: #065F46;">ĐẶC ĐIỂM NHẬN DẠNG VÀ VÂN TAY:</div>
-                  <div style="margin-top: 2px;">Nốt ruồi / Dấu vết nhận dạng</div>
-                  <div style="margin-top: 4px; font-weight: 700;">Ngày cấp: <span id="cccd-back-issuedate">---</span></div>
-                  <div style="font-size: 7.5px; color: #64748B;">Nơi cấp: Cục Cảnh sát QLHC về TTXH</div>
-                </div>
-                <div class="cccd-back-stamp">
-                  CỤC TRƯỞNG<br>ĐÃ KÝ
-                </div>
-              </div>
-              <div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                  <div style="font-size: 7.5px; color: #64748B; font-weight: 700;">CHIP BẢO MẬT & MÃ VẠCH QUANG HỌC</div>
-                  <div style="font-size: 7.5px; color: #16A34A; font-weight: 700;">✓ CHÍNH CHỦ</div>
-                </div>
-                <div class="cccd-mrz-code" id="cccd-back-mrz">
-                  IDVNM<<<<<<<<<<<<<<<<<<<<<<<<br>
-                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<br>
-                  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 3. ẢNH CHỤP LÚC ĐĂNG KÝ -->
-          <div class="cccd-card-wrapper">
-            <div class="cccd-card-label">
-              <span>Đối Soát Khuôn Mặt</span>
-              <span class="badge-ekyc" style="background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE;">eKYC Live Match</span>
-            </div>
-            <div class="cccd-selfie-mockup">
-              <div class="selfie-face-box">
-                <div class="selfie-scan-line"></div>
-                <div class="selfie-avatar-circle" id="cccd-selfie-char">-</div>
-                <div style="font-size: 8px; color: #10B981; font-weight: 800;">FACE MATCH</div>
-              </div>
-              <div style="margin-top: 6px; font-size: 10px; color: #A7F3D0; font-weight: 700;" id="cccd-ekyc-score-label">
-                ✓ Khớp khuôn mặt: ---
-              </div>
-              <div class="selfie-timestamp-bar">
-                <span>📸 Camera eKYC</span>
-                <span id="cccd-selfie-time">---</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-      <div class="modal-footer" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-        <div>
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-store-cccd')">Đóng</button>
-        </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button type="button" class="btn btn-outline" onclick="setStoreStatusFromModal('PENDING')" style="color: #D97706; border-color: #F59E0B;">
-            Đặt Chờ Duyệt
-          </button>
-          <button type="button" class="btn btn-outline" onclick="setStoreStatusFromModal('CLOSED')" style="color: #475569; border-color: #94A3B8;">
-            Đặt Tạm Nghỉ
-          </button>
-          <button type="button" class="btn btn-danger-outline" onclick="setStoreStatusFromModal('LOCKED')">
-            Khóa Cửa Hàng
-          </button>
-          <button type="button" class="btn btn-primary" onclick="setStoreStatusFromModal('OPEN')" style="background: var(--success); border-color: var(--success);">
-            Duyệt & Đang Hoạt Động
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  </div>
-  </div>
-
-  <!-- MODAL REVIEW DETAIL & REPLY -->
-  <div class="modal-overlay" id="modal-review-detail">
-    <div class="modal-dialog" style="max-width: 580px;">
-      <div class="modal-header">
-        <h3 id="modal-rev-title">Chi Tiết Đánh Giá & Phản Hồi</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-review-detail')">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div style="display: flex; gap: 14px; align-items: center; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; margin-bottom: 14px;">
-          <div id="modal-rev-stars" style="font-size: 20px; color: #F59E0B;"></div>
-          <div>
-            <div style="font-weight: 800; font-size: 14px; color: var(--text-main);" id="modal-rev-dish"></div>
-            <div style="font-size: 12px; color: var(--text-muted);" id="modal-rev-store"></div>
-          </div>
-        </div>
-
-        <div style="margin-bottom: 12px;">
-          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Khách hàng:</div>
-          <div style="font-size: 13.5px; font-weight: 700; color: #0F172A;" id="modal-rev-customer"></div>
-          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" id="modal-rev-time"></div>
-        </div>
-
-        <div style="margin-bottom: 14px;">
-          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;">Nội dung nhận xét:</div>
-          <div class="review-bubble" id="modal-rev-comment"></div>
-          <div id="modal-rev-img-container" style="margin-top: 8px;"></div>
-        </div>
-
-        <!-- Admin Reply Form -->
-        <form onsubmit="saveReviewReply(event)">
-          <input type="hidden" id="modal-rev-id">
-          <div class="form-group">
-            <label class="form-label">Phản hồi của Admin / Cửa Hàng:</label>
-            <textarea class="form-control" id="modal-rev-reply-text" rows="3" placeholder="Nhập lời cảm ơn hoặc giải thích khắc phục sự cố gửi tới khách hàng..."></textarea>
-          </div>
-          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
-            <button type="button" class="btn btn-outline" onclick="closeModal('modal-review-detail')">Đóng</button>
-            <button type="submit" class="btn btn-primary">Gửi Phản Hồi Lên Firebase</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL ADD REVIEW -->
-  <div class="modal-overlay" id="modal-add-review">
-    <div class="modal-dialog" style="max-width: 540px;">
-      <div class="modal-header">
-        <h3>+ Thêm Đánh Giá Món Ăn Mới</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-add-review')">&times;</button>
-      </div>
-      <form onsubmit="saveNewReview(event)">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Cửa Hàng & Món Ăn <span class="req">*</span></label>
-            <select class="form-control" id="new-rev-dish-select" required>
-              <!-- Populated dynamically -->
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Tên khách hàng <span class="req">*</span></label>
-            <input type="text" class="form-control" id="new-rev-customer-name" placeholder="VD: Nguyễn Hoàng Phúc" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Số sao đánh giá <span class="req">*</span></label>
-            <select class="form-control" id="new-rev-rating" required>
-              <option value="5">⭐⭐⭐⭐⭐ 5 Sao - Xuất sắc</option>
-              <option value="4">⭐⭐⭐⭐ 4 Sao - Hài lòng</option>
-              <option value="3">⭐⭐⭐ 3 Sao - Bình thường</option>
-              <option value="2">⭐⭐ 2 Sao - Kém / Không ngon</option>
-              <option value="1">⭐ 1 Sao - Rất tệ / Không hài lòng</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Nội dung nhận xét <span class="req">*</span></label>
-            <textarea class="form-control" id="new-rev-comment" rows="3" placeholder="Nhập cảm nhận về hương vị, bao bì, nhiệt độ món ăn..." required></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Link ảnh minh họa (tùy chọn):</label>
-            <input type="url" class="form-control" id="new-rev-image" placeholder="https://images.unsplash.com/...">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-add-review')">Hủy bỏ</button>
-          <button type="submit" class="btn btn-primary">Lưu Đánh Giá Lên Firebase</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- TOAST CONTAINER -->
-  <div class="toast-container" id="toast-container"></div>
-
-  <!-- ==================== LOGIC JAVASCRIPT ==================== -->
-  <script>
-    /* ========================================================
-       1. INITIAL STATE (100% REAL FIREBASE REALTIME DATA)
-       ======================================================== */
-    const DEFAULT_CATEGORIES = [
-      { id: 'cat-rice', categoryId: 'cat-rice', name: 'Cơm Trưa', categoryName: 'Cơm Trưa', icon: '🍚', iconUrl: '🍚', desc: 'Cơm phần, cơm tấm, cơm văn phòng, cơm gà, cơm sườn', description: 'Cơm phần, cơm tấm, cơm văn phòng, cơm gà, cơm sườn', displayOrder: 1, status: 'ACTIVE', isActive: true },
-      { id: 'cat-milktea', categoryId: 'cat-milktea', name: 'Trà Sữa', categoryName: 'Trà Sữa', icon: '🧋', iconUrl: '🧋', desc: 'Trà sữa trân châu, trà trái cây tươi, macchiato, trà đào', description: 'Trà sữa trân châu, trà trái cây tươi, macchiato, trà đào', displayOrder: 2, status: 'ACTIVE', isActive: true },
-      { id: 'cat-noodle', categoryId: 'cat-noodle', name: 'Bún/Phở', categoryName: 'Bún/Phở', icon: '🍜', iconUrl: '🍜', desc: 'Bún bò Huế, phở bò tái nạm, hủ tiếu, mì Quảng, miến gà', description: 'Bún bò Huế, phở bò tái nạm, hủ tiếu, mì Quảng, miến gà', displayOrder: 3, status: 'ACTIVE', isActive: true },
-      { id: 'cat-chicken', categoryId: 'cat-chicken', name: 'Gà Rán', categoryName: 'Gà Rán', icon: '🍗', iconUrl: '🍗', desc: 'Gà rán giòn cay, gà sốt cay ngọt Hàn Quốc, burger gà', description: 'Gà rán giòn cay, gà sốt cay ngọt Hàn Quốc, burger gà', displayOrder: 4, status: 'ACTIVE', isActive: true },
-      { id: 'cat-bread', categoryId: 'cat-bread', name: 'Bánh Mì', categoryName: 'Bánh Mì', icon: '🥖', iconUrl: '🥖', desc: 'Bánh mì thịt nướng, bánh mì chảo, bánh mì que, bánh mì pate', description: 'Bánh mì thịt nướng, bánh mì chảo, bánh mì que, bánh mì pate', displayOrder: 5, status: 'ACTIVE', isActive: true },
-      { id: 'cat-pizza', categoryId: 'cat-pizza', name: 'Pizza', categoryName: 'Pizza', icon: '🍕', iconUrl: '🍕', desc: 'Pizza phô mai béo ngậy, pizza hải sản, pasta sốt bò băm', description: 'Pizza phô mai béo ngậy, pizza hải sản, pasta sốt bò băm', displayOrder: 6, status: 'ACTIVE', isActive: true },
-      { id: 'cat-coffee', categoryId: 'cat-coffee', name: 'Cà Phê', categoryName: 'Cà Phê', icon: '☕', iconUrl: '☕', desc: 'Cà phê phin truyền thống, bạc xỉu, cappuccino, cold brew', description: 'Cà phê phin truyền thống, bạc xỉu, cappuccino, cold brew', displayOrder: 7, status: 'ACTIVE', isActive: true },
-      { id: 'cat-dessert', categoryId: 'cat-dessert', name: 'Tráng Miệng / Ăn Vặt', categoryName: 'Tráng Miệng / Ăn Vặt', icon: '🍰', iconUrl: '🍰', desc: 'Chè bưởi, bánh ngọt, bánh crepe, kem tươi, đồ ăn vặt', description: 'Chè bưởi, bánh ngọt, bánh crepe, kem tươi, đồ ăn vặt', displayOrder: 8, status: 'ACTIVE', isActive: true },
-      { id: 'cat-hotpot', categoryId: 'cat-hotpot', name: 'Lẩu / Món Nước', categoryName: 'Lẩu / Món Nước', icon: '🍲', iconUrl: '🍲', desc: 'Lẩu thái chua cay, lẩu bò nhúng giấm, lẩu riêu cua, canh hầm', description: 'Lẩu thái chua cay, lẩu bò nhúng giấm, lẩu riêu cua, canh hầm', displayOrder: 9, status: 'ACTIVE', isActive: true },
-      { id: 'cat-vegetarian', categoryId: 'cat-vegetarian', name: 'Đồ Chay', categoryName: 'Đồ Chay', icon: '🥗', iconUrl: '🥗', desc: 'Cơm chay dinh dưỡng, bún nấm thanh đạm, rau củ thanh nhiệt', description: 'Cơm chay dinh dưỡng, bún nấm thanh đạm, rau củ thanh nhiệt', displayOrder: 10, status: 'ACTIVE', isActive: true },
-      { id: 'cat-other', categoryId: 'cat-other', name: 'Món Khác', categoryName: 'Món Khác', icon: '🍽️', iconUrl: '🍽️', desc: 'Món ăn đặc sản địa phương và thực đơn ẩm thực phong phú khác', description: 'Món ăn đặc sản địa phương và thực đơn ẩm thực phong phú khác', displayOrder: 11, status: 'ACTIVE', isActive: true }
-    ];
-    const DEFAULT_CUSTOMERS = [];
-    const DEFAULT_STORES = [];
-    const DEFAULT_COMPLAINTS = [];
-    const DEFAULT_LOGS = [];
-
-    // Xóa cache dữ liệu mẫu cũ trong trình duyệt để chỉ hiển thị dữ liệu thực từ Firebase
-    ['oishi_admin_customers', 'oishi_admin_stores', 'oishi_admin_complaints', 'oishi_admin_reviews', 'oishi_admin_logs'].forEach(k => {
-      try { localStorage.removeItem(k); } catch (_) {}
-    });
-
-    /* ========================================================
-       2. FIREBASE REALTIME DATABASE & STATE CONTROLLER
-       ======================================================== */
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE",
-      authDomain: "chuyen-de-2-2f0bc.firebaseapp.com",
-      databaseURL: "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "chuyen-de-2-2f0bc",
-      storageBucket: "chuyen-de-2-2f0bc.firebasedatabase.app",
-      appId: "1:15744841309:android:c3e22f3ec49b334e18bfb4"
-    };
-
-    let fbApp = null;
-    let fbAuth = null;
-    let fbDb = null;
-    let fbAdminUid = "ysEfpl1NfpZZ46EcBXxnTJT0Y7y2";
-    let isFirebaseReady = false;
-
-    let rawFbUsers = {};
-    let rawFbCustomers = {};
-    let rawFbDrivers = {};
-    let rawFbStores = {};
-    let rawFbOrders = {};
-    let rawFbComplaints = {};
-
-    let categories = [...DEFAULT_CATEGORIES];
-    let customers = [];
-    let stores = [];
-    let complaints = [];
-    let reviews = [];
-    let rawFbReviews = {};
-    let liveOrders = [];
-    let liveDrivers = [];
-
-    let adminProfile = JSON.parse(localStorage.getItem('oishi_admin_profile')) || {
-      name: 'Admin Hệ Thống',
-      email: 'admin@oishifood.vn',
-      phone: '',
-      role: 'Super Administrator'
-    };
-    let systemLogs = [];
-
-    function formatTimeAgo(ts) {
-      if (!ts) return 'Vừa xong';
-      if (typeof ts === 'string' && isNaN(Number(ts))) return ts;
-      const ms = Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts);
-      const diffSec = Math.floor((Date.now() - ms) / 1000);
-      if (diffSec < 60) return 'Vừa xong';
-      if (diffSec < 3600) return `${Math.floor(diffSec / 60)} phút trước`;
-      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} giờ trước`;
-      const d = new Date(ms);
-      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    }
-
-    function formatVnd(amount) {
-      return Number(amount || 0).toLocaleString('vi-VN') + 'đ';
-    }
-
-    function setFirebaseConnectionUI(state, text) {
-      const badge = document.getElementById('fb-conn-badge');
-      const label = document.getElementById('fb-conn-text');
-      if (!badge || !label) return;
-      badge.className = 'fb-live-pill ' + (state === 'online' ? '' : (state === 'connecting' ? 'connecting' : 'offline'));
-      label.textContent = text;
-    }
-
-    // Helper để tương thích đồng thời rule MERCHANT (users/drivers/menus) và ADMIN (customers/merchants) trên Firebase
-    async function writeWithAdminRole(writeFn) {
-      if (!fbDb || !fbAdminUid) return writeFn();
-      const roleRef = fbDb.ref(`users/${fbAdminUid}/role`);
-      try {
-        await roleRef.set('ADMIN');
-        const res = await writeFn();
-        await roleRef.set('MERCHANT');
-        return res;
-      } catch (err) {
-        try { await roleRef.set('MERCHANT'); } catch (_) {}
-        throw err;
-      }
-    }
-
-    async function initFirebaseRealtime() {
-      try {
-        if (typeof firebase === 'undefined') {
-          setFirebaseConnectionUI('offline', 'Firebase SDK Offline');
-          return;
-        }
-        setFirebaseConnectionUI('connecting', 'Đang xác thực Firebase...');
-        fbApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
-        fbAuth = firebase.auth();
-        fbDb = firebase.database();
-
-        try {
-          const cred = await fbAuth.signInWithEmailAndPassword('admin@gmail.com', '123456');
-          if (cred && cred.user) fbAdminUid = cred.user.uid;
-        } catch (authErr) {
-          try {
-            const created = await fbAuth.createUserWithEmailAndPassword('admin@gmail.com', '123456');
-            if (created && created.user) fbAdminUid = created.user.uid;
-          } catch (_) {}
-        }
-
-        if (fbAuth.currentUser) {
-          fbAdminUid = fbAuth.currentUser.uid;
-          await fbDb.ref(`users/${fbAdminUid}`).update({
-            uid: fbAdminUid,
-            fullName: adminProfile.name,
-            email: adminProfile.email,
-            phone: adminProfile.phone,
-            role: 'MERCHANT',
-            isActive: true
-          });
-        }
-
-        isFirebaseReady = true;
-
-        fbDb.ref('.info/connected').on('value', snap => {
-          if (snap.val() === true) {
-            setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
-          } else {
-            setFirebaseConnectionUI('connecting', 'Đang kết nối lại Firebase...');
-          }
-        });
-
-        attachRealtimeListeners();
-      } catch (err) {
-        console.error('Firebase Init Error:', err);
-        setFirebaseConnectionUI('offline', 'Lỗi kết nối Firebase');
-      }
-    }
-
-    function normalizeStoreRecord(id, s, idx = 0) {
-      let normStatus = s.storeStatus || s.status || (s.open === false ? 'CLOSED' : 'OPEN');
-      if (normStatus === 'HIDDEN') normStatus = 'CLOSED';
-      if (s.penaltyTier === 'LOCK') normStatus = 'LOCKED';
-      if (!['PENDING', 'OPEN', 'LOCKED', 'CLOSED'].includes(normStatus)) normStatus = 'OPEN';
-
-      const dishesObj = s.dishes && typeof s.dishes === 'object' ? s.dishes : {};
-      const dishCount = Object.keys(dishesObj).length;
-      const ratingNum = s.ratingAvg !== undefined ? Number(s.ratingAvg).toFixed(1) : (s.rating ? String(s.rating).replace('⭐', '').trim() : '5.0');
-
-      return {
-        ...s,
-        id: id,
-        storeId: id,
-        name: s.name || s.storeName || ('Cửa hàng #' + id),
-        owner: s.ownerName || s.owner || 'Chưa cập nhật',
-        ownerName: s.ownerName || s.owner || 'Chưa cập nhật',
-        phone: s.phone || s.ownerPhone || 'Chưa cập nhật',
-        cccdNumber: s.cccdNumber || 'Chưa cập nhật',
-        cccdFront: s.cccdFrontUrl || s.cccdFront || '',
-        cccdFrontUrl: s.cccdFrontUrl || s.cccdFront || '',
-        cccdBack: s.cccdBackUrl || s.cccdBack || '',
-        cccdBackUrl: s.cccdBackUrl || s.cccdBack || '',
-        registerPhoto: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || '',
-        cccdPortraitUrl: s.cccdPortraitUrl || s.registerPhoto || s.imageUrl || '',
-        cccdStatus: s.cccdStatus || (normStatus === 'OPEN' ? 'VERIFIED' : 'PENDING'),
-        dob: s.dob || 'Chưa cập nhật',
-        gender: s.gender || 'Chưa cập nhật',
-        hometown: s.hometown || 'Chưa cập nhật',
-        residence: s.residence || s.address || 'Chưa cập nhật',
-        issueDate: s.issueDate || 'Chưa cập nhật',
-        expireDate: s.expireDate || 'Chưa cập nhật',
-        registerTime: s.registerTime || (s.createdAt ? formatTimeAgo(s.createdAt) : 'Chưa cập nhật'),
-        ekycScore: s.ekycScore || 'N/A',
-        category: s.category || 'Chưa phân loại',
-        rating: `${ratingNum}`,
-        ratingAvg: parseFloat(ratingNum) || 5.0,
-        itemCount: dishCount > 0 ? dishCount : (s.itemCount || 0),
-        dishes: dishesObj,
-        status: normStatus,
-        storeStatus: normStatus,
-        open: normStatus === 'OPEN',
-        penaltyTier: s.penaltyTier || (normStatus === 'LOCKED' ? 'LOCK' : 'NONE'),
-        lockReason: s.lockReason || s.penaltyReason || '',
-        address: s.address || 'Chưa cập nhật'
-      };
-    }
-
-    function rebuildCustomersAndDrivers() {
-      // Cross-reference orders & complaints per user/customer
-      const custOrderCounts = {};
-      const custSpentSums = {};
-      const custLatestOrder = {};
-      const custComplaintCounts = {};
-      const driverOrderCounts = {};
-
-      Object.entries(rawFbOrders).forEach(([oid, o]) => {
-        if (!o || typeof o !== 'object') return;
-        if (o.customerId) {
-          const cid = o.customerId;
-          custOrderCounts[cid] = (custOrderCounts[cid] || 0) + 1;
-          custSpentSums[cid] = (custSpentSums[cid] || 0) + Number(o.totalPayment || o.total || o.totalAmount || 0);
-          const ts = Number(o.createdAt || o.timestamp || 0);
-          if (!custLatestOrder[cid] || ts >= (custLatestOrder[cid].ts || 0)) {
-            custLatestOrder[cid] = {
-              id: oid,
-              ts: ts,
-              address: o.address || o.deliveryAddress || '',
-              customerName: o.customerName || '',
-              customerPhone: o.customerPhone || '',
-              shopName: o.shopName || o.storeName || ''
-            };
-          }
-        }
-        if (o.shipperId) {
-          driverOrderCounts[o.shipperId] = (driverOrderCounts[o.shipperId] || 0) + 1;
-        }
-      });
-
-      Object.values(rawFbComplaints).forEach(cp => {
-        if (cp && cp.customerId) {
-          custComplaintCounts[cp.customerId] = (custComplaintCounts[cp.customerId] || 0) + 1;
-        }
-      });
-
-      // Map merchantId -> store object for cross-referencing merchant accounts
-      const merchantStoreMap = {};
-      Object.entries(rawFbStores).forEach(([sid, s]) => {
-        if (s && typeof s === 'object') {
-          const mid = s.merchantId || s.ownerId;
-          if (mid) merchantStoreMap[mid] = { ...s, id: sid };
-        }
-      });
-
-      const mergedCustMap = {};
-
-      // 1. From all users in rawFbUsers (excluding Admin account)
-      Object.entries(rawFbUsers).forEach(([uid, u]) => {
-        if (!u || typeof u !== 'object') return;
-        if (uid === fbAdminUid || u.email === 'admin@gmail.com') return;
-
-        const cNode = rawFbCustomers[uid] || {};
-        const dNode = rawFbDrivers[uid] || {};
-        const sNode = merchantStoreMap[uid] || (u.storeId ? rawFbStores[u.storeId] : null) || {};
-        const lastOrd = custLatestOrder[uid] || {};
-
-        let role = (u.role || cNode.role || '').toUpperCase();
-        if (!role) {
-          if (rawFbDrivers[uid]) role = 'DRIVER';
-          else if (merchantStoreMap[uid]) role = 'MERCHANT';
-          else role = 'CUSTOMER';
-        }
-        if (role === 'MANAGER') role = 'MERCHANT';
-        if (role === 'SHIPPER') role = 'DRIVER';
-
-        const rawSt = (u.status || cNode.status || '').toUpperCase();
-        const isLockedOrSusp = rawSt === 'LOCKED' || rawSt === 'SUSPENDED' || u.isActive === false || u.active === false || cNode.status === 'LOCKED';
-        const status = isLockedOrSusp ? (rawSt === 'SUSPENDED' ? 'SUSPENDED' : 'LOCKED') : 'ACTIVE';
-
-        const resolvedEmail = (u.email || cNode.email || dNode.email || sNode.email || '').trim();
-        const resolvedPhone = (u.phone || cNode.phone || dNode.phone || sNode.phone || lastOrd.customerPhone || '').trim();
-
-        let resolvedName = (u.fullName || u.name || cNode.name || cNode.fullName || dNode.name || sNode.ownerName || lastOrd.customerName || '').trim();
-        if (!resolvedName) {
-          if (resolvedEmail) resolvedName = resolvedEmail.split('@')[0];
-          else if (role === 'MERCHANT' && sNode.name) resolvedName = `Chủ quán: ${sNode.name}`;
-          else resolvedName = `Tài khoản #${uid.slice(0, 8)}`;
-        }
-
-        let resolvedArea = (u.address || cNode.address || cNode.area || lastOrd.address || sNode.district || sNode.address || '').trim();
-        if (resolvedArea.startsWith('Toạ độ:')) {
-          const parts = resolvedArea.split(',').map(p => p.trim());
-          if (parts.length >= 3) resolvedArea = parts.slice(2).join(', ');
-        }
-
-        const ordersCount = role === 'DRIVER'
-          ? (driverOrderCounts[uid] || dNode.totalOrdersCount || 0)
-          : (custOrderCounts[uid] !== undefined ? custOrderCounts[uid] : (cNode.totalOrders || cNode.orders || u.orders || 0));
-
-        mergedCustMap[uid] = {
-          id: uid,
-          uid: uid,
-          role: role,
-          name: resolvedName,
-          phone: resolvedPhone || 'Chưa cập nhật',
-          email: resolvedEmail || 'Chưa đồng bộ Gmail',
-          hasEmail: Boolean(resolvedEmail),
-          orders: ordersCount,
-          totalSpent: custSpentSums[uid] || 0,
-          complaintsCount: custComplaintCounts[uid] || 0,
-          lastOrderInfo: lastOrd.id ? `Đơn #${lastOrd.id.slice(-6)} (${formatTimeAgo(lastOrd.ts)})` : '',
-          storeName: sNode.name || '',
-          joined: u.joined || cNode.joined || (u.createdAt ? formatTimeAgo(u.createdAt) : (lastOrd.ts ? formatTimeAgo(lastOrd.ts) : 'Thành viên App')),
-          lastActiveTs: lastOrd.ts || u.createdAt || dNode.createdAt || 0,
-          area: resolvedArea || 'Chưa cập nhật',
-          trustScore: cNode.trustScore !== undefined ? Number(cNode.trustScore) : (u.trustScore !== undefined ? Number(u.trustScore) : 100),
-          status: status,
-          lockReason: u.lockReason || cNode.lockReason || ''
-        };
-      });
-
-      // 2. Any extra entries in customers node not in users
-      Object.entries(rawFbCustomers).forEach(([cid, c]) => {
-        if (!c || typeof c !== 'object' || mergedCustMap[cid]) return;
-        if (cid === fbAdminUid) return;
-        const lastOrd = custLatestOrder[cid] || {};
-        const resolvedEmail = (c.email || '').trim();
-        const resolvedPhone = (c.phone || lastOrd.customerPhone || '').trim();
-        const resolvedName = (c.name || c.fullName || lastOrd.customerName || (resolvedEmail ? resolvedEmail.split('@')[0] : `Tài khoản #${cid.slice(0, 8)}`)).trim();
-        let resolvedArea = (c.area || c.address || lastOrd.address || '').trim();
-        if (resolvedArea.startsWith('Toạ độ:')) {
-          const parts = resolvedArea.split(',').map(p => p.trim());
-          if (parts.length >= 3) resolvedArea = parts.slice(2).join(', ');
-        }
-        mergedCustMap[cid] = {
-          id: cid,
-          uid: cid,
-          role: 'CUSTOMER',
-          name: resolvedName,
-          phone: resolvedPhone || 'Chưa cập nhật',
-          email: resolvedEmail || 'Chưa đồng bộ Gmail',
-          hasEmail: Boolean(resolvedEmail),
-          orders: custOrderCounts[cid] !== undefined ? custOrderCounts[cid] : (c.totalOrders || c.orders || 0),
-          totalSpent: custSpentSums[cid] || 0,
-          complaintsCount: custComplaintCounts[cid] || 0,
-          lastOrderInfo: lastOrd.id ? `Đơn #${lastOrd.id.slice(-6)} (${formatTimeAgo(lastOrd.ts)})` : '',
-          storeName: '',
-          joined: c.joined || (lastOrd.ts ? formatTimeAgo(lastOrd.ts) : 'Thành viên App'),
-          lastActiveTs: lastOrd.ts || 0,
-          area: resolvedArea || 'Chưa cập nhật',
-          trustScore: c.trustScore !== undefined ? Number(c.trustScore) : 100,
-          status: (c.status || 'ACTIVE').toUpperCase(),
-          lockReason: c.lockReason || ''
-        };
-      });
-
-      customers = Object.values(mergedCustMap);
-
-      // Build liveDrivers from drivers node + users with role DRIVER/SHIPPER
-      const driverMap = {};
-      Object.entries(rawFbDrivers).forEach(([did, d]) => {
-        if (!d || typeof d !== 'object') return;
-        const u = rawFbUsers[did] || {};
-        const isDelivering = liveOrders.some(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
-        const activeOrder = liveOrders.find(o => o.shipperId === did && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
-        const st = isDelivering ? 'DELIVERING' : (d.isOnline === false || d.status === 'OFFLINE' ? 'OFFLINE' : 'AVAILABLE');
-        const dRating = d.rating !== undefined ? `${Number(d.rating).toFixed(1)} ⭐` : '5.0 ⭐';
-        driverMap[did] = {
-          id: did,
-          name: d.name || d.fullName || u.fullName || u.name || `Tài xế #${did.slice(0, 6)}`,
-          phone: d.phone || u.phone || 'Chưa cập nhật',
-          bike: d.vehiclePlate || d.licensePlate || d.bike || 'Chưa cập nhật',
-          ordersCount: driverOrderCounts[did] !== undefined ? driverOrderCounts[did] : (d.totalDeliveries || d.ordersCount || 0),
-          rating: `${Number(d.rating || 5.0).toFixed(1)}`,
-          status: st,
-          isActive: u.isActive !== false && d.status !== 'LOCKED',
-          statusText: activeOrder ? `Đang giao đơn #${activeOrder.id.slice(-6)}` : (st === 'AVAILABLE' ? 'Đang trực tuyến nhận đơn' : 'Đang nghỉ ca'),
-          avatar: d.avatarUrl || u.avatarUrl || '',
-          shopId: d.shopId || d.storeId || ''
-        };
-      });
-
-      Object.entries(rawFbUsers).forEach(([uid, u]) => {
-        if (!u || typeof u !== 'object' || driverMap[uid]) return;
-        if (uid === fbAdminUid || u.email === 'admin@gmail.com') return;
-        const role = (u.role || '').toUpperCase();
-        if (role === 'DRIVER' || role === 'SHIPPER') {
-          const isDelivering = liveOrders.some(o => o.shipperId === uid && (o.status === 'DELIVERING' || o.status === 'ASSIGNED'));
-          const uRating = u.rating !== undefined ? `${Number(u.rating).toFixed(1)} ⭐` : '5.0 ⭐';
-          driverMap[uid] = {
-            id: uid,
-            name: u.fullName || u.name || `Tài xế #${uid.slice(0, 6)}`,
-            phone: u.phone || 'Chưa cập nhật',
-            bike: u.vehiclePlate || 'Chưa cập nhật',
-            ordersCount: driverOrderCounts[uid] || 0,
-            rating: '5.0',
-            status: isDelivering ? 'DELIVERING' : 'AVAILABLE',
-            isActive: u.isActive !== false && u.status !== 'LOCKED',
-            statusText: isDelivering ? 'Đang giao đơn' : 'Đang sẵn sàng nhận đơn',
-            avatar: u.avatarUrl || '',
-            shopId: u.shopId || ''
-          };
-        }
-      });
-
-      liveDrivers = Object.values(driverMap);
-    }
-
-    function rebuildOrders() {
-      const list = [];
-      Object.entries(rawFbOrders).forEach(([oid, o]) => {
-        if (!o || typeof o !== 'object') return;
-        const storeId = o.shopId || o.storeId || '';
-        const storeObj = stores.find(s => s.id === storeId) || rawFbStores[storeId] || {};
-        const custUser = rawFbUsers[o.customerId] || rawFbCustomers[o.customerId] || {};
-        const drvUser = rawFbDrivers[o.shipperId] || rawFbUsers[o.shipperId] || {};
-
-        let itemsSummary = '';
-        if (typeof o.items === 'string') {
-          itemsSummary = o.items;
-        } else if (Array.isArray(o.items)) {
-          itemsSummary = o.items.map(it => `${it.quantity || 1}x ${it.dishName || it.name || 'Món ăn'}`).join(', ');
-        } else if (o.items && typeof o.items === 'object') {
-          itemsSummary = Object.values(o.items).map(it => `${it.quantity || 1}x ${it.dishName || it.name || 'Món ăn'}`).join(', ');
-        }
-        if (!itemsSummary) itemsSummary = 'Đơn đặt món';
-
-        const status = (o.status || o.orderStatus || 'PENDING').toUpperCase();
-        const totalAmount = Number(o.totalPayment || o.total || o.totalAmount || o.totalPrice || o.subtotalAmount || 0);
-        const createdAt = Number(o.createdAt || o.timestamp || Date.now());
-
-        list.push({
-          id: oid,
-          orderId: oid,
-          shopId: storeId,
-          storeName: o.shopName || o.storeName || storeObj.name || storeId || 'Chưa xác định',
-          customerId: o.customerId || '',
-          customer: o.customerName || custUser.fullName || custUser.name || (o.customerId ? `Khách #${o.customerId.slice(0, 6)}` : 'Khách đặt món'),
-          phone: o.customerPhone || custUser.phone || 'Chưa cập nhật',
-          address: o.deliveryAddress || o.address || custUser.address || 'Chưa cập nhật',
-          items: itemsSummary,
-          totalAmount: totalAmount,
-          shipperId: o.shipperId || '',
-          driver: o.shipperName || drvUser.name || drvUser.fullName || (o.shipperId ? `Tài xế (${o.shipperId.slice(0, 6)})` : 'Chưa gán tài xế'),
-          status: status,
-          time: formatTimeAgo(createdAt),
-          createdAt: createdAt,
-          note: o.note || ''
-        });
-      });
-
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      liveOrders = list;
-    }
-
-    function rebuildComplaints() {
-      const list = [];
-      Object.entries(rawFbComplaints).forEach(([cid, c]) => {
-        if (!c || typeof c !== 'object') return;
-        // Hỗ trợ cả định dạng Complaint từ Android App (ComplaintActivity.kt) và từ Admin Portal
-        const isAndroidFormat = !c.senderName && (c.reason || c.customerId || c.storeId);
-        if (isAndroidFormat) {
-          const cust = rawFbUsers[c.customerId] || rawFbCustomers[c.customerId] || {};
-          const st = stores.find(s => s.id === c.storeId) || rawFbStores[c.storeId] || {};
-          let parsedType = 'Khiếu nại dịch vụ';
-          let parsedContent = c.reason || 'Phản ánh từ ứng dụng khách hàng';
-          const bracketMatch = parsedContent.match(/^\[(.*?)\]\s*(.*)$/);
-          if (bracketMatch) {
-            parsedType = bracketMatch[1];
-            parsedContent = bracketMatch[2] || parsedContent;
-          }
-          list.push({
-            id: c.complaintId || cid,
-            senderType: c.senderType || 'CUSTOMER',
-            senderName: c.senderName || cust.fullName || cust.name || (c.customerId ? `Khách hàng (${c.customerId.slice(0, 6)})` : 'Khách hàng'),
-            senderContact: c.senderContact || cust.phone || c.customerId || '',
-            targetName: c.targetName || st.name || c.storeId || 'Chưa xác định',
-            targetContact: c.targetContact || (st.owner ? `${st.owner} (${st.phone || ''})` : ''),
-            storeId: c.storeId || '',
-            customerId: c.customerId || '',
-            orderId: c.orderId || '',
-            type: c.type || parsedType,
-            content: c.content || parsedContent,
-            evidenceImage: c.evidenceImage || '',
-            priority: c.priority || 'HIGH',
-            status: (c.status || 'PENDING').toUpperCase(),
-            adminNote: c.adminNote || '',
-            penaltyAction: c.penaltyApplied || c.penaltyAction || 'NONE',
-            time: c.time || formatTimeAgo(c.createdAt),
-            createdAt: c.createdAt || Date.now()
-          });
-        } else {
-          list.push({
-            ...c,
-            id: c.id || cid,
-            status: (c.status || 'PENDING').toUpperCase(),
-            priority: c.priority || 'MEDIUM',
-            time: c.time || formatTimeAgo(c.createdAt)
-          });
-        }
-      });
-
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      complaints = list;
-    }
-
-    const LEGACY_MOCK_IDS = new Set([
-      'KN-201', 'KN-202', 'KN-203', 'KN-204', 'KN-205', 'KN-206',
-      'store-1', 'store-2', 'store-3', 'store-4', 'store-5', 'store-6', 'store-7', 'store-8',
-      'cust-1', 'cust-2', 'cust-3', 'cust-4', 'cust-5', 'cust-6', 'cust-7', 'cust-8'
-    ]);
-
-    let _isFbListenersAttached = false;
-    function attachRealtimeListeners() {
-      if (!fbDb || _isFbListenersAttached) return;
-      _isFbListenersAttached = true;
-
-      // 1. STORES listener
-      fbDb.ref('stores').on('value', snap => {
-        const val = snap.val();
-        const cleaned = {};
-        if (val && typeof val === 'object') {
-          Object.entries(val).forEach(([id, s]) => {
-            if (LEGACY_MOCK_IDS.has(id)) {
-              fbDb.ref(`stores/${id}`).remove().catch(() => {});
-            } else {
-              cleaned[id] = s;
-            }
-          });
-        }
-        rawFbStores = cleaned;
-        stores = Object.entries(rawFbStores).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
-        rebuildOrders();
-        rebuildComplaints();
-        renderStores();
-        renderOverviewStores();
-        renderKPIs();
-        populateGlobalOrderStoreFilter();
-        if (currentDetailStoreId) refreshOpenStoreDetailModal();
-      });
-
-      // 2. USERS listener
-      fbDb.ref('users').on('value', snap => {
-        rawFbUsers = snap.val() || {};
-        rebuildCustomersAndDrivers();
-        rebuildOrders();
-        rebuildComplaints();
-        renderCustomers();
-        renderGlobalOrders();
-        renderGlobalDrivers();
-        renderComplaints();
-        renderKPIs();
-      });
-
-      // 3. CUSTOMERS listener
-      fbDb.ref('customers').on('value', snap => {
-        rawFbCustomers = snap.val() || {};
-        rebuildCustomersAndDrivers();
-        renderCustomers();
-        renderKPIs();
-      });
-
-      // 4. DRIVERS listener
-      fbDb.ref('drivers').on('value', snap => {
-        rawFbDrivers = snap.val() || {};
-        rebuildCustomersAndDrivers();
-        rebuildOrders();
-        renderGlobalDrivers();
-        renderGlobalOrders();
-        renderKPIs();
-      });
-
-      // 5. ORDERS listener
-      fbDb.ref('orders').on('value', snap => {
-        rawFbOrders = snap.val() || {};
-        rebuildOrders();
-        rebuildCustomersAndDrivers();
-        renderGlobalOrders();
-        renderGlobalDrivers();
-        renderCustomers();
-        renderKPIs();
-        if (currentDetailStoreId) refreshOpenStoreDetailModal();
-      });
-
-      // 6. COMPLAINTS listener
-      fbDb.ref('complaints').on('value', snap => {
-        const val = snap.val();
-        const cleaned = {};
-        if (val && typeof val === 'object') {
-          Object.entries(val).forEach(([id, c]) => {
-            if (LEGACY_MOCK_IDS.has(id)) {
-              fbDb.ref(`complaints/${id}`).remove().catch(() => {});
-            } else {
-              cleaned[id] = c;
-            }
-          });
-        }
-        rawFbComplaints = cleaned;
-        rebuildComplaints();
-        renderComplaints();
-        renderKPIs();
-      });
-
-      // 7. CATEGORIES listener (đồng bộ node categories & menus/categories)
-      const handleCategoriesSnapshot = (val) => {
-        if (val && typeof val === 'object' && Object.keys(val).length > 0) {
-          categories = Object.entries(val).map(([id, c], idx) => ({
-            ...c,
-            id: c.id || c.categoryId || id,
-            categoryId: c.categoryId || c.id || id,
-            name: c.name || c.categoryName || 'Danh mục',
-            categoryName: c.categoryName || c.name || 'Danh mục',
-            icon: c.icon || c.iconUrl || '🍽️',
-            iconUrl: c.iconUrl || c.icon || '🍽️',
-            desc: c.desc || c.description || '',
-            description: c.description || c.desc || '',
-            displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
-            count: c.count || 0,
-            status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
-            isActive: c.isActive !== false && c.status !== 'HIDDEN'
-          })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
-        } else {
-          // Nếu rỗng, kiểm tra menus/categories
-          fbDb.ref('menus/categories').once('value').then(mSnap => {
-            const mVal = mSnap.val();
-            if (mVal && typeof mVal === 'object' && Object.keys(mVal).length > 0) {
-              categories = Object.entries(mVal).map(([id, c], idx) => ({
-                ...c,
-                id: c.id || c.categoryId || id,
-                categoryId: c.categoryId || c.id || id,
-                name: c.name || c.categoryName || 'Danh mục',
-                categoryName: c.categoryName || c.name || 'Danh mục',
-                icon: c.icon || c.iconUrl || '🍽️',
-                iconUrl: c.iconUrl || c.icon || '🍽️',
-                desc: c.desc || c.description || '',
-                description: c.description || c.desc || '',
-                displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
-                count: c.count || 0,
-                status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
-                isActive: c.isActive !== false && c.status !== 'HIDDEN'
-              })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
-              // Migrate sang cả categories
-              const mig = {};
-              categories.forEach(item => { mig[`categories/${item.id}`] = item; });
-              fbDb.ref().update(mig).catch(() => {});
-            } else {
-              // Cả 2 đều rỗng -> Tự động seed 11 danh mục nền tảng mặc định!
-              categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-              seedDefaultCategories();
-            }
-            renderCategories();
-            renderKPIs();
-            populateStoreCategoryDropdowns();
-          });
-          return;
-        }
-        renderCategories();
-        renderKPIs();
-        populateStoreCategoryDropdowns();
-      };
-
-      fbDb.ref('categories').on('value', snap => {
-        handleCategoriesSnapshot(snap.val());
-      }, err => {
-        fbDb.ref('menus/categories').on('value', mSnap => {
-          handleCategoriesSnapshot(mSnap.val());
-        });
-      });
-
-      fbDb.ref('menus/categories').on('value', snap => {
-        if (snap.val()) handleCategoriesSnapshot(snap.val());
-      });
-
-      // 8. ADMIN LOGS listener (menus/admin_logs)
-      fbDb.ref('menus/admin_logs').limitToLast(25).on('value', snap => {
-        const val = snap.val();
-        if (val && typeof val === 'object') {
-          systemLogs = Object.values(val).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        } else {
-          systemLogs = [];
-        }
-        renderLogs();
-      });
-
-      // 9. DISH REVIEWS listener (dish_reviews)
-      fbDb.ref('dish_reviews').on('value', snap => {
-        const val = snap.val();
-        rawFbReviews = (val && typeof val === 'object') ? val : {};
-        rebuildReviews();
-        renderReviews();
-        renderReviewKPIs();
-        populateReviewStoreFilter();
-      });
-    }
-
-    async function syncFromFirebaseNow() {
-      if (!fbDb) {
-        await initFirebaseRealtime();
-        return;
-      }
-      setFirebaseConnectionUI('connecting', 'Đang đồng bộ...');
-      try {
-        const [stSnap, usSnap, cuSnap, drSnap, odSnap, cpSnap, catSnap, logSnap, rvSnap] = await Promise.all([
-          fbDb.ref('stores').once('value'),
-          fbDb.ref('users').once('value'),
-          fbDb.ref('customers').once('value'),
-          fbDb.ref('drivers').once('value'),
-          fbDb.ref('orders').once('value'),
-          fbDb.ref('complaints').once('value'),
-          fbDb.ref('categories').once('value'),
-          fbDb.ref('menus/admin_logs').limitToLast(25).once('value'),
-          fbDb.ref('dish_reviews').once('value')
-        ]);
-        rawFbStores = stSnap.val() || {};
-        rawFbUsers = usSnap.val() || {};
-        rawFbCustomers = cuSnap.val() || {};
-        rawFbDrivers = drSnap.val() || {};
-        rawFbOrders = odSnap.val() || {};
-        rawFbComplaints = cpSnap.val() || {};
-        let catVal = catSnap.val();
-        if (!catVal || typeof catVal !== 'object' || Object.keys(catVal).length === 0) {
-          const mSnap = await fbDb.ref('menus/categories').once('value');
-          catVal = mSnap.val();
-        }
-        categories = (catVal && typeof catVal === 'object' && Object.keys(catVal).length > 0)
-          ? Object.entries(catVal).map(([id, c], idx) => ({
-              ...c,
-              id: c.id || c.categoryId || id,
-              categoryId: c.categoryId || c.id || id,
-              name: c.name || c.categoryName || 'Danh mục',
-              categoryName: c.categoryName || c.name || 'Danh mục',
-              icon: c.icon || c.iconUrl || '🍽️',
-              iconUrl: c.iconUrl || c.icon || '🍽️',
-              desc: c.desc || c.description || '',
-              description: c.description || c.desc || '',
-              displayOrder: (c.displayOrder !== undefined && c.displayOrder !== null) ? Number(c.displayOrder) : (idx + 1),
-              count: c.count || 0,
-              status: c.status || (c.isActive === false ? 'HIDDEN' : 'ACTIVE'),
-              isActive: c.isActive !== false && c.status !== 'HIDDEN'
-            })).sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99))
-          : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-        const logVal = logSnap.val();
-        systemLogs = (logVal && typeof logVal === 'object')
-          ? Object.values(logVal).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-          : [];
-        rawFbReviews = rvSnap ? (rvSnap.val() || {}) : {};
-        stores = Object.entries(rawFbStores).map(([id, s], idx) => normalizeStoreRecord(id, s, idx));
-        rebuildOrders();
-        rebuildCustomersAndDrivers();
-        rebuildComplaints();
-        rebuildReviews();
-        renderKPIs();
-        renderOverviewStores();
-        renderLogs();
-        renderCategories();
-        renderCustomers();
-        renderStores();
-        renderGlobalOrders();
-        renderGlobalDrivers();
-        renderComplaints();
-        renderReviews();
-        renderReviewKPIs();
-        populateReviewStoreFilter();
-        setFirebaseConnectionUI('online', 'Firebase Live • chuyen-de-2-2f0bc');
-        showToast(`Đã đồng bộ trực tiếp: ${stores.length} quán, ${customers.length} khách, ${liveOrders.length} đơn hàng!`, 'success');
-      } catch (e) {
-        setFirebaseConnectionUI('offline', 'Lỗi đồng bộ Firebase');
-        showToast('Không thể đồng bộ dữ liệu: ' + e.message, 'danger');
-      }
-    }
-
-    function saveState() {
-      localStorage.setItem('oishi_admin_profile', JSON.stringify(adminProfile));
-    }
-
-    function addLog(action, type = 'info') {
-      const logEntry = {
-        time: formatTimeAgo(Date.now()),
-        timestamp: Date.now(),
-        action: action,
-        admin: adminProfile.name.split(' ').slice(-2).join(' ') || 'Admin',
-        type: type
-      };
-      systemLogs.unshift(logEntry);
-      if (systemLogs.length > 25) systemLogs.pop();
-      renderLogs();
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref('menus/admin_logs').push(logEntry).catch(() => {});
-      }
-    }
-
-    /* ========================================================
-       3. DOM INITIALIZATION
-       ======================================================== */
-    window.addEventListener('DOMContentLoaded', () => {
-      updateAdminDisplay();
-      renderKPIs();
-      renderOverviewStores();
-      renderLogs();
-      renderCategories();
-      renderCustomers();
-      renderStores();
-      renderComplaints();
-      renderReviews();
-      populateStoreCategoryDropdowns();
-      populateReviewStoreFilter();
-      initFirebaseRealtime();
-    });
-
-    /* ========================================================
-       4. ADMIN PROFILE & AUTH
-       ======================================================== */
-    function updateAdminDisplay() {
-      const nameEl = document.getElementById('display-admin-name');
-      const charEl = document.getElementById('admin-avatar-char');
-      const nameInput = document.getElementById('setting-admin-name');
-      const emailInput = document.getElementById('setting-admin-email');
-      const phoneInput = document.getElementById('setting-admin-phone');
-
-      if (nameEl) nameEl.textContent = adminProfile.name;
-      if (charEl) {
-        const parts = adminProfile.name.trim().split(' ');
-        charEl.textContent = parts[parts.length - 1].charAt(0).toUpperCase();
-      }
-      if (nameInput) nameInput.value = adminProfile.name;
-      if (emailInput) emailInput.value = adminProfile.email;
-      if (phoneInput) phoneInput.value = adminProfile.phone;
-    }
-
-    function toggleAdminDropdown(e) {
-      e.stopPropagation();
-      const dropdown = document.getElementById('admin-dropdown');
-      dropdown.classList.toggle('show');
-    }
-
-    window.addEventListener('click', () => {
-      const dropdown = document.getElementById('admin-dropdown');
-      if (dropdown) dropdown.classList.remove('show');
-    });
-
-    function openAdminProfileModal() {
-      switchTab('settings');
-    }
-
-    function openAdminPasswordModal() {
-      switchTab('settings');
-      setTimeout(() => {
-        const passInput = document.getElementById('admin-curr-pass');
-        if (passInput) passInput.focus();
-      }, 200);
-    }
-
-    function saveAdminSettings(e) {
-      e.preventDefault();
-      const newName = document.getElementById('setting-admin-name').value.trim();
-      const newEmail = document.getElementById('setting-admin-email').value.trim();
-      const newPhone = document.getElementById('setting-admin-phone').value.trim();
-
-      if (!newName) {
-        showToast('Vui lòng nhập họ tên Admin', 'warning');
-        return;
-      }
-
-      adminProfile.name = newName;
-      adminProfile.email = newEmail;
-      adminProfile.phone = newPhone;
-      saveState();
-      updateAdminDisplay();
-      if (fbDb && fbAdminUid) {
-        fbDb.ref(`users/${fbAdminUid}`).update({
-          fullName: newName,
-          email: newEmail,
-          phone: newPhone
-        }).catch(() => {});
-      }
-      addLog(`Cập nhật thông tin Admin: ${newName}`, 'success');
-      showToast('Đã lưu hồ sơ Admin lên Firebase Realtime Database!', 'success');
-    }
-
-    async function changeAdminPassword(e) {
-      e.preventDefault();
-      const currPass = document.getElementById('admin-curr-pass').value;
-      const newPass = document.getElementById('admin-new-pass').value;
-      const confirmPass = document.getElementById('admin-confirm-pass').value;
-
-      if (newPass !== confirmPass) {
-        showToast('Mật khẩu mới và xác nhận mật khẩu không trùng khớp!', 'danger');
-        return;
-      }
-      if (newPass.length < 6) {
-        showToast('Mật khẩu mới phải có tối thiểu 6 ký tự!', 'warning');
-        return;
-      }
-
-      try {
-        if (fbAuth && fbAuth.currentUser) {
-          await fbAuth.currentUser.updatePassword(newPass);
-        }
-      } catch (_) {}
-
-      document.getElementById('admin-curr-pass').value = '';
-      document.getElementById('admin-new-pass').value = '';
-      document.getElementById('admin-confirm-pass').value = '';
-
-      addLog('Đổi mật khẩu tài khoản Admin thành công', 'info');
-      showToast('Đã đổi mật khẩu Admin thành công!', 'success');
-    }
-
-    function adminLogout() {
-      if (confirm('Bạn có chắc chắn muốn đăng xuất khỏi trang Quản trị Oishi Food?')) {
-        showToast('Đang đăng xuất...', 'info');
-        setTimeout(() => {
-          location.reload();
-        }, 800);
-      }
-    }
-
-    async function resetDefaultData() {
-      if (confirm('Làm mới và đồng bộ lại toàn bộ dữ liệu thực tế từ Firebase Realtime Database?')) {
-        localStorage.removeItem('oishi_admin_stores');
-        localStorage.removeItem('oishi_admin_customers');
-        localStorage.removeItem('oishi_admin_complaints');
-        localStorage.removeItem('oishi_admin_reviews');
-        localStorage.removeItem('oishi_admin_categories');
-        localStorage.removeItem('oishi_admin_logs');
-        await syncFromFirebaseNow();
-        showToast('Đã làm mới dữ liệu từ Firebase thành công!', 'success');
-      }
-    }
-
-
-    /* ========================================================
-       5. TABS & NAVIGATION CONTROLLER
-       ======================================================== */
-    function switchTab(tabId) {
-      document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
-        if (item.getAttribute('data-tab') === tabId) {
-          item.classList.add('active');
-        } else {
-          item.classList.remove('active');
-        }
-      });
-
-      document.querySelectorAll('.tab-pane').forEach(pane => {
-        pane.classList.remove('active');
-      });
-
-      const activePane = document.getElementById('tab-' + tabId);
-      if (activePane) activePane.classList.add('active');
-
-      const titleEl = document.getElementById('topbar-title');
-      if (tabId === 'overview') titleEl.textContent = 'Bảng Điều Khiển Tổng Quan (Firebase Live)';
-      else if (tabId === 'categories') titleEl.textContent = 'Quản Lý Danh Mục Nền Tảng';
-      else if (tabId === 'customers') titleEl.textContent = 'Quản Lý Khách Hàng';
-      else if (tabId === 'stores') titleEl.textContent = 'Quản Lý Đối Tác Cửa Hàng';
-      else if (tabId === 'orders') titleEl.textContent = 'Điều Phối Đơn Hàng & Đội Ngũ Tài Xế (Realtime)';
-      else if (tabId === 'complaints') titleEl.textContent = 'Xử Lý Khiếu Nại & Báo Cáo Vi Phạm';
-      else if (tabId === 'reviews') titleEl.textContent = 'Kiểm Duyệt Đánh Giá Món Ăn (Dish Reviews Live)';
-      else if (tabId === 'settings') titleEl.textContent = 'Cài Đặt & Tài Khoản Admin';
-
-      renderKPIs();
-      if (tabId === 'categories') renderCategories();
-      if (tabId === 'customers') renderCustomers();
-      if (tabId === 'stores') renderStores();
-      if (tabId === 'orders') {
-        populateGlobalOrderStoreFilter();
-        renderGlobalOrders();
-        renderGlobalDrivers();
-      }
-      if (tabId === 'complaints') renderComplaints();
-      if (tabId === 'reviews') {
-        populateReviewStoreFilter();
-        renderReviews();
-        renderReviewKPIs();
-      }
-    }
-
-    /* ========================================================
-       6. KPI RENDERING & LOGS
-       ======================================================== */
-    function renderKPIs() {
-      // Categories
-      const catCountEl = document.getElementById('kpi-total-cats');
-      if (catCountEl && catCountEl.textContent !== String(categories.length)) {
-        catCountEl.textContent = categories.length;
-      }
-      const catBadgeEl = document.getElementById('badge-cat-count');
-      if (catBadgeEl && catBadgeEl.textContent !== String(categories.length)) {
-        catBadgeEl.textContent = categories.length;
-      }
-
-      // Customers
-      document.getElementById('kpi-total-customers').textContent = customers.length;
-      document.getElementById('badge-customer-count').textContent = customers.length;
-      const activeCustomers = customers.filter(c => c.status === 'ACTIVE').length;
-      document.getElementById('kpi-active-customers').textContent = `${activeCustomers} đang hoạt động`;
-
-      // Stores (4 trạng thái: Chờ duyệt, Đang hoạt động, Bị khóa, Tạm nghỉ)
-      document.getElementById('kpi-total-stores').textContent = stores.length;
-      const lockedStores = stores.filter(s => s.status === 'LOCKED').length;
-      const pendingStores = stores.filter(s => s.status === 'PENDING').length;
-      const openStores = stores.filter(s => s.status === 'OPEN').length;
-      const closedStores = stores.filter(s => s.status === 'CLOSED').length;
-      const lockedBadge = document.getElementById('badge-locked-store');
-      if (lockedBadge) {
-        if (pendingStores > 0) {
-          lockedBadge.textContent = `${pendingStores} Chờ duyệt`;
-          lockedBadge.style.display = 'inline-block';
-          lockedBadge.style.background = '#FEF3C7';
-          lockedBadge.style.color = '#B45309';
-        } else if (lockedStores > 0) {
-          lockedBadge.textContent = `${lockedStores} Khóa`;
-          lockedBadge.style.display = 'inline-block';
-          lockedBadge.style.background = '#FEE2E2';
-          lockedBadge.style.color = '#B91C1C';
-        } else {
-          lockedBadge.style.display = 'none';
-        }
-      }
-      document.getElementById('kpi-locked-stores').textContent = `${openStores} hoạt động • ${pendingStores} chờ duyệt • ${lockedStores} khóa • ${closedStores} nghỉ`;
-
-      // Orders KPIs
-      const totalOrdersCount = liveOrders.length;
-      const completedOrdersCount = liveOrders.filter(o => o.status === 'COMPLETED').length;
-      const processingOrdersCount = liveOrders.filter(o => ['PENDING', 'PREPARING', 'READY', 'ASSIGNED'].includes(o.status)).length;
-      const deliveringOrdersCount = liveOrders.filter(o => o.status === 'DELIVERING').length;
-      const failedOrdersCount = liveOrders.filter(o => o.status === 'BOOM' || o.status === 'CANCELLED').length;
-      const totalRevenue = liveOrders.filter(o => o.status === 'COMPLETED').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-
-      if (document.getElementById('kpi-total-orders')) document.getElementById('kpi-total-orders').textContent = totalOrdersCount;
-      if (document.getElementById('badge-orders-count')) document.getElementById('badge-orders-count').textContent = totalOrdersCount;
-      if (document.getElementById('kpi-orders-sub')) {
-        document.getElementById('kpi-orders-sub').textContent = `${completedOrdersCount} hoàn tất • ${deliveringOrdersCount + processingOrdersCount} đang xử lý`;
-      }
-      if (document.getElementById('kpi-ord-total')) document.getElementById('kpi-ord-total').textContent = totalOrdersCount;
-      if (document.getElementById('kpi-ord-processing')) document.getElementById('kpi-ord-processing').textContent = processingOrdersCount;
-      if (document.getElementById('kpi-ord-delivering')) document.getElementById('kpi-ord-delivering').textContent = deliveringOrdersCount;
-      if (document.getElementById('kpi-ord-completed')) document.getElementById('kpi-ord-completed').textContent = completedOrdersCount;
-      if (document.getElementById('kpi-ord-failed')) document.getElementById('kpi-ord-failed').textContent = failedOrdersCount;
-      if (document.getElementById('kpi-ord-revenue')) document.getElementById('kpi-ord-revenue').textContent = `Doanh thu: ${formatVnd(totalRevenue)}`;
-
-      // Complaints KPIs
-      const pendingCount = complaints.filter(c => c.status === 'PENDING').length;
-      const progressCount = complaints.filter(c => c.status === 'IN_PROGRESS').length;
-      const resolvedCount = complaints.filter(c => c.status === 'RESOLVED').length;
-      const rejectedCount = complaints.filter(c => c.status === 'REJECTED').length;
-      const criticalCount = complaints.filter(c => c.priority === 'CRITICAL' && c.status === 'PENDING').length;
-
-      const complaintBadge = document.getElementById('badge-complaints-count');
-      if (complaintBadge) {
-        complaintBadge.textContent = `${pendingCount} Mới`;
-        complaintBadge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
-      }
-
-      const kpiPendingEl = document.getElementById('kpi-pending-complaints');
-      if (kpiPendingEl) kpiPendingEl.textContent = pendingCount;
-
-      const kpiSubEl = document.getElementById('kpi-complaint-sub');
-      if (kpiSubEl) {
-        kpiSubEl.textContent = criticalCount > 0 ? `${criticalCount} khiếu nại khẩn cấp` : `${progressCount} đơn đang xử lý`;
-      }
-
-      if (document.getElementById('kpi-c-pending')) document.getElementById('kpi-c-pending').textContent = pendingCount;
-      if (document.getElementById('kpi-c-progress')) document.getElementById('kpi-c-progress').textContent = progressCount;
-      if (document.getElementById('kpi-c-resolved')) document.getElementById('kpi-c-resolved').textContent = resolvedCount;
-      if (document.getElementById('kpi-c-rejected')) document.getElementById('kpi-c-rejected').textContent = rejectedCount;
-    }
-
-    function renderOverviewStores() {
-      const tbody = document.getElementById('tbody-overview-stores');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-
-      if (stores.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 12.5px;">Chưa có cửa hàng nào trên Firebase Realtime Database.</td></tr>`;
-        return;
-      }
-
-      const sorted = [...stores].sort((a, b) => {
-        if (a.status === 'PENDING') return -1;
-        if (b.status === 'PENDING') return 1;
-        if (a.status === 'LOCKED') return -1;
-        if (b.status === 'LOCKED') return 1;
-        return 0;
-      }).slice(0, 6);
-      
-      if (sorted.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px; font-size: 13px;">Chưa có cửa hàng nào trên hệ thống Firebase</td></tr>`;
-        return;
-      }
-      
-      sorted.forEach(s => {
-        const tr = document.createElement('tr');
-        let statusBadge = '';
-        if (s.status === 'PENDING') {
-          statusBadge = '<span class="badge badge-status-pending"><span class="badge-dot"></span>Chờ duyệt</span>';
-        } else if (s.status === 'OPEN') {
-          statusBadge = '<span class="badge badge-status-open"><span class="badge-dot"></span>Đang hoạt động</span>';
-        } else if (s.status === 'LOCKED') {
-          statusBadge = '<span class="badge badge-status-locked"><span class="badge-dot"></span>Bị khóa</span>';
-        } else {
-          statusBadge = '<span class="badge badge-status-closed"><span class="badge-dot"></span>Tạm nghỉ</span>';
-        }
-
-        tr.innerHTML = `
-          <td>
-            <strong>${s.name}</strong>
-            <div style="font-size: 11px; color: var(--text-muted);">${s.category} • ${s.itemCount || 0} món</div>
-          </td>
-          <td>
-            <div>${s.owner}</div>
-            <div style="font-size: 11px; color: var(--text-light); font-family: monospace;">${s.phone}</div>
-          </td>
-          <td>
-            ${statusBadge}
-          </td>
-          <td style="text-align: right;">
-            <button class="btn btn-sm btn-outline" onclick="openStoreDetailModal('${s.id}')" style="padding: 2px 8px; font-size: 11px;">
-              Quản lý quán
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function renderLogs() {
-      const container = document.getElementById('logs-container');
-      if (!container) return;
-      container.innerHTML = '';
-
-      if (systemLogs.length === 0) {
-        container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">Chưa có nhật ký nào.</div>';
-        return;
-      }
-
-      systemLogs.slice(0, 8).forEach(l => {
-        const dotColor = l.type === 'danger' ? 'var(--danger)' : (l.type === 'success' ? 'var(--success)' : 'var(--info)');
-        const div = document.createElement('div');
-        div.style.cssText = 'display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 12px;';
-        div.innerHTML = `
-          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${dotColor}; margin-top: 5px; flex-shrink: 0;"></div>
-          <div style="flex: 1;">
-            <div style="font-weight: 600; color: var(--text-main);">${l.action}</div>
-            <div style="color: var(--text-light); font-size: 11px;">bởi ${l.admin} • ${l.time}</div>
-          </div>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    function clearLogs() {
-      if (confirm('Xóa sạch lịch sử nhật ký thao tác?')) {
-        systemLogs = [];
-        saveState();
-        if (fbDb && isFirebaseReady) fbDb.ref('menus/admin_logs').remove().catch(() => {});
-        renderLogs();
-        showToast('Đã xóa nhật ký hoạt động trên Firebase', 'info');
-      }
-    }
-
-    /* ========================================================
-       7. CATEGORY MANAGEMENT (QUẢN LÝ DANH MỤC NỀN TẢNG)
-       ======================================================== */
-    function filterCategories() {
-      renderCategories();
-    }
-
-    function updateCatIconPreview(val) {
-      const preview = document.getElementById('cat-icon-preview');
-      if (!preview) return;
-      const clean = (val || '').trim();
-      if (!clean) {
-        preview.innerHTML = '🍽️';
-        return;
-      }
-      if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('/')) {
-        preview.innerHTML = `<img src="${clean}" style="width: 28px; height: 28px; object-fit: contain;">`;
-      } else {
-        preview.innerHTML = `<span style="font-size: 22px;">${clean}</span>`;
-      }
-    }
-
-    function selectQuickEmoji(emoji) {
-      const input = document.getElementById('form-cat-icon');
-      if (input) {
-        input.value = emoji;
-        updateCatIconPreview(emoji);
-      }
-    }
-
-    function seedDefaultCategories(force = false) {
-      if (!fbDb || !isFirebaseReady) return;
-      const updates = {};
-      DEFAULT_CATEGORIES.forEach((cat, idx) => {
-        const item = {
-          ...cat,
-          id: cat.id,
-          categoryId: cat.id,
-          name: cat.name,
-          categoryName: cat.name,
-          icon: cat.icon,
-          iconUrl: cat.icon,
-          desc: cat.desc,
-          description: cat.desc,
-          displayOrder: idx + 1,
-          status: 'ACTIVE',
-          isActive: true,
-          updatedAt: Date.now()
-        };
-        updates[`categories/${cat.id}`] = item;
-        updates[`menus/categories/${cat.id}`] = item;
-      });
-      fbDb.ref().update(updates).then(() => {
-        addLog('Khởi tạo tự động 11 danh mục nền tảng mặc định trên Firebase', 'success');
-      }).catch(err => {
-        console.error('Lỗi seed default categories:', err);
-      });
-    }
-
-    function restoreDefaultCategories() {
-      if (!confirm('Khôi phục lại 11 danh mục ẩm thực chuẩn của hệ thống? Dữ liệu danh mục chuẩn (Cơm Trưa, Trà Sữa, Bún/Phở, Gà Rán, Bánh Mì, Pizza, Cà Phê, Tráng Miệng, Lẩu, Đồ Chay, Món Khác) sẽ được cập nhật lên Firebase.')) {
-        return;
-      }
-      categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-      if (fbDb && isFirebaseReady) {
-        seedDefaultCategories(true);
-      }
-      renderCategories();
-      renderKPIs();
-      populateStoreCategoryDropdowns();
-      addLog('Admin khôi phục danh mục nền tảng chuẩn', 'info');
-      showToast('Đã khôi phục thành công 11 danh mục nền tảng chuẩn!', 'success');
-    }
-
-    function matchCategoryKeywords(catName, dishName, storeCat) {
-      const c = (catName || '').toLowerCase();
-      const d = (dishName || '').toLowerCase();
-      const s = (storeCat || '').toLowerCase();
-      if (c.includes('cơm')) return d.includes('cơm') || s.includes('cơm');
-      if (c.includes('trà sữa') || c.includes('trà')) return d.includes('trà') || s.includes('trà') || d.includes('milk tea');
-      if (c.includes('bún') || c.includes('phở')) return d.includes('bún') || d.includes('phở') || d.includes('hủ tiếu') || d.includes('mì') || s.includes('bún') || s.includes('phở');
-      if (c.includes('gà')) return d.includes('gà') || s.includes('gà');
-      if (c.includes('bánh mì')) return d.includes('bánh mì') || s.includes('bánh mì');
-      if (c.includes('pizza')) return d.includes('pizza') || d.includes('pasta') || s.includes('pizza');
-      if (c.includes('cà phê')) return d.includes('cà phê') || d.includes('cafe') || d.includes('coffee') || s.includes('cà phê');
-      if (c.includes('tráng miệng') || c.includes('ăn vặt')) return d.includes('chè') || d.includes('kem') || d.includes('bánh') || d.includes('ăn vặt') || s.includes('ăn vặt');
-      if (c.includes('lẩu')) return d.includes('lẩu') || d.includes('canh') || s.includes('lẩu');
-      if (c.includes('chay')) return d.includes('chay') || s.includes('chay');
-      return false;
-    }
-
-    function renderCategories() {
-      const container = document.getElementById('category-grid-container');
-      const counter = document.getElementById('cat-counter');
-      if (!container) return;
-
-      const searchVal = (document.getElementById('filter-cat-search')?.value || '').toLowerCase().trim();
-      const statusVal = document.getElementById('filter-cat-status')?.value || 'ALL';
-
-      // Đếm số món thực tế từ các quán trong Firebase
-      const realDishCounts = {};
-      stores.forEach(s => {
-        if (s.dishes && typeof s.dishes === 'object') {
-          Object.values(s.dishes).forEach(d => {
-            const dPlatform = (d.platformCategory || '').trim();
-            const dStoreCat = (d.category || '').trim();
-            const dCatId = (d.categoryId || '').trim();
-            const dName = (d.name || '').trim();
-
-            categories.forEach(cat => {
-              let matched = false;
-              if (dPlatform && dPlatform.toLowerCase() === cat.name.toLowerCase()) {
-                matched = true;
-              } else if (dCatId && (dCatId === cat.id || dCatId === cat.categoryId)) {
-                matched = true;
-              } else if (dStoreCat && dStoreCat.toLowerCase() === cat.name.toLowerCase()) {
-                matched = true;
-              } else if (matchCategoryKeywords(cat.name, dName, dStoreCat)) {
-                matched = true;
-              }
-              if (matched) {
-                realDishCounts[cat.id] = (realDishCounts[cat.id] || 0) + 1;
-              }
-            });
-          });
-        }
-      });
-
-      const filtered = categories.filter(c => {
-        const matchSearch = c.name.toLowerCase().includes(searchVal) || (c.desc && c.desc.toLowerCase().includes(searchVal));
-        const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
-        return matchSearch && matchStatus;
-      });
-
-      if (counter && counter.textContent !== String(filtered.length)) {
-        counter.textContent = filtered.length;
-      }
-      const catBadgeEl = document.getElementById('badge-cat-count');
-      if (catBadgeEl && catBadgeEl.textContent !== String(categories.length)) {
-        catBadgeEl.textContent = categories.length;
-      }
-      const kpiCatEl = document.getElementById('kpi-total-cats');
-      if (kpiCatEl && kpiCatEl.textContent !== String(categories.length)) {
-        kpiCatEl.textContent = categories.length;
-      }
-
-      const currentSignature = JSON.stringify(filtered.map(c => ({
-        id: c.id,
-        name: c.name,
-        icon: c.icon || c.iconUrl,
-        desc: c.desc,
-        status: c.status,
-        order: c.displayOrder,
-        count: realDishCounts[c.id] || 0
-      })));
-
-      if (container.dataset.renderedSig === currentSignature) {
-        return;
-      }
-      container.dataset.renderedSig = currentSignature;
-
-      if (filtered.length === 0) {
-        container.innerHTML = `
-          <div class="empty-state" style="grid-column: 1 / -1; padding: 48px 24px; text-align: center;">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <h3 style="margin-top: 14px; font-size: 16px;">Không tìm thấy danh mục phù hợp</h3>
-            <p style="color: var(--text-muted); font-size: 13px; margin-top: 6px;">Vui lòng thử từ khóa tìm kiếm khác hoặc bấm "Khôi Phục Danh Mục Chuẩn"</p>
-            <button class="btn btn-outline btn-sm" onclick="restoreDefaultCategories()" style="margin-top: 14px;">Khôi Phục Danh Mục Chuẩn</button>
-          </div>
-        `;
-        return;
-      }
-
-      const htmlCards = filtered.map(c => {
-        const isHidden = c.status === 'HIDDEN';
-        const displayCount = realDishCounts[c.id] !== undefined ? realDishCounts[c.id] : (c.count || 0);
-
-        let iconContent = '';
-        const iconVal = (c.icon || c.iconUrl || '').trim();
-        if (iconVal.startsWith('http://') || iconVal.startsWith('https://') || iconVal.startsWith('/')) {
-          iconContent = `<img src="${iconVal}" alt="${c.name}" style="width: 28px; height: 28px; object-fit: contain;">`;
-        } else if (iconVal) {
-          iconContent = `<span style="font-size: 26px; line-height: 1;">${iconVal}</span>`;
-        } else {
-          iconContent = (c.name || 'DM').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-        }
-
-        return `
-          <div class="category-card" data-cat-id="${c.id}">
-            <div class="cat-header">
-              <div class="cat-icon-box">${iconContent}</div>
-              <div class="cat-info">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                  <h3 style="margin: 0; font-size: 15px; font-weight: 700;">${c.name}</h3>
-                  <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">#${c.displayOrder || 1}</span>
-                </div>
-                <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;">${c.desc || c.description || 'Chưa có mô tả chi tiết'}</p>
-              </div>
-            </div>
-            <div class="cat-stats" style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-              <div style="font-size: 12px; color: var(--text-muted);">
-                Số món: <strong style="color: var(--text-main); font-weight: 700;">${displayCount} món</strong>
-              </div>
-              <div>
-                ${isHidden 
-                  ? '<span class="badge badge-warning" style="font-size: 11px;"><span class="badge-dot"></span>Tạm ẩn</span>'
-                  : '<span class="badge badge-active" style="font-size: 11px;"><span class="badge-dot"></span>Hiển thị</span>'
-                }
-              </div>
-            </div>
-            <div class="cat-actions" style="margin-top: 12px; display: flex; gap: 6px;">
-              <button class="btn btn-outline btn-sm" onclick="toggleCategoryStatus('${c.id}')" title="${isHidden ? 'Bật hiển thị trên app' : 'Tạm ẩn khỏi app'}">
-                ${isHidden ? '👁️ Bật' : '🚫 Ẩn'}
-              </button>
-              <button class="btn btn-outline btn-sm" onclick="openEditCategoryModal('${c.id}')" title="Chỉnh sửa danh mục">
-                ✏️ Sửa
-              </button>
-              <button class="btn btn-danger-outline btn-sm" onclick="deleteCategory('${c.id}')" title="Xóa danh mục">
-                🗑️ Xóa
-              </button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      container.innerHTML = htmlCards;
-    }
-
-    function openAddCategoryModal() {
-      document.getElementById('modal-cat-title').textContent = 'Thêm Danh Mục Món Mới';
-      document.getElementById('form-cat-id').value = '';
-      document.getElementById('form-cat-name').value = '';
-      document.getElementById('form-cat-icon').value = '🍽️';
-      updateCatIconPreview('🍽️');
-      document.getElementById('form-cat-order').value = categories.length + 1;
-      document.getElementById('form-cat-desc').value = '';
-      document.getElementById('form-cat-status').value = 'ACTIVE';
-      openModal('modal-category');
-    }
-
-    function openEditCategoryModal(catId) {
-      const cat = categories.find(c => c.id === catId);
-      if (!cat) return;
-      document.getElementById('modal-cat-title').textContent = 'Chỉnh Sửa Danh Mục: ' + cat.name;
-      document.getElementById('form-cat-id').value = cat.id;
-      document.getElementById('form-cat-name').value = cat.name;
-      const iconVal = cat.icon || cat.iconUrl || '🍽️';
-      document.getElementById('form-cat-icon').value = iconVal;
-      updateCatIconPreview(iconVal);
-      document.getElementById('form-cat-order').value = cat.displayOrder || 1;
-      document.getElementById('form-cat-desc').value = cat.desc || cat.description || '';
-      document.getElementById('form-cat-status').value = cat.status || (cat.isActive === false ? 'HIDDEN' : 'ACTIVE');
-      openModal('modal-category');
-    }
-
-    function saveCategory(e) {
-      e.preventDefault();
-      const catId = document.getElementById('form-cat-id').value;
-      const name = document.getElementById('form-cat-name').value.trim();
-      const icon = document.getElementById('form-cat-icon').value.trim() || '🍽️';
-      const order = parseInt(document.getElementById('form-cat-order')?.value, 10) || 1;
-      const desc = document.getElementById('form-cat-desc').value.trim();
-      const status = document.getElementById('form-cat-status').value;
-
-      if (!name) {
-        showToast('Vui lòng nhập tên danh mục!', 'warning');
-        return;
-      }
-
-      const targetId = catId || ('cat-' + Date.now());
-      const targetOrder = Math.max(1, order);
-
-      // Tự động đẩy các danh mục có displayOrder >= targetOrder lên +1 (chen và đẩy)
-      const otherCats = categories.filter(c => (c.id || c.categoryId) !== targetId)
-        .sort((a, b) => (parseInt(a.displayOrder, 10) || 99) - (parseInt(b.displayOrder, 10) || 99));
-
-      const fbBatchUpdates = {};
-      let lastAssignedOrder = targetOrder;
-
-      otherCats.forEach(c => {
-        const curOrder = parseInt(c.displayOrder, 10) || 99;
-        if (curOrder >= targetOrder) {
-          const newOrder = curOrder <= lastAssignedOrder ? (lastAssignedOrder + 1) : curOrder;
-          lastAssignedOrder = newOrder;
-          if (newOrder !== curOrder) {
-            c.displayOrder = newOrder;
-            const cid = c.categoryId || c.id;
-            fbBatchUpdates[`categories/${cid}/displayOrder`] = newOrder;
-            fbBatchUpdates[`categories/${cid}/updatedAt`] = Date.now();
-            fbBatchUpdates[`menus/categories/${cid}/displayOrder`] = newOrder;
-            fbBatchUpdates[`menus/categories/${cid}/updatedAt`] = Date.now();
-          }
-        }
-      });
-
-      const catObj = {
-        id: targetId,
-        categoryId: targetId,
-        name: name,
-        categoryName: name,
-        icon: icon,
-        iconUrl: icon,
-        desc: desc,
-        description: desc,
-        displayOrder: targetOrder,
-        count: 0,
-        status: status,
-        isActive: status === 'ACTIVE',
-        updatedAt: Date.now()
-      };
-
-      if (catId) {
-        const idx = categories.findIndex(c => (c.id || c.categoryId) === catId);
-        if (idx !== -1) {
-          categories[idx] = { ...categories[idx], ...catObj };
-        }
-        addLog(`Chỉnh sửa danh mục "${name}" (Thứ tự #${targetOrder})`, 'info');
-        showToast(`Đã cập nhật danh mục "${name}" trên Firebase!`, 'success');
-      } else {
-        categories.push(catObj);
-        addLog(`Thêm mới danh mục "${name}" (Thứ tự #${targetOrder})`, 'success');
-        showToast(`Đã tạo mới danh mục "${name}" trên Firebase!`, 'success');
-      }
-
-      categories.sort((a, b) => (parseInt(a.displayOrder, 10) || 99) - (parseInt(b.displayOrder, 10) || 99));
-
-      // Đồng bộ cả 2 node trên Firebase nguyên khối atomic
-      if (fbDb && isFirebaseReady) {
-        fbBatchUpdates[`categories/${targetId}`] = catObj;
-        fbBatchUpdates[`menus/categories/${targetId}`] = catObj;
-
-        fbDb.ref().update(fbBatchUpdates).then(() => {
-          showToast(`Đã lưu danh mục "${name}" và cập nhật thứ tự thành công!`, 'success');
-        }).catch(err => {
-          console.error('Lỗi lưu danh mục:', err);
-          showToast('Lỗi khi lưu lên Firebase: ' + (err.message || err), 'danger');
-        });
-      }
-
-      closeModal('modal-category');
-      renderCategories();
-      renderKPIs();
-      populateStoreCategoryDropdowns();
-    }
-
-    function toggleCategoryStatus(catId) {
-      const cat = categories.find(c => c.id === catId);
-      if (!cat) return;
-      cat.status = cat.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
-      cat.isActive = cat.status === 'ACTIVE';
-      cat.updatedAt = Date.now();
-
-      if (fbDb && isFirebaseReady) {
-        const updates = {};
-        updates[`categories/${catId}/status`] = cat.status;
-        updates[`categories/${catId}/isActive`] = cat.isActive;
-        updates[`categories/${catId}/updatedAt`] = cat.updatedAt;
-        updates[`menus/categories/${catId}/status`] = cat.status;
-        updates[`menus/categories/${catId}/isActive`] = cat.isActive;
-        updates[`menus/categories/${catId}/updatedAt`] = cat.updatedAt;
-        fbDb.ref().update(updates).catch(() => {});
-      }
-      renderCategories();
-      addLog(`Chuyển trạng thái danh mục "${cat.name}" sang ${cat.status === 'ACTIVE' ? 'Hiển thị' : 'Tạm ẩn'}`, 'info');
-      showToast(`Đã ${cat.status === 'ACTIVE' ? 'bật hiển thị' : 'tạm ẩn'} danh mục ${cat.name}`, 'info');
-    }
-
-    function deleteCategory(catId) {
-      const cat = categories.find(c => c.id === catId);
-      if (!cat) return;
-      if (confirm(`Bạn có chắc chắn muốn xóa danh mục "${cat.name}"? Thao tác này sẽ xóa khỏi hệ thống.`)) {
-        categories = categories.filter(c => c.id !== catId);
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`menus/categories/${catId}`).remove().then(() => {
-            showToast(`Đã xóa danh mục "${cat.name}" khỏi Firebase`, 'info');
-          }).catch(err => {
-            console.error('Lỗi xóa menus/categories:', err);
-          });
-          fbDb.ref(`categories/${catId}`).remove().catch(() => {});
-        }
-        renderCategories();
-        renderKPIs();
-        populateStoreCategoryDropdowns();
-        addLog(`Xóa danh mục "${cat.name}"`, 'danger');
-        showToast(`Đã xóa danh mục "${cat.name}" khỏi Firebase`, 'info');
-      }
-    }
-
-    /* ========================================================
-       8. CUSTOMER MANAGEMENT (FIREBASE USERS + CUSTOMERS)
-       ======================================================== */
-    function filterCustomers() {
-      renderCustomers();
-    }
-
-    function renderCustomers() {
-      const tbody = document.getElementById('tbody-customers');
-      const counter = document.getElementById('customer-counter');
-      if (!tbody) return;
-
-      const searchVal = (document.getElementById('filter-customer-search')?.value || '').toLowerCase().trim();
-      const roleVal = document.getElementById('filter-customer-role')?.value || 'CUSTOMER';
-      const statusVal = document.getElementById('filter-customer-status')?.value || 'ALL';
-      const sortVal = document.getElementById('filter-customer-sort')?.value || 'NEWEST';
-
-      let filtered = customers.filter(c => {
-        const matchRole = (roleVal === 'ALL') || ((c.role || 'CUSTOMER') === roleVal);
-        const matchSearch = (c.name || '').toLowerCase().includes(searchVal) ||
-                            (c.phone || '').toLowerCase().includes(searchVal) ||
-                            (c.email || '').toLowerCase().includes(searchVal) ||
-                            (c.id || '').toLowerCase().includes(searchVal) ||
-                            (c.area || '').toLowerCase().includes(searchVal);
-        const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
-        return matchRole && matchSearch && matchStatus;
-      });
-
-      if (sortVal === 'TRUST_HIGH') {
-        filtered.sort((a, b) => (b.trustScore || 0) - (a.trustScore || 0));
-      } else if (sortVal === 'TRUST_LOW') {
-        filtered.sort((a, b) => (a.trustScore || 0) - (b.trustScore || 0));
-      } else if (sortVal === 'ORDERS_HIGH') {
-        filtered.sort((a, b) => (b.orders || 0) - (a.orders || 0));
-      } else {
-        filtered.sort((a, b) => {
-          if ((b.hasEmail ? 1 : 0) !== (a.hasEmail ? 1 : 0)) return (b.hasEmail ? 1 : 0) - (a.hasEmail ? 1 : 0);
-          if ((b.orders || 0) !== (a.orders || 0)) return (b.orders || 0) - (a.orders || 0);
-          return (b.lastActiveTs || 0) - (a.lastActiveTs || 0);
-        });
-      }
-
-      if (counter) counter.textContent = filtered.length;
-      tbody.innerHTML = '';
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="8" class="empty-state">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              <h3>Không tìm thấy tài khoản nào</h3>
-              <p>Thử tìm kiếm với từ khóa khác hoặc chọn "Tất cả tài khoản"</p>
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      filtered.forEach(c => {
-        const isLocked = c.status === 'LOCKED';
-        const isSuspended = c.status === 'SUSPENDED';
-        const score = (c.trustScore !== undefined && c.trustScore !== null) ? c.trustScore : 100;
-
-        let rolePill = '';
-        if (c.role === 'MERCHANT') {
-          rolePill = `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#FEF3C7; color:#B45309; font-weight:700; margin-left:6px;">Chủ quán${c.storeName ? ': ' + c.storeName : ''}</span>`;
-        } else if (c.role === 'DRIVER') {
-          rolePill = `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#E0E7FF; color:#4338CA; font-weight:700; margin-left:6px;">Tài xế</span>`;
-        }
-
-        let emailCellHtml = '';
-        if (c.hasEmail && c.email && c.email !== 'Chưa đồng bộ Gmail') {
-          emailCellHtml = `
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600; color: #1E40AF;">${c.email}</div>
-            <div style="font-size: 10.5px; color: var(--text-muted);">Đã xác thực Firebase Auth</div>
-          `;
-        } else {
-          emailCellHtml = `
-            <span class="badge" onclick="openEditCustomerModal('${c.id}')" style="cursor:pointer; background:#FFFBEB; color:#B45309; border:1px solid #FDE68A; font-weight:600; font-size:11px;" title="Tài khoản tạo trước khi bật đồng bộ Gmail hoặc chưa đăng nhập lại. Bấm để cập nhật thủ công">
-              Chưa đồng bộ Gmail • Cập nhật
-            </span>
-          `;
-        }
-
-        const phoneDisplay = (c.phone && c.phone !== 'Chưa cập nhật')
-          ? `<span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-main);">${c.phone}</span>`
-          : `<span onclick="openEditCustomerModal('${c.id}')" style="cursor:pointer; color: var(--text-light); font-size: 12px; text-decoration: underline dotted;" title="Bấm để thêm SĐT">Chưa cập nhật</span>`;
-
-        const activityHtml = `
-          <div><strong>${c.orders || 0}</strong> đơn${c.totalSpent > 0 ? ` <span style="font-size:11px; color:#059669; font-weight:600;">(${formatVnd(c.totalSpent)})</span>` : ''}</div>
-          <div style="font-size: 11px; color: var(--text-muted);">
-            ${c.complaintsCount > 0 ? `<span style="color:#DC2626; font-weight:600;">${c.complaintsCount} khiếu nại</span>` : (c.lastOrderInfo || 'Chưa đặt đơn')}
-          </div>
-        `;
-
-        let scoreBadge = '';
-        if (score >= 90) {
-          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Bấm để chỉnh sửa Điểm Uy Tín trên Firebase">${score}/100</span>`;
-        } else if (score >= 70) {
-          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Bấm để chỉnh sửa Điểm Uy Tín trên Firebase">${score}/100</span>`;
-        } else {
-          scoreBadge = `<span class="badge" onclick="adjustCustomerTrustScore('${c.id}')" style="cursor:pointer; background:#FEF2F2; color:#B91C1C; border:1px solid #FECACA; font-family:'JetBrains Mono',monospace; font-weight:800; font-size:11.5px;" title="Cảnh báo: Khách từng bùng đơn. Bấm để chỉnh sửa">${score}/100</span>`;
-        }
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 34px; height: 34px; border-radius: 50%; background: #EFF6FF; color: #2563EB; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0;">
-                ${(c.name || 'K').charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div><strong>${c.name}</strong>${rolePill}</div>
-                <div style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; cursor: pointer;" onclick="copyCustomerUid('${c.id}')" title="Bấm để sao chép đầy đủ UID">
-                  UID: ${c.id}
-                </div>
-              </div>
-            </div>
-          </td>
-          <td>${emailCellHtml}</td>
-          <td>${phoneDisplay}</td>
-          <td>${activityHtml}</td>
-          <td style="color: var(--text-muted); font-size: 12px; max-width: 190px;">${c.area || 'Chưa cập nhật'}</td>
-          <td>${scoreBadge}</td>
-          <td>
-            ${isLocked 
-              ? `<span class="badge badge-locked" title="${c.lockReason || 'Bị khóa do vi phạm'}"><span class="badge-dot"></span>Đã khóa</span>
-                 ${c.lockReason ? `<div style="font-size:10px; color:#B91C1C; margin-top:2px; max-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${c.lockReason}">${c.lockReason}</div>` : ''}` 
-              : (isSuspended
-                  ? `<span class="badge" style="background:#EEF2FF; color:#4F46E5; border:1px solid #C7D2FE;" title="${c.suspendedReason || 'Tạm ngưng'}"><span class="badge-dot" style="background:#4F46E5;"></span>Tạm ngưng</span>`
-                  : `<span class="badge badge-active"><span class="badge-dot"></span>Hoạt động</span>`)
-            }
-          </td>
-          <td>
-            <div class="action-group" style="justify-content: flex-end;">
-              <button class="btn-action-icon" onclick="openEditCustomerModal('${c.id}')">Sửa</button>
-              <button class="btn-action-icon" onclick="adjustCustomerTrustScore('${c.id}')">Uy tín</button>
-              <button class="btn-action-icon key-btn" onclick="openResetPasswordModal('customer', '${c.id}', '${c.name}')">Mật khẩu</button>
-              <button class="btn-action-icon lock-btn" onclick="openLockCustomerModal('${c.id}')">${isLocked ? 'Mở khóa' : 'Khóa'}</button>
-              <button class="btn-action-icon" style="color: var(--danger); border-color: #FECACA;" onclick="deleteCustomerAccount('${c.id}')">Xóa</button>
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function copyCustomerUid(uid) {
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(uid).catch(() => {});
-      }
-      showToast(`Đã sao chép UID: ${uid}`, 'info');
-    }
-
-    function openEditCustomerModal(custId) {
-      const cust = customers.find(c => c.id === custId);
-      if (!cust) return;
-      document.getElementById('edit-cust-id').value = cust.id;
-      document.getElementById('edit-cust-uid-display').value = cust.id;
-      document.getElementById('edit-cust-email').value = (cust.hasEmail && cust.email !== 'Chưa đồng bộ Gmail') ? cust.email : '';
-      document.getElementById('edit-cust-name').value = cust.name.startsWith('Tài khoản #') ? '' : cust.name;
-      document.getElementById('edit-cust-phone').value = cust.phone !== 'Chưa cập nhật' ? cust.phone : '';
-      document.getElementById('edit-cust-trust').value = cust.trustScore ?? 100;
-      document.getElementById('edit-cust-area').value = cust.area !== 'Chưa cập nhật' ? cust.area : '';
-      openModal('modal-edit-customer');
-    }
-
-    async function saveEditCustomer(e) {
-      e.preventDefault();
-      const custId = document.getElementById('edit-cust-id').value;
-      const email = document.getElementById('edit-cust-email').value.trim();
-      const name = document.getElementById('edit-cust-name').value.trim();
-      const phone = document.getElementById('edit-cust-phone').value.trim();
-      const trust = Math.max(0, Math.min(100, parseInt(document.getElementById('edit-cust-trust').value || '100', 10)));
-      const area = document.getElementById('edit-cust-area').value.trim();
-
-      if (!email || !name) {
-        showToast('Vui lòng nhập đầy đủ Gmail và Họ tên!', 'warning');
-        return;
-      }
-
-      const cust = customers.find(c => c.id === custId);
-      if (cust) {
-        cust.email = email;
-        cust.hasEmail = true;
-        cust.name = name;
-        cust.phone = phone || 'Chưa cập nhật';
-        cust.trustScore = trust;
-        cust.area = area || 'Chưa cập nhật';
-      }
-
-      if (fbDb && isFirebaseReady) {
-        const userUpdates = {
-          uid: custId,
-          email: email,
-          name: name,
-          fullName: name,
-          phone: phone,
-          address: area,
-          trustScore: trust
-        };
-        await fbDb.ref(`users/${custId}`).update(userUpdates).catch(() => {});
-        await writeWithAdminRole(() => fbDb.ref(`customers/${custId}`).update({
-          customerId: custId,
-          uid: custId,
-          email: email,
-          name: name,
-          phone: phone,
-          address: area,
-          area: area,
-          trustScore: trust
-        })).catch(() => {});
-      }
-
-      closeModal('modal-edit-customer');
-      renderCustomers();
-      addLog(`Cập nhật hồ sơ tài khoản "${name}" (${email})`, 'success');
-      showToast(`Đã lưu thông tin tài khoản "${name}" (${email}) lên Firebase!`, 'success');
-    }
-
-    async function deleteCustomerAccount(custId) {
-      const cust = customers.find(c => c.id === custId);
-      if (!cust) return;
-      if (!confirm(`Bạn có chắc chắn muốn xóa bản ghi tài khoản "${cust.name}" (UID: ${custId}) khỏi danh sách trên Firebase Realtime Database?`)) {
-        return;
-      }
-      customers = customers.filter(c => c.id !== custId);
-      renderCustomers();
-      renderKPIs();
-      if (fbDb && isFirebaseReady) {
-        await fbDb.ref(`users/${custId}`).remove().catch(() => {});
-        await writeWithAdminRole(() => fbDb.ref(`customers/${custId}`).remove()).catch(() => {});
-      }
-      addLog(`Xóa bản ghi tài khoản "${cust.name}" (${custId.slice(0, 8)})`, 'danger');
-      showToast(`Đã xóa tài khoản "${cust.name}" khỏi Firebase!`, 'info');
-    }
-
-    async function adjustCustomerTrustScore(custId) {
-      const cust = customers.find(c => c.id === custId);
-      if (!cust) return;
-      const input = prompt(`Điều chỉnh Điểm Uy Tín (0 - 100) cho khách hàng "${cust.name}"\n(Lưu ý: Dưới 50 điểm có thể bị hạn chế thanh toán tiền mặt COD):`, cust.trustScore ?? 95);
-      if (input === null) return;
-      const newScore = Math.max(0, Math.min(100, parseInt(input, 10)));
-      if (isNaN(newScore)) {
-        showToast('Vui lòng nhập số hợp lệ từ 0 đến 100!', 'warning');
-        return;
-      }
-      cust.trustScore = newScore;
-      saveState();
-      renderCustomers();
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`users/${cust.id}`).update({ trustScore: newScore }).catch(() => {});
-        writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({
-          uid: cust.id,
-          name: cust.name,
-          phone: cust.phone,
-          trustScore: newScore,
-          status: cust.status || 'ACTIVE'
-        })).catch(() => {});
-      }
-      addLog(`Cập nhật Điểm Uy Tín của khách "${cust.name}" thành ${newScore}/100`, 'info');
-      showToast(`Đã cập nhật Điểm Uy Tín của "${cust.name}" thành ${newScore}/100 trên Firebase!`, 'success');
-    }
-
-    function openLockCustomerModal(custId) {
-      const cust = customers.find(c => c.id === custId);
-      if (!cust) return;
-      const isLocked = cust.status === 'LOCKED';
-
-      document.getElementById('lock-cust-id').value = cust.id;
-      document.getElementById('lock-cust-name').value = `${cust.name} (${cust.phone})`;
-      document.getElementById('lock-cust-action').value = isLocked ? 'UNLOCK' : 'LOCK';
-
-      const titleEl = document.getElementById('modal-lock-customer-title');
-      const warningEl = document.getElementById('lock-cust-warning');
-      const submitBtn = document.getElementById('btn-submit-lock-cust');
-
-      if (isLocked) {
-        titleEl.textContent = 'Mở Khóa Tài Khoản Khách Hàng';
-        titleEl.style.color = 'var(--success)';
-        warningEl.style.cssText = 'background: #ECFDF5; border-left: 4px solid var(--success); color: #065F46;';
-        warningEl.innerHTML = 'Khách hàng sẽ được phép đăng nhập lại bình thường và tiếp tục đặt món trên nền tảng Oishi Food.';
-        submitBtn.style.background = 'var(--success)';
-        submitBtn.textContent = 'Mở Khóa Tài Khoản';
-      } else {
-        titleEl.textContent = 'Khóa Tài Khoản Khách Hàng';
-        titleEl.style.color = 'var(--danger)';
-        warningEl.style.cssText = '';
-        warningEl.innerHTML = 'Khi khóa tài khoản khách hàng, người dùng sẽ bị chặn đăng nhập trên App Khách Hàng (Android) và không thể tạo đơn hàng mới.';
-        submitBtn.style.background = 'var(--danger)';
-        submitBtn.textContent = 'Xác Nhận Khóa';
-      }
-
-      openModal('modal-lock-customer');
-    }
-
-    function confirmLockCustomer(e) {
-      e.preventDefault();
-      const custId = document.getElementById('lock-cust-id').value;
-      const action = document.getElementById('lock-cust-action').value;
-      const reason = document.getElementById('lock-cust-reason').value;
-
-      const cust = customers.find(c => c.id === custId);
-      if (!cust) return;
-
-      if (action === 'LOCK') {
-        cust.status = 'LOCKED';
-        cust.lockReason = reason;
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`users/${cust.id}`).update({ status: 'LOCKED', isActive: false, lockReason: reason }).catch(() => {});
-          writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({ status: 'LOCKED', lockReason: reason })).catch(() => {});
-        }
-        addLog(`Khóa tài khoản khách "${cust.name}" (${reason})`, 'danger');
-        showToast(`Đã khóa tài khoản khách hàng "${cust.name}" trên Firebase!`, 'danger');
-      } else {
-        cust.status = 'ACTIVE';
-        delete cust.lockReason;
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`users/${cust.id}`).update({ status: 'ACTIVE', isActive: true, lockReason: null }).catch(() => {});
-          writeWithAdminRole(() => fbDb.ref(`customers/${cust.id}`).update({ status: 'ACTIVE', lockReason: null })).catch(() => {});
-        }
-        addLog(`Mở khóa tài khoản khách "${cust.name}"`, 'success');
-        showToast(`Đã mở khóa tài khoản cho "${cust.name}" trên Firebase!`, 'success');
-      }
-
-      saveState();
-      closeModal('modal-lock-customer');
-      renderCustomers();
-      renderKPIs();
-    }
-
-    function exportCustomerCSV() {
-      const rows = [
-        "Tên khách,Số điện thoại,Email,Tổng đơn,Điểm uy tín,Khu vực,Trạng thái",
-        ...customers.map(c => `"${c.name}","${c.phone}","${c.email}",${c.orders || 0},${c.trustScore ?? 95},"${c.area || "TP.HCM"}","${c.status}"`)
-      ];
-      const csvContent = "data:text/csv;charset=utf-8," + rows.join(String.fromCharCode(10));
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "oishi_customers.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast('Đã xuất file danh sách khách hàng!', 'info');
-    }
-
-    /* ========================================================
-       9. STORE MANAGEMENT (FIREBASE STORES)
-       ======================================================== */
-    function populateStoreCategoryDropdowns() {
-      const filterCat = document.getElementById('filter-store-category');
-      const formCat = document.getElementById('new-store-category');
-
-      if (filterCat) {
-        const current = filterCat.value;
-        filterCat.innerHTML = '<option value="ALL">Tất cả danh mục</option>';
-        categories.forEach(c => {
-          filterCat.innerHTML += `<option value="${c.name}">${c.icon} ${c.name}</option>`;
-        });
-        filterCat.value = current || 'ALL';
-      }
-
-      if (formCat) {
-        formCat.innerHTML = '';
-        categories.forEach(c => {
-          formCat.innerHTML += `<option value="${c.name}">${c.icon} ${c.name}</option>`;
-        });
-      }
-    }
-
-    function filterStores() {
-      renderStores();
-    }
-
-    function renderStores() {
-      const tbody = document.getElementById('tbody-stores');
-      const counter = document.getElementById('store-counter');
-      if (!tbody) return;
-
-      const searchVal = (document.getElementById('filter-store-search')?.value || '').toLowerCase().trim();
-      const catVal = document.getElementById('filter-store-category')?.value || 'ALL';
-      const statusVal = document.getElementById('filter-store-status')?.value || 'ALL';
-
-      const filtered = stores.filter(s => {
-        const matchSearch = (s.name || '').toLowerCase().includes(searchVal) ||
-                            (s.owner || '').toLowerCase().includes(searchVal) ||
-                            (s.phone || '').includes(searchVal) ||
-                            (s.cccdNumber && s.cccdNumber.includes(searchVal)) ||
-                            (s.address && s.address.toLowerCase().includes(searchVal));
-        const matchCat = (catVal === 'ALL') || (s.category === catVal);
-        const matchStatus = (statusVal === 'ALL') || (s.status === statusVal);
-        return matchSearch && matchCat && matchStatus;
-      });
-
-      if (counter) counter.textContent = filtered.length;
-      tbody.innerHTML = '';
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="11" class="empty-state">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              <h3>Không tìm thấy cửa hàng nào</h3>
-              <p>Thử tìm kiếm với tên quán, CCCD hoặc trạng thái khác</p>
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      filtered.forEach(s => {
-        const isLocked = s.status === 'LOCKED';
-
-        let statusBadgeHtml = '';
-        if (s.status === 'PENDING') {
-          statusBadgeHtml = `<span class="badge badge-status-pending" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Chờ duyệt ▾</span>`;
-        } else if (s.status === 'OPEN') {
-          statusBadgeHtml = `<span class="badge badge-status-open" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Đang hoạt động ▾</span>`;
-        } else if (s.status === 'LOCKED') {
-          statusBadgeHtml = `<span class="badge badge-status-locked" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="${s.lockReason || 'Cửa hàng đã bị khóa do vi phạm'}"><span class="badge-dot"></span>Bị khóa ▾</span>`;
-        } else if (s.status === 'CLOSED') {
-          statusBadgeHtml = `<span class="badge badge-status-closed" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Tạm nghỉ ▾</span>`;
-        } else {
-          statusBadgeHtml = `<span class="badge badge-status-open" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;"><span class="badge-dot"></span>Đang hoạt động ▾</span>`;
-        }
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td onclick="openStoreDetailModal('${s.id}')" style="cursor: pointer;" title="Bấm vào tên quán để xem Đơn hàng, Thực đơn & Tài xế thuộc quán">
-            <div class="store-name-link">
-              <strong>${s.name}</strong>
-              <span class="store-badge-view">Đơn / Menu / TX</span>
-            </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">${s.address || 'Hồ Chí Minh'}</div>
-          </td>
-          <td>
-            <div style="font-weight: 700; color: var(--text-main);">${s.owner}</div>
-            <div style="font-size: 10.5px; color: var(--text-muted);">${s.gender || 'Chủ quán'} • ${s.hometown || 'TP.HCM'}</div>
-          </td>
-          <td>
-            <span class="cccd-cell-num" onclick="openStoreCccdModal('${s.id}')" style="cursor:pointer;" title="Bấm để mở bảng đối soát eKYC CCCD">${s.cccdNumber || '079088012456'}</span>
-          </td>
-          <td style="text-align: center;">
-            <div class="thumb-cell" onclick="previewImage('${s.cccdFront}', 'Ảnh CCCD Mặt Trước', '${s.name} • Chủ quán: ${s.owner} (CCCD: ${s.cccdNumber})')" title="Bấm để xem ảnh phóng to">
-              <img src="${s.cccdFront}" class="store-img-thumb" alt="CCCD Trước" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=400&auto=format&fit=crop&q=80'">
-              <span class="thumb-tag">Mặt trước</span>
-            </div>
-          </td>
-          <td style="text-align: center;">
-            <div class="thumb-cell" onclick="previewImage('${s.cccdBack}', 'Ảnh CCCD Mặt Sau', '${s.name} • Chủ quán: ${s.owner} (CCCD: ${s.cccdNumber})')" title="Bấm để xem ảnh phóng to">
-              <img src="${s.cccdBack}" class="store-img-thumb" alt="CCCD Sau" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=400&auto=format&fit=crop&q=80'">
-              <span class="thumb-tag">Mặt sau</span>
-            </div>
-          </td>
-          <td style="text-align: center;">
-            <div class="thumb-cell" onclick="previewImage('${s.registerPhoto}', 'Ảnh Chụp Chân Dung Lúc Đăng Ký', '${s.name} • Chủ quán: ${s.owner} (SĐT: ${s.phone})')" title="Bấm để xem ảnh chân dung đăng ký">
-              <img src="${s.registerPhoto}" class="portrait-thumb" alt="Chân dung" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80'">
-              <span class="thumb-tag">Chân dung</span>
-            </div>
-          </td>
-          <td style="font-family: monospace; font-weight: 600;">${s.phone}</td>
-          <td style="font-weight: 700; color: #D97706;">${s.rating}</td>
-          <td style="font-weight: 700; color: #2563EB; cursor: pointer;" onclick="openStoreDetailModal('${s.id}', 'dishes')" title="Bấm để quản lý thực đơn của quán">${s.itemCount || 0} món</td>
-          <td>
-            ${statusBadgeHtml}
-          </td>
-          <td>
-            <div class="action-group" style="justify-content: flex-end;">
-              ${s.status === 'PENDING' ? `
-                <button class="btn btn-sm btn-primary" onclick="quickApproveStore('${s.id}')" title="Phê duyệt mở quán ngay" style="padding: 3px 10px; font-size: 11px; font-weight: 700;">
-                  ✓ Duyệt
-                </button>
-                <button class="btn btn-sm btn-outline" onclick="openStoreCccdModal('${s.id}')" title="Kiểm tra hồ sơ CCCD eKYC" style="padding: 3px 8px; font-size: 11px;">
-                  eKYC
-                </button>
-                <button class="btn btn-sm btn-danger-outline" onclick="rejectPendingStore('${s.id}')" title="Hủy / Từ chối hồ sơ đăng ký" style="padding: 3px 10px; font-size: 11px; font-weight: 700;">
-                  ✕ Hủy
-                </button>
-              ` : `
-                <button class="btn-action-icon" onclick="openStoreDetailModal('${s.id}')">Chi tiết</button>
-                <button class="btn-action-icon" onclick="openChangeStatusModal('${s.id}')">Trạng thái</button>
-                <button class="btn-action-icon key-btn" onclick="openResetPasswordModal('store', '${s.id}', '${s.name}')">Mật khẩu</button>
-                <button class="btn-action-icon lock-btn" onclick="openLockStoreModal('${s.id}')">${isLocked ? 'Mở khóa' : 'Khóa'}</button>
-                <button class="btn-action-icon lock-btn" onclick="deleteStore('${s.id}')">Xóa</button>
-              `}
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function rejectPendingStore(storeId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-      if (confirm(`Bạn có chắc chắn muốn HỦY / TỪ CHỐI hồ sơ đăng ký của cửa hàng "${store.name}" (Chủ quán: ${store.owner})?`)) {
-        stores = stores.filter(s => s.id !== storeId);
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`stores/${storeId}`).remove().catch(() => {});
-        }
-        saveState();
-        renderStores();
-        renderOverviewStores();
-        renderKPIs();
-        addLog(`Hủy hồ sơ đăng ký của quán "${store.name}"`, 'warning');
-        showToast(`Đã hủy hồ sơ đăng ký của quán "${store.name}" trên Firebase!`, 'warning');
-      }
-    }
-
-    
-    /* ========================================================
-       15. STORE ORDERS, MENU DISHES & DRIVERS DETAIL + GLOBAL ORDERS
-       ======================================================== */
-    const STORE_DRIVERS_DATA = {};
-    const STORE_ORDERS_DATA = {};
-
-    let currentDetailStoreId = null;
-    let currentDetailStoreOrders = [];
-
-    function syncStoreStatusToFirebase(store, newStatus, reason = '', penaltyTier = null) {
-      if (!store) return;
-      store.status = newStatus;
-      store.storeStatus = newStatus;
-      store.open = (newStatus === 'OPEN');
-      if (newStatus === 'OPEN') {
-        store.cccdStatus = 'VERIFIED';
-        store.penaltyTier = 'NONE';
-        delete store.lockReason;
-      } else if (newStatus === 'LOCKED') {
-        store.penaltyTier = penaltyTier || 'LOCK';
-        store.lockReason = reason || store.lockReason || 'Vi phạm quy định nền tảng';
-      } else if (newStatus === 'CLOSED') {
-        store.penaltyTier = penaltyTier || 'NONE';
-        if (reason) store.lockReason = reason;
-      }
-
-      if (fbDb && isFirebaseReady) {
-        const updates = {
-          status: newStatus,
-          storeStatus: newStatus,
-          open: newStatus === 'OPEN',
-          cccdStatus: store.cccdStatus || 'VERIFIED',
-          penaltyTier: store.penaltyTier || 'NONE',
-          lockReason: store.lockReason || null,
-          penaltyReason: store.lockReason || ''
-        };
-        fbDb.ref(`stores/${store.id}`).update(updates).catch(() => {});
-        if (store.ownerId) {
-          fbDb.ref(`users/${store.ownerId}`).update({
-            status: newStatus === 'LOCKED' ? 'LOCKED' : 'ACTIVE',
-            isActive: newStatus !== 'LOCKED'
-          }).catch(() => {});
-        }
-      }
-    }
-
-    function getStoreOrders(storeId, storeName) {
-      const matched = liveOrders.filter(o =>
-        o.shopId === storeId ||
-        (storeName && o.storeName && o.storeName.toLowerCase() === storeName.toLowerCase())
-      );
-      if (matched.length > 0) return matched;
-      return STORE_ORDERS_DATA[storeId] || [];
-    }
-
-    function getStoreDrivers(storeId, storeName) {
-      if (liveDrivers.length > 0) {
-        const storeSpecific = liveDrivers.filter(d =>
-          d.shopId === storeId ||
-          liveOrders.some(o => o.shopId === storeId && o.shipperId === d.id)
-        );
-        return storeSpecific;
-      }
-      return STORE_DRIVERS_DATA[storeId] || [];
-    }
-
-    function refreshOpenStoreDetailModal() {
-      if (!currentDetailStoreId) return;
-      const modal = document.getElementById('modal-store-detail');
-      if (!modal || !modal.classList.contains('show')) return;
-      const activeSubTab = document.getElementById('btn-subtab-dishes')?.classList.contains('active')
-        ? 'dishes'
-        : (document.getElementById('btn-subtab-drivers')?.classList.contains('active') ? 'drivers' : 'orders');
-      openStoreDetailModal(currentDetailStoreId, activeSubTab);
-    }
-
-    function openStoreDetailModal(storeId, initialSubTab = 'orders') {
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-      currentDetailStoreId = store.id;
-
-      const dishesObj = store.dishes && typeof store.dishes === 'object' ? store.dishes : {};
-      const dishesList = Object.entries(dishesObj).map(([did, d]) => ({
-        ...d,
-        id: d.id || d.dishId || did,
-        dishId: d.dishId || d.id || did
-      }));
-
-      document.getElementById('store-detail-modal-title').textContent = `Chi Tiết Hoạt Động: ${store.name}`;
-      document.getElementById('store-detail-modal-sub').textContent = `Mã quán: ${store.id} • Chủ quán: ${store.owner} • SĐT: ${store.phone} • Địa chỉ: ${store.address || 'TP.HCM'}`;
-      
-      document.getElementById('detail-store-name').textContent = store.name;
-      document.getElementById('detail-store-address').textContent = store.address || 'TP. Hồ Chí Minh';
-      document.getElementById('detail-store-owner').textContent = store.owner;
-      document.getElementById('detail-store-phone').textContent = store.phone;
-      document.getElementById('detail-store-cccd').textContent = store.cccdNumber || '079088012456';
-      document.getElementById('detail-store-rating').textContent = store.rating || '4.9';
-      document.getElementById('detail-store-items').textContent = `${dishesList.length || store.itemCount || 0} món`;
-
-      const statusBadgeEl = document.getElementById('detail-store-status-badge');
-      if (store.status === 'PENDING') {
-        statusBadgeEl.innerHTML = '<span class="badge badge-status-pending"><span class="badge-dot"></span>Chờ duyệt</span>';
-      } else if (store.status === 'LOCKED') {
-        statusBadgeEl.innerHTML = `<span class="badge badge-status-locked" title="${store.lockReason || 'Bị khóa'}"><span class="badge-dot"></span>Bị khóa</span>`;
-      } else if (store.status === 'CLOSED') {
-        statusBadgeEl.innerHTML = '<span class="badge badge-status-closed"><span class="badge-dot"></span>Tạm nghỉ</span>';
-      } else {
-        statusBadgeEl.innerHTML = '<span class="badge badge-status-open"><span class="badge-dot"></span>Đang hoạt động</span>';
-      }
-
-      // 1. Load Orders for store
-      currentDetailStoreOrders = getStoreOrders(store.id, store.name);
-      document.getElementById('detail-orders-count-badge').textContent = currentDetailStoreOrders.length;
-      
-      const totalOrders = currentDetailStoreOrders.length;
-      const successOrders = currentDetailStoreOrders.filter(o => o.status === 'COMPLETED').length;
-      const deliveringOrders = currentDetailStoreOrders.filter(o => ['DELIVERING', 'ASSIGNED', 'PREPARING', 'READY', 'PENDING'].includes(o.status)).length;
-      const failedOrders = currentDetailStoreOrders.filter(o => o.status === 'BOOM' || o.status === 'CANCELLED').length;
-
-      document.getElementById('stat-total-orders').textContent = totalOrders;
-      document.getElementById('stat-success-orders').textContent = successOrders;
-      document.getElementById('stat-delivering-orders').textContent = deliveringOrders;
-      document.getElementById('stat-failed-orders').textContent = failedOrders;
-
-      renderStoreOrdersList(currentDetailStoreOrders);
-
-      // 2. Load Menu Dishes for store
-      const dishesBadge = document.getElementById('detail-dishes-count-badge');
-      if (dishesBadge) dishesBadge.textContent = dishesList.length;
-      renderStoreDishesList(store.id, dishesList);
-
-      // 3. Populate Drivers
-      const drivers = getStoreDrivers(store.id, store.name);
-      document.getElementById('detail-drivers-count-badge').textContent = drivers.length;
-      const driverGrid = document.getElementById('driver-grid-container');
-      driverGrid.innerHTML = '';
-
-      if (drivers.length === 0) {
-        driverGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: var(--text-muted);">Chưa có tài xế nào trên hệ thống.</div>`;
-      } else {
-        drivers.forEach(d => {
-          let driverStatusBadge = '';
-          if (d.status === 'AVAILABLE') {
-            driverStatusBadge = '<span class="badge badge-active" style="font-size: 10px;">Đang rảnh (Sẵn sàng)</span>';
-          } else if (d.status === 'DELIVERING') {
-            driverStatusBadge = '<span class="badge" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size: 10px;">Đang giao hàng</span>';
-          } else {
-            driverStatusBadge = '<span class="badge" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; font-size: 10px;">Đang nghỉ ca</span>';
-          }
-
-          const card = document.createElement('div');
-          card.className = 'driver-card';
-          card.innerHTML = `
-            <div class="driver-card-header">
-              <img src="${d.avatar}" class="driver-avatar" alt="${d.name}" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
-              <div class="driver-meta">
-                <h4>
-                  <span>${d.name}</span>
-                  <span class="driver-code">${d.id.slice(0, 8)}</span>
-                </h4>
-                <div class="driver-phone">${d.phone}</div>
-                <div style="margin-top: 4px;">${driverStatusBadge}</div>
-              </div>
-            </div>
-            <div class="driver-details-list">
-              <div>
-                <span>Phương tiện:</span>
-                <strong>${d.bike}</strong>
-              </div>
-              <div>
-                <span>Tổng đơn giao:</span>
-                <strong style="color: #2563EB;">${d.ordersCount} đơn</strong>
-              </div>
-              <div>
-                <span>Đánh giá uy tín:</span>
-                <strong style="color: #D97706;">${d.rating}</strong>
-              </div>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
-              <span style="font-size: 11px; color: var(--text-muted);">${d.statusText}</span>
-              <a href="tel:${d.phone}" class="btn btn-sm btn-outline" style="padding: 2px 8px; font-size: 11px; text-decoration: none;">
-                Liên hệ
-              </a>
-            </div>
-          `;
-          driverGrid.appendChild(card);
-        });
-      }
-
-      switchStoreDetailTab(initialSubTab || 'orders');
-      openModal('modal-store-detail');
-    }
-
-    function renderStoreDishesList(storeId, dishesList) {
-      const tbody = document.getElementById('tbody-store-detail-dishes');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-
-      if (!dishesList || dishesList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--text-muted);">Cửa hàng này chưa có món ăn nào trong node <code>stores/${storeId}/dishes</code>. Bấm <strong>"+ Thêm Món Mới Vào Quán"</strong> để tạo món!</td></tr>`;
-        return;
-      }
-
-      dishesList.forEach(dish => {
-        const isAvailable = dish.isAvailable !== false && dish.available !== false;
-        const isHidden = dish.isHidden === true || dish.hidden === true;
-        const imgUrl = dish.imageUrl || dish.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <img src="${imgUrl}" style="width: 42px; height: 42px; border-radius: 8px; object-fit: cover; border: 1px solid #E2E8F0;" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&auto=format&fit=crop&q=80'">
-              <div>
-                <strong style="color: var(--text-main);">${dish.name || 'Món ăn'}</strong>
-                <div style="font-size: 11px; color: var(--text-muted); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dish.description || 'Món ngon chuẩn vị Oishi'}</div>
-              </div>
-            </div>
-          </td>
-          <td style="font-weight: 800; color: var(--primary); font-family: monospace;">${formatVnd(dish.price || 0)}</td>
-          <td><span class="badge badge-info">${dish.categoryId || dish.category || 'Món chính'}</span></td>
-          <td>
-            ${isHidden
-              ? '<span class="badge badge-locked">Đã ẩn</span>'
-              : (isAvailable
-                  ? '<span class="badge badge-active">Đang bán</span>'
-                  : '<span class="badge badge-warning">Hết món</span>')
-            }
-          </td>
-          <td style="text-align: right;">
-            <div class="action-group" style="justify-content: flex-end;">
-              <button class="btn btn-outline btn-sm" onclick="toggleStoreDishAvailable('${storeId}', '${dish.id}')" title="Bật/Tắt trạng thái Còn món">
-                ${isAvailable ? 'Báo hết' : 'Mở bán'}
-              </button>
-              <button class="btn btn-outline btn-sm" onclick="openEditDishModal('${storeId}', '${dish.id}')">Sửa</button>
-              <button class="btn btn-danger-outline btn-sm" onclick="deleteStoreDish('${storeId}', '${dish.id}')">Xóa</button>
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function openAddDishModal() {
-      if (!currentDetailStoreId) return;
-      document.getElementById('modal-dish-title').textContent = 'Thêm Món Ăn Mới Vào Quán';
-      document.getElementById('form-dish-id').value = '';
-      document.getElementById('form-dish-name').value = '';
-      document.getElementById('form-dish-price').value = '45000';
-      document.getElementById('form-dish-cat').value = 'Món chính';
-      document.getElementById('form-dish-image').value = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
-      document.getElementById('form-dish-desc').value = '';
-      openModal('modal-dish');
-    }
-
-    function openEditDishModal(storeId, dishId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store || !store.dishes || !store.dishes[dishId]) return;
-      const d = store.dishes[dishId];
-      currentDetailStoreId = storeId;
-      document.getElementById('modal-dish-title').textContent = 'Chỉnh Sửa Món: ' + (d.name || '');
-      document.getElementById('form-dish-id').value = dishId;
-      document.getElementById('form-dish-name').value = d.name || '';
-      document.getElementById('form-dish-price').value = d.price || 45000;
-      document.getElementById('form-dish-cat').value = d.categoryId || d.category || 'Món chính';
-      document.getElementById('form-dish-image').value = d.imageUrl || d.image || '';
-      document.getElementById('form-dish-desc').value = d.description || '';
-      openModal('modal-dish');
-    }
-
-    async function saveStoreDish(e) {
-      e.preventDefault();
-      if (!currentDetailStoreId) return;
-      const store = stores.find(s => s.id === currentDetailStoreId);
-      if (!store) return;
-
-      const existingId = document.getElementById('form-dish-id').value;
-      const dishId = existingId || ('dish_' + Date.now());
-      const name = document.getElementById('form-dish-name').value.trim();
-      const price = Number(document.getElementById('form-dish-price').value || 0);
-      const category = document.getElementById('form-dish-cat').value.trim() || 'Món chính';
-      const imageUrl = document.getElementById('form-dish-image').value.trim() || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80';
-      const description = document.getElementById('form-dish-desc').value.trim();
-
-      const dishData = {
-        id: dishId,
-        dishId: dishId,
-        storeId: store.id,
-        name: name,
-        price: price,
-        categoryId: category,
-        category: category,
-        imageUrl: imageUrl,
-        description: description,
-        isAvailable: true,
-        available: true,
-        isHidden: false
-      };
-
-      if (!store.dishes) store.dishes = {};
-      store.dishes[dishId] = dishData;
-      store.itemCount = Object.keys(store.dishes).length;
-
-      if (fbDb && isFirebaseReady) {
-        await fbDb.ref(`stores/${store.id}/dishes/${dishId}`).update(dishData).catch(() => {});
-      }
-
-      saveState();
-      closeModal('modal-dish');
-      openStoreDetailModal(store.id, 'dishes');
-      renderStores();
-      addLog(`${existingId ? 'Cập nhật' : 'Thêm mới'} món "${name}" (${formatVnd(price)}) tại quán "${store.name}"`, 'success');
-      showToast(`Đã lưu món "${name}" lên Firebase!`, 'success');
-    }
-
-    async function toggleStoreDishAvailable(storeId, dishId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store || !store.dishes || !store.dishes[dishId]) return;
-      const dish = store.dishes[dishId];
-      const nextAvail = !(dish.isAvailable !== false && dish.available !== false);
-      dish.isAvailable = nextAvail;
-      dish.available = nextAvail;
-      dish.isHidden = false;
-      if (fbDb && isFirebaseReady) {
-        await fbDb.ref(`stores/${storeId}/dishes/${dishId}`).update({
-          isAvailable: nextAvail,
-          available: nextAvail,
-          isHidden: false
-        }).catch(() => {});
-      }
-      openStoreDetailModal(storeId, 'dishes');
-      showToast(`Đã chuyển món "${dish.name}" sang ${nextAvail ? 'Đang bán' : 'Tạm hết món'}`, 'info');
-    }
-
-    async function deleteStoreDish(storeId, dishId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store || !store.dishes || !store.dishes[dishId]) return;
-      const dishName = store.dishes[dishId].name || dishId;
-      if (!confirm(`Xóa món "${dishName}" khỏi thực đơn của quán "${store.name}"?`)) return;
-      delete store.dishes[dishId];
-      store.itemCount = Object.keys(store.dishes).length;
-      if (fbDb && isFirebaseReady) {
-        await fbDb.ref(`stores/${storeId}/dishes/${dishId}`).remove().catch(() => {});
-      }
-      openStoreDetailModal(storeId, 'dishes');
-      renderStores();
-      addLog(`Xóa món "${dishName}" khỏi quán "${store.name}"`, 'danger');
-      showToast(`Đã xóa món "${dishName}" khỏi Firebase!`, 'info');
-    }
-
-    function filterCurrentStoreOrders() {
-      const searchVal = (document.getElementById('filter-store-order-search')?.value || '').toLowerCase().trim();
-      const statusVal = document.getElementById('filter-store-order-status')?.value || 'ALL';
-
-      const filtered = currentDetailStoreOrders.filter(ord => {
-        const matchSearch = (ord.id || '').toLowerCase().includes(searchVal) ||
-                            (ord.customer || '').toLowerCase().includes(searchVal) ||
-                            (ord.phone || '').includes(searchVal) ||
-                            (ord.items || '').toLowerCase().includes(searchVal) ||
-                            (ord.driver || '').toLowerCase().includes(searchVal);
-        const matchStatus = (statusVal === 'ALL') || (ord.status === statusVal);
-        return matchSearch && matchStatus;
-      });
-
-      renderStoreOrdersList(filtered);
-    }
-
-    function renderStoreOrdersList(orders) {
-      const orderTbody = document.getElementById('tbody-store-detail-orders');
-      if (!orderTbody) return;
-      orderTbody.innerHTML = '';
-
-      if (orders.length === 0) {
-        orderTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--text-muted);">Chưa có đơn đặt món nào khớp với bộ lọc tại quán này.</td></tr>`;
-        return;
-      }
-
-      orders.forEach(ord => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>
-            <strong style="color: #2563EB; font-family: monospace;">#${ord.id.slice(-8)}</strong>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${ord.time}</div>
-          </td>
-          <td>
-            <div style="font-weight: 700; color: var(--text-main);">${ord.customer}</div>
-            <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${ord.phone}</div>
-          </td>
-          <td>
-            <div style="font-size: 12.5px; font-weight: 600; color: var(--text-main);">${ord.items}</div>
-            <div style="font-size: 11.5px; font-weight: 800; color: var(--primary); margin-top: 2px;">Tổng: ${formatVnd(ord.totalAmount || 0)}</div>
-            ${ord.note ? `<div style="font-size: 11px; color: #D97706; margin-top: 2px;">Ghi chú: ${ord.note}</div>` : ''}
-          </td>
-          <td>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <div>
-                <strong style="font-size: 12px; color: var(--text-main);">${ord.driver}</strong>
-              </div>
-            </div>
-          </td>
-          <td>
-            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; font-weight: 700;" onchange="updateLiveOrderStatus('${ord.id}', this.value)">
-              <option value="PENDING" ${ord.status === 'PENDING' ? 'selected' : ''}>PENDING (Chờ nhận)</option>
-              <option value="PREPARING" ${ord.status === 'PREPARING' ? 'selected' : ''}>PREPARING (Đang nấu)</option>
-              <option value="READY" ${ord.status === 'READY' ? 'selected' : ''}>READY (Chờ lấy)</option>
-              <option value="ASSIGNED" ${ord.status === 'ASSIGNED' ? 'selected' : ''}>ASSIGNED (Đã nhận)</option>
-              <option value="DELIVERING" ${ord.status === 'DELIVERING' ? 'selected' : ''}>DELIVERING (Đang giao)</option>
-              <option value="COMPLETED" ${ord.status === 'COMPLETED' ? 'selected' : ''}>COMPLETED (Hoàn tất)</option>
-              <option value="BOOM" ${ord.status === 'BOOM' ? 'selected' : ''}>BOOM (Bùng hàng)</option>
-              <option value="CANCELLED" ${ord.status === 'CANCELLED' ? 'selected' : ''}>❌ CANCELLED (Đã hủy)</option>
-            </select>
-          </td>
-        `;
-        orderTbody.appendChild(tr);
-      });
-    }
-
-    function switchStoreDetailTab(tab) {
-      const btnOrders = document.getElementById('btn-subtab-orders');
-      const btnDishes = document.getElementById('btn-subtab-dishes');
-      const btnDrivers = document.getElementById('btn-subtab-drivers');
-      const paneOrders = document.getElementById('pane-store-detail-orders');
-      const paneDishes = document.getElementById('pane-store-detail-dishes');
-      const paneDrivers = document.getElementById('pane-store-detail-drivers');
-
-      if (btnOrders) btnOrders.classList.toggle('active', tab === 'orders');
-      if (btnDishes) btnDishes.classList.toggle('active', tab === 'dishes');
-      if (btnDrivers) btnDrivers.classList.toggle('active', tab === 'drivers');
-
-      if (paneOrders) paneOrders.style.display = (tab === 'orders') ? 'block' : 'none';
-      if (paneDishes) paneDishes.style.display = (tab === 'dishes') ? 'block' : 'none';
-      if (paneDrivers) paneDrivers.style.display = (tab === 'drivers') ? 'block' : 'none';
-    }
-
-    /* ========================================================
-       15B. GLOBAL ORDERS & DRIVERS CONTROLLER (TAB-ORDERS)
-       ======================================================== */
-    function populateGlobalOrderStoreFilter() {
-      const sel = document.getElementById('filter-global-order-store');
-      if (!sel) return;
-      const curr = sel.value || 'ALL';
-      sel.innerHTML = '<option value="ALL">Tất cả cửa hàng</option>';
-      stores.forEach(s => {
-        sel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
-      });
-      sel.value = curr;
-    }
-
-    function setGlobalOrderFilter(statusVal) {
-      const sel = document.getElementById('filter-global-order-status');
-      if (sel) {
-        sel.value = statusVal;
-        renderGlobalOrders();
-      }
-    }
-
-    function renderGlobalOrders() {
-      const tbody = document.getElementById('tbody-global-orders');
-      const counter = document.getElementById('global-order-counter');
-      if (!tbody) return;
-
-      const searchVal = (document.getElementById('filter-global-order-search')?.value || '').toLowerCase().trim();
-      const storeVal = document.getElementById('filter-global-order-store')?.value || 'ALL';
-      const statusVal = document.getElementById('filter-global-order-status')?.value || 'ALL';
-
-      const filtered = liveOrders.filter(o => {
-        const matchSearch = (o.id || '').toLowerCase().includes(searchVal) ||
-                            (o.customer || '').toLowerCase().includes(searchVal) ||
-                            (o.phone || '').includes(searchVal) ||
-                            (o.storeName || '').toLowerCase().includes(searchVal) ||
-                            (o.items || '').toLowerCase().includes(searchVal) ||
-                            (o.driver || '').toLowerCase().includes(searchVal);
-        const matchStore = (storeVal === 'ALL') || (o.shopId === storeVal);
-        let matchStatus = true;
-        if (statusVal === 'PROCESSING') {
-          matchStatus = ['PENDING', 'PREPARING', 'READY', 'ASSIGNED'].includes(o.status);
-        } else if (statusVal === 'FAILED') {
-          matchStatus = ['BOOM', 'CANCELLED'].includes(o.status);
-        } else if (statusVal !== 'ALL') {
-          matchStatus = (o.status === statusVal);
-        }
-        return matchSearch && matchStore && matchStatus;
-      });
-
-      if (counter) counter.textContent = filtered.length;
-      tbody.innerHTML = '';
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" class="empty-state">
-              <h3>Chưa có đơn hàng nào khớp bộ lọc</h3>
-              <p>Đơn hàng đặt từ App Khách Hàng sẽ xuất hiện tức thì tại đây qua Firebase Realtime Database</p>
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      filtered.forEach(ord => {
-        const driverOptions = [
-          `<option value="">-- Chưa gán tài xế --</option>`,
-          ...liveDrivers.map(d => `<option value="${d.id}" ${ord.shipperId === d.id ? 'selected' : ''}>${d.name} (${d.phone})</option>`)
-        ].join('');
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>
-            <strong style="color: #2563EB; font-family: monospace;">#${ord.id.slice(-8)}</strong>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${ord.time}</div>
-          </td>
-          <td>
-            <strong style="color: var(--text-main); cursor: pointer;" onclick="openStoreDetailModal('${ord.shopId}')">${ord.storeName}</strong>
-            <div style="font-size: 11px; color: var(--text-muted);">Mã quán: ${ord.shopId || 'N/A'}</div>
-          </td>
-          <td>
-            <div style="font-weight: 700;">${ord.customer}</div>
-            <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${ord.phone}</div>
-            <div style="font-size: 11px; color: var(--text-light); max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${ord.address}">${ord.address}</div>
-          </td>
-          <td>
-            <div style="font-size: 12px; font-weight: 600; color: var(--text-main); max-width: 240px;">${ord.items}</div>
-            <div style="font-size: 12px; font-weight: 800; color: var(--primary); margin-top: 3px;">${formatVnd(ord.totalAmount)}</div>
-          </td>
-          <td>
-            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; max-width: 175px;" onchange="assignLiveOrderDriver('${ord.id}', this.value)">
-              ${driverOptions}
-            </select>
-          </td>
-          <td>
-            <select class="select-filter" style="font-size: 11.5px; padding: 4px 8px; font-weight: 700;" onchange="updateLiveOrderStatus('${ord.id}', this.value)">
-              <option value="PENDING" ${ord.status === 'PENDING' ? 'selected' : ''}>PENDING (Chờ nhận)</option>
-              <option value="PREPARING" ${ord.status === 'PREPARING' ? 'selected' : ''}>PREPARING (Đang nấu)</option>
-              <option value="READY" ${ord.status === 'READY' ? 'selected' : ''}>READY (Chờ lấy)</option>
-              <option value="ASSIGNED" ${ord.status === 'ASSIGNED' ? 'selected' : ''}>ASSIGNED (Đã nhận)</option>
-              <option value="DELIVERING" ${ord.status === 'DELIVERING' ? 'selected' : ''}>DELIVERING (Đang giao)</option>
-              <option value="COMPLETED" ${ord.status === 'COMPLETED' ? 'selected' : ''}>COMPLETED (Hoàn tất)</option>
-              <option value="BOOM" ${ord.status === 'BOOM' ? 'selected' : ''}>BOOM (Bùng hàng)</option>
-              <option value="CANCELLED" ${ord.status === 'CANCELLED' ? 'selected' : ''}>❌ CANCELLED (Đã hủy)</option>
-            </select>
-          </td>
-          <td style="text-align: right;">
-            <button class="btn-action-icon lock-btn" onclick="deleteLiveOrder('${ord.id}')">Xóa</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    async function updateLiveOrderStatus(orderId, newStatus) {
-      const ord = liveOrders.find(o => o.id === orderId);
-      if (ord) ord.status = newStatus;
-      if (fbDb && isFirebaseReady) {
-        await fbDb.ref(`orders/${orderId}`).update({
-          status: newStatus,
-          orderStatus: newStatus,
-          updatedAt: Date.now()
-        }).catch(() => {});
-      }
-      addLog(`Cập nhật trạng thái đơn #${orderId.slice(-6)} sang ${newStatus}`, newStatus === 'BOOM' ? 'danger' : 'info');
-      showToast(`Đã chuyển đơn #${orderId.slice(-6)} sang trạng thái ${newStatus}!`, 'success');
-    }
-
-    async function assignLiveOrderDriver(orderId, driverId) {
-      const drv = liveDrivers.find(d => d.id === driverId);
-      const shipperName = drv ? drv.name : '';
-      if (fbDb && isFirebaseReady) {
-        await fbDb.ref(`orders/${orderId}`).update({
-          shipperId: driverId || '',
-          shipperName: shipperName,
-          updatedAt: Date.now()
-        }).catch(() => {});
-      }
-      addLog(`Điều phối tài xế "${shipperName || 'Bỏ gán'}" cho đơn #${orderId.slice(-6)}`, 'info');
-      showToast(`Đã gán tài xế "${shipperName || 'Chưa gán'}" cho đơn #${orderId.slice(-6)}!`, 'success');
-    }
-
-    async function deleteLiveOrder(orderId) {
-      if (!confirm(`Xóa đơn hàng #${orderId} khỏi Firebase Realtime Database?`)) return;
-      if (fbDb && isFirebaseReady) {
-        await fbDb.ref(`orders/${orderId}`).remove().catch(() => {});
-      }
-      addLog(`Xóa đơn hàng #${orderId.slice(-6)}`, 'danger');
-      showToast(`Đã xóa đơn hàng #${orderId.slice(-6)}!`, 'info');
-    }
-
-    function renderGlobalDrivers() {
-      const grid = document.getElementById('global-drivers-grid');
-      const counter = document.getElementById('global-driver-counter');
-      if (!grid) return;
-      if (counter) counter.textContent = liveDrivers.length;
-      grid.innerHTML = '';
-
-      if (liveDrivers.length === 0) {
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding: 24px; color: var(--text-muted);">Chưa có tài xế nào trên Firebase.</div>`;
-        return;
-      }
-
-      liveDrivers.forEach(d => {
-        let badge = '<span class="badge badge-active" style="font-size: 10px;">Đang trực tuyến</span>';
-        if (!d.isActive) badge = '<span class="badge badge-locked" style="font-size: 10px;">Đã khóa TK</span>';
-        else if (d.status === 'DELIVERING') badge = '<span class="badge" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; font-size: 10px;">Đang giao đơn</span>';
-        else if (d.status === 'OFFLINE') badge = '<span class="badge" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; font-size: 10px;">Ngoại tuyến</span>';
-
-        const card = document.createElement('div');
-        card.className = 'driver-card';
-        card.innerHTML = `
-          <div class="driver-card-header">
-            <img src="${d.avatar}" class="driver-avatar" alt="${d.name}" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'">
-            <div class="driver-meta">
-              <h4>
-                <span>${d.name}</span>
-                <span class="driver-code">${d.id.slice(0, 8)}</span>
-              </h4>
-              <div class="driver-phone">${d.phone}</div>
-              <div style="margin-top: 4px;">${badge}</div>
-            </div>
-          </div>
-          <div class="driver-details-list">
-            <div>
-              <span>Biển số / Xe:</span>
-              <strong>${d.bike}</strong>
-            </div>
-            <div>
-              <span>Tổng đơn phụ trách:</span>
-              <strong style="color: #2563EB;">${d.ordersCount} đơn</strong>
-            </div>
-            <div>
-              <span>Đánh giá:</span>
-              <strong style="color: #D97706;">${d.rating}</strong>
-            </div>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-            <span style="font-size: 11px; color: var(--text-muted);">${d.statusText}</span>
-            <button class="btn btn-sm ${d.isActive ? 'btn-danger-outline' : 'btn-primary'}" style="padding: 2px 8px; font-size: 11px;" onclick="toggleDriverActiveStatus('${d.id}')">
-              ${d.isActive ? 'Khóa TX' : 'Mở khóa'}
-            </button>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
-    }
-
-    async function toggleDriverActiveStatus(driverId) {
-      const drv = liveDrivers.find(d => d.id === driverId);
-      if (!drv) return;
-      const nextActive = !drv.isActive;
-      drv.isActive = nextActive;
-      if (fbDb && isFirebaseReady) {
-        await Promise.all([
-          fbDb.ref(`users/${driverId}`).update({
-            isActive: nextActive,
-            status: nextActive ? 'ACTIVE' : 'LOCKED'
-          }).catch(() => {}),
-          fbDb.ref(`drivers/${driverId}`).update({
-            isOnline: nextActive,
-            status: nextActive ? 'AVAILABLE' : 'LOCKED'
-          }).catch(() => {})
-        ]);
-      }
-      renderGlobalDrivers();
-      addLog(`${nextActive ? 'Mở khóa' : 'Khóa'} tài khoản tài xế "${drv.name}"`, nextActive ? 'success' : 'danger');
-      showToast(`Đã ${nextActive ? 'mở khóa' : 'khóa'} tài xế "${drv.name}" trên Firebase!`, nextActive ? 'success' : 'danger');
-    }
-
-    function quickApproveStore(storeId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-      syncStoreStatusToFirebase(store, 'OPEN', '', 'NONE');
-      saveState();
-      renderStores();
-      renderOverviewStores();
-      renderKPIs();
-      addLog(`Phê duyệt cửa hàng "${store.name}" sang trạng thái Đang hoạt động`, 'success');
-      showToast(`Đã duyệt quán "${store.name}" trên Firebase! Trạng thái: Đang hoạt động`, 'success');
-    }
-
-    function openChangeStatusModal(storeId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-      document.getElementById('change-status-store-id').value = store.id;
-      document.getElementById('change-status-store-name').value = `${store.name} (Chủ quán: ${store.owner} - ${store.phone})`;
-      document.getElementById('change-status-select').value = store.status;
-      handleStoreStatusDropdownChange(store.status);
-      openModal('modal-change-status');
-    }
-
-    function handleStoreStatusDropdownChange(val) {
-      const reasonBox = document.getElementById('change-status-reason-box');
-      if (reasonBox) {
-        reasonBox.style.display = (val === 'LOCKED') ? 'block' : 'none';
-      }
-    }
-
-    function submitChangeStoreStatus(e) {
-      e.preventDefault();
-      const storeId = document.getElementById('change-status-store-id').value;
-      const newStatus = document.getElementById('change-status-select').value;
-      const reason = document.getElementById('change-status-reason').value.trim();
-
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-
-      const statusLabels = {
-        'PENDING': 'Chờ duyệt',
-        'OPEN': 'Đang hoạt động',
-        'LOCKED': 'Bị khóa',
-        'CLOSED': 'Tạm nghỉ'
-      };
-
-      syncStoreStatusToFirebase(
-        store,
-        newStatus,
-        newStatus === 'LOCKED' ? (reason || 'Vi phạm quy định chính sách nền tảng') : '',
-        newStatus === 'LOCKED' ? 'LOCK' : 'NONE'
-      );
-
-      saveState();
-      closeModal('modal-change-status');
-      renderStores();
-      renderOverviewStores();
-      renderKPIs();
-
-      const label = statusLabels[newStatus] || newStatus;
-      addLog(`Chuyển trạng thái cửa hàng "${store.name}" sang: ${label}`, newStatus === 'LOCKED' ? 'danger' : 'info');
-      showToast(`Đã đồng bộ trạng thái quán "${store.name}" sang "${label}" trên Firebase!`, 'success');
-    }
-
-    function previewImage(url, title, sub) {
-      const modal = document.getElementById('modal-image-preview');
-      if (!modal) return;
-      const img = document.getElementById('preview-image-src');
-      if (img) img.src = url;
-      const tEl = document.getElementById('preview-image-title');
-      if (tEl) tEl.textContent = title || 'Chi tiết hình ảnh';
-      const sEl = document.getElementById('preview-image-sub');
-      if (sEl) sEl.textContent = sub || '';
-      const link = document.getElementById('preview-image-link');
-      if (link) link.href = url;
-      openModal('modal-image-preview');
-    }
-
-    function openLockStoreModal(storeId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-      const isLocked = store.status === 'LOCKED';
-
-      document.getElementById('lock-store-id').value = store.id;
-      document.getElementById('lock-store-name').value = `${store.name} (Chủ quán: ${store.owner} - ${store.phone})`;
-      document.getElementById('lock-store-action').value = isLocked ? 'UNLOCK' : 'LOCK';
-
-      const titleEl = document.getElementById('modal-lock-store-title');
-      const warningEl = document.getElementById('lock-store-warning');
-      const submitBtn = document.getElementById('btn-submit-lock-store');
-      const reasonGroup = document.getElementById('group-lock-reason');
-
-      if (isLocked) {
-        titleEl.textContent = 'Mở Khóa Cửa Hàng Đối Tác';
-        titleEl.style.color = 'var(--success)';
-        warningEl.style.cssText = 'background: #ECFDF5; border-left: 4px solid var(--success); color: #065F46;';
-        warningEl.innerHTML = `<strong>Mở khóa lại quán:</strong> Cửa hàng sẽ được chuyển sang trạng thái <strong>Đang hoạt động</strong> trên Firebase và thực đơn sẽ xuất hiện trở lại ngay trên App Khách Hàng.`;
-        if (reasonGroup) reasonGroup.style.display = 'none';
-        submitBtn.style.background = 'var(--success)';
-        submitBtn.textContent = 'Mở Khóa Cửa Hàng';
-      } else {
-        titleEl.textContent = 'Khóa Cửa Hàng Đối Tác (Cấm Bán)';
-        titleEl.style.color = 'var(--danger)';
-        warningEl.style.cssText = '';
-        warningEl.innerHTML = `<strong>Cảnh báo quản trị:</strong> Khi cửa hàng bị khóa trên Firebase, toàn bộ thực đơn và các món ăn của quán sẽ lập tức bị ẩn khỏi App Khách Hàng và App Chủ Quán bị khóa công tắc mở bán.`;
-        if (reasonGroup) reasonGroup.style.display = 'flex';
-        submitBtn.style.background = 'var(--danger)';
-        submitBtn.textContent = 'Xác Nhận Khóa Quán';
-      }
-
-      openModal('modal-lock-store');
-    }
-
-    function handleStoreReasonChange(val) {
-      const customGroup = document.getElementById('group-lock-custom-reason');
-      if (val === 'OTHER') {
-        customGroup.style.display = 'flex';
-        document.getElementById('lock-store-reason-text').focus();
-      } else {
-        customGroup.style.display = 'none';
-      }
-    }
-
-    function confirmLockStore(e) {
-      e.preventDefault();
-      const storeId = document.getElementById('lock-store-id').value;
-      const action = document.getElementById('lock-store-action').value;
-      const reasonSelect = document.getElementById('lock-store-reason-select').value;
-      const customText = document.getElementById('lock-store-reason-text').value.trim();
-
-      const finalReason = reasonSelect === 'OTHER' ? (customText || 'Vi phạm chính sách nền tảng') : reasonSelect;
-
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-
-      if (action === 'LOCK') {
-        syncStoreStatusToFirebase(store, 'LOCKED', finalReason, 'LOCK');
-        addLog(`Khóa cửa hàng "${store.name}" (${finalReason})`, 'danger');
-        showToast(`Đã KHÓA cửa hàng "${store.name}" trên Firebase!`, 'danger');
-      } else {
-        syncStoreStatusToFirebase(store, 'OPEN', '', 'NONE');
-        addLog(`Mở khóa cửa hàng "${store.name}"`, 'success');
-        showToast(`Đã MỞ KHÓA cửa hàng "${store.name}" trên Firebase!`, 'success');
-      }
-
-      saveState();
-      closeModal('modal-lock-store');
-      renderStores();
-      renderOverviewStores();
-      renderKPIs();
-    }
-
-    function openAddStoreModal() {
-      document.getElementById('new-store-name').value = '';
-      document.getElementById('new-store-owner').value = '';
-      document.getElementById('new-store-phone').value = '';
-      document.getElementById('new-store-address').value = '';
-      document.getElementById('new-store-password').value = 'Oishi@123456';
-      openModal('modal-add-store');
-    }
-
-    function saveNewStore(e) {
-      e.preventDefault();
-      const name = document.getElementById('new-store-name').value.trim();
-      const owner = document.getElementById('new-store-owner').value.trim();
-      const phone = document.getElementById('new-store-phone').value.trim();
-      const cccd = document.getElementById('new-store-cccd')?.value.trim() || ('079099' + Math.floor(100000 + Math.random() * 900000));
-      const cccdFront = document.getElementById('new-store-cccd-front')?.value.trim() || 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80';
-      const cccdBack = document.getElementById('new-store-cccd-back')?.value.trim() || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80';
-      const portrait = document.getElementById('new-store-portrait')?.value.trim() || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
-      const category = document.getElementById('new-store-category').value;
-      const initialStatus = document.getElementById('new-store-status')?.value || 'PENDING';
-      const address = document.getElementById('new-store-address').value.trim();
-
-      if (!name || !owner || !phone) {
-        showToast('Vui lòng điền đủ tên quán, chủ quán và SĐT!', 'warning');
-        return;
-      }
-
-      const newId = 'store_' + Date.now();
-      const newStore = {
-        id: newId,
-        storeId: newId,
-        name: name,
-        owner: owner,
-        ownerName: owner,
-        phone: phone,
-        cccdNumber: cccd,
-        cccdFront: cccdFront,
-        cccdFrontUrl: cccdFront,
-        cccdBack: cccdBack,
-        cccdBackUrl: cccdBack,
-        registerPhoto: portrait,
-        cccdPortraitUrl: portrait,
-        imageUrl: portrait,
-        cccdStatus: initialStatus === 'OPEN' ? 'VERIFIED' : 'PENDING',
-        dob: '01/01/1990',
-        gender: 'Nam',
-        hometown: 'TP.HCM',
-        residence: address || 'TP.HCM',
-        issueDate: '01/01/2022',
-        expireDate: '01/01/2040',
-        registerTime: 'Vừa xong',
-        createdAt: Date.now(),
-        ekycScore: '98.5%',
-        category: category,
-        rating: '5.0',
-        ratingAvg: 5.0,
-        itemCount: 0,
-        status: initialStatus,
-        storeStatus: initialStatus,
-        open: initialStatus === 'OPEN',
-        penaltyTier: 'NONE',
-        address: address || 'TP. Hồ Chí Minh'
-      };
-
-      stores.unshift(newStore);
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`stores/${newId}`).set(newStore).catch(() => {});
-      }
-      saveState();
-      closeModal('modal-add-store');
-      renderStores();
-      renderOverviewStores();
-      renderKPIs();
-      addLog(`Thêm mới đối tác quán "${name}" (CCCD: ${cccd})`, 'success');
-      showToast(`Đã thêm cửa hàng đối tác "${name}" lên Firebase!`, 'success');
-    }
-
-    function deleteStore(storeId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-      if (confirm(`Bạn có chắc chắn muốn xóa đối tác "${store.name}" khỏi hệ thống Firebase?`)) {
-        stores = stores.filter(s => s.id !== storeId);
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`stores/${storeId}`).remove().catch(() => {});
-        }
-        saveState();
-        renderStores();
-        renderOverviewStores();
-        renderKPIs();
-        addLog(`Xóa đối tác quán "${store.name}"`, 'danger');
-        showToast(`Đã xóa cửa hàng "${store.name}" khỏi Firebase`, 'info');
-      }
-    }
-
-    /* ========================================================
-       10. PASSWORD RESET MODULE
-       ======================================================== */
-    function openResetPasswordModal(targetType, targetId, targetName) {
-      document.getElementById('reset-target-type').value = targetType;
-      document.getElementById('reset-target-id').value = targetId;
-      document.getElementById('reset-target-name').textContent = `${targetName} (${targetType === 'customer' ? 'Khách hàng' : 'Cửa hàng'})`;
-      
-      const passInput = document.getElementById('reset-new-pass-input');
-      passInput.value = generateStrongPassword();
-
-      openModal('modal-reset-password');
-    }
-
-    function generateStrongPassword() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-      let pass = '';
-      for (let i = 0; i < 8; i++) {
-        pass += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return 'Oi#' + pass;
-    }
-
-    function generateRandomPass() {
-      const passInput = document.getElementById('reset-new-pass-input');
-      passInput.value = generateStrongPassword();
-      showToast('Đã tạo mật khẩu ngẫu nhiên mới!', 'info');
-    }
-
-    function copyPasswordToClipboard() {
-      const passInput = document.getElementById('reset-new-pass-input');
-      if (passInput && passInput.value) {
-        navigator.clipboard.writeText(passInput.value).then(() => {
-          showToast(`Đã sao chép mật khẩu: "${passInput.value}" vào bộ nhớ tạm!`, 'success');
-        }).catch(() => {
-          showToast(`Mật khẩu là: ${passInput.value}`, 'info');
-        });
-      }
-    }
-
-    function saveNewPassword(e) {
-      e.preventDefault();
-      const targetType = document.getElementById('reset-target-type').value;
-      const targetId = document.getElementById('reset-target-id').value;
-      const newPass = document.getElementById('reset-new-pass-input').value.trim();
-
-      if (!newPass || newPass.length < 6) {
-        showToast('Mật khẩu phải từ 6 ký tự trở lên!', 'warning');
-        return;
-      }
-
-      let name = '';
-      if (targetType === 'customer') {
-        const c = customers.find(x => x.id === targetId);
-        if (c) name = c.name;
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`users/${targetId}`).update({ tempPasswordReset: newPass, updatedAt: Date.now() }).catch(() => {});
-        }
-      } else {
-        const s = stores.find(x => x.id === targetId);
-        if (s) {
-          name = s.name;
-          if (fbDb && isFirebaseReady) {
-            fbDb.ref(`stores/${targetId}`).update({ tempPasswordReset: newPass }).catch(() => {});
-          }
-        }
-      }
-
-      addLog(`Cấp mật khẩu mới cho ${targetType === 'customer' ? 'khách' : 'quán'} "${name}": ${newPass}`, 'info');
-      showToast(`Đã cập nhật mật khẩu mới cho ${name} trên Firebase!`, 'success');
-      closeModal('modal-reset-password');
-    }
-
-    /* ========================================================
-       11. COMPLAINTS & REPORTS MANAGEMENT (FIREBASE COMPLAINTS)
-       ======================================================== */
-    function filterComplaintsByStatus(status) {
-      const statusSelect = document.getElementById('filter-complaint-status');
-      if (statusSelect) {
-        statusSelect.value = status;
-        renderComplaints();
-      }
-    }
-
-    function filterComplaints() {
-      renderComplaints();
-    }
-
-    function renderComplaints() {
-      const tbody = document.getElementById('tbody-complaints');
-      const counter = document.getElementById('complaint-counter');
-      if (!tbody) return;
-
-      const searchVal = (document.getElementById('filter-complaint-search')?.value || '').toLowerCase().trim();
-      const senderVal = document.getElementById('filter-complaint-sender')?.value || 'ALL';
-      const typeVal = document.getElementById('filter-complaint-type')?.value || 'ALL';
-      const statusVal = document.getElementById('filter-complaint-status')?.value || 'ALL';
-      const priorityVal = document.getElementById('filter-complaint-priority')?.value || 'ALL';
-
-      const filtered = complaints.filter(c => {
-        const matchSearch = (c.id || '').toLowerCase().includes(searchVal) ||
-                            (c.orderId && c.orderId.toLowerCase().includes(searchVal)) ||
-                            (c.senderName || '').toLowerCase().includes(searchVal) ||
-                            (c.targetName || '').toLowerCase().includes(searchVal) ||
-                            (c.content || '').toLowerCase().includes(searchVal);
-        const matchSender = (senderVal === 'ALL') || (c.senderType === senderVal);
-        const matchType = (typeVal === 'ALL') || (c.type === typeVal);
-        const matchStatus = (statusVal === 'ALL') || (c.status === statusVal);
-        const matchPriority = (priorityVal === 'ALL') || (c.priority === priorityVal);
-
-        return matchSearch && matchSender && matchType && matchStatus && matchPriority;
-      });
-
-      if (counter) counter.textContent = filtered.length;
-      tbody.innerHTML = '';
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="8" class="empty-state">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              <h3>Không tìm thấy báo cáo khiếu nại nào</h3>
-              <p>Thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm</p>
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      filtered.forEach(c => {
-        const isFromCustomer = c.senderType === 'CUSTOMER';
-        const tr = document.createElement('tr');
-
-        let priorityBadge = '<span class="badge badge-warning"><span class="badge-dot"></span>Thường</span>';
-        if (c.priority === 'CRITICAL') priorityBadge = '<span class="badge badge-locked"><span class="badge-dot"></span>Khẩn cấp</span>';
-        else if (c.priority === 'HIGH') priorityBadge = '<span class="badge badge-warning" style="background:#FFF7ED; color:#C2410C; border-color:#FED7AA;"><span class="badge-dot"></span>Cao</span>';
-
-        let statusBadge = '<span class="badge badge-locked"><span class="badge-dot"></span>Chờ xử lý</span>';
-        if (c.status === 'IN_PROGRESS') statusBadge = '<span class="badge badge-warning"><span class="badge-dot"></span>Đang xử lý</span>';
-        else if (c.status === 'RESOLVED') statusBadge = '<span class="badge badge-active"><span class="badge-dot"></span>Đã giải quyết</span>';
-        else if (c.status === 'REJECTED') statusBadge = '<span class="badge" style="background:#F1F5F9; color:#64748B;"><span class="badge-dot"></span>Đã từ chối</span>';
-
-        tr.innerHTML = `
-          <td>
-            <strong style="color: #2563EB;">#${c.id}</strong>
-            <div style="font-size: 11px; color: var(--text-muted);">${c.time}</div>
-          </td>
-          <td>
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
-              <span class="badge ${isFromCustomer ? 'badge-info' : 'badge-purple'}">
-                ${isFromCustomer ? 'Khách hàng' : 'Quán ăn'}
-              </span>
-            </div>
-            <strong>${c.senderName}</strong>
-            <div style="font-size: 11px; color: var(--text-light); font-family: monospace;">${c.senderContact || ''}</div>
-          </td>
-          <td>
-            <div style="font-weight: 700; color: var(--danger);">${c.targetName}</div>
-            <div style="font-size: 11px; color: var(--text-muted);">${c.targetContact || ''}</div>
-          </td>
-          <td>
-            <div style="font-weight: 700; font-family: monospace; color: #1E293B;">${c.orderId ? '#' + c.orderId : 'Không có mã đơn'}</div>
-            <div style="font-size: 11px; color: var(--text-muted);">${c.type}</div>
-          </td>
-          <td>
-            <div style="max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.content}">
-              ${c.content}
-            </div>
-          </td>
-          <td>${priorityBadge}</td>
-          <td>${statusBadge}</td>
-          <td>
-            <div class="action-group" style="justify-content: flex-end;">
-              <button class="btn btn-sm ${c.status === 'PENDING' ? 'btn-primary' : 'btn-outline'}" onclick="openResolveComplaintModal('${c.id}')" title="Xem chi tiết và xử lý">
-                ${c.status === 'PENDING' ? 'Xử lý' : 'Xem'}
-              </button>
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    /* ========================================================
-       11. COMPLAINTS & PENALTY CONTROLLER (CẢNH BÁO - ẨN - KHÓA)
-       ======================================================== */
-    let currentPenaltyAction = 'WARN';
-
-    function selectPenaltyAction(action) {
-      currentPenaltyAction = action;
-
-      const cardWarn = document.getElementById('card-action-warn');
-      const cardHide = document.getElementById('card-action-hide');
-      const cardLock = document.getElementById('card-action-lock');
-      const callout = document.getElementById('penalty-info-callout');
-      const submitBtn = document.getElementById('btn-submit-resolve');
-
-      if (cardWarn) cardWarn.className = 'action-choice-card' + (action === 'WARN' ? ' active-warn' : '');
-      if (cardHide) cardHide.className = 'action-choice-card' + (action === 'HIDE' ? ' active-hide' : '');
-      if (cardLock) cardLock.className = 'action-choice-card' + (action === 'LOCK' ? ' active-lock' : '');
-
-      const radioWarn = document.getElementById('penalty-warn');
-      const radioHide = document.getElementById('penalty-hide');
-      const radioLock = document.getElementById('penalty-lock');
-      if (radioWarn) radioWarn.checked = (action === 'WARN');
-      if (radioHide) radioHide.checked = (action === 'HIDE');
-      if (radioLock) radioLock.checked = (action === 'LOCK');
-
-      if (callout) {
-        if (action === 'WARN') {
-          callout.style.cssText = 'background: #FEF3C7; border: 1px solid #FCD34D; color: #92400E; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
-          callout.innerHTML = '<strong>Mức 1 - Cảnh Báo (WARN):</strong> Gửi thông báo cảnh cáo vi phạm chính thức trên Firebase. Tài khoản của quán / khách vẫn hoạt động nhưng bị ghi nhận số lần vi phạm vào hồ sơ.';
-          if (submitBtn) { submitBtn.style.background = 'var(--primary)'; submitBtn.textContent = 'Lưu Cảnh Báo & Đóng Khiếu Nại'; }
-        } else if (action === 'HIDE') {
-          callout.style.cssText = 'background: #EEF2FF; border: 1px solid #C7D2FE; color: #3730A3; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
-          callout.innerHTML = '<strong>Mức 2 - Ẩn Tạm Thời (HIDE):</strong> Tạm ẩn cửa hàng khỏi App Khách Hàng (<code>storeStatus = CLOSED</code>, <code>penaltyTier = HIDE</code>) hoặc tạm đình chỉ quyền đặt hàng của khách.';
-          if (submitBtn) { submitBtn.style.background = '#4F46E5'; submitBtn.textContent = 'Tạm Ẩn Đối Tượng & Đóng Khiếu Nại'; }
-        } else if (action === 'LOCK') {
-          callout.style.cssText = 'background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; margin-top: 4px;';
-          callout.innerHTML = '<strong>Mức 3 - Khóa Tài Khoản (LOCK):</strong> Khóa hoàn toàn tài khoản đối tượng vi phạm trên Firebase (<code>storeStatus = LOCKED</code> / <code>users.status = LOCKED</code>).';
-          if (submitBtn) { submitBtn.style.background = 'var(--danger)'; submitBtn.textContent = 'Khóa Tài Khoản & Đóng Khiếu Nại'; }
-        }
-      }
-    }
-
-    function toggleRefundInput(checked) {
-      const refundGroup = document.getElementById('resolve-refund-group');
-      if (refundGroup) {
-        refundGroup.style.display = checked ? 'block' : 'none';
-      }
-    }
-
-    function openResolveComplaintModal(complaintId) {
-      const c = complaints.find(x => x.id === complaintId);
-      if (!c) return;
-
-      document.getElementById('resolve-complaint-id').value = c.id;
-      document.getElementById('detail-c-code').textContent = '#' + c.id;
-      document.getElementById('detail-c-time').textContent = 'Tiếp nhận lúc: ' + c.time;
-      document.getElementById('detail-c-sender-name').textContent = c.senderName + (c.senderType === 'CUSTOMER' ? ' (Khách hàng)' : ' (Đối tác Quán)');
-      document.getElementById('detail-c-sender-contact').textContent = c.senderContact;
-      document.getElementById('detail-c-target-name').textContent = c.targetName;
-      document.getElementById('detail-c-target-contact').textContent = c.targetContact || 'Đối tượng bị phản ánh';
-      document.getElementById('detail-c-order').textContent = c.orderId ? '#' + c.orderId : 'N/A';
-      document.getElementById('detail-c-type').textContent = c.type;
-      document.getElementById('detail-c-content').textContent = c.content;
-      const priorityContainer = document.getElementById('detail-c-priority-badge');
-      if (c.priority === 'CRITICAL') priorityContainer.innerHTML = '<span class="badge badge-locked">Khẩn cấp</span>';
-      else if (c.priority === 'HIGH') priorityContainer.innerHTML = '<span class="badge badge-warning">Mức độ cao</span>';
-      else priorityContainer.innerHTML = '<span class="badge badge-info">Bình thường</span>';
-
-      if (c.priority === 'CRITICAL') selectPenaltyAction('LOCK');
-      else if (c.priority === 'HIGH') selectPenaltyAction('HIDE');
-      else selectPenaltyAction('WARN');
-
-      const noteInput = document.getElementById('resolve-admin-note');
-      if (noteInput) {
-        noteInput.value = c.adminNote || (c.status === 'RESOLVED' ? 'Đã hoàn tất giải quyết khiếu nại.' : `Căn cứ phản ánh về sự cố "${c.type}", Admin quyết định xử lý theo quy chế nền tảng.`);
-      }
-
-      openModal('modal-resolve-complaint');
-    }
-
-    function quickRejectComplaint() {
-      const cid = document.getElementById('resolve-complaint-id').value;
-      const c = complaints.find(x => x.id === cid);
-      if (!c) return;
-
-      if (confirm(`Bạn có chắc chắn muốn BÁC BỎ khiếu nại #${c.id} của "${c.senderName}" do không đủ chứng cứ?`)) {
-        c.status = 'REJECTED';
-        c.adminNote = 'Bác bỏ khiếu nại do không đủ chứng cứ vi phạm xác thực hoặc nội dung phản ánh không đúng thực tế.';
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`complaints/${c.id}`).update({
-            status: 'REJECTED',
-            penaltyApplied: 'NONE',
-            adminNote: c.adminNote
-          }).catch(() => {});
-        }
-        addLog(`Bác bỏ khiếu nại #${c.id} của "${c.senderName}"`, 'info');
-        showToast(`Đã bác bỏ khiếu nại #${c.id} trên Firebase`, 'info');
-        saveState();
-        closeModal('modal-resolve-complaint');
-        renderComplaints();
-        renderKPIs();
-      }
-    }
-
-    function submitResolveComplaint(e) {
-      e.preventDefault();
-      const cid = document.getElementById('resolve-complaint-id').value;
-      const action = currentPenaltyAction; // 'WARN', 'HIDE', 'LOCK'
-      const adminNote = document.getElementById('resolve-admin-note').value.trim();
-
-      const c = complaints.find(x => x.id === cid);
-      if (!c) return;
-
-      c.status = 'RESOLVED';
-      c.penaltyAction = action;
-      c.adminNote = adminNote;
-
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`complaints/${c.id}`).update({
-          status: 'RESOLVED',
-          penaltyAction: action,
-          penaltyApplied: action,
-          adminNote: adminNote,
-          resolvedAt: Date.now()
-        }).catch(() => {});
-      }
-
-      // XỬ LÝ THEO 3 MỨC TRÊN FIREBASE: CẢNH BÁO (WARN), ẨN (HIDE), KHÓA TK (LOCK)
-      const targetQuery = (c.targetName || '').toLowerCase().trim();
-      const targetStore = stores.find(s =>
-        (c.storeId && s.id === c.storeId) ||
-        (s.name && (s.name.toLowerCase().includes(targetQuery) || targetQuery.includes(s.name.toLowerCase())))
-      );
-      const targetCust = customers.find(x =>
-        (c.customerId && x.id === c.customerId) ||
-        (x.name && x.name.toLowerCase().includes(targetQuery)) ||
-        (c.targetContact && x.phone && c.targetContact.includes(x.phone))
-      );
-
-      if (action === 'WARN') {
-        if (targetStore) {
-          targetStore.warningCount = (targetStore.warningCount || 0) + 1;
-          if (fbDb && isFirebaseReady) {
-            fbDb.ref(`stores/${targetStore.id}`).update({
-              warningCount: targetStore.warningCount,
-              penaltyTier: 'WARN',
-              penaltyReason: `Cảnh báo từ khiếu nại #${c.id}: ${adminNote}`
-            }).catch(() => {});
-          }
-        }
-        if (targetCust) {
-          targetCust.warningCount = (targetCust.warningCount || 0) + 1;
-          if (fbDb && isFirebaseReady) {
-            fbDb.ref(`users/${targetCust.id}`).update({ warningCount: targetCust.warningCount }).catch(() => {});
-          }
-        }
-        addLog(`[CẢNH BÁO] Phạt cảnh cáo đối tượng "${c.targetName}" theo khiếu nại #${c.id}`, 'warning');
-        showToast(`Đã gửi CẢNH BÁO vi phạm tới "${c.targetName}" trên Firebase!`, 'warning');
-      } else if (action === 'HIDE') {
-        if (targetStore) {
-          const reason = `Tạm ẩn do khiếu nại #${c.id}: ${c.type}`;
-          syncStoreStatusToFirebase(targetStore, 'CLOSED', reason, 'HIDE');
-          renderStores();
-          renderOverviewStores();
-        }
-        if (targetCust) {
-          targetCust.status = 'SUSPENDED';
-          targetCust.suspendedReason = `Tạm ngưng 7 ngày do khiếu nại #${c.id}`;
-          if (fbDb && isFirebaseReady) {
-            fbDb.ref(`users/${targetCust.id}`).update({
-              status: 'SUSPENDED',
-              isActive: false,
-              lockReason: targetCust.suspendedReason
-            }).catch(() => {});
-            writeWithAdminRole(() => fbDb.ref(`customers/${targetCust.id}`).update({
-              status: 'SUSPENDED',
-              lockReason: targetCust.suspendedReason
-            })).catch(() => {});
-          }
-          renderCustomers();
-        }
-        addLog(`[TẠM ẨN] Tạm ẩn đối tượng "${c.targetName}" khỏi nền tảng theo khiếu nại #${c.id}`, 'warning');
-        showToast(`Đã TẠM ẨN "${c.targetName}" khỏi App Khách Hàng trên Firebase!`, 'warning');
-      } else if (action === 'LOCK') {
-        if (targetStore) {
-          const reason = `Bị khóa theo khiếu nại #${c.id}: ${c.type} - ${adminNote}`;
-          syncStoreStatusToFirebase(targetStore, 'LOCKED', reason, 'LOCK');
-          renderStores();
-          renderOverviewStores();
-        }
-        if (targetCust) {
-          targetCust.status = 'LOCKED';
-          targetCust.lockReason = `Bị khóa theo khiếu nại #${c.id}: ${c.type}`;
-          if (fbDb && isFirebaseReady) {
-            fbDb.ref(`users/${targetCust.id}`).update({
-              status: 'LOCKED',
-              isActive: false,
-              lockReason: targetCust.lockReason
-            }).catch(() => {});
-            writeWithAdminRole(() => fbDb.ref(`customers/${targetCust.id}`).update({
-              status: 'LOCKED',
-              lockReason: targetCust.lockReason
-            })).catch(() => {});
-          }
-          renderCustomers();
-        }
-        addLog(`[KHÓA TK] Khóa vĩnh viễn tài khoản "${c.targetName}" theo khiếu nại #${c.id}`, 'danger');
-        showToast(`Đã KHÓA TÀI KHOẢN "${c.targetName}" trên toàn hệ thống Firebase!`, 'danger');
-      }
-
-      saveState();
-      closeModal('modal-resolve-complaint');
-      renderComplaints();
-      renderKPIs();
-    }
-
-    function openNewComplaintModal() {
-      document.getElementById('new-c-sender').value = '';
-      document.getElementById('new-c-target').value = '';
-      document.getElementById('new-c-order').value = '';
-      document.getElementById('new-c-content').value = '';
-      openModal('modal-new-complaint');
-    }
-
-    function saveNewComplaint(e) {
-      e.preventDefault();
-      const senderType = document.getElementById('new-c-sender-type').value;
-      const sender = document.getElementById('new-c-sender').value.trim();
-      const target = document.getElementById('new-c-target').value.trim();
-      const order = document.getElementById('new-c-order').value.trim();
-      const type = document.getElementById('new-c-type').value;
-      const content = document.getElementById('new-c-content').value.trim();
-      const priority = document.getElementById('new-c-priority').value;
-
-      if (!sender || !target || !content) {
-        showToast('Vui lòng nhập đầy đủ thông tin khiếu nại!', 'warning');
-        return;
-      }
-
-      const newId = 'KN-' + Date.now().toString().slice(-5);
-      const newComplaint = {
-        id: newId,
-        complaintId: newId,
-        senderType: senderType,
-        senderName: sender.split('(')[0].trim(),
-        senderContact: sender.includes('(') ? sender.split('(')[1].replace(')', '').trim() : '09xx.xxx.xxx',
-        targetName: target,
-        targetContact: 'Cần xác minh',
-        orderId: order ? order.replace('#', '') : '',
-        type: type,
-        reason: `[${type}] ${content}`,
-        content: content,
-        priority: priority,
-        status: 'PENDING',
-        penaltyApplied: 'NONE',
-        createdAt: Date.now(),
-        time: 'Vừa xong'
-      };
-
-      complaints.unshift(newComplaint);
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`complaints/${newId}`).set(newComplaint).catch(() => {});
-      }
-      saveState();
-      closeModal('modal-new-complaint');
-      renderComplaints();
-      renderKPIs();
-      addLog(`Tiếp nhận khiếu nại mới #${newId} từ ${sender}`, 'warning');
-      showToast(`Đã ghi nhận khiếu nại mới #${newId} lên Firebase!`, 'success');
-    }
-
-    /* ========================================================
-       12. DISH REVIEWS MODERATION CONTROLLER (dish_reviews)
-       ======================================================== */
-    function rebuildReviews() {
-      const list = [];
-      Object.entries(rawFbReviews).forEach(([rid, r]) => {
-        if (!r || typeof r !== 'object') return;
-        const cust = rawFbUsers[r.customerId] || rawFbCustomers[r.customerId] || {};
-        
-        let dishName = r.dishName || '';
-        let storeName = r.storeName || '';
-        let storeId = r.shopId || r.storeId || '';
-        
-        if (r.dishId) {
-          for (const s of stores) {
-            if (s.dishes && typeof s.dishes === 'object') {
-              if (s.dishes[r.dishId]) {
-                if (!dishName) dishName = s.dishes[r.dishId].name;
-                if (!storeName) storeName = s.name;
-                if (!storeId) storeId = s.id;
-                break;
-              }
-            }
-          }
-        }
-        
-        if (!dishName || !storeName) {
-          const matchedOrder = liveOrders.find(o => o.id === r.orderId);
-          if (matchedOrder) {
-            if (!storeName) storeName = matchedOrder.storeName;
-            if (!storeId) storeId = matchedOrder.shopId;
-          }
-        }
-        
-        if (!dishName) dishName = 'Món ăn Oishi';
-        if (!storeName) storeName = 'Quán Oishi';
-
-        const status = (r.status || (r.isHidden ? 'HIDDEN' : 'ACTIVE')).toUpperCase();
-        
-        list.push({
-          id: rid,
-          reviewId: r.reviewId || rid,
-          orderId: r.orderId || '',
-          dishId: r.dishId || '',
-          dishName: dishName,
-          storeId: storeId,
-          storeName: storeName,
-          customerId: r.customerId || '',
-          customerName: r.customerName || cust.fullName || cust.name || 'Khách hàng Oishi',
-          customerPhone: cust.phone || '',
-          customerTrustScore: cust.trustScore !== undefined ? cust.trustScore : 100,
-          rating: Number(r.rating || 5),
-          comment: r.comment || 'Khách hàng không để lại nhận xét chi tiết.',
-          imageUrl: r.imageUrl || '',
-          status: status,
-          isHidden: (status === 'HIDDEN' || r.isHidden === true),
-          adminReply: r.adminReply || '',
-          adminReplyTime: r.adminReplyTime || '',
-          createdAt: Number(r.createdAt || r.timestamp || Date.now())
-        });
-      });
-
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      reviews = list;
-      localStorage.setItem('oishi_admin_reviews', JSON.stringify(reviews));
-    }
-
-    function filterReviews() {
-      renderReviews();
-    }
-
-    function populateReviewStoreFilter() {
-      const select = document.getElementById('filter-review-store');
-      if (select) {
-        const current = select.value;
-        select.innerHTML = '<option value="ALL">Tất cả cửa hàng</option>';
-        stores.forEach(s => {
-          select.innerHTML += `<option value="${s.id}">${s.name}</option>`;
-        });
-        select.value = current || 'ALL';
-      }
-
-      const dishSelect = document.getElementById('new-rev-dish-select');
-      if (dishSelect) {
-        dishSelect.innerHTML = '';
-        stores.forEach(s => {
-          if (s.dishes && typeof s.dishes === 'object') {
-            Object.entries(s.dishes).forEach(([did, d]) => {
-              dishSelect.innerHTML += `<option value="${did}|${s.id}">${s.name} - ${d.name || did} (${formatVnd(d.price)})</option>`;
-            });
-          }
-        });
-        if (!dishSelect.innerHTML) {
-          dishSelect.innerHTML = '<option value="dish-demo|store_mgr3gAsX">Quán Ăn Của Tôi - Phở Bò Tái Nạm (45.000đ)</option>';
-        }
-      }
-    }
-
-    function renderReviewKPIs() {
-      const total = reviews.length;
-      const low = reviews.filter(r => r.rating <= 2).length;
-      const hidden = reviews.filter(r => r.isHidden || r.status === 'HIDDEN').length;
-      const avg = total > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / total).toFixed(1) : '5.0';
-
-      const avgEl = document.getElementById('kpi-rev-avg');
-      if (avgEl) avgEl.textContent = `${avg} ⭐`;
-      const totEl = document.getElementById('kpi-rev-total');
-      if (totEl) totEl.textContent = total;
-      const lowEl = document.getElementById('kpi-rev-low');
-      if (lowEl) lowEl.textContent = low;
-      const hidEl = document.getElementById('kpi-rev-hidden');
-      if (hidEl) hidEl.textContent = hidden;
-
-      const badge = document.getElementById('badge-reviews-count');
-      if (badge) {
-        if (low > 0) {
-          badge.textContent = `${low} Kém`;
-          badge.style.display = 'inline-block';
-        } else if (hidden > 0) {
-          badge.textContent = `${hidden} Ẩn`;
-          badge.style.display = 'inline-block';
-        } else {
-          badge.style.display = 'none';
-        }
-      }
-    }
-
-    function renderReviews() {
-      const tbody = document.getElementById('tbody-reviews');
-      const counter = document.getElementById('review-counter');
-      if (!tbody) return;
-
-      const searchVal = (document.getElementById('filter-review-search')?.value || '').toLowerCase().trim();
-      const ratingVal = document.getElementById('filter-review-rating')?.value || 'ALL';
-      const statusVal = document.getElementById('filter-review-status')?.value || 'ALL';
-      const storeVal = document.getElementById('filter-review-store')?.value || 'ALL';
-
-      const filtered = reviews.filter(r => {
-        const matchSearch = (r.dishName || '').toLowerCase().includes(searchVal) ||
-                            (r.storeName || '').toLowerCase().includes(searchVal) ||
-                            (r.customerName || '').toLowerCase().includes(searchVal) ||
-                            (r.comment || '').toLowerCase().includes(searchVal) ||
-                            (r.id || '').toLowerCase().includes(searchVal);
-        const matchRating = (ratingVal === 'ALL') || (String(r.rating) === ratingVal);
-        const matchStatus = (statusVal === 'ALL') || (r.status === statusVal);
-        const matchStore = (storeVal === 'ALL') || (r.storeId === storeVal);
-        return matchSearch && matchRating && matchStatus && matchStore;
-      });
-
-      if (counter) counter.textContent = filtered.length;
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="7" style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
-              <div style="font-size: 28px; margin-bottom: 8px;">💬</div>
-              <div style="font-weight: 700; font-size: 14px;">Chưa có đánh giá nào phù hợp bộ lọc</div>
-              <div style="font-size: 12px; margin-top: 4px;">Khách hàng hoàn tất đơn sẽ hiển thị đánh giá tại đây, hoặc bấm nút "Tạo Đánh Giá Demo" phía trên để thử nghiệm.</div>
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      const rowsHtml = filtered.map(r => {
-        const isHidden = r.status === 'HIDDEN' || r.isHidden;
-        const starsText = '⭐'.repeat(Math.max(1, Math.min(5, r.rating)));
-        const timeAgo = formatTimeAgo(r.createdAt);
-        
-        let statusBadge = isHidden
-          ? `<span class="badge badge-status-hidden"><span class="badge-dot"></span>Đã ẩn kiểm duyệt</span>`
-          : `<span class="badge badge-active"><span class="badge-dot"></span>Đang hiển thị</span>`;
-
-        let photoThumb = r.imageUrl
-          ? `<a href="${r.imageUrl}" target="_blank" title="Bấm để xem ảnh phóng to"><img src="${r.imageUrl}" class="review-thumb" alt="Ảnh review" onerror="this.style.display='none'"></a>`
-          : '';
-
-        let replyHtml = r.adminReply
-          ? `<div class="review-admin-reply-box"><strong>Phản hồi của Admin:</strong> ${r.adminReply}</div>`
-          : '';
-
-        return `
-          <tr style="${isHidden ? 'background: #FFF7ED;' : ''}">
-            <td>
-              <div style="font-family: monospace; font-weight: 700; color: var(--primary);">#${r.id.slice(-6)}</div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${timeAgo}</div>
-            </td>
-            <td>
-              <div style="font-weight: 700; color: var(--text-main);">${r.customerName}</div>
-              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-                ${r.customerPhone ? `📞 ${r.customerPhone} • ` : ''}Điểm: <strong>${r.customerTrustScore}</strong>
-              </div>
-            </td>
-            <td>
-              <div style="font-weight: 700; color: #1E40AF;">🍲 ${r.dishName}</div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">🏪 ${r.storeName}</div>
-            </td>
-            <td>
-              <div class="star-rating" title="${r.rating} sao">${starsText}</div>
-              <div style="font-size: 11px; font-weight: 700; color: #B45309; margin-top: 2px;">${r.rating}.0 / 5</div>
-            </td>
-            <td>
-              <div class="review-bubble">${r.comment}</div>
-              ${photoThumb}
-              ${replyHtml}
-            </td>
-            <td>${statusBadge}</td>
-            <td style="text-align: right;">
-              <div style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap;">
-                <button class="btn btn-outline btn-sm" onclick="toggleReviewStatus('${r.id}')" title="${isHidden ? 'Bật hiển thị lại lên app' : 'Tạm ẩn khỏi app do phản cảm/tiêu cực'}">
-                  ${isHidden ? '👁️ Bật lại' : '🚫 Ẩn'}
-                </button>
-                <button class="btn btn-outline btn-sm" onclick="openReviewDetailModal('${r.id}')" title="Xem chi tiết & gửi phản hồi">
-                  💬 Phản hồi
-                </button>
-                <button class="btn btn-danger-outline btn-sm" onclick="deleteReview('${r.id}')" title="Xóa đánh giá vĩnh viễn">
-                  🗑️
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      tbody.innerHTML = rowsHtml;
-    }
-
-    function toggleReviewStatus(reviewId) {
-      const rev = reviews.find(r => r.id === reviewId);
-      if (!rev) return;
-      const nextStatus = rev.status === 'ACTIVE' ? 'HIDDEN' : 'ACTIVE';
-      rev.status = nextStatus;
-      rev.isHidden = (nextStatus === 'HIDDEN');
-
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`dish_reviews/${reviewId}`).update({
-          status: nextStatus,
-          isHidden: rev.isHidden
-        }).catch(() => {});
-      }
-      saveState();
-      renderReviews();
-      renderReviewKPIs();
-      addLog(`Chuyển trạng thái đánh giá #${reviewId.slice(-6)} sang ${nextStatus === 'ACTIVE' ? 'Hiển thị' : 'Đã ẩn'}`, 'info');
-      showToast(`Đã ${nextStatus === 'ACTIVE' ? 'mở hiển thị' : 'tạm ẩn'} đánh giá #${reviewId.slice(-6)}!`, 'success');
-    }
-
-    function deleteReview(reviewId) {
-      if (!confirm('Bạn có chắc chắn muốn xóa đánh giá này khỏi hệ thống Firebase?')) return;
-      reviews = reviews.filter(r => r.id !== reviewId);
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`dish_reviews/${reviewId}`).remove().catch(() => {});
-      }
-      saveState();
-      renderReviews();
-      renderReviewKPIs();
-      addLog(`Xóa vĩnh viễn đánh giá #${reviewId.slice(-6)}`, 'danger');
-      showToast('Đã xóa đánh giá khỏi Firebase!', 'info');
-    }
-
-    function openReviewDetailModal(reviewId) {
-      const rev = reviews.find(r => r.id === reviewId);
-      if (!rev) return;
-
-      document.getElementById('modal-rev-id').value = rev.id;
-      document.getElementById('modal-rev-stars').textContent = '⭐'.repeat(rev.rating);
-      document.getElementById('modal-rev-dish').textContent = `Món ăn: ${rev.dishName}`;
-      document.getElementById('modal-rev-store').textContent = `Cửa hàng: ${rev.storeName}`;
-      document.getElementById('modal-rev-customer').textContent = `${rev.customerName} (${rev.customerPhone || 'Không có SĐT'})`;
-      document.getElementById('modal-rev-time').textContent = `Thời gian: ${formatTimeAgo(rev.createdAt)}`;
-      document.getElementById('modal-rev-comment').textContent = rev.comment;
-      document.getElementById('modal-rev-reply-text').value = rev.adminReply || '';
-
-      const imgContainer = document.getElementById('modal-rev-img-container');
-      if (imgContainer) {
-        if (rev.imageUrl) {
-          imgContainer.innerHTML = `<img src="${rev.imageUrl}" style="max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid #CBD5E1; margin-top: 6px;" alt="Review photo">`;
-        } else {
-          imgContainer.innerHTML = '';
-        }
-      }
-
-      openModal('modal-review-detail');
-    }
-
-    function saveReviewReply(e) {
-      e.preventDefault();
-      const revId = document.getElementById('modal-rev-id').value;
-      const reply = document.getElementById('modal-rev-reply-text').value.trim();
-      const rev = reviews.find(r => r.id === revId);
-      if (!rev) return;
-
-      rev.adminReply = reply;
-      rev.adminReplyTime = Date.now();
-
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`dish_reviews/${revId}`).update({
-          adminReply: reply,
-          adminReplyTime: rev.adminReplyTime
-        }).catch(() => {});
-      }
-      saveState();
-      closeModal('modal-review-detail');
-      renderReviews();
-      addLog(`Phản hồi đánh giá #${revId.slice(-6)}: "${reply.slice(0, 30)}..."`, 'success');
-      showToast('Đã lưu phản hồi của Admin lên Firebase!', 'success');
-    }
-
-    function openAddReviewModal() {
-      populateReviewStoreFilter();
-      document.getElementById('new-rev-customer-name').value = '';
-      document.getElementById('new-rev-rating').value = '5';
-      document.getElementById('new-rev-comment').value = '';
-      document.getElementById('new-rev-image').value = '';
-      openModal('modal-add-review');
-    }
-
-    function saveNewReview(e) {
-      e.preventDefault();
-      const dishVal = document.getElementById('new-rev-dish-select').value;
-      const [dishId, storeId] = dishVal.split('|');
-      const custName = document.getElementById('new-rev-customer-name').value.trim();
-      const rating = parseInt(document.getElementById('new-rev-rating').value);
-      const comment = document.getElementById('new-rev-comment').value.trim();
-      const image = document.getElementById('new-rev-image').value.trim();
-
-      const newId = 'REV-' + Date.now().toString().slice(-6);
-      const storeObj = stores.find(s => s.id === storeId) || {};
-      const dishObj = storeObj.dishes ? storeObj.dishes[dishId] : {};
-
-      const newRev = {
-        reviewId: newId,
-        dishId: dishId,
-        dishName: dishObj.name || 'Món ăn Oishi',
-        storeId: storeId,
-        storeName: storeObj.name || 'Quán Oishi',
-        customerId: 'cust-demo',
-        customerName: custName,
-        rating: rating,
-        comment: comment,
-        imageUrl: image,
-        status: 'ACTIVE',
-        createdAt: Date.now()
-      };
-
-      reviews.unshift({ ...newRev, id: newId, isHidden: false, customerTrustScore: 100 });
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref(`dish_reviews/${newId}`).set(newRev).catch(() => {});
-      }
-      saveState();
-      closeModal('modal-add-review');
-      renderReviews();
-      renderReviewKPIs();
-      addLog(`Tạo đánh giá mới cho món "${newRev.dishName}" (${rating}⭐)`, 'success');
-      showToast(`Đã thêm đánh giá món ăn lên Firebase!`, 'success');
-    }
-
-    function seedSampleReviews() {
-      if (!confirm('Khởi tạo 3 đánh giá mẫu demo (5⭐ ngon, 4⭐ tốt, 2⭐ kém cần ẩn) lên Firebase Realtime Database?')) return;
-      
-      const firstStore = stores[0] || {};
-      let dishId = 'dish-1';
-      let dishName = 'Phở Bò Tái Nạm Đặc Biệt';
-      if (firstStore.dishes && typeof firstStore.dishes === 'object') {
-        const entries = Object.entries(firstStore.dishes);
-        if (entries.length > 0) {
-          dishId = entries[0][0];
-          dishName = entries[0][1].name || dishName;
-        }
-      }
-
-      const samples = [
-        {
-          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-1',
-          dishId: dishId,
-          dishName: dishName,
-          storeId: firstStore.id || 'store_mgr3gAsX',
-          storeName: firstStore.name || 'Quán Ăn Của Tôi',
-          customerId: 'cust-phuc',
-          customerName: 'Nguyễn Hoàng Phúc',
-          rating: 5,
-          comment: 'Nước dùng phở cực kỳ thanh ngọt và đậm đà, thịt bò mềm tươi, rau thơm đi kèm rất sạch sẽ. Chắc chắn sẽ ủng hộ quán lâu dài!',
-          imageUrl: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=500&auto=format&fit=crop&q=80',
-          status: 'ACTIVE',
-          createdAt: Date.now() - 3600000
-        },
-        {
-          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-2',
-          dishId: dishId,
-          dishName: dishName,
-          storeId: firstStore.id || 'store_mgr3gAsX',
-          storeName: firstStore.name || 'Quán Ăn Của Tôi',
-          customerId: 'cust-tam',
-          customerName: 'Trần Minh Tâm',
-          rating: 4,
-          comment: 'Đồ ăn giao nhanh, đóng gói hộp giấy thân thiện môi trường. Hương vị ổn, giá cả hợp lý với phần ăn sinh viên.',
-          imageUrl: '',
-          status: 'ACTIVE',
-          createdAt: Date.now() - 7200000
-        },
-        {
-          reviewId: 'REV-' + Date.now().toString().slice(-6) + '-3',
-          dishId: dishId,
-          dishName: dishName,
-          storeId: firstStore.id || 'store_mgr3gAsX',
-          storeName: firstStore.name || 'Quán Ăn Của Tôi',
-          customerId: 'cust-bad',
-          customerName: 'Lê Hoàng Nam',
-          rating: 2,
-          comment: 'Món ăn bị nguội ngắt khi giao đến, quán lại quên cho tương ớt và chanh. Đề nghị cải thiện chất lượng phục vụ!',
-          imageUrl: '',
-          status: 'HIDDEN',
-          isHidden: true,
-          adminReply: 'Admin Oishi đã liên hệ quán gửi bù voucher và nhắc nhở bộ phận đóng gói.',
-          createdAt: Date.now() - 14400000
-        }
-      ];
-
-      const updates = {};
-      samples.forEach(s => {
-        updates[s.reviewId] = s;
-      });
-
-      if (fbDb && isFirebaseReady) {
-        fbDb.ref('dish_reviews').update(updates).catch(() => {});
-      } else {
-        samples.forEach(s => { rawFbReviews[s.reviewId] = s; });
-        rebuildReviews();
-        renderReviews();
-        renderReviewKPIs();
-      }
-
-      showToast('Đã khởi tạo 3 đánh giá mẫu lên Firebase!', 'success');
-      addLog('Khởi tạo bộ dữ liệu mẫu đánh giá món ăn (dish_reviews)', 'info');
-    }
-
-    /* ========================================================
-       12. GLOBAL SEARCH CONTROLLER
-       ======================================================== */
-    function handleGlobalSearch(query) {
-      query = query.toLowerCase().trim();
-      if (!query) return;
-
-      const matchOrder = liveOrders.some(o => (o.id || '').toLowerCase().includes(query) || (o.items || '').toLowerCase().includes(query));
-      const matchComplaint = complaints.some(c => (c.id || '').toLowerCase().includes(query) || (c.content || '').toLowerCase().includes(query));
-      const matchStore = stores.some(s => (s.name || '').toLowerCase().includes(query) || (s.phone || '').includes(query));
-      const matchCust = customers.some(c => (c.name || '').toLowerCase().includes(query) || (c.phone || '').includes(query));
-      const matchCat = categories.some(c => (c.name || '').toLowerCase().includes(query));
-      const matchReview = reviews.some(r => (r.comment || '').toLowerCase().includes(query) || (r.dishName || '').toLowerCase().includes(query) || (r.customerName || '').toLowerCase().includes(query));
-
-      if (matchStore) {
-        switchTab('stores');
-        const input = document.getElementById('filter-store-search');
-        if (input) { input.value = query; filterStores(); }
-      } else if (matchOrder) {
-        switchTab('orders');
-        const input = document.getElementById('filter-global-order-search');
-        if (input) { input.value = query; renderGlobalOrders(); }
-      } else if (matchComplaint) {
-        switchTab('complaints');
-        const input = document.getElementById('filter-complaint-search');
-        if (input) { input.value = query; filterComplaints(); }
-      } else if (matchCust) {
-        switchTab('customers');
-        const input = document.getElementById('filter-customer-search');
-        if (input) { input.value = query; filterCustomers(); }
-      } else if (matchCat) {
-        switchTab('categories');
-        const input = document.getElementById('filter-cat-search');
-        if (input) { input.value = query; filterCategories(); }
-      } else if (matchReview) {
-        switchTab('reviews');
-        const input = document.getElementById('filter-review-search');
-        if (input) { input.value = query; filterReviews(); }
-      }
-    }
-
-    /* ========================================================
-       14. CCCD & eKYC VERIFICATION MODAL CONTROLLER
-       ======================================================== */
-    let currentViewingStoreId = null;
-
-    function openStoreCccdModal(storeId) {
-      const store = stores.find(s => s.id === storeId);
-      if (!store) return;
-      currentViewingStoreId = store.id;
-
-      document.getElementById('modal-cccd-title').innerHTML = `
-        <span>Hồ Sơ CCCD & Ảnh Đăng Ký Quán: <strong>${store.name}</strong></span>
-      `;
-      document.getElementById('cccd-view-store-name').textContent = store.name;
-      document.getElementById('cccd-view-owner').textContent = store.owner;
-      document.getElementById('cccd-view-phone').textContent = store.phone;
-      document.getElementById('cccd-view-number').textContent = store.cccdNumber || '079088012456';
-
-      const statusBadge = document.getElementById('cccd-view-status-badge');
-      if (store.status === 'PENDING') {
-        statusBadge.innerHTML = '<span class="badge badge-status-pending"><span class="badge-dot"></span>Trạng thái: Chờ duyệt</span>';
-      } else if (store.status === 'LOCKED') {
-        statusBadge.innerHTML = '<span class="badge badge-status-locked"><span class="badge-dot"></span>Trạng thái: Bị khóa</span>';
-      } else if (store.status === 'CLOSED') {
-        statusBadge.innerHTML = '<span class="badge badge-status-closed"><span class="badge-dot"></span>Trạng thái: Tạm nghỉ</span>';
-      } else {
-        statusBadge.innerHTML = '<span class="badge badge-status-open"><span class="badge-dot"></span>Trạng thái: Đang hoạt động</span>';
-      }
-
-      const imgFront = document.getElementById('cccd-modal-img-front');
-      if (imgFront) imgFront.src = store.cccdFront || 'https://images.unsplash.com/photo-1633409381658-6c8f4204ffea?w=600&auto=format&fit=crop&q=80';
-      const imgBack = document.getElementById('cccd-modal-img-back');
-      if (imgBack) imgBack.src = store.cccdBack || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80';
-      const imgPortrait = document.getElementById('cccd-modal-img-portrait');
-      if (imgPortrait) imgPortrait.src = store.registerPhoto || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80';
-
-      document.getElementById('cccd-front-num').textContent = store.cccdNumber || '079088012456';
-      document.getElementById('cccd-front-name').textContent = store.owner.toUpperCase();
-      document.getElementById('cccd-front-dob').textContent = store.dob || '15/04/1988';
-      document.getElementById('cccd-front-gender').textContent = store.gender || 'Nam';
-      document.getElementById('cccd-front-hometown').textContent = store.hometown || 'TP. Hồ Chí Minh';
-      document.getElementById('cccd-front-residence').textContent = store.residence || store.address || 'Quận 1, TP.HCM';
-      document.getElementById('cccd-front-expiry').textContent = store.expireDate || '15/04/2048';
-      document.getElementById('cccd-front-avatar-char').textContent = store.gender === 'Nữ' ? '' : '';
-
-      document.getElementById('cccd-back-issuedate').textContent = store.issueDate || '10/06/2021';
-      const cleanNum = (store.cccdNumber || '079088012456').replace(/\s+/g, '');
-      const cleanName = store.owner.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Đ/g, 'D').replace(/\s+/g, '<');
-      document.getElementById('cccd-back-mrz').innerHTML = `
-        IDVNM${cleanNum}<<<<<<<<<<<<<<br>
-        8804155M4804152VNM<<<<<<<<<<<8<br>
-        ${cleanName}<<<<<<<<<<<<<<<<<<
-      `;
-
-      document.getElementById('cccd-selfie-char').textContent = store.owner.trim().split(' ').pop().charAt(0).toUpperCase();
-      document.getElementById('cccd-selfie-time').textContent = store.registerTime || '10:15 15/03/2026';
-      document.getElementById('cccd-ekyc-score-label').textContent = `✓ Khớp khuôn mặt: ${store.ekycScore || '99.2%'}`;
-
-      openModal('modal-store-cccd');
-    }
-
-    function setStoreStatusFromModal(newStatus) {
-      if (!currentViewingStoreId) return;
-      const store = stores.find(s => s.id === currentViewingStoreId);
-      if (!store) return;
-
-      const statusLabels = {
-        'PENDING': 'Chờ duyệt',
-        'OPEN': 'Đang hoạt động',
-        'LOCKED': 'Bị khóa',
-        'CLOSED': 'Tạm nghỉ'
-      };
-
-      syncStoreStatusToFirebase(
-        store,
-        newStatus,
-        newStatus === 'LOCKED' ? 'Admin khóa tài khoản qua bảng kiểm duyệt CCCD' : '',
-        newStatus === 'LOCKED' ? 'LOCK' : 'NONE'
-      );
-
-      saveState();
-      closeModal('modal-store-cccd');
-      renderStores();
-      renderOverviewStores();
-      renderKPIs();
-
-      const label = statusLabels[newStatus] || newStatus;
-      addLog(`Cập nhật trạng thái quán "${store.name}" sang ${label}`, newStatus === 'LOCKED' ? 'danger' : 'success');
-      showToast(`Đã chuyển cửa hàng "${store.name}" sang "${label}" trên Firebase!`, 'success');
-    }
-
-    function openModal(modalId) {
-      const modal = document.getElementById(modalId);
-      if (modal) modal.classList.add('show');
-    }
-
-    function closeModal(modalId) {
-      const modal = document.getElementById(modalId);
-      if (modal) modal.classList.remove('show');
-    }
-
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-          overlay.classList.remove('show');
-        }
-      });
-    });
-
-    function showToast(message, type = 'info') {
-      const container = document.getElementById('toast-container');
-      if (!container) return;
-
-      const toast = document.createElement('div');
-      toast.className = `toast ${type}`;
-
-      let icon = '';
-      let title = 'Thông báo';
-      if (type === 'success') { icon = ''; title = 'Thành công'; }
-      if (type === 'danger') { icon = ''; title = 'Cảnh báo / Khóa'; }
-      if (type === 'warning') { icon = ''; title = 'Lưu ý'; }
-
-      toast.innerHTML = `
-        
-        <div class="toast-content">
-          <h4>${title}</h4>
-          <p>${message}</p>
-        </div>
-      `;
-
-      container.appendChild(toast);
-
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        setTimeout(() => toast.remove(), 300);
-      }, 3500);
-    }
-  </script>
-
-  <!-- MODAL ĐỔI TRẠNG THÁI CỬA HÀNG (4 TRẠNG THÁI) -->
-  <div class="modal-overlay" id="modal-change-status">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 style="display: flex; align-items: center; gap: 8px;">
-          <span>Chuyển Đổi Trạng Thái Quán Ăn</span>
-        </h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-change-status')">&times;</button>
-      </div>
-      <form onsubmit="submitChangeStoreStatus(event)">
-        <div class="modal-body">
-          <input type="hidden" id="change-status-store-id">
-          <div class="form-group">
-            <label class="form-label">Cửa hàng áp dụng</label>
-            <input type="text" class="form-control" id="change-status-store-name" readonly style="background: var(--bg-hover); font-weight: 700;">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Chọn 1 trong 4 trạng thái quản trị <span class="req">*</span></label>
-            <select class="form-control" id="change-status-select" onchange="handleStoreStatusDropdownChange(this.value)" required style="font-weight: 700; font-size: 14px;">
-              <option value="PENDING">Chờ duyệt (Chưa mở bán)</option>
-              <option value="OPEN">Đang hoạt động (Hiển thị đầy đủ menu)</option>
-              <option value="LOCKED">Bị khóa (Khóa tài khoản, cấm kinh doanh)</option>
-              <option value="CLOSED">Tạm nghỉ (Tạm dừng nhận đơn)</option>
-            </select>
-          </div>
-          <div class="form-group" id="change-status-reason-box" style="display: none;">
-            <label class="form-label">Lý do khóa cửa hàng <span class="req">*</span></label>
-            <input type="text" class="form-control" id="change-status-reason" placeholder="VD: Vi phạm vệ sinh ATTP hoặc khiếu nại chưa xử lý">
-          </div>
-          <div style="font-size: 12px; color: var(--text-muted); background: #F8FAFC; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">
-            <strong>Quy tắc 4 trạng thái đối tác:</strong>
-            <ul style="margin: 4px 0 0 16px; padding: 0; line-height: 1.5;">
-              <li><strong>Chờ duyệt:</strong> Quán mới đăng ký, chờ Admin duyệt CCCD & giấy tờ.</li>
-              <li><strong>Đang hoạt động:</strong> Thực đơn xuất hiện trên App Khách Hàng.</li>
-              <li><strong>Bị khóa:</strong> Cấm nhận đơn hàng, tài khoản quán bị vô hiệu hóa.</li>
-              <li><strong>Tạm nghỉ:</strong> Quán tự đóng cửa hoặc Admin tạm hoãn nhận đơn.</li>
-            </ul>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-change-status')">Hủy</button>
-          <button type="submit" class="btn btn-primary">Lưu Thay Đổi</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL XEM PHÓNG TO ẢNH (LIGHTBOX) -->
-  <div class="modal-overlay" id="modal-image-preview" style="z-index: 9999;">
-    <div class="modal-dialog" style="max-width: 640px; background: #0F172A; color: #F8FAFC; border-radius: 16px; overflow: hidden; padding: 0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);">
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #1E293B; background: #1E293B;">
-        <div>
-          <h4 id="preview-image-title" style="margin: 0; font-size: 15px; color: #F8FAFC; font-weight: 700;">Chi tiết ảnh</h4>
-          <div id="preview-image-sub" style="font-size: 11.5px; color: #94A3B8; margin-top: 3px;"></div>
-        </div>
-        <button class="btn-close-modal" onclick="closeModal('modal-image-preview')" style="color: #94A3B8; font-size: 24px; background: transparent; border: none; cursor: pointer;">&times;</button>
-      </div>
-      <div style="padding: 16px; background: #020617; display: flex; justify-content: center; align-items: center; min-height: 300px;">
-        <img id="preview-image-src" src="" alt="Xem ảnh phóng to" style="max-width: 100%; max-height: 65vh; border-radius: 8px; object-fit: contain; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-      </div>
-      <div style="padding: 12px 20px; border-top: 1px solid #1E293B; display: flex; justify-content: space-between; align-items: center; background: #0F172A;">
-        <a id="preview-image-link" href="#" target="_blank" class="btn btn-outline btn-sm" style="color: #93C5FD; border-color: #3B82F6; text-decoration: none;">
-          Mở ảnh gốc kích thước lớn
-        </a>
-        <button type="button" class="btn btn-primary btn-sm" onclick="closeModal('modal-image-preview')">Đóng cửa sổ</button>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- MODAL XEM CHI TIẾT HOẠT ĐỘNG, ĐƠN HÀNG VÀ TÀI XẾ THUỘC QUÁN -->
-  <div class="modal-overlay" id="modal-store-detail" style="z-index: 9998;">
-    <div class="modal-dialog modal-dialog-lg" style="max-width: 950px;">
-      <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div>
-            <h3 id="store-detail-modal-title" style="margin: 0; font-size: 17px;">Chi Tiết Hoạt Động Cửa Hàng</h3>
-            <div id="store-detail-modal-sub" style="font-size: 12px; color: var(--text-muted); margin-top: 2px;"></div>
-          </div>
-        </div>
-        <button class="btn-close-modal" onclick="closeModal('modal-store-detail')">&times;</button>
-      </div>
-      <div class="modal-body" style="padding-top: 14px;">
-        
-        <!-- Store Banner Profile Summary -->
-        <div style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%); border: 1px solid #BFDBFE; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px;">
-          <div>
-            <div style="font-size: 17px; font-weight: 800; color: #1E40AF;" id="detail-store-name">---</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">
-              📍 Địa chỉ: <span id="detail-store-address" style="color: var(--text-main); font-weight: 600;">---</span> • Chủ quán: <span id="detail-store-owner" style="font-weight: 700; color: var(--text-main);">---</span> (📞 <span id="detail-store-phone" style="font-family: monospace;">---</span>)
-            </div>
-            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-              🪪 Số CCCD: <strong id="detail-store-cccd" style="font-family: monospace; color: #2563EB;">---</strong> • Đánh giá: <strong id="detail-store-rating" style="color: #D97706;">---</strong> • Món bán: <strong id="detail-store-items" style="color: #2563EB;">0 món</strong>
-            </div>
-          </div>
-          <div style="text-align: right;">
-            <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Trạng Thái Quán:</div>
-            <div id="detail-store-status-badge" style="margin-top: 4px;"></div>
-          </div>
-        </div>
-
-        <!-- Sub Tabs Navigation -->
-        <div class="store-subnav">
-          <button class="store-subnav-btn active" id="btn-subtab-orders" onclick="switchStoreDetailTab('orders')">
-            <span>Lịch Sử Đơn Hàng Của Quán</span>
-            <span id="detail-orders-count-badge" style="background: #2563EB; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
-          </button>
-          <button class="store-subnav-btn" id="btn-subtab-dishes" onclick="switchStoreDetailTab('dishes')">
-            <span>Thực Đơn Quán (Menu)</span>
-            <span id="detail-dishes-count-badge" style="background: #D97706; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
-          </button>
-          <button class="store-subnav-btn" id="btn-subtab-drivers" onclick="switchStoreDetailTab('drivers')">
-            <span>Đội Ngũ Tài Xế Thuộc Quán</span>
-            <span id="detail-drivers-count-badge" style="background: #059669; color: #FFF; font-size: 10.5px; padding: 1px 6px; border-radius: 10px; font-weight: 700;">0</span>
-          </button>
-        </div>
-
-        <!-- SUBTAB 1: LỊCH SỬ ĐƠN HÀNG -->
-        <div id="pane-store-detail-orders">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-            <div>
-              <div style="font-size: 14.5px; font-weight: 800; color: #0F172A;">
-                Danh Sách Đơn Đặt Món Toàn Bộ Tại Quán
-              </div>
-              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-                Quản lý toàn bộ lịch sử đơn hàng đã và đang phục vụ của quán
-              </div>
-            </div>
-            
-            <!-- Quick Mini Stats -->
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="store-orders-stat-bar">
-              <span class="badge" style="background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; font-size: 11px;">
-                Tổng: <strong id="stat-total-orders">0</strong> đơn
-              </span>
-              <span class="badge" style="background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; font-size: 11px;">
-                ✓ Thành công: <strong id="stat-success-orders">0</strong>
-              </span>
-              <span class="badge" style="background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; font-size: 11px;">
-                Đang giao: <strong id="stat-delivering-orders">0</strong>
-              </span>
-              <span class="badge" style="background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; font-size: 11px;">
-                Bùng / Hủy: <strong id="stat-failed-orders">0</strong>
-              </span>
-            </div>
-          </div>
-
-          <!-- Order Filter Bar -->
-          <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 8px 12px; border-radius: 8px;">
-            <div class="search-box" style="flex: 1; min-width: 220px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              <input type="text" id="filter-store-order-search" placeholder="Tìm theo mã đơn (#ORD-xxx), khách hàng, món ăn, tài xế..." oninput="filterCurrentStoreOrders()" style="font-size: 12.5px;">
-            </div>
-            <select class="select-filter" id="filter-store-order-status" onchange="filterCurrentStoreOrders()" style="font-size: 12px; padding: 6px 12px;">
-              <option value="ALL">Tất cả trạng thái đơn</option>
-              <option value="PENDING">Chờ xác nhận</option>
-              <option value="PREPARING">Đang chế biến</option>
-              <option value="READY">Chờ lấy hàng</option>
-              <option value="DELIVERING">Đang giao hàng</option>
-              <option value="COMPLETED">Đã giao thành công</option>
-              <option value="BOOM">Bị bùng đơn (Bom hàng)</option>
-              <option value="CANCELLED">❌ Khách / Quán hủy đơn</option>
-            </select>
-          </div>
-
-          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th style="min-width: 120px;">Mã Đơn & Giờ Đặt</th>
-                  <th style="min-width: 140px;">Khách Hàng & SĐT</th>
-                  <th style="min-width: 240px;">Món Đã Đặt</th>
-                  <th style="min-width: 160px;">Tài Xế Phụ Trách</th>
-                  <th style="min-width: 135px;">Trạng Thái Đơn</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-store-detail-orders">
-                <!-- Dynamically populated -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- SUBTAB 1B: QUẢN LÝ THỰC ĐƠN (MENU DISHES) -->
-        <div id="pane-store-detail-dishes" style="display: none;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-            <div>
-              <div style="font-size: 14.5px; font-weight: 800; color: #0F172A;">
-                Danh Sách Món Ăn Trong Thực Đơn Quán (Firebase <code>stores/{id}/dishes</code>)
-              </div>
-              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
-                Thêm món mới, chỉnh sửa giá, tạm ẩn hoặc bật/tắt trạng thái còn món trực tiếp trên App Khách Hàng
-              </div>
-            </div>
-            <button type="button" class="btn btn-primary btn-sm" onclick="openAddDishModal()">
-              + Thêm Món Mới Vào Quán
-            </button>
-          </div>
-          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th style="min-width: 220px;">Món Ăn</th>
-                  <th style="min-width: 110px;">Giá Bán</th>
-                  <th style="min-width: 120px;">Danh Mục</th>
-                  <th style="min-width: 120px;">Trạng Thái</th>
-                  <th style="text-align: right; min-width: 150px;">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-store-detail-dishes">
-                <!-- Dynamically populated -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- SUBTAB 2: ĐỘI NGŨ TÀI XẾ THUỘC QUÁN -->
-        <div id="pane-store-detail-drivers" style="display: none;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">
-              Danh sách các tài xế chuyên tuyến / gắn bó nhận đơn của quán
-            </div>
-            <div style="font-size: 12px; color: #059669; font-weight: 700;">
-              ✓ Đối soát định danh & phương tiện hợp lệ
-            </div>
-          </div>
-          <div class="driver-grid" id="driver-grid-container">
-            <!-- Dynamically populated driver cards -->
-          </div>
-        </div>
-
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline" onclick="closeModal('modal-store-detail')">Đóng Cửa Sổ</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL THÊM / SỬA MÓN ĂN TRONG QUÁN -->
-  <div class="modal-overlay" id="modal-dish" style="z-index: 9999;">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modal-dish-title">Thêm Món Ăn Mới</h3>
-        <button class="btn-close-modal" onclick="closeModal('modal-dish')">&times;</button>
-      </div>
-      <form onsubmit="saveStoreDish(event)">
-        <input type="hidden" id="form-dish-id">
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Tên món ăn <span class="req">*</span></label>
-            <input type="text" class="form-control" id="form-dish-name" placeholder="VD: Phở Bò Tái Nạm Gầu" required>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group">
-              <label class="form-label">Giá bán (VNĐ) <span class="req">*</span></label>
-              <input type="number" class="form-control" id="form-dish-price" placeholder="55000" required min="1000">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Danh mục món</label>
-              <input type="text" class="form-control" id="form-dish-cat" placeholder="Món chính">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Link ảnh món ăn (URL)</label>
-            <input type="text" class="form-control" id="form-dish-image" placeholder="https://images.unsplash.com/...">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mô tả món</label>
-            <textarea class="form-control" id="form-dish-desc" placeholder="Mô tả hương vị, thành phần món ăn..."></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal('modal-dish')">Hủy</button>
-          <button type="submit" class="btn btn-primary">Lưu Món Ăn</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-</body>
-</html>
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryListFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.category
-
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminCategoryListBinding
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-
-@AndroidEntryPoint
-class AdminCategoryListFragment : Fragment() {
-
-    private var _binding: FragmentAdminCategoryListBinding? = null
-    private val binding get() = _binding!!
-
-    private val viewModel: AdminCategoryViewModel by viewModels()
-    private lateinit var adapter: AdminCategoryAdapter
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentAdminCategoryListBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
-        setupListeners()
-        observeViewModel()
-    }
-
-    private fun setupRecyclerView() {
-        adapter = AdminCategoryAdapter(
-            onEdit = { category ->
-                val dialog = AddEditCategoryDialogFragment(categoryToEdit = category) { updatedCat ->
-                    viewModel.saveCategory(updatedCat)
-                }
-                dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
-            },
-            onDelete = { category ->
-                AlertDialog.Builder(requireContext())
-                    .setTitle("Xóa danh mục")
-                    .setMessage("Bạn có chắc chắn muốn xóa danh mục '${category.name}' khỏi sàn?")
-                    .setNegativeButton("Hủy", null)
-                    .setPositiveButton("Xóa") { _, _ ->
-                        viewModel.deleteCategory(category.categoryId)
-                    }
-                    .show()
-            },
-            onToggleActive = { category, isChecked ->
-                viewModel.toggleCategoryActive(category, isChecked)
-            }
-        )
-
-        binding.rvCategories.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvCategories.adapter = adapter
-    }
-
-    private fun setupListeners() {
-        binding.swipeRefreshCategory.setOnRefreshListener {
-            binding.swipeRefreshCategory.isRefreshing = false
-        }
-
-        binding.btnAddCategory.setOnClickListener {
-            val nextOrder = (viewModel.categories.value.maxOfOrNull { it.displayOrder } ?: 0) + 1
-            val dialog = AddEditCategoryDialogFragment(defaultOrder = nextOrder) { newCat ->
-                viewModel.saveCategory(newCat)
-            }
-            dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
-        }
-
-        binding.btnRestoreCategoryDefaults.setOnClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Khôi phục danh mục mẫu")
-                .setMessage("Thao tác này sẽ đồng bộ lại 5 danh mục chính của Oishi Food (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên cơ sở dữ liệu.")
-                .setNegativeButton("Hủy", null)
-                .setPositiveButton("Đồng ý") { _, _ ->
-                    viewModel.restoreDefaults()
-                }
-                .show()
-        }
-    }
-
-    private fun observeViewModel() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.categories.collect { list ->
-                        adapter.submitList(list)
-                        val activeCount = list.count { it.isActive }
-                        binding.tvCategoryStats.text = "Tổng: ${list.size} nhóm món • $activeCount đang hiển thị trên app Khách"
-                    }
-                }
-
-                launch {
-                    viewModel.message.collect { msg ->
-                        if (!msg.isNullOrBlank()) {
-                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
-                            viewModel.clearMessage()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/checkout/CheckoutActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.checkout
@@ -102214,6 +102617,207 @@ class BossMerchantAdapter(
                             android:textStyle="bold" />
                     </LinearLayout>
 
+                    <!-- Khung Quét / Chụp ảnh CCCD tự động điền (AI OCR) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardCccdScanBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        app:cardBackgroundColor="#FFF8F6"
+                        app:cardCornerRadius="12dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="#FDBA74"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="14dp">
+
+                            <!-- Tiêu đề tính năng quét AI -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <ImageView
+                                    android:layout_width="20dp"
+                                    android:layout_height="20dp"
+                                    app:srcCompat="@drawable/ic_camera"
+                                    app:tint="#EE4D2D" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="8dp"
+                                    android:layout_weight="1"
+                                    android:text="Quét Thẻ Căn Cước Công Dân (AI)"
+                                    android:textColor="#9A3412"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_badge_orange"
+                                    android:paddingHorizontal="6dp"
+                                    android:paddingVertical="2dp"
+                                    android:text="Tự động điền"
+                                    android:textColor="#EE4D2D"
+                                    android:textSize="10.5sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Chụp hoặc tải ảnh mặt trước CCCD để hệ thống tự nhận diện Họ tên và Số CCCD 12 số."
+                                android:textColor="#7C2D12"
+                                android:textSize="11.5sp" />
+
+                            <!-- Khung xem trước ảnh thẻ đã chụp/chọn -->
+                            <FrameLayout
+                                android:id="@+id/layoutCccdPreview"
+                                android:layout_width="match_parent"
+                                android:layout_height="170dp"
+                                android:layout_marginTop="10dp"
+                                android:visibility="gone">
+
+                                <com.google.android.material.card.MaterialCardView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    app:cardCornerRadius="8dp"
+                                    app:cardElevation="0dp"
+                                    app:strokeColor="#E2E8F0"
+                                    app:strokeWidth="1dp">
+
+                                    <ImageView
+                                        android:id="@+id/ivCccdPreview"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:scaleType="centerCrop" />
+                                </com.google.android.material.card.MaterialCardView>
+
+                                <TextView
+                                    android:id="@+id/tvCccdBadge"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_gravity="top|start"
+                                    android:layout_margin="8dp"
+                                    android:background="#D1FAE5"
+                                    android:paddingHorizontal="8dp"
+                                    android:paddingVertical="3dp"
+                                    android:text="✓ Đã chụp thẻ CCCD"
+                                    android:textColor="#065F46"
+                                    android:textSize="11sp"
+                                    android:textStyle="bold" />
+                            </FrameLayout>
+
+                            <!-- Loading quét OCR -->
+                            <LinearLayout
+                                android:id="@+id/layoutOcrLoading"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:visibility="gone">
+
+                                <ProgressBar
+                                    android:layout_width="18dp"
+                                    android:layout_height="18dp"
+                                    android:indeterminateTint="#EE4D2D" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="8dp"
+                                    android:text="Đang nhận diện ký tự CCCD bằng AI..."
+                                    android:textColor="#EA580C"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- Banner kết quả nhận diện thành công -->
+                            <LinearLayout
+                                android:id="@+id/layoutOcrSuccess"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:background="#ECFDF5"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:padding="8dp"
+                                android:visibility="gone">
+
+                                <ImageView
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    app:srcCompat="@drawable/ic_check"
+                                    app:tint="#059669" />
+
+                                <TextView
+                                    android:id="@+id/tvOcrResultDesc"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="6dp"
+                                    android:layout_weight="1"
+                                    android:text="Đã nhận diện thành công &amp; điền vào biểu mẫu bên dưới"
+                                    android:textColor="#065F46"
+                                    android:textSize="11.5sp" />
+                            </LinearLayout>
+
+                            <!-- 2 nút Chụp ảnh & Chọn từ máy -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:orientation="horizontal">
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnCaptureCccd"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:backgroundTint="#EE4D2D"
+                                    android:insetTop="0dp"
+                                    android:insetBottom="0dp"
+                                    android:text="Chụp ảnh CCCD"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold"
+                                    app:cornerRadius="8dp"
+                                    app:icon="@drawable/ic_camera"
+                                    app:iconGravity="textStart"
+                                    app:iconSize="16dp"
+                                    app:iconTint="#FFFFFF" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/btnPickCccdGallery"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="8dp"
+                                    android:layout_weight="1"
+                                    android:insetTop="0dp"
+                                    android:insetBottom="0dp"
+                                    android:text="Chọn từ máy"
+                                    android:textColor="#0F172A"
+                                    android:textSize="12.5sp"
+                                    app:cornerRadius="8dp"
+                                    app:icon="@drawable/ic_image"
+                                    app:iconGravity="textStart"
+                                    app:iconSize="16dp"
+                                    app:iconTint="#64748B"
+                                    app:strokeColor="#CBD5E1" />
+                            </LinearLayout>
+
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
                     <!-- Chủ hộ kinh doanh -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilOwnerName"
@@ -107983,25 +108587,32 @@ class BankNotificationListenerService : NotificationListenerService() {
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.auth
 
-import android.view.MotionEvent
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.util.CccdOcrHelper
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityStoreVerificationBinding
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 /**
@@ -108029,6 +108640,64 @@ class StoreVerificationActivity : AppCompatActivity() {
     private var currentStoreId: String = ""
     private var selectedLat: Double? = null
     private var selectedLng: Double? = null
+    private var capturedCccdUri: Uri? = null
+    private var cccdFrontBase64: String = ""
+
+    private val takePictureLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            val uri = capturedCccdUri
+            if (uri != null) {
+                processCccdImage(uri)
+            }
+        }
+    }
+
+    private val pickGalleryLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processCccdImage(uri)
+        }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(this, "⚠️ Vui lòng cấp quyền Camera để chụp ảnh thẻ CCCD", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun checkPermissionAndLaunchCamera() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            launchCamera()
+        } else {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun launchCamera() {
+        try {
+            val photoFile = File(cacheDir, "cccd_scan_${System.currentTimeMillis()}.jpg")
+            val photoUri = FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                photoFile
+            )
+            capturedCccdUri = photoUri
+            takePictureLauncher.launch(photoUri)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Không thể mở camera: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private val selectLocationLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -108130,6 +108799,110 @@ class StoreVerificationActivity : AppCompatActivity() {
      * Cách hoạt động: Truy vấn Firestore lấy thông tin hiện tại của User và Store để tự động điền sẵn vào các trường nhập liệu.
      * Luồng hướng tới: Giảm thiểu thao tác nhập liệu lại cho chủ quán.
      */
+    /**
+     * Tên chức năng: Xử lý ảnh thẻ CCCD & Quét OCR tự động điền
+     * Cách hoạt động:
+     *  - Hiển thị ảnh vừa chụp/chọn lên khung xem trước [layoutCccdPreview].
+     *  - Chạy coroutine nén ảnh Base64 phục vụ lưu trữ lên Firebase.
+     *  - Chạy mô hình AI Text Recognition (ML Kit) qua [CccdOcrHelper] để trích xuất số CCCD (12 số), Họ tên và Nơi cư trú.
+     *  - Tự động điền kết quả vào trường [etCccdNumber], [etOwnerName] và gợi ý [etBankAccountName].
+     * Luồng hướng tới: Tối ưu hóa trải nghiệm xác minh hồ sơ, giảm 90% thao tác nhập liệu thủ công.
+     */
+    private fun processCccdImage(uri: Uri) {
+        binding.layoutCccdPreview.visibility = View.VISIBLE
+        binding.layoutOcrLoading.visibility = View.VISIBLE
+        binding.layoutOcrSuccess.visibility = View.GONE
+        binding.tvCccdBadge.text = "✓ Thẻ CCCD vừa chụp"
+
+        Glide.with(this)
+            .load(uri)
+            .into(binding.ivCccdPreview)
+
+        lifecycleScope.launch {
+            // Nén ảnh sang Base64
+            val base64 = ImagePickerUtils.compressUriToBase64(
+                this@StoreVerificationActivity,
+                uri,
+                maxDimension = 800,
+                quality = 80
+            )
+            if (!base64.isNullOrBlank()) {
+                cccdFrontBase64 = base64
+            }
+
+            // Quét OCR nhận diện CCCD bằng AI
+            val result = CccdOcrHelper.scanCccdFromUri(
+                this@StoreVerificationActivity,
+                uri
+            )
+
+            binding.layoutOcrLoading.visibility = View.GONE
+
+            result.onSuccess { scanResult ->
+                var filledAny = false
+                val filledFields = mutableListOf<String>()
+
+                val cccdNum = scanResult.cccdNumber
+                if (!cccdNum.isNullOrBlank()) {
+                    binding.etCccdNumber.setText(cccdNum)
+                    binding.tilCccdNumber.error = null
+                    filledFields.add("Số CCCD: $cccdNum")
+                    filledAny = true
+                }
+
+                val ocrName = scanResult.fullName
+                if (!ocrName.isNullOrBlank()) {
+                    val formattedName = CccdOcrHelper.toTitleCase(ocrName)
+                    binding.etOwnerName.setText(formattedName)
+                    binding.tilOwnerName.error = null
+                    filledFields.add("Họ tên: $formattedName")
+                    filledAny = true
+
+                    // Tự động điền tên chủ tài khoản ngân hàng (viết hoa không dấu) nếu đang trống
+                    val currentBankName = binding.etBankAccountName.text.toString().trim()
+                    if (currentBankName.isBlank()) {
+                        val unaccentedUpper = CccdOcrHelper.removeAccents(ocrName).uppercase()
+                        binding.etBankAccountName.setText(unaccentedUpper)
+                        binding.tilBankAccountName.error = null
+                    }
+                }
+
+                // Gợi ý/điền Quận nếu trích xuất được và quán chưa chọn quận cụ thể
+                val ocrDistrict = scanResult.district
+                if (!ocrDistrict.isNullOrBlank()) {
+                    val dIndex = districts.indexOfFirst { d -> d.equals(ocrDistrict, ignoreCase = true) }
+                    if (dIndex >= 0 && (binding.etStoreAddress.text.toString().isBlank() || binding.spStoreDistrict.selectedItemPosition == 0)) {
+                        binding.spStoreDistrict.setSelection(dIndex)
+                    }
+                }
+
+                if (filledAny) {
+                    binding.layoutOcrSuccess.visibility = View.VISIBLE
+                    binding.tvOcrResultDesc.text = "✓ Đã nhận diện: " + filledFields.joinToString(" • ")
+                    Toast.makeText(
+                        this@StoreVerificationActivity,
+                        "🎉 Đã nhận diện và tự động điền thông tin CCCD!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    binding.layoutOcrSuccess.visibility = View.GONE
+                    Toast.makeText(
+                        this@StoreVerificationActivity,
+                        "⚠️ Đã lưu ảnh thẻ nhưng chưa nhận diện rõ chữ. Vui lòng kiểm tra hoặc tự nhập thông tin.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }.onFailure { err ->
+                binding.layoutOcrSuccess.visibility = View.GONE
+                Toast.makeText(
+                    this@StoreVerificationActivity,
+                    "⚠️ Lỗi quét CCCD: ${err.message}. Bạn có thể tự nhập thông tin bên dưới.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     private fun loadInitialData() {
         lifecycleScope.launch {
             val user = authRepository.currentUser
@@ -108165,6 +108938,27 @@ class StoreVerificationActivity : AppCompatActivity() {
                     }
 
                     if (it.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(it.cccdNumber)
+                    if (it.cccdFrontUrl.isNotBlank()) {
+                        cccdFrontBase64 = it.cccdFrontUrl
+                        binding.layoutCccdPreview.visibility = View.VISIBLE
+                        binding.tvCccdBadge.text = "✓ Đã có ảnh thẻ CCCD xác thực"
+                        val decoded = if (it.cccdFrontUrl.startsWith("data:image")) {
+                            try {
+                                val base64Clean = it.cccdFrontUrl.substringAfter("base64,")
+                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
+                            } catch (_: Exception) { null }
+                        } else null
+
+                        if (decoded != null) {
+                            Glide.with(this@StoreVerificationActivity)
+                                .load(decoded)
+                                .into(binding.ivCccdPreview)
+                        } else {
+                            Glide.with(this@StoreVerificationActivity)
+                                .load(it.cccdFrontUrl)
+                                .into(binding.ivCccdPreview)
+                        }
+                    }
                     if (it.openHours.isNotBlank()) binding.etOpenHours.setText(it.openHours)
                     if (it.prepTime.isNotBlank()) binding.etPrepTime.setText(it.prepTime)
 
@@ -108222,6 +109016,14 @@ class StoreVerificationActivity : AppCompatActivity() {
         binding.btnPickLocationMap.setOnClickListener { openMapAction() }
         binding.etStoreAddress.setOnClickListener { openMapAction() }
         binding.tilStoreAddress.setOnClickListener { openMapAction() }
+
+        binding.btnCaptureCccd.setOnClickListener {
+            checkPermissionAndLaunchCamera()
+        }
+
+        binding.btnPickCccdGallery.setOnClickListener {
+            pickGalleryLauncher.launch("image/*")
+        }
 
         binding.btnSubmitVerification.setOnClickListener {
             validateAndSubmit()
@@ -108357,6 +109159,7 @@ class StoreVerificationActivity : AppCompatActivity() {
                 district = district,
                 ownerName = ownerName,
                 cccdNumber = cccd,
+                cccdFrontUrl = cccdFrontBase64,
                 bankName = selectedBank.name,
                 bankAccountNumber = bankAccount,
                 bankAccountName = bankAccountName,
@@ -111803,6 +112606,17 @@ class OtpVerificationActivity : AppCompatActivity() {
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- FileProvider cho phép Camera chụp ảnh thẻ CCCD & ảnh quán -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 </manifest>
@@ -121839,6 +122653,7 @@ class FirebaseRepository @Inject constructor(
         district: String,
         ownerName: String,
         cccdNumber: String,
+        cccdFrontUrl: String = "",
         bankName: String,
         bankAccountNumber: String,
         bankAccountName: String,
@@ -121890,6 +122705,7 @@ class FirebaseRepository @Inject constructor(
                 }
             }
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
+            if (cccdFrontUrl.isNotBlank()) updates["cccdFrontUrl"] = cccdFrontUrl
             if (latitude != 0.0) updates["latitude"] = latitude
             if (longitude != 0.0) updates["longitude"] = longitude
 
@@ -121910,6 +122726,7 @@ class FirebaseRepository @Inject constructor(
                         "verified" to true
                     )
                     if (bankBin.isNotBlank()) legalUpdates["bankBin"] = bankBin.trim()
+                    if (cccdFrontUrl.isNotBlank()) legalUpdates["cccdFrontUrl"] = cccdFrontUrl
                     for (child in allStoresSnap.children) {
                         val bId = child.child("bossId").getValue(String::class.java).orEmpty()
                         val cKey = child.key.orEmpty()

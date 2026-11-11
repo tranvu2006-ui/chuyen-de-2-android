@@ -1072,6 +1072,7 @@ class FirebaseRepository @Inject constructor(
         district: String,
         ownerName: String,
         cccdNumber: String,
+        cccdFrontUrl: String = "",
         bankName: String,
         bankAccountNumber: String,
         bankAccountName: String,
@@ -1123,6 +1124,7 @@ class FirebaseRepository @Inject constructor(
                 }
             }
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
+            if (cccdFrontUrl.isNotBlank()) updates["cccdFrontUrl"] = cccdFrontUrl
             if (latitude != 0.0) updates["latitude"] = latitude
             if (longitude != 0.0) updates["longitude"] = longitude
 
@@ -1143,6 +1145,7 @@ class FirebaseRepository @Inject constructor(
                         "verified" to true
                     )
                     if (bankBin.isNotBlank()) legalUpdates["bankBin"] = bankBin.trim()
+                    if (cccdFrontUrl.isNotBlank()) legalUpdates["cccdFrontUrl"] = cccdFrontUrl
                     for (child in allStoresSnap.children) {
                         val bId = child.child("bossId").getValue(String::class.java).orEmpty()
                         val cKey = child.key.orEmpty()

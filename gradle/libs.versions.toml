@@ -26,6 +26,7 @@ googleCrashlytics = "3.0.2"
 swiperefreshlayout = "1.1.0"
 zxingCore = "3.5.3"
 zxingEmbedded = "4.3.0"
+mlkitTextRecognition = "16.0.1"
 
 [libraries]
 # AndroidX Core
@@ -82,6 +83,7 @@ play-services-auth = { group = "com.google.android.gms", name = "play-services-a
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

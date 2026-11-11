@@ -83,4 +83,5 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.play.services.auth)
     implementation(libs.zxing.core)
+    api(libs.mlkit.text.recognition)
 }

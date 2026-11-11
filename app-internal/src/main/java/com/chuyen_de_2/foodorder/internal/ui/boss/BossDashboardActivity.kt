@@ -221,6 +221,8 @@ class BossDashboardActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Để sau", null)
                 .show()
+        } else {
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestRebindIfNecessary(this)
         }
     }
 

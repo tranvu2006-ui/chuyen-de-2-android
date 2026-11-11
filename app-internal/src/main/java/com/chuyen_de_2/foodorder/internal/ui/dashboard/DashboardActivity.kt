@@ -480,6 +480,9 @@ class DashboardActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Để sau", null)
                 .show()
+        } else {
+            // Đã cấp quyền -> Yêu cầu Android kết nối Service ngay lập tức
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestRebindIfNecessary(this)
         }
     }
 

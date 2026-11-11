@@ -51,11 +51,49 @@ class BankNotificationListenerService : NotificationListenerService() {
             }
             context.startActivity(intent)
         }
+
+        /** Yêu cầu Android kết nối lại Service nếu đã được cấp quyền */
+        fun requestRebindIfNecessary(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isPermissionGranted(context)) {
+                try {
+                    val component = android.content.ComponentName(context, BankNotificationListenerService::class.java)
+                    requestRebind(component)
+                    Log.d(TAG, "Đã gọi requestRebind cho BankNotificationListenerService")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Lỗi requestRebind: ${e.message}")
+                }
+            }
+        }
+
+        /** Mở màn hình cài đặt Tự Khởi Chạy (Autostart) trên Xiaomi/MIUI/HyperOS/Vivo */
+        fun openAutostartSettings(context: Context) {
+            val intents = listOf(
+                Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+                Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")),
+                Intent().setComponent(android.content.ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.PurviewTabActivity")),
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(android.net.Uri.fromParts("package", context.packageName, null))
+            )
+            for (intent in intents) {
+                try {
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    context.startActivity(intent)
+                    return
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
         Log.i(TAG, "✓✓✓ BankNotificationListenerService ĐÃ KẾT NỐI THÀNH CÔNG VỚI ANDROID! Sẵn sàng lắng nghe thông báo ngân hàng.")
+        // Quét ngay các thông báo ngân hàng đang có sẵn trên thanh trạng thái chưa kịp đọc
+        try {
+            activeNotifications?.forEach { sbn ->
+                onNotificationPosted(sbn)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi quét thông báo hiện có: ${e.message}")
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {

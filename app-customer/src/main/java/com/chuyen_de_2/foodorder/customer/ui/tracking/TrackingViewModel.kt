@@ -43,4 +43,25 @@ class TrackingViewModel @Inject constructor(
             }
         }
     }
+
+    /** Khách hàng hủy đơn trực tiếp khi quán chưa xác nhận */
+    fun cancelOrderImmediately(orderId: String, reason: String = "") {
+        viewModelScope.launch {
+            firebaseRepository.cancelOrderImmediately(orderId, reason)
+        }
+    }
+
+    /** Khách hàng gửi yêu cầu hủy đơn đến quán khi quán đang làm món */
+    fun requestCancelOrder(orderId: String, reason: String = "") {
+        viewModelScope.launch {
+            firebaseRepository.requestCancelOrder(orderId, reason)
+        }
+    }
+
+    /** Khách hàng rút lại yêu cầu hủy đơn */
+    fun withdrawCancelRequest(orderId: String) {
+        viewModelScope.launch {
+            firebaseRepository.withdrawCancelRequest(orderId)
+        }
+    }
 }

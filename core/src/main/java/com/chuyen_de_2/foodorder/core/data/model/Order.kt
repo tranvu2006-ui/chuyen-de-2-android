@@ -155,7 +155,22 @@ data class Order(
     val incidentCallProofImage: String = "",
 
     @SerializedName("incidentMessageProofImage")
-    val incidentMessageProofImage: String = ""
+    val incidentMessageProofImage: String = "",
+
+    @SerializedName("cancelRequested")
+    val cancelRequested: Boolean = false,
+
+    @SerializedName("cancelRequestReason")
+    val cancelRequestReason: String = "",
+
+    @SerializedName("cancelRequestTime")
+    val cancelRequestTime: Long = 0L,
+
+    @SerializedName("cancelRequestStatus")
+    val cancelRequestStatus: String = "",
+
+    @SerializedName("cancelRejectReason")
+    val cancelRejectReason: String = ""
 ) {
     @get:Exclude
     val effectiveStoreId: String
@@ -208,6 +223,13 @@ data class Order(
         } else ""
 
     /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
+    object CancelRequestStatus {
+        const val PENDING = "PENDING"
+        const val APPROVED = "APPROVED"
+        const val REJECTED = "REJECTED"
+        const val WITHDRAWN = "WITHDRAWN"
+    }
+
     object Status {
         const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công

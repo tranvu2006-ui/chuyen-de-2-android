@@ -34,9 +34,22 @@ class AdminStoreAdapter(
             val context = itemView.context
 
             binding.tvStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
-            binding.tvOwnerInfo.text = "Chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • ${store.phone.ifBlank { "Không có SĐT" }}"
+            val ownerOrManager = if (store.merchantName.isNotBlank() && store.merchantName != store.ownerName) {
+                "Chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • QL: ${store.merchantName}"
+            } else {
+                "Chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }}"
+            }
+            binding.tvOwnerInfo.text = "$ownerOrManager • ${store.phone.ifBlank { "Không có SĐT" }}"
             binding.tvAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật địa chỉ" }}"
             binding.tvRating.text = "⭐ ${String.format("%.1f", if (store.ratingAvg > 0) store.ratingAvg else 5.0f)}"
+
+            // Chain Badge
+            if (store.bossId.isNotBlank()) {
+                binding.tvChainBadge.text = "CHUỖI"
+                binding.tvChainBadge.visibility = View.VISIBLE
+            } else {
+                binding.tvChainBadge.visibility = View.GONE
+            }
 
             // CCCD Badge
             if (store.cccdNumber.isNotBlank()) {

@@ -82,6 +82,7 @@ class AdminStoreListFragment : Fragment() {
                 R.id.chipPendingStores -> viewModel.setFilter(StoreFilter.PENDING)
                 R.id.chipOpenStores -> viewModel.setFilter(StoreFilter.OPEN)
                 R.id.chipLockedStores -> viewModel.setFilter(StoreFilter.LOCKED)
+                R.id.chipChainStores -> viewModel.setFilter(StoreFilter.CHAIN)
                 else -> viewModel.setFilter(StoreFilter.ALL)
             }
         }
@@ -103,6 +104,7 @@ class AdminStoreListFragment : Fragment() {
                         binding.chipPendingStores.text = "Chờ duyệt (${c.pending})"
                         binding.chipOpenStores.text = "Đang mở (${c.open})"
                         binding.chipLockedStores.text = "Bị khóa (${c.locked})"
+                        binding.chipChainStores.text = "Chuỗi chi nhánh (${c.chain})"
                     }
                 }
 

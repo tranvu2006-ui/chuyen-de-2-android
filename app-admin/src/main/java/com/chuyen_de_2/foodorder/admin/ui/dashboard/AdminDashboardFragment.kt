@@ -109,15 +109,15 @@ class AdminDashboardFragment : Fragment() {
                 launch {
                     viewModel.kpi.collect { kpi ->
                         binding.tvRevenue.text = "${currencyFormatter.format(kpi.totalRevenue)} đ"
-                        binding.tvCompletedOrdersChip.text = "🟢 ${kpi.completedOrders} Đơn hoàn tất"
-                        binding.tvBoomOrdersChip.text = "🔴 ${kpi.boomOrders} Đơn huỷ/boom"
+                        binding.tvCompletedOrdersChip.text = "${kpi.completedOrders} Đơn hoàn tất"
+                        binding.tvBoomOrdersChip.text = "${kpi.boomOrders} Đơn huỷ/boom"
                         binding.tvTotalOrders.text = kpi.totalOrders.toString()
                         binding.tvOrderSubtext.text = "${kpi.completedOrders} hoàn thành • ${kpi.boomOrders} huỷ/boom"
                         binding.tvPendingComplaints.text = kpi.pendingComplaints.toString()
                         binding.tvActiveStores.text = kpi.activeStores.toString()
-                        binding.tvPendingStores.text = "${kpi.pendingStores} chờ duyệt CCCD"
+                        binding.tvPendingStores.text = "${kpi.pendingStores} chờ duyệt • ${kpi.chainStores} chi nhánh chuỗi"
                         binding.tvTotalUsers.text = (kpi.totalCustomers + kpi.totalDrivers).toString()
-                        binding.tvUserSubtext.text = "${kpi.totalCustomers} Khách • ${kpi.totalDrivers} Tài xế"
+                        binding.tvUserSubtext.text = "${kpi.totalCustomers} Khách • ${kpi.totalDrivers} Tài xế • ${kpi.totalBosses} Boss chuỗi"
 
                         // Sync alert badge with MainActivity TopBar
                         (activity as? AdminMainActivity)?.updateAlertBadge(kpi.pendingStores + kpi.pendingComplaints)

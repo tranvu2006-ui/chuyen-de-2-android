@@ -23,9 +23,12 @@ data class DashboardKpi(
     val totalStores: Int = 0,
     val activeStores: Int = 0,
     val pendingStores: Int = 0,
+    val chainStores: Int = 0,
     val pendingComplaints: Int = 0,
     val totalCustomers: Int = 0,
-    val totalDrivers: Int = 0
+    val totalDrivers: Int = 0,
+    val totalBosses: Int = 0,
+    val totalMerchants: Int = 0
 )
 
 @HiltViewModel
@@ -101,10 +104,18 @@ class AdminDashboardViewModel @Inject constructor(
                     it.status.equals(Complaint.ComplaintStatus.PENDING, ignoreCase = true)
                 }
 
+                val chainS = stores.count { it.bossId.isNotBlank() }
                 val customers = users.count { it.role.equals(User.Role.CUSTOMER, ignoreCase = true) }
                 val drivers = users.count {
                     it.role.equals(User.Role.DRIVER, ignoreCase = true) ||
                     it.role.equals(User.Role.SHIPPER, ignoreCase = true)
+                }
+                val bosses = users.count {
+                    it.role.equals(User.Role.BOSSMERCHANT, ignoreCase = true) ||
+                    it.role.equals("BOSS", ignoreCase = true)
+                }
+                val merchants = users.count {
+                    it.role.equals(User.Role.MERCHANT, ignoreCase = true)
                 }
 
                 DashboardKpi(
@@ -115,9 +126,12 @@ class AdminDashboardViewModel @Inject constructor(
                     totalStores = stores.size,
                     activeStores = activeS,
                     pendingStores = pendingS,
+                    chainStores = chainS,
                     pendingComplaints = pendingC,
                     totalCustomers = customers,
-                    totalDrivers = drivers
+                    totalDrivers = drivers,
+                    totalBosses = bosses,
+                    totalMerchants = merchants
                 )
             }.collect { kpiData ->
                 _kpi.value = kpiData
@@ -129,7 +143,7 @@ class AdminDashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val result = firebaseRepo.restoreDefaultCategories()
             if (result.isSuccess) {
-                _actionMessage.value = "Đã khôi phục thành công 8 danh mục nền tảng mặc định!"
+                _actionMessage.value = "Đã khôi phục thành công 5 danh mục chính (Cơm, Phở, Trà sữa, Bún đậu, Nước ép)!"
             } else {
                 _actionMessage.value = "Khôi phục danh mục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
             }

@@ -67,6 +67,28 @@ class AdminOrderAdapter(
                 }
             }
 
+            if (order.cancelRequested) {
+                binding.tvOrderCancelNotice.visibility = android.view.View.VISIBLE
+                val reason = order.cancelRequestReason.ifBlank { "Khách xin hủy đơn" }
+                val reqStatus = when (order.cancelRequestStatus.uppercase(Locale.getDefault())) {
+                    "PENDING" -> "Chờ quán xử lý"
+                    "REJECTED" -> "Quán từ chối hủy"
+                    "APPROVED" -> "Quán chấp thuận hủy"
+                    else -> order.cancelRequestStatus.ifBlank { "Chờ xử lý" }
+                }
+                binding.tvOrderCancelNotice.text = "Khách yêu cầu hủy: $reason • $reqStatus"
+                binding.tvOrderCancelNotice.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.tvOrderCancelNotice.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+            } else if (statusUpper == Order.OrderStatus.CANCELLED) {
+                binding.tvOrderCancelNotice.visibility = android.view.View.VISIBLE
+                val reason = order.cancelReason.ifBlank { order.cancelRequestReason.ifBlank { "Đã hủy đơn hàng" } }
+                binding.tvOrderCancelNotice.text = "Lý do hủy: $reason"
+                binding.tvOrderCancelNotice.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvOrderCancelNotice.setTextColor(ContextCompat.getColor(context, R.color.danger))
+            } else {
+                binding.tvOrderCancelNotice.visibility = android.view.View.GONE
+            }
+
             itemView.setOnClickListener {
                 onOrderClick?.invoke(order)
             }

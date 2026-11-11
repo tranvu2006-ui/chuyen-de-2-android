@@ -73,14 +73,14 @@ class EditOrderDialogFragment(
         val context = requireContext()
 
         val statusLabels = listOf(
-            "🟡 Đang chờ xác nhận (PENDING)",
-            "🟠 Đang chuẩn bị món (PREPARING)",
-            "👨‍🍳 Quán làm xong (READY)",
-            "🛵 Đã điều tài xế (ASSIGNED)",
-            "🚚 Đang giao hàng (DELIVERING)",
-            "🟢 Giao thành công (COMPLETED)",
-            "⚠️ Khách boom hàng (BOOM)",
-            "🔴 Đã hủy đơn (CANCELLED)"
+            "Đang chờ xác nhận (PENDING)",
+            "Đang chuẩn bị món (PREPARING)",
+            "Quán làm xong (READY)",
+            "Đã điều tài xế (ASSIGNED)",
+            "Đang giao hàng (DELIVERING)",
+            "Giao thành công (COMPLETED)",
+            "Khách boom hàng (BOOM)",
+            "Đã hủy đơn (CANCELLED)"
         )
         val statusAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, statusLabels).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
@@ -88,11 +88,11 @@ class EditOrderDialogFragment(
         binding.spnOrderStatus.adapter = statusAdapter
 
         val paymentLabels = listOf(
-            "💵 Tiền mặt khi nhận (COD)",
-            "🟣 Ví điện tử MoMo",
-            "💳 Cổng VNPAY QR",
-            "🔵 Ví ZaloPay",
-            "👛 Ví số Oishi Food"
+            "Tiền mặt khi nhận (COD)",
+            "Ví điện tử MoMo",
+            "Cổng VNPAY QR",
+            "Ví ZaloPay",
+            "Ví số Oishi Food"
         )
         val paymentAdapter = ArrayAdapter(context, com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner, paymentLabels).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
@@ -117,6 +117,10 @@ class EditOrderDialogFragment(
         binding.etTotalPayment.setText(order.totalPayment.toString())
         binding.etShipperName.setText(order.shipperName)
         binding.etShipperPhone.setText(order.shipperPhone)
+        binding.etCancelReason.setText(order.cancelReason)
+        binding.etCancelRequestReason.setText(order.cancelRequestReason)
+        binding.etCancelRequestStatus.setText(order.cancelRequestStatus)
+        binding.etCancelRejectReason.setText(order.cancelRejectReason)
     }
 
     private fun setupListeners() {

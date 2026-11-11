@@ -158,6 +158,15 @@
                             android:text="Bị khóa (0)"
                             android:textSize="12sp"
                             android:textStyle="bold" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipChainStores"
+                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Chuỗi chi nhánh (0)"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
                     </com.google.android.material.chip.ChipGroup>
                 </HorizontalScrollView>
 

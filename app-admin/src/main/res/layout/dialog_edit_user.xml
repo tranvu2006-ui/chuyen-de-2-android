@@ -479,6 +479,27 @@
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- Mã Chủ chuỗi (bossId - nếu thuộc chuỗi) -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.FoodOrder.Admin.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:hint="Mã Chủ chuỗi phụ thuộc (bossId - tùy chọn)"
+                android:textColorHint="@color/text_secondary"
+                app:boxBackgroundColor="@color/white"
+                app:hintTextColor="@color/primary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUserBossId"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
             <!-- Trạng thái chi tiết (Status) -->
             <TextView
                 android:layout_width="wrap_content"

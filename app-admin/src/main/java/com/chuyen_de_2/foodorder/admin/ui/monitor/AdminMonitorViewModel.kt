@@ -1,4 +1,4 @@
-﻿package com.chuyen_de_2.foodorder.admin.ui.monitor
+package com.chuyen_de_2.foodorder.admin.ui.monitor
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -87,7 +87,9 @@ class AdminMonitorViewModel @Inject constructor(
                 o.shopName.lowercase().contains(q) ||
                 o.customerName.lowercase().contains(q) ||
                 o.customerPhone.lowercase().contains(q) ||
-                o.orderStatus.lowercase().contains(q)
+                o.orderStatus.lowercase().contains(q) ||
+                o.cancelReason.lowercase().contains(q) ||
+                o.cancelRequestReason.lowercase().contains(q)
             }
         }
 
@@ -100,7 +102,9 @@ class AdminMonitorViewModel @Inject constructor(
                 item.user.email.lowercase().contains(q) ||
                 item.user.phone.lowercase().contains(q) ||
                 item.user.role.lowercase().contains(q) ||
-                item.user.uid.lowercase().contains(q)
+                item.user.uid.lowercase().contains(q) ||
+                item.user.bossId.lowercase().contains(q) ||
+                item.user.storeId.lowercase().contains(q)
             }
         }
     }

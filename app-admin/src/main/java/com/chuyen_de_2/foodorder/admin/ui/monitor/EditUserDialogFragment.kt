@@ -61,6 +61,7 @@ class EditUserDialogFragment(
     private val roleOptions = listOf(
         User.Role.CUSTOMER,
         User.Role.MERCHANT,
+        User.Role.BOSSMERCHANT,
         User.Role.SHIPPER,
         User.Role.ADMIN
     )
@@ -109,10 +110,11 @@ class EditUserDialogFragment(
             context,
             com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
             listOf(
-                "🛍️ Khách Hàng (CUSTOMER)",
-                "🏪 Chủ Quán (MERCHANT)",
-                "🛵 Tài Xế Giao Hàng (SHIPPER)",
-                "👑 Quản Trị Viên (ADMIN)"
+                "Khách Hàng (CUSTOMER)",
+                "Chủ Quán / Quản Lý (MERCHANT)",
+                "Chủ Chuỗi Cửa Hàng (BOSSMERCHANT)",
+                "Tài Xế Giao Hàng (SHIPPER)",
+                "Quản Trị Viên (ADMIN)"
             )
         ).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
@@ -123,10 +125,10 @@ class EditUserDialogFragment(
             context,
             com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
             listOf(
-                "🟢 Đang Hoạt Động (ACTIVE)",
-                "🚫 Đã Bị Khóa (LOCKED)",
-                "⚪ Tạm Ngừng (INACTIVE)",
-                "⚫ Ngoại Tuyến (OFFLINE)"
+                "Đang Hoạt Động (ACTIVE)",
+                "Đã Bị Khóa (LOCKED)",
+                "Tạm Ngừng (INACTIVE)",
+                "Ngoại Tuyến (OFFLINE)"
             )
         ).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
@@ -179,6 +181,7 @@ class EditUserDialogFragment(
         binding.etUserEmail.setText(user.email)
         binding.etUserPhone.setText(user.phone)
         binding.etUserStoreId.setText(user.storeId)
+        binding.etUserBossId.setText(user.bossId)
 
 
 
@@ -194,9 +197,10 @@ class EditUserDialogFragment(
 
         val roleIndex = when (user.role.uppercase()) {
             User.Role.CUSTOMER -> 0
-            User.Role.MERCHANT -> 1
-            User.Role.SHIPPER, User.Role.DRIVER -> 2
-            User.Role.ADMIN -> 3
+            User.Role.MERCHANT, User.Role.MANAGER -> 1
+            User.Role.BOSSMERCHANT, "BOSS" -> 2
+            User.Role.SHIPPER, User.Role.DRIVER -> 3
+            User.Role.ADMIN -> 4
             else -> 0
         }
         binding.spnUserRole.setSelection(roleIndex)
@@ -303,6 +307,7 @@ class EditUserDialogFragment(
             val email = binding.etUserEmail.text?.toString().orEmpty().trim()
             val phone = binding.etUserPhone.text?.toString().orEmpty().trim()
             val storeId = binding.etUserStoreId.text?.toString().orEmpty().trim()
+            val bossId = binding.etUserBossId.text?.toString().orEmpty().trim()
 
             val finalAvatar = if (isAvatarResetToDefault) "RESET_DEFAULT_AVATAR" else currentAvatar
 
@@ -320,7 +325,8 @@ class EditUserDialogFragment(
             val roleId = when (selectedRole) {
                 User.Role.ADMIN -> 1
                 User.Role.CUSTOMER -> 2
-                User.Role.MERCHANT -> 3
+                User.Role.MERCHANT, User.Role.MANAGER -> 3
+                User.Role.BOSSMERCHANT -> 5
                 User.Role.SHIPPER, User.Role.DRIVER -> 4
                 else -> 2
             }
@@ -332,6 +338,7 @@ class EditUserDialogFragment(
                 role = selectedRole,
                 roleId = roleId,
                 storeId = storeId,
+                bossId = bossId,
                 avatarUrl = finalAvatar,
                 status = finalStatus,
                 isActive = isUnlocked

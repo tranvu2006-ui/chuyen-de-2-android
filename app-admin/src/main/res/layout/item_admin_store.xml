@@ -136,6 +136,21 @@
                 tools:text="ĐANG MỞ CỬA" />
 
             <TextView
+                android:id="@+id/tvChainBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_orange"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:textColor="@color/brand_orange"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:visibility="visible"
+                tools:text="CHUỖI" />
+
+            <TextView
                 android:id="@+id/tvCccdBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

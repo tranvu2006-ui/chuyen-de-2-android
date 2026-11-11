@@ -56,12 +56,35 @@ class AdminStoreDetailBottomSheetDialogFragment(
         binding.tvDetailPhone.text = "Số điện thoại: ${store.phone.ifBlank { "Chưa cập nhật" }}"
         binding.tvDetailHours.text = "Giờ mở cửa: ${store.openHours.ifBlank { "08:00 - 22:00" }} (Thời gian làm món: ${store.prepTime.ifBlank { "15 phút" }})"
 
+        // Chain & Manager info
+        if (store.bossId.isNotBlank()) {
+            val managerText = if (store.merchantName.isNotBlank()) " • Quản lý chi nhánh: ${store.merchantName}" else " • Boss trực tiếp quản lý"
+            binding.tvDetailChainInfo.text = "Mô hình: Chuỗi cửa hàng (Boss #${store.bossId.takeLast(6)})$managerText"
+            binding.tvDetailChainInfo.visibility = View.VISIBLE
+        } else {
+            binding.tvDetailChainInfo.text = "Mô hình: Cửa hàng độc lập (Chưa tham gia chuỗi)"
+            binding.tvDetailChainInfo.visibility = View.VISIBLE
+        }
+
+        // Food Categories
+        val cats = if (store.storeCategories.isNotEmpty()) {
+            store.storeCategories.joinToString(", ")
+        } else {
+            store.category.ifBlank { "Chưa phân loại" }
+        }
+        binding.tvDetailCategories.text = "Danh mục ẩm thực: $cats"
+        binding.tvDetailCategories.visibility = View.VISIBLE
+
         // Bank
         val bankInfo = StringBuilder()
         if (store.bankName.isNotBlank()) bankInfo.append(store.bankName).append(" • ")
         if (store.bankAccountNumber.isNotBlank()) bankInfo.append(store.bankAccountNumber).append(" • ")
         bankInfo.append(store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa đăng ký" } })
         binding.tvDetailBank.text = bankInfo.toString()
+
+        val ownerName = store.ownerName.ifBlank { "Chưa cập nhật" }
+        val bankAccountName = store.bankAccountName.ifBlank { "Chưa đăng ký" }
+        binding.tvDetailBankCompare.text = "Hộ kinh doanh: $ownerName • Chủ thẻ NH: $bankAccountName"
 
         // CCCD
         binding.tvDetailCccdInfo.text = "Họ tên chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • Số CCCD: ${store.cccdNumber.ifBlank { "Chưa cập nhật" }}"
@@ -97,7 +120,7 @@ class AdminStoreDetailBottomSheetDialogFragment(
         // Current Penalty
         if (store.penaltyTier != Store.PenaltyTier.NONE && store.penaltyTier.isNotBlank()) {
             binding.tvCurrentPenalty.visibility = View.VISIBLE
-            binding.tvCurrentPenalty.text = "⚠️ Chế tài đang hiệu lực: ${store.penaltyTier}\nLý do: ${store.penaltyReason.ifBlank { "Vi phạm quy định sàn" }}"
+            binding.tvCurrentPenalty.text = "Chế tài đang hiệu lực: ${store.penaltyTier}\nLý do: ${store.penaltyReason.ifBlank { "Vi phạm quy định sàn" }}"
         } else {
             binding.tvCurrentPenalty.visibility = View.GONE
         }

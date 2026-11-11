@@ -153,6 +153,25 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp"
                     tools:text="Giờ mở cửa: 08:00 - 22:00 (Chuẩn bị: 15 phút)" />
+
+                <TextView
+                    android:id="@+id/tvDetailChainInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="Mô hình: Chuỗi cửa hàng • Quản lý: Nguyễn Văn A" />
+
+                <TextView
+                    android:id="@+id/tvDetailCategories"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp"
+                    tools:text="Danh mục ẩm thực: Cơm, Phở, Trà sữa" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -191,6 +210,15 @@
                     android:textSize="14sp"
                     android:textStyle="bold"
                     tools:text="MB Bank • 01234567899 • NGUYEN VAN A" />
+
+                <TextView
+                    android:id="@+id/tvDetailBankCompare"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    tools:text="Chủ hộ KD: Nguyễn Văn A • Tên chủ TK: NGUYEN VAN A" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -323,7 +351,7 @@
                 android:layout_height="52dp"
                 android:layout_marginBottom="10dp"
                 android:backgroundTint="@color/secondary"
-                android:text="🛠️ Tùy Chỉnh Toàn Bộ Thuộc Tính Quán"
+                android:text="Tùy Chỉnh Toàn Bộ Thuộc Tính Quán"
                 android:textColor="@color/white"
                 android:textSize="13.5sp"
                 android:textStyle="bold"
@@ -369,7 +397,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="46dp"
                 android:layout_marginTop="4dp"
-                android:text="⛔ Đình chỉ &amp; Khóa quyền kinh doanh quán này"
+                android:text="Đình chỉ &amp; Khóa quyền kinh doanh quán này"
                 android:textColor="@color/danger"
                 android:textSize="13sp"
                 android:textStyle="bold" />

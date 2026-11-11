@@ -37,7 +37,13 @@ class AdminUserAdapter(
             val context = itemView.context
 
                         binding.tvUserName.text = user.name.ifBlank { "Tài khoản #${user.uid.takeLast(6)}" }
-            binding.tvUserEmail.text = "${user.email.ifBlank { "Không có email" }} • ${user.phone.ifBlank { "Chưa có SĐT" }}"
+            val subText = buildString {
+                append(user.email.ifBlank { "Không có email" })
+                if (user.phone.isNotBlank()) append(" • ").append(user.phone)
+                if (user.bossId.isNotBlank()) append(" • Chuỗi: ").append(user.bossId.takeLast(6))
+                else if (user.storeId.isNotBlank()) append(" • Quán: ").append(user.storeId.takeLast(6))
+            }
+            binding.tvUserEmail.text = subText
 
             val avatar = user.avatarUrl.ifBlank { item.customer?.avatarUrl.orEmpty() }
             com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadUserAvatarWithTintRes(
@@ -52,18 +58,27 @@ class AdminUserAdapter(
 
             when (roleUpper) {
                 User.Role.ADMIN -> {
+                    binding.tvUserRoleBadge.text = "ADMIN"
                     binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_red)
                     binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
                 }
-                User.Role.MERCHANT -> {
+                User.Role.BOSSMERCHANT, "BOSS" -> {
+                    binding.tvUserRoleBadge.text = "CHỦ CHUỖI"
+                    binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+                }
+                User.Role.MERCHANT, User.Role.MANAGER -> {
+                    binding.tvUserRoleBadge.text = "MERCHANT"
                     binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
                 }
                 User.Role.DRIVER, User.Role.SHIPPER -> {
+                    binding.tvUserRoleBadge.text = "TÀI XẾ"
                     binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_green)
                     binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
                 }
                 else -> {
+                    binding.tvUserRoleBadge.text = "KHÁCH HÀNG"
                     binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_blue)
                     binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
                 }

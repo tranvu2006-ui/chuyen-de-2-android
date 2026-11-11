@@ -12,14 +12,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class StoreFilter {
-    ALL, PENDING, OPEN, LOCKED
+    ALL, PENDING, OPEN, LOCKED, CHAIN
 }
 
 data class StoreCounts(
     val total: Int = 0,
     val pending: Int = 0,
     val open: Int = 0,
-    val locked: Int = 0
+    val locked: Int = 0,
+    val chain: Int = 0
 )
 
 @HiltViewModel
@@ -59,7 +60,8 @@ class AdminStoreViewModel @Inject constructor(
         val pending = list.count { !it.isVerified || it.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true) }
         val open = list.count { it.isVerified && it.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true) }
         val locked = list.count { it.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true) }
-        _counts.value = StoreCounts(total, pending, open, locked)
+        val chain = list.count { it.bossId.isNotBlank() }
+        _counts.value = StoreCounts(total, pending, open, locked, chain)
     }
 
     fun setFilter(filter: StoreFilter) {
@@ -83,6 +85,7 @@ class AdminStoreViewModel @Inject constructor(
                 StoreFilter.PENDING -> !store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
                 StoreFilter.OPEN -> store.isVerified && store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)
                 StoreFilter.LOCKED -> store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)
+                StoreFilter.CHAIN -> store.bossId.isNotBlank()
             }
 
             val matchesSearch = if (query.isBlank()) true else {
@@ -90,7 +93,11 @@ class AdminStoreViewModel @Inject constructor(
                 store.ownerName.lowercase().contains(query) ||
                 store.phone.lowercase().contains(query) ||
                 store.district.lowercase().contains(query) ||
-                store.cccdNumber.lowercase().contains(query)
+                store.cccdNumber.lowercase().contains(query) ||
+                store.merchantName.lowercase().contains(query) ||
+                store.bossId.lowercase().contains(query) ||
+                store.bankAccountName.lowercase().contains(query) ||
+                store.bankAccountNumber.lowercase().contains(query)
             }
 
             matchesFilter && matchesSearch

@@ -120,7 +120,7 @@ class EditStoreDialogFragment(
         val statusAdapter = ArrayAdapter(
             context,
             com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf("🟢 Đang Mở Cửa (OPEN)", "⚪ Tạm Nghỉ (CLOSED)", "⛔ Đang Bị Khóa (LOCKED)", "🟡 Chờ Duyệt (PENDING)")
+            listOf("Đang Mở Cửa (OPEN)", "Tạm Nghỉ (CLOSED)", "Đang Bị Khóa (LOCKED)", "Chờ Duyệt (PENDING)")
         ).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
         }
@@ -129,7 +129,7 @@ class EditStoreDialogFragment(
         val penaltyAdapter = ArrayAdapter(
             context,
             com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner,
-            listOf("✅ Bình Thường (NONE)", "⚠️ Cảnh Cáo (WARN)", "👁️ Ẩn Khỏi Tìm Kiếm (HIDE)", "🔒 Khóa Quyền Bán (LOCK)")
+            listOf("Bình Thường (NONE)", "Cảnh Cáo (WARN)", "Ẩn Khỏi Tìm Kiếm (HIDE)", "Khóa Quyền Bán (LOCK)")
         ).apply {
             setDropDownViewResource(com.chuyen_de_2.foodorder.admin.R.layout.item_admin_spinner_dropdown)
         }
@@ -143,6 +143,8 @@ class EditStoreDialogFragment(
         binding.etStorePhone.setText(store.phone)
         binding.etStoreAddress.setText(store.address)
         binding.etStoreDistrict.setText(store.district)
+        binding.etBossId.setText(store.bossId)
+        binding.etMerchantName.setText(store.merchantName)
         currentStoreImageUrl = store.effectiveImageUrl
         updateStoreImagePreview(currentStoreImageUrl)
         binding.etStoreOpenHours.setText(store.openHours)
@@ -203,6 +205,8 @@ class EditStoreDialogFragment(
             val phone = binding.etStorePhone.text?.toString().orEmpty().trim()
             val address = binding.etStoreAddress.text?.toString().orEmpty().trim()
             val district = binding.etStoreDistrict.text?.toString().orEmpty().trim()
+            val bossId = binding.etBossId.text?.toString().orEmpty().trim()
+            val merchantName = binding.etMerchantName.text?.toString().orEmpty().trim()
             val imageUrl = currentStoreImageUrl
             val openHours = binding.etStoreOpenHours.text?.toString().orEmpty().trim().ifBlank { "08:00 - 22:00" }
             val prepTime = binding.etStorePrepTime.text?.toString().orEmpty().trim().ifBlank { "15-20 phút" }
@@ -227,6 +231,8 @@ class EditStoreDialogFragment(
                 phone = phone,
                 address = address,
                 district = district,
+                bossId = bossId,
+                merchantName = merchantName,
                 imageUrl = imageUrl,
                 avatarUrl = imageUrl,
                 avatar = imageUrl,

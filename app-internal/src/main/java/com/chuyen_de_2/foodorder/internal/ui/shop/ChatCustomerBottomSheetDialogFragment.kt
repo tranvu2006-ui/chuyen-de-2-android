@@ -56,7 +56,7 @@ class ChatCustomerBottomSheetDialogFragment : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val shortCode = if (orderId.isNotBlank()) {
-            "#ORD_OISHI_${QRCodeUtils.getShortOrderCode(orderId)}"
+            QRCodeUtils.formatOrderCode(orderId)
         } else ""
 
         binding.tvChatCustomerName.text = "Khách: $customerName"

@@ -21,11 +21,23 @@ object QRCodeUtils {
 
     /** Returns the stable short order code: nếu là mã chuẩn OISHI... thì giữ nguyên toàn bộ mã */
     fun getShortOrderCode(orderId: String): String {
-        val clean = orderId.trim().uppercase()
+        var clean = orderId.trim().uppercase()
+            .removePrefix("#")
+            .removePrefix("ORD-")
+            .removePrefix("ORD_")
+        while (clean.startsWith("OISHI_OISHI_")) {
+            clean = clean.removePrefix("OISHI_")
+        }
         if (clean.startsWith("OISHI")) return clean
         if (clean.startsWith("OI") && clean.length <= 10) return clean
         val suffix = clean.takeLast(8)
         return "OI$suffix"
+    }
+
+    /** Chuỗi mã đơn chuẩn hóa hiển thị đồng bộ cho toàn bộ UI: #ORD-OISHI_XXXXXX */
+    fun formatOrderCode(orderId: String): String {
+        val sc = getShortOrderCode(orderId)
+        return if (sc.isNotBlank()) "#ORD-$sc" else ""
     }
 
     /**

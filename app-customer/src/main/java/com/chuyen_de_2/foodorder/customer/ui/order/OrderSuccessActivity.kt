@@ -63,10 +63,7 @@ class OrderSuccessActivity : AppCompatActivity() {
         remain: Long,
         totalOrder: Long
     ) {
-        val shortCode = if (orderId.isNotBlank()) {
-            com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
-        } else ""
-        val fullOrderCode = if (orderId.startsWith("OISHI", ignoreCase = true)) orderId else if (shortCode.isNotBlank()) "#ORD_OISHI_$shortCode" else ""
+        val fullOrderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
         binding.tvOrderId.text = if (fullOrderCode.isNotBlank()) "🏷️ Mã đơn: $fullOrderCode • Quán: $shopName" else "🏷️ Quán: $shopName"
         binding.tvAddress.text = "📍 Địa chỉ: $address"
 

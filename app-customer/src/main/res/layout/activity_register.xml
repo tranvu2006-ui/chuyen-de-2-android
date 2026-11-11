@@ -53,7 +53,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Tạo tài khoản để bắt đầu đặt món ngon"
+            android:text="Tạo tài khoản khách hàng để đặt món ngon"
             android:textColor="@color/text_secondary"
             android:textSize="14sp"
             app:layout_constraintEnd_toEndOf="parent"
@@ -79,7 +79,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    android:text="Thông tin đăng ký"
+                    android:text="Thông tin đăng ký khách hàng"
                     android:textColor="@color/text_primary"
                     android:textSize="18sp"
                     android:textStyle="bold" />
@@ -134,8 +134,6 @@
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-
-
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/tilPassword"
                     style="@style/Widget.FoodOrder.TextInput"
@@ -171,46 +169,6 @@
                         android:inputType="textPassword"
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- Chọn vai trò 4 Actors -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:layout_marginBottom="4dp"
-                    android:text="Vai trò tài khoản:"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <RadioGroup
-                    android:id="@+id/rgRole"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <RadioButton
-                        android:id="@+id/rbCustomer"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="true"
-                        android:text="Khách Hàng (Đặt món &amp; giỏ hàng)"
-                        android:textSize="13sp" />
-
-                    <RadioButton
-                        android:id="@+id/rbMerchant"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chủ Quán (Quản lý cửa hàng)"
-                        android:textSize="13sp" />
-
-                    <RadioButton
-                        android:id="@+id/rbDriver"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Tài Xế Shipper (Nhận cuốc giao món)"
-                        android:textSize="13sp" />
-                </RadioGroup>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnRegister"

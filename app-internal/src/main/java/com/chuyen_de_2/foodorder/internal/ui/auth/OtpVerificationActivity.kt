@@ -44,7 +44,7 @@ class OtpVerificationActivity : AppCompatActivity() {
     private var password: String = ""
     private var confirmPassword: String = ""
     private var phone: String = ""
-    private var role: String = User.Role.MERCHANT
+    private var role: String = User.Role.BOSSMERCHANT
 
     private var countDownTimer: CountDownTimer? = null
     private var isResendEnabled = false
@@ -72,7 +72,7 @@ class OtpVerificationActivity : AppCompatActivity() {
         password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
         confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
         phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
-        role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.MERCHANT
+        role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.BOSSMERCHANT
 
         if (email.isBlank() || password.isBlank()) {
             Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()

@@ -25,61 +25,12 @@
             app:tint="@color/on_primary" />
     </com.google.android.material.appbar.MaterialToolbar>
 
-    <!-- Banner dành cho BOSSMERCHANT khi đang xem và làm việc tại một chi nhánh -->
-    <LinearLayout
-        android:id="@+id/bossBranchBanner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#1E293B"
-        android:elevation="6dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="8dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/toolbar">
-
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/ic_store"
-            app:tint="#F59E0B" />
-
-        <TextView
-            android:id="@+id/tvBossBranchTitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="Boss đang quản lý chi nhánh"
-            android:textColor="#FFFFFF"
-            android:textSize="12.5sp"
-            android:textStyle="bold" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnBackToBossBranches"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:backgroundTint="#F59E0B"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:paddingHorizontal="10dp"
-            android:text="Đổi chi nhánh"
-            android:textColor="#FFFFFF"
-            android:textSize="11.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="6dp" />
-    </LinearLayout>
-
     <FrameLayout
         android:id="@+id/fragmentContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:layout_constraintBottom_toTopOf="@id/bottomNavBarrier"
-        app:layout_constraintTop_toBottomOf="@id/bossBranchBanner" />
+        app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/bottomNavBarrier"

@@ -106,18 +106,7 @@ class DashboardActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         val extraSpacing = (10 * density).toInt()
         val topPadding = (if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)) + extraSpacing
-        if (binding.bossBranchBanner.visibility == android.view.View.VISIBLE) {
-            val sHeight = if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)
-            binding.bossBranchBanner.setPadding(
-                (14 * density).toInt(),
-                sHeight + (6 * density).toInt(),
-                (14 * density).toInt(),
-                (8 * density).toInt()
-            )
-            binding.fragmentContainer.setPadding(0, 0, 0, 0)
-        } else {
-            binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
-        }
+        binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
         binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
         binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
     }
@@ -201,19 +190,6 @@ class DashboardActivity : AppCompatActivity() {
             }
 
             val branchName = store.name.ifBlank { "Chi nhánh #$selectedBranchId" }
-
-            binding.bossBranchBanner.visibility = android.view.View.VISIBLE
-            binding.tvBossBranchTitle.text = "Đang quản lý: $branchName"
-            binding.btnBackToBossBranches.setOnClickListener {
-                prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
-                if (uid.isNotBlank()) {
-                    lifecycleScope.launch {
-                        firebaseRepository.clearActiveStoreForBoss(uid)
-                    }
-                }
-                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
-                finish()
-            }
 
             applyWindowPadding()
             setupMerchantNavigation()

@@ -43,9 +43,10 @@
             </com.google.android.material.card.MaterialCardView>
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="10dp"
+                android:layout_weight="1"
                 android:orientation="vertical">
 
                 <TextView
@@ -54,21 +55,43 @@
                     android:letterSpacing="-0.02"
                     android:text="Oishi Merchant"
                     android:textColor="#0F172A"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
+                    android:textSize="15.5sp"
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Kênh Quán Ăn Đối Tác"
                     android:textColor="#64748B"
-                    android:textSize="11sp" />
+                    android:textSize="11sp"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
+            <!-- Nút Đổi Chi Nhánh (Chỉ hiện khi là Boss hoặc có phiên chi nhánh) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSwitchBranch"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="#FFFBEB"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="Đổi chi nhánh"
+                android:textColor="#D97706"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:cornerRadius="8dp"
+                app:icon="@drawable/ic_refresh"
+                app:iconSize="13dp"
+                app:iconTint="#D97706"
+                app:strokeColor="#FDE68A"
+                app:strokeWidth="1dp" />
 
             <!-- Nút Hồ Sơ Quán -->
             <com.google.android.material.button.MaterialButton
@@ -76,42 +99,45 @@
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="34dp"
+                android:layout_marginStart="6dp"
                 android:backgroundTint="#EFF6FF"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingHorizontal="10dp"
+                android:paddingHorizontal="9dp"
                 android:text="Hồ Sơ"
                 android:textColor="#2563EB"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp"
                 app:icon="@drawable/ic_store"
-                app:iconSize="14dp"
+                app:iconSize="13dp"
                 app:iconTint="#2563EB"
                 app:strokeColor="#BFDBFE"
                 app:strokeWidth="1dp" />
 
-            <!-- Nút Đăng Xuất -->
-            <com.google.android.material.button.MaterialButton
+            <!-- Nút Đăng Xuất (Dạng icon vuông nhỏ gọn, không có chữ) -->
+            <com.google.android.material.card.MaterialCardView
                 android:id="@+id/btnLogoutChannel"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
+                android:layout_width="34dp"
                 android:layout_height="34dp"
                 android:layout_marginStart="6dp"
-                android:backgroundTint="#FEF2F2"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingHorizontal="10dp"
-                android:text="Đăng xuất"
-                android:textColor="#DC2626"
-                android:textSize="11.5sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp"
-                app:icon="@drawable/ic_log_out"
-                app:iconSize="14dp"
-                app:iconTint="#DC2626"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                app:cardBackgroundColor="#FEF2F2"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
                 app:strokeColor="#FECACA"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_log_out"
+                    android:contentDescription="Đăng xuất"
+                    app:tint="#DC2626" />
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
         <!-- Divider line -->

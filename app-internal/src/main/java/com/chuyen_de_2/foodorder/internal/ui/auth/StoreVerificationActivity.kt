@@ -1,5 +1,8 @@
 package com.chuyen_de_2.foodorder.internal.ui.auth
 
+import android.view.MotionEvent
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -402,5 +405,10 @@ class StoreVerificationActivity : AppCompatActivity() {
                 Toast.makeText(this@StoreVerificationActivity, "Lỗi khi cập nhật hồ sơ: ${err.message}", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
     }
 }

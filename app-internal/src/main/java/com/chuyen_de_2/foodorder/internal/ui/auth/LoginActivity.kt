@@ -11,7 +11,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import android.view.MotionEvent
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity

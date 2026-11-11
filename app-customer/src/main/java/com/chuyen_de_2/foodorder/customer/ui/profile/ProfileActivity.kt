@@ -22,7 +22,9 @@ import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.CustomerAddress
 import com.chuyen_de_2.foodorder.core.data.model.User
+import android.view.MotionEvent
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.customer.R
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityProfileBinding
 import com.chuyen_de_2.foodorder.customer.databinding.DialogAddressBookBinding
@@ -582,5 +584,10 @@ class ProfileActivity : AppCompatActivity() {
             }
             .setNegativeButton("Hủy", null)
             .show()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
     }
 }

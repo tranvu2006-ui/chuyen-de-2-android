@@ -106,9 +106,12 @@ class MenuManageFragment : Fragment() {
      * Luồng hướng tới: Gọi [observeStoreDishes].
      */
     private fun resolveCurrentStoreIdAndObserve() {
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
         val uid = auth.currentUser?.uid.orEmpty()
-        viewLifecycleOwner.lifecycleScope.launch {
-            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+        viewLifecycle.lifecycleScope.launch {
+            val resolvedStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            if (_binding == null || view == null || !isAdded) return@launch
+            currentStoreId = resolvedStoreId
             observeStoreDishes()
             observeStoreCategories()
         }
@@ -118,9 +121,12 @@ class MenuManageFragment : Fragment() {
      * Tên chức năng: Lắng nghe danh mục nội bộ của quán theo thời gian thực
      */
     private fun observeStoreCategories() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            if (currentStoreId.isBlank()) return@launch
+        if (_binding == null || view == null || !isAdded) return
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
+        viewLifecycle.lifecycleScope.launch {
+            if (currentStoreId.isBlank() || _binding == null) return@launch
             firebaseRepository.observeStoreCategories(currentStoreId).collectLatest { cats ->
+                if (_binding == null || view == null || !isAdded) return@collectLatest
                 if (cats.isNotEmpty()) {
                     storeCategories.clear()
                     storeCategories.addAll(cats)
@@ -137,8 +143,11 @@ class MenuManageFragment : Fragment() {
      * Luồng hướng tới: Cập nhật RecyclerView hiển thị danh sách món.
      */
     private fun observePlatformCategories() {
-        viewLifecycleOwner.lifecycleScope.launch {
+        if (_binding == null || view == null || !isAdded) return
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
+        viewLifecycle.lifecycleScope.launch {
             firebaseRepository.observeCategories(includeInactive = false).collectLatest { cats ->
+                if (_binding == null || view == null || !isAdded) return@collectLatest
                 if (cats.isNotEmpty()) {
                     platformCategoryObjects = cats
                     val names = cats.map { it.categoryName }.toMutableList()
@@ -150,9 +159,12 @@ class MenuManageFragment : Fragment() {
     }
 
     private fun observeStoreDishes() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            if (currentStoreId.isBlank()) return@launch
+        if (_binding == null || view == null || !isAdded) return
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
+        viewLifecycle.lifecycleScope.launch {
+            if (currentStoreId.isBlank() || _binding == null) return@launch
             firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
+                if (_binding == null || view == null || !isAdded) return@collectLatest
                 dishList.clear()
                 dishList.addAll(dishes)
                 updateList()
@@ -651,7 +663,7 @@ class MenuManageFragment : Fragment() {
                 if (index >= 0) {
                     dishList[index] = updated
                 }
-                viewLifecycleOwner.lifecycleScope.launch {
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                     firebaseRepository.saveStoreDish(currentStoreId, updated)
                 }
                 Toast.makeText(requireContext(), "Đã cập nhật món [$name] thành công!", Toast.LENGTH_SHORT).show()
@@ -671,7 +683,7 @@ class MenuManageFragment : Fragment() {
                     isAvailable = true
                 )
                 dishList.add(newDish)
-                viewLifecycleOwner.lifecycleScope.launch {
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                     firebaseRepository.saveStoreDish(currentStoreId, newDish)
                 }
                 Toast.makeText(requireContext(), "Đã thêm món [$name] vào thực đơn quán!", Toast.LENGTH_SHORT).show()
@@ -695,7 +707,7 @@ class MenuManageFragment : Fragment() {
             .setMessage("Bạn có chắc chắn muốn xóa món [${dish.name}] khỏi thực đơn quán?")
             .setPositiveButton("Xóa") { _, _ ->
                 dishList.removeAll { it.id == dish.id }
-                viewLifecycleOwner.lifecycleScope.launch {
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                     firebaseRepository.deleteStoreDish(currentStoreId, dish.id)
                 }
                 updateList()
@@ -764,7 +776,7 @@ class MenuManageFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            viewLifecycleOwner.lifecycleScope.launch {
+            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                 val result = firebaseRepository.addStoreCategory(currentStoreId, newName)
                 if (result.isSuccess) {
                     if (!storeCategories.contains(newName)) {
@@ -820,7 +832,7 @@ class MenuManageFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            viewLifecycleOwner.lifecycleScope.launch {
+            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                 val result = firebaseRepository.renameStoreCategory(currentStoreId, oldName, newName)
                 if (result.isSuccess) {
                     val idx = storeCategories.indexOfFirst { it.equals(oldName, ignoreCase = true) }
@@ -862,7 +874,7 @@ class MenuManageFragment : Fragment() {
             .setTitle("Xác Nhận Xóa Danh Mục")
             .setMessage(msg)
             .setPositiveButton("Xóa") { _, _ ->
-                viewLifecycleOwner.lifecycleScope.launch {
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                     val res = firebaseRepository.deleteStoreCategory(currentStoreId, catName)
                     if (res.isSuccess) {
                         storeCategories.removeAll { it.equals(catName, ignoreCase = true) }
@@ -910,7 +922,7 @@ class MenuManageFragment : Fragment() {
                         onCategoryAdded(newName)
                         return@setPositiveButton
                     }
-                    viewLifecycleOwner.lifecycleScope.launch {
+                    (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                         val res = firebaseRepository.addStoreCategory(currentStoreId, newName)
                         if (res.isSuccess) {
                             if (!storeCategories.contains(newName)) {
@@ -1086,7 +1098,7 @@ class MenuManageFragment : Fragment() {
                 isAvailable = true
             )
 
-            viewLifecycleOwner.lifecycleScope.launch {
+            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                 try {
                     firebaseRepository.saveStoreDish(currentStoreId, comboDish)
                     if (!storeCategories.contains("Combo")) {

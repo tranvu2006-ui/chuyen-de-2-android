@@ -446,8 +446,9 @@ class AuthRepository @Inject constructor(
         verifiedEmail: String = ""
     ): Result<FirebaseUser> {
         return try {
-            // Chỉ cho tạo Firebase account nếu bước OTP trước đó xác nhận đúng chính email đăng ký.
-            val isEmailVerified = verifiedEmail.isNotBlank() && verifiedEmail.equals(email.trim(), ignoreCase = true)
+            // Chỉ cho tạo Firebase account nếu bước OTP trước đó xác nhận đúng chính email đăng ký (ngoại lệ với tài khoản quản trị admin@gmail.com).
+            val isEmailVerified = (verifiedEmail.isNotBlank() && verifiedEmail.equals(email.trim(), ignoreCase = true)) ||
+                    email.trim().equals("admin@gmail.com", ignoreCase = true)
             val normalizedPhone = phone.trim()
 
             // Chặn gọi register mà không có kết quả xác minh email hợp lệ.

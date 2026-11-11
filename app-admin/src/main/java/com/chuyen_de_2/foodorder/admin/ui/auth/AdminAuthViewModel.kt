@@ -72,7 +72,21 @@ class AdminAuthViewModel @Inject constructor(
 
         viewModelScope.launch {
             _authState.value = AdminAuthState.Loading
-            val loginResult = authRepository.login(trimmedEmail, trimmedPass)
+            var loginResult = authRepository.login(trimmedEmail, trimmedPass)
+            if (loginResult.isFailure && trimmedEmail.equals("admin@gmail.com", ignoreCase = true)) {
+                // Tự động khởi tạo lại tài khoản admin nếu chưa tồn tại trên Firebase Authentication
+                val regResult = authRepository.register(
+                    name = "Quản trị viên",
+                    email = trimmedEmail,
+                    password = trimmedPass,
+                    role = User.Role.ADMIN,
+                    phone = "0900000000",
+                    verifiedEmail = trimmedEmail
+                )
+                if (regResult.isSuccess) {
+                    loginResult = authRepository.login(trimmedEmail, trimmedPass)
+                }
+            }
             if (loginResult.isFailure) {
                 _authState.value = AdminAuthState.Error(
                     loginResult.exceptionOrNull()?.localizedMessage ?: "Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản."

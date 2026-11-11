@@ -33,7 +33,7 @@ class OrderAdapter(
         fun bind(order: Order) {
             val context = binding.root.context
             val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-            binding.tvOrderCode.text = "#ORD_OISHI_$shortCode"
+            binding.tvOrderCode.text = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#ORD_OISHI_$shortCode"
 
             // 1. Danh sách món ăn
             val dishesSummary = if (order.items.isNotEmpty()) {

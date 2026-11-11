@@ -265,9 +265,13 @@ class PaymentActivity : AppCompatActivity() {
             binding.tvBankName.text = "MoMo"
             binding.tvAccountNum.text = currentAccountNum.ifBlank { "Chưa cập nhật" }
             binding.tvAccountHolder.text = currentAccountHolder.ifBlank { "Chưa cập nhật" }
-            val prefix = if (paymentMode == Order.PaymentMode.DEPOSIT) "COC" else "OISHI"
             val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
-            val momoTransferSyntax = "$prefix $shortCode".trim()
+            val momoTransferSyntax = if (orderId.startsWith("OISHI", ignoreCase = true)) {
+                orderId
+            } else {
+                val prefix = if (paymentMode == Order.PaymentMode.DEPOSIT) "COC" else "OISHI"
+                "$prefix $shortCode".trim()
+            }
             binding.tvTransferSyntax.text = momoTransferSyntax
             binding.tvPaymentGuide.text =
                 "1. Mở ứng dụng MoMo và chọn Quét Mã QR.\n" +

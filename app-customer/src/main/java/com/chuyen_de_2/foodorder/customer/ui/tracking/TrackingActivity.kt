@@ -145,10 +145,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupUI() {
-        val shortCode = if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
-        binding.tvHeaderOrderCode.text = "#ORD_$shortCode"
-        binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Quán đang kiểm tra món ăn"
-        val tokenText = "TOKEN_OISHI_$shortCode"
+        val displayOrderCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else if (currentOrderId.length > 5) "#ORD_${currentOrderId.takeLast(6).uppercase()}" else currentOrderId
+        val shortCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
+        binding.tvHeaderOrderCode.text = displayOrderCode
+        binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Quán đang kiểm tra món ăn"
+        val tokenText = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) "TOKEN_$currentOrderId" else "TOKEN_OISHI_$shortCode"
         binding.tokenPill.text = tokenText
 
         // Sinh và hiển thị mã QR thực tế sắc nét bằng QRCodeUtils
@@ -578,7 +579,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun updateStatusStep(status: String) {
-        val shortCode = currentOrderId.takeLast(6).uppercase()
+        val displayOrderCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else "#ORD_${currentOrderId.takeLast(6).uppercase()}"
+        val shortCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else currentOrderId.takeLast(6).uppercase()
         val primaryColor = ContextCompat.getColor(this, R.color.primary)
         val mutedColor = ContextCompat.getColor(this, R.color.text_secondary)
         val greenColor = ContextCompat.getColor(this, R.color.status_completed)
@@ -589,7 +591,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 setNodeActive(1)
                 binding.lblStatusIcon.text = "⏳"
                 binding.lblStatusHeadline.text = "Đã gửi đơn, chờ quán xác nhận"
-                binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Quán đang kiểm tra món ăn"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Quán đang kiểm tra món ăn"
                 binding.lblDetailIcon.text = "⏳"
                 binding.lblDetailDesc.text =
                     "Hệ thống đã gửi thông báo đơn tới $currentStoreName. Quán sẽ kiểm tra và xác nhận trong vòng 1 - 3 phút."

@@ -25,6 +25,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.random.Random
 
 /**
  * Repository xử lý toàn bộ CRUD trên Firebase Realtime Database
@@ -119,14 +123,37 @@ class FirebaseRepository @Inject constructor(
     // ==================== ĐƠN HÀNG (ORDER) ====================
 
     /**
+     * Sinh mã đơn hàng chuẩn thống nhất toàn hệ thống: OISHIyymmdd****
+     * - Tiền tố: OISHI
+     * - yy: 2 số cuối của năm
+     * - mm: 2 số tháng
+     * - dd: 2 số ngày
+     * - ****: 4 ký tự ngẫu nhiên gồm chữ số (0-9) hoặc chữ cái in hoa (A-Z)
+     */
+    fun generateOrderCode(): String {
+        val sdf = SimpleDateFormat("yyMMdd", Locale.getDefault())
+        val datePart = sdf.format(Date())
+        val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        val randomPart = (1..4)
+            .map { chars[Random.nextInt(chars.length)] }
+            .joinToString("")
+        return "OISHI$datePart$randomPart"
+    }
+
+    /**
      * Tạo đơn hàng mới
-     * API Contract: POST orders/ (SDK push)
+     * Mã đơn hàng đồng bộ toàn hệ thống: OISHIyymmdd****
+     * Node Firebase: orders/{orderId}
      * Auth: Phải có Role CUSTOMER
      */
     suspend fun createOrder(order: Order): Result<String> {
         return try {
-            val ref = database.getReference("orders").push()
-            val orderId = ref.key ?: return Result.failure(Exception("Không tạo được order ID"))
+            val orderId = if (order.orderId.isNotBlank() && order.orderId.startsWith("OISHI", ignoreCase = true)) {
+                order.orderId
+            } else {
+                generateOrderCode()
+            }
+            val ref = database.getReference("orders").child(orderId)
 
             val now = System.currentTimeMillis()
             val targetStoreId = order.storeId.ifBlank { order.shopId }

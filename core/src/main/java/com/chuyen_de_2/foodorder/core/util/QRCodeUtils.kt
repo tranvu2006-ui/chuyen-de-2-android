@@ -19,10 +19,10 @@ object QRCodeUtils {
         val message: String
     )
 
-    /** Returns the stable short order code: OI plus the final eight characters. */
+    /** Returns the stable short order code: nếu là mã chuẩn OISHI... thì giữ nguyên toàn bộ mã */
     fun getShortOrderCode(orderId: String): String {
-        val clean = orderId.trim()
-            .uppercase()
+        val clean = orderId.trim().uppercase()
+        if (clean.startsWith("OISHI")) return clean
         if (clean.startsWith("OI") && clean.length <= 10) return clean
         val suffix = clean.takeLast(8)
         return "OI$suffix"

@@ -404,8 +404,9 @@ class OrderListFragment : Fragment() {
             else -> "💵 Thu tiền mặt khi nhận (COD)"
         }
 
+        val orderTitleCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
         AlertDialog.Builder(requireContext())
-            .setTitle("📋 Đơn Hàng #${order.orderId.takeLast(6).uppercase()}")
+            .setTitle("📋 Đơn Hàng $orderTitleCode")
             .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\nTổng thanh toán: ${total.toVndCurrency()}\nThanh toán: $payDetail\nTrạng thái: ${order.status}")
             .setPositiveButton("Đóng", null)
             .show()
@@ -443,9 +444,9 @@ class OrderListFragment : Fragment() {
         val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Chưa cập nhật địa chỉ" } }
         val driver = order.shipperName.ifBlank { "Chưa có tài xế" }
         val driverPhone = order.shipperPhone.ifBlank { "" }
-        val shortCode = order.orderId.takeLast(6).uppercase()
+        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#ORD_OISHI_${order.orderId.takeLast(6).uppercase()}"
 
-        tvSubHeader.text = "#ORD_OISHI_$shortCode • Ghi nhận hệ thống"
+        tvSubHeader.text = "$shortCode • Ghi nhận hệ thống"
 
         val incidentReason = order.riskReason.ifBlank {
             order.cancelReason.ifBlank {

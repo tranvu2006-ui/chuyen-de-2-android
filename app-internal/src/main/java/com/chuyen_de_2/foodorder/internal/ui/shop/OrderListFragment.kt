@@ -67,6 +67,10 @@ class OrderListFragment : Fragment() {
     private lateinit var adapter: OrderAdapter
     private var currentStoreId = ""
 
+    companion object {
+        private var cachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
@@ -82,6 +86,7 @@ class OrderListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        cachedStore?.let { renderStoreHeader(it) }
         setupUI()
         setupTabs()
         setupRecyclerView()
@@ -114,7 +119,8 @@ class OrderListFragment : Fragment() {
         val b = _binding ?: return
         val openProfile = {
             parentFragmentManager.beginTransaction()
-                .replace(R.id.fragmentContainer, StoreProfileFragment())
+                .hide(this@OrderListFragment)
+                .add(R.id.fragmentContainer, StoreProfileFragment())
                 .addToBackStack(null)
                 .commit()
         }
@@ -139,48 +145,53 @@ class OrderListFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
-                val currentB = _binding ?: return@collectLatest
                 if (store != null) {
-                    currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
-                    currentB.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
-
-                    com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                        imageView = currentB.ivShopHeaderLogo,
-                        imageUrl = store.effectiveImageUrl,
-                        placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
-                        cornerDp = 10
-                    )
-
-                    val st = store.storeStatus.uppercase()
-                    currentB.switchShopStatus.setOnCheckedChangeListener(null)
-                    when (st) {
-                        com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
-                            currentB.switchShopStatus.isChecked = false
-                            currentB.switchShopStatus.isEnabled = false
-                            currentB.tvShopStatusTxt.text = "Bị Khóa 🔴"
-                            currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
-                        }
-                        com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING -> {
-                            currentB.switchShopStatus.isChecked = false
-                            currentB.switchShopStatus.isEnabled = false
-                            currentB.tvShopStatusTxt.text = "Chờ Duyệt ⏳"
-                            currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
-                        }
-                        com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
-                            currentB.switchShopStatus.isEnabled = true
-                            currentB.switchShopStatus.isChecked = false
-                            currentB.tvShopStatusTxt.text = "Tạm Đóng"
-                            currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                        }
-                        else -> {
-                            currentB.switchShopStatus.isEnabled = true
-                            currentB.switchShopStatus.isChecked = true
-                            currentB.tvShopStatusTxt.text = "Đang Bán"
-                            currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-                        }
-                    }
+                    cachedStore = store
+                    renderStoreHeader(store)
                     bindShopStatusSwitchListener()
                 }
+            }
+        }
+    }
+
+    private fun renderStoreHeader(store: com.chuyen_de_2.foodorder.core.data.model.Store) {
+        val currentB = _binding ?: return
+        currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
+        currentB.tvShopAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
+
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+            imageView = currentB.ivShopHeaderLogo,
+            imageUrl = store.effectiveImageUrl,
+            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+            cornerDp = 10
+        )
+
+        val st = store.storeStatus.uppercase()
+        currentB.switchShopStatus.setOnCheckedChangeListener(null)
+        when (st) {
+            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
+                currentB.switchShopStatus.isChecked = false
+                currentB.switchShopStatus.isEnabled = false
+                currentB.tvShopStatusTxt.text = "Bị Khóa 🔴"
+                currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
+            }
+            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING -> {
+                currentB.switchShopStatus.isChecked = false
+                currentB.switchShopStatus.isEnabled = false
+                currentB.tvShopStatusTxt.text = "Chờ Duyệt ⏳"
+                currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
+            }
+            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
+                currentB.switchShopStatus.isEnabled = true
+                currentB.switchShopStatus.isChecked = false
+                currentB.tvShopStatusTxt.text = "Tạm Đóng"
+                currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+            }
+            else -> {
+                currentB.switchShopStatus.isEnabled = true
+                currentB.switchShopStatus.isChecked = true
+                currentB.tvShopStatusTxt.text = "Đang Bán"
+                currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
             }
         }
     }

@@ -65,7 +65,8 @@ class OtpVerificationActivity : AppCompatActivity() {
         binding = ActivityOtpVerificationInternalBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
 
         name = intent.getStringExtra(EXTRA_NAME).orEmpty()
         email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()

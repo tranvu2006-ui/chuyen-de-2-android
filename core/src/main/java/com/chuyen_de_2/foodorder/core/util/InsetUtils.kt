@@ -12,7 +12,7 @@ import androidx.core.view.updatePadding
 /**
  * Tiện ích xử lý Window Insets cho giao diện Edge-to-Edge trên Android 14, 15+
  * Đảm bảo các thành phần UI (Header, Toolbar, Bottom Navigation) không bị trùng lặp
- * với thanh trạng thái (Status Bar: pin, mạng, giờ) và thanh điều hướng (Navigation Bar).
+ * với thanh trạng thái (Status Bar: pin, mạng, giờ), bàn phím ảo (IME) và thanh điều hướng (Navigation Bar).
  */
 object InsetUtils {
 
@@ -99,6 +99,97 @@ object InsetUtils {
             windowInsets
         }
         requestApplyInsetsWhenAttached(view)
+    }
+
+    /**
+     * Tự động đẩy nội dung lên khi bàn phím ảo (IME) xuất hiện để không bị che các nút bấm/nội dung ở cuối.
+     * - Khi bàn phím bật: Tăng padding bottom đúng bằng chiều cao bàn phím và cuộn mượt để thấy rõ phần đang nhập cùng nút hành động phía dưới.
+     * - Khi bàn phím ẩn: Trả lại padding bottom bình thường (theo navigation bar).
+     * - Đồng thời bảo vệ phần đỉnh (top) không bị che bởi thanh trạng thái (status bar / camera cutout).
+     */
+    fun applyImeAndSystemInsets(
+        scrollView: View,
+        applyTopInset: Boolean = true,
+        autoScrollOnIme: Boolean = true
+    ) {
+        val initialPaddingTop = scrollView.paddingTop
+        val initialPaddingBottom = scrollView.paddingBottom
+        var previousImeBottom = 0
+
+        ViewCompat.setOnApplyWindowInsetsListener(scrollView) { v, windowInsets ->
+            val systemBars = windowInsets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            val navInsets = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars())
+
+            val topPadding = if (applyTopInset) {
+                val topInset = if (systemBars.top > 0) systemBars.top else getFallbackStatusBarHeight(v.context)
+                initialPaddingTop + topInset
+            } else {
+                initialPaddingTop
+            }
+
+            val currentImeBottom = imeInsets.bottom
+            val bottomPadding = if (currentImeBottom > 0) {
+                initialPaddingBottom + currentImeBottom
+            } else {
+                initialPaddingBottom + navInsets.bottom
+            }
+
+            v.updatePadding(top = topPadding, bottom = bottomPadding)
+
+            if (autoScrollOnIme && currentImeBottom > 0 && previousImeBottom == 0) {
+                // Bàn phím vừa bật lên -> cuộn mượt để đưa nội dung và nút bấm phía dưới lên trên bàn phím
+                v.postDelayed({
+                    val focusedView = v.findFocus()
+                    if (focusedView != null) {
+                        val rect = android.graphics.Rect()
+                        focusedView.getDrawingRect(rect)
+                        try {
+                            if (v is android.view.ViewGroup) {
+                                v.offsetDescendantRectToMyCoords(focusedView, rect)
+                            }
+                            // Thêm khoảng đệm phía dưới để hiển thị cả nút bấm / countdown ngay bên dưới trường nhập
+                            val extraBottomPx = (150 * v.resources.displayMetrics.density).toInt()
+                            val targetBottom = rect.bottom + extraBottomPx
+                            val visibleHeight = v.height - v.paddingTop - v.paddingBottom
+                            if (visibleHeight > 0) {
+                                val visibleBottom = v.scrollY + visibleHeight
+                                if (targetBottom > visibleBottom) {
+                                    val scrollDelta = targetBottom - visibleBottom
+                                    if (v is android.widget.ScrollView) {
+                                        v.smoothScrollBy(0, scrollDelta)
+                                    } else if (v is androidx.core.widget.NestedScrollView) {
+                                        v.smoothScrollBy(0, scrollDelta)
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {
+                            if (v is android.widget.ScrollView) {
+                                val child = v.getChildAt(0)
+                                if (child != null) v.smoothScrollTo(0, child.bottom)
+                            } else if (v is androidx.core.widget.NestedScrollView) {
+                                val child = v.getChildAt(0)
+                                if (child != null) v.smoothScrollTo(0, child.bottom)
+                            }
+                        }
+                    } else {
+                        val child = (v as? android.view.ViewGroup)?.getChildAt(0)
+                        if (child != null) {
+                            if (v is android.widget.ScrollView) {
+                                v.smoothScrollTo(0, child.bottom)
+                            } else if (v is androidx.core.widget.NestedScrollView) {
+                                v.smoothScrollTo(0, child.bottom)
+                            }
+                        }
+                    }
+                }, 120)
+            }
+            previousImeBottom = currentImeBottom
+            windowInsets
+        }
+        requestApplyInsetsWhenAttached(scrollView)
     }
 
     /**

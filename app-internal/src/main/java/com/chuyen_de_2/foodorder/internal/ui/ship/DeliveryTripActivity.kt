@@ -1252,7 +1252,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
 
         binding.btnBackToMapStep3.setOnClickListener {
-            revertToMapStep3()
+            handleBackNavigation()
         }
 
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
@@ -1479,32 +1479,10 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     /**
-     * Quay lại Bước 3 (Bản đồ) từ nút riêng biệt bên dưới màn hình Bước 4
-     */
-    private fun revertToMapStep3() {
-        val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
-        targetOrder?.let { o ->
-            saveStep(o.orderId, 3)
-            lifecycleScope.launch {
-                try {
-                    firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                } catch (_: Exception) {}
-            }
-        }
-        updateStepUI(3)
-        Toast.makeText(this, "🛵 Đã quay lại bản đồ giao hàng để bạn tự do chọn khách giao!", Toast.LENGTH_SHORT).show()
-    }
-
-    /**
-     * Xử lý điều hướng khi bấm nút Back (mũi tên góc trên hoặc phím Back của máy)
+     * Xử lý điều hướng khi bấm nút Back hoặc nút Về Màn Hình Chính -> Ra thẳng màn hình chính (DashboardActivity)
      */
     private fun handleBackNavigation() {
-        AlertDialog.Builder(this)
-            .setTitle("Rời màn hình chuyến đi?")
-            .setMessage("Chuyến giao hàng vẫn đang được lưu tiến trình. Bạn có muốn thoát ra danh sách đơn không?")
-            .setPositiveButton("Thoát ra") { _, _ -> finish() }
-            .setNegativeButton("Ở lại tiếp tục", null)
-            .show()
+        finish()
     }
 
     private fun start15MinCountdown(order: Order, reason: String, round: Int = 1, forceReset: Boolean = false) {

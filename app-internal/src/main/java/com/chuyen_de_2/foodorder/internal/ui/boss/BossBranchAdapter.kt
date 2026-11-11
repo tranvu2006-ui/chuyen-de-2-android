@@ -6,6 +6,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.internal.databinding.ItemBossBranchBinding
 
 /**
@@ -18,6 +19,12 @@ class BossBranchAdapter(
 ) : ListAdapter<Store, BossBranchAdapter.BranchViewHolder>(DiffCallback) {
 
     var currentBossUid: String = ""
+    private var merchants: List<User> = emptyList()
+
+    fun setMerchants(list: List<User>) {
+        merchants = list
+        notifyDataSetChanged()
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BranchViewHolder {
         val binding = ItemBossBranchBinding.inflate(
@@ -55,9 +62,19 @@ class BossBranchAdapter(
             binding.tvBranchAddress.text = addressDisplay.ifBlank { "Chưa cập nhật địa chỉ chi nhánh" }
 
             // Hiển thị người quản lý (Merchant)
-            val isRealMerchant = store.merchantId.isNotBlank() && store.merchantId != currentBossUid
+            // Kiểm tra chéo với danh sách merchants nếu đã nạp:
+            val assignedMerchant = merchants.firstOrNull { it.uid == store.merchantId }
+            val isMerchantActuallyAssignedHere = if (merchants.isNotEmpty()) {
+                assignedMerchant != null && assignedMerchant.storeId == store.id && assignedMerchant.isActive
+            } else {
+                store.merchantId.isNotBlank() && store.merchantId != currentBossUid
+            }
+
+            val isRealMerchant = store.merchantId.isNotBlank() && store.merchantId != currentBossUid && isMerchantActuallyAssignedHere
             if (isRealMerchant) {
-                val mName = if (store.merchantName.isNotBlank()) store.merchantName else "Quản lý (${store.merchantId.take(6)}...)"
+                val mName = assignedMerchant?.name?.ifBlank { null }
+                    ?: store.merchantName.ifBlank { null }
+                    ?: "Quản lý (${store.merchantId.take(6)}...)"
                 binding.tvBranchManager.text = "Quản lý: $mName"
                 binding.tvBranchManager.setTextColor(android.graphics.Color.parseColor("#0F172A"))
                 binding.btnUnassignBranchManager.visibility = android.view.View.VISIBLE

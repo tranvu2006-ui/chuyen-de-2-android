@@ -483,7 +483,6 @@ class DashboardActivity : AppCompatActivity() {
         } else {
             // Đã cấp quyền -> Yêu cầu Android kết nối Service ngay lập tức và khởi động Foreground Service
             com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestIgnoreBatteryOptimizations(this)
             com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
         }
     }

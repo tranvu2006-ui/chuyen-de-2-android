@@ -223,7 +223,6 @@ class BossDashboardActivity : AppCompatActivity() {
                 .show()
         } else {
             com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.requestIgnoreBatteryOptimizations(this)
             com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
         }
     }

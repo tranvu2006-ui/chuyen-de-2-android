@@ -43,7 +43,6 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
-        updateOtpSessionUI(binding.etEmail.text?.toString().orEmpty())
 
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
         if (isLogout) {
@@ -55,7 +54,6 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        updateOtpSessionUI(binding.etEmail.text?.toString().orEmpty())
         if (viewModel.isLoggedIn) {
             checkRoleAndRoute()
         }
@@ -72,19 +70,9 @@ class LoginActivity : AppCompatActivity() {
     private fun setupUI() {
         binding.etEmail.doAfterTextChanged {
             binding.tilEmail.error = null
-            val email = it?.toString()?.trim().orEmpty()
-            updateOtpSessionUI(email)
         }
         binding.etPassword.doAfterTextChanged {
             binding.tilPassword.error = null
-        }
-
-        binding.tvReVerifyOtp.setOnClickListener {
-            val email = binding.etEmail.text?.toString()?.trim().orEmpty()
-            OtpSessionManager.clearSession(this, email)
-            RegistrationOtpManager.clearPendingOtp(this, email)
-            updateOtpSessionUI(email)
-            Toast.makeText(this, "Đã xóa phiên OTP. Lần đăng nhập tới sẽ yêu cầu xác thực OTP.", Toast.LENGTH_SHORT).show()
         }
 
         // Nút "Đăng nhập"
@@ -207,25 +195,6 @@ class LoginActivity : AppCompatActivity() {
             putExtra(OtpVerificationActivity.EXTRA_PASSWORD, password)
         }
         startActivity(intent)
-    }
-
-    private fun updateOtpSessionUI(email: String) {
-        val cleanEmail = email.trim().lowercase()
-        val isAdmin = cleanEmail == "admin@gmail.com"
-        val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, cleanEmail)
-        if (hasSession) {
-            val remainingHours = OtpSessionManager.getRemainingHours(this, cleanEmail)
-            binding.layoutOtpSessionNotice.visibility = View.VISIBLE
-            if (isAdmin) {
-                binding.tvOtpSessionNotice.text = "Tài khoản Quản trị viên (admin@gmail.com) được miễn xác thực OTP."
-                binding.tvReVerifyOtp.visibility = View.GONE
-            } else {
-                binding.tvOtpSessionNotice.text = "Email đã được xác minh OTP trên thiết bị (còn hạn ${remainingHours}h). Bỏ qua bước nhập OTP."
-                binding.tvReVerifyOtp.visibility = View.VISIBLE
-            }
-        } else {
-            binding.layoutOtpSessionNotice.visibility = View.GONE
-        }
     }
 
     private fun checkRoleAndRoute() {

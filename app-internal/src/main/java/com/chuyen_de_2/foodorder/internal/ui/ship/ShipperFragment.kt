@@ -240,8 +240,8 @@ class ShipperFragment : Fragment() {
      */
     private fun showCancelModal(order: Order) {
         val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
-        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-        dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn #ORD_OISHI_$shortCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
+        val formattedCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
+        dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn $formattedCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
 
         val reasons = arrayOf(
             "Xe gặp sự cố kỹ thuật dọc đường (Thủng lốp, hỏng xe)",

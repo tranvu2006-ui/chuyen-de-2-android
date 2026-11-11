@@ -67,7 +67,7 @@ class CustomerComplaintAdapter(
             binding.tvTargetName.text = "$targetPrefix: $targetName"
 
             val orderCode = if (complaint.orderId.isNotBlank()) {
-                "#ORD-${complaint.orderId.takeLast(6).uppercase()}"
+                com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(complaint.orderId)
             } else {
                 "Không rõ đơn"
             }

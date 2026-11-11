@@ -145,8 +145,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupUI() {
-        val displayOrderCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else if (currentOrderId.length > 5) "#ORD_${currentOrderId.takeLast(6).uppercase()}" else currentOrderId
-        val shortCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else if (currentOrderId.length > 5) currentOrderId.takeLast(6).uppercase() else currentOrderId
+        val displayOrderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(currentOrderId)
+        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)
         binding.tvHeaderOrderCode.text = displayOrderCode
         binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Quán đang kiểm tra món ăn"
         val tokenText = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) "TOKEN_$currentOrderId" else "TOKEN_OISHI_$shortCode"
@@ -739,13 +739,31 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun updateStatusStep(status: String) {
-        val displayOrderCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else "#ORD_${currentOrderId.takeLast(6).uppercase()}"
-        val shortCode = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) currentOrderId else currentOrderId.takeLast(6).uppercase()
+        val displayOrderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(currentOrderId)
+        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)
         val primaryColor = ContextCompat.getColor(this, R.color.primary)
         val mutedColor = ContextCompat.getColor(this, R.color.text_secondary)
         val greenColor = ContextCompat.getColor(this, R.color.status_completed)
 
         when (status) {
+            Order.Status.AWAITING_PAYMENT -> {
+                setTimelineProgress(0)
+                setNodeActive(1)
+                binding.lblStatusIcon.text = "⏳"
+                binding.lblStatusHeadline.text = "Chờ chuyển khoản ngân hàng"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Đang chờ thanh toán VietQR"
+                binding.lblDetailIcon.text = "⏳"
+                binding.lblDetailDesc.text =
+                    "Đơn hàng đang chờ thanh toán VietQR. Quán $currentStoreName sẽ kiểm tra và nấu món ngay khi nhận được tiền."
+                binding.boxCustomerCancelledNotice.isVisible = false
+                binding.boxWarningActiveOnOrder.isVisible = false
+                binding.btnHeaderWarn.isVisible = false
+                binding.ratingCard.isVisible = false
+                binding.qrCompletedBox.isVisible = false
+                binding.qrCodeWrapper.isVisible = true
+                binding.tokenPill.isVisible = true
+            }
+
             Order.Status.PAID -> {
                 setTimelineProgress(0)
                 setNodeActive(1)
@@ -808,7 +826,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 setNodeActive(3)
                 binding.lblStatusIcon.text = "🛵"
                 binding.lblStatusHeadline.text = "Tài xế đang đến quán lấy món"
-                binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Tài xế đang di chuyển tới $currentStoreName"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Tài xế đang di chuyển tới $currentStoreName"
                 binding.lblDetailIcon.text = "🛵"
                 binding.lblDetailDesc.text =
                     "Tài xế $currentShipperName đã nhận đơn và đang di chuyển tới $currentStoreName để lấy món."
@@ -828,7 +846,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 setNodeActive(3)
                 binding.lblStatusIcon.text = "🏪"
                 binding.lblStatusHeadline.text = "Tài xế đã đến quán ăn"
-                binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Đang kiểm tra món tại quầy $currentStoreName"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Đang kiểm tra món tại quầy $currentStoreName"
                 binding.lblDetailIcon.text = "🏪"
                 binding.lblDetailDesc.text =
                     "Tài xế $currentShipperName đã có mặt tại $currentStoreName và đang kiểm tra đóng gói túi món ăn."
@@ -848,7 +866,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 setNodeActive(3)
                 binding.lblStatusIcon.text = "🛵"
                 binding.lblStatusHeadline.text = "Tài xế đã lấy hàng, đang giao tới bạn"
-                binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Vui lòng để ý điện thoại"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Vui lòng để ý điện thoại"
                 binding.lblDetailIcon.text = "🛵"
                 binding.lblDetailDesc.text =
                     "Tài xế $currentShipperName đã lấy món và đang di chuyển trên lộ trình tới nhà bạn. Bạn có thể xem vị trí trên bản đồ."
@@ -870,7 +888,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.lblStatusIcon.text = "📍"
                 binding.lblStatusHeadline.text = "🔔 Tài xế đã đến nơi, vui lòng nhận món!"
                 binding.lblStatusHeadline.setTextColor(primaryColor)
-                binding.lblStatusSub.text = "Mã đơn: #ORD_$shortCode • Tài xế đang chờ trước cửa"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Tài xế đang chờ trước cửa"
                 binding.lblDetailIcon.text = "📍"
                 binding.lblDetailDesc.text =
                     "Tài xế $currentShipperName đã đến điểm giao hàng. Vui lòng chuẩn bị mã QR Token bên dưới để đối soát nhận món ăn!"
@@ -1088,10 +1106,10 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.txtB9Total.text = totalAmount.toVndCurrency()
 
         // Hình thức thanh toán
-        val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid || order.status == Order.Status.PAID
         val payMethodStr = when (order.paymentMethod.uppercase()) {
             Order.PaymentMethod.MOMO -> if (isPaid) "Ví điện tử MoMo (Đã chuyển khoản)" else "Ví điện tử MoMo (Chờ chuyển khoản)"
-            Order.PaymentMethod.BANKING -> "Chuyển khoản Ngân hàng (Đã thanh toán)"
+            Order.PaymentMethod.BANKING -> if (isPaid) "Chuyển khoản Ngân hàng (Đã thanh toán)" else "Chuyển khoản VietQR (Chờ chuyển khoản)"
             else -> "Tiền mặt khi nhận món (COD)"
         }
         binding.txtB9PayMode.text = "💳 Hình thức: $payMethodStr"

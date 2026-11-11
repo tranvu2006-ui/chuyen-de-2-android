@@ -69,7 +69,7 @@ class CustomerComplaintDetailBottomSheet : BottomSheetDialogFragment() {
         val timeStr = if (c.createdAt > 0) dateFormat.format(Date(c.createdAt)) else "Vừa gửi"
         binding.tvDetailTime.text = "Gửi lúc: $timeStr"
 
-        val orderCode = if (c.orderId.isNotBlank()) "#ORD-${c.orderId.takeLast(6).uppercase()}" else "Không rõ"
+        val orderCode = if (c.orderId.isNotBlank()) com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(c.orderId) else "Không rõ"
         binding.tvDetailOrderId.text = orderCode
 
         val isDriver = c.targetType == Complaint.TargetType.DRIVER

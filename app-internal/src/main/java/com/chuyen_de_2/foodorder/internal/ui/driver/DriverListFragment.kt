@@ -172,11 +172,11 @@ class DriverListFragment : Fragment() {
                         val primaryOrder = deliveringOrders.first()
                         val shortCode = QRCodeUtils.getShortOrderCode(primaryOrder.orderId)
                         val info = if (primaryOrder.status == Order.Status.RETURNING_TO_STORE) {
-                            "#ORD-$shortCode • Trả hàng về quán"
+                            "#$shortCode • Trả hàng về quán"
                         } else if (deliveringOrders.size > 1) {
-                            "#ORD-$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
+                            "#$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
                         } else {
-                            "#ORD-$shortCode • ${primaryOrder.customerName}"
+                            "#$shortCode • ${primaryOrder.customerName}"
                         }
                         driver.copy(
                             dutyStatus = Driver.DutyStatus.DELIVERING,

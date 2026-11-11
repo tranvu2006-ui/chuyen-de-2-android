@@ -34,8 +34,7 @@ class OrderAdapter(
 
         fun bind(order: Order) {
             val context = binding.root.context
-            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-            binding.tvOrderCode.text = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#ORD_OISHI_$shortCode"
+            binding.tvOrderCode.text = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
 
             // 1. Danh sách món ăn
             val dishesSummary = if (order.items.isNotEmpty()) {
@@ -44,7 +43,7 @@ class OrderAdapter(
                 "• 1x Suất ăn đặt trực tiếp"
             }
             val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                order.isPaid || order.isDepositPaid
+                order.isPaid || order.isDepositPaid || order.status == Order.Status.PAID
             val payText = when {
                 order.paymentMode == Order.PaymentMode.DEPOSIT && isPaidOnline ->
                     "⚡ ĐÃ CỌC ${order.depositAmount.toVndCurrency()} • CÒN THU ${order.remainAmount.toVndCurrency()} KHI GIAO"
@@ -54,7 +53,10 @@ class OrderAdapter(
                     if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo"
                     else "⏳ Chờ khách chuyển khoản Ví MoMo (Chưa chuyển)"
                 }
-                order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> "💰 Đã thanh toán Ngân hàng"
+                order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
+                    if (isPaidOnline) "💰 Đã thanh toán Ngân hàng"
+                    else "⏳ Chờ chuyển khoản VietQR (Chưa nhận)"
+                }
                 else -> "💵 Thu tiền mặt khi nhận (COD)"
             }
 
@@ -81,9 +83,15 @@ class OrderAdapter(
                     }
                 }
                 order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
-                    binding.tvPaymentStatusBadge.text = "✅ Đã thanh toán Ngân hàng"
-                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                    binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                    if (isPaidOnline) {
+                        binding.tvPaymentStatusBadge.text = "✅ Đã thanh toán Ngân hàng"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                    } else {
+                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển khoản VietQR"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
+                    }
                 }
                 else -> {
                     binding.tvPaymentStatusBadge.text = "💵 Thu tiền mặt (COD)"
@@ -175,6 +183,22 @@ class OrderAdapter(
 
         private fun setupStatusAndActions(context: Context, order: Order) {
             when (order.status) {
+                Order.Status.AWAITING_PAYMENT -> {
+                    // Đơn đang chờ khách chuyển khoản ngân hàng
+                    binding.tvOrderBadge.text = "⏳ Chờ chuyển khoản VietQR"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
+
+                    binding.boxDriverStatus.visibility = View.GONE
+
+                    binding.btnMainAction.apply {
+                        isEnabled = true
+                        text = "👁️ ĐÃ CHECK TIỀN ➔ DUYỆT & NẤU"
+                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
+                        setTextColor(Color.WHITE)
+                    }
+                }
+
                 Order.Status.PAID -> {
                     // Đơn đã thanh toán VietQR ngân hàng -> Quán bấm xác nhận nấu
                     binding.tvOrderBadge.text = "💰 ĐÃ THANH TOÁN (VIETQR) • CHỜ NẤU"

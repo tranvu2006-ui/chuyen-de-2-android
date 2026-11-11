@@ -38,6 +38,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnTopEdit"
+            android:visibility="gone"
             app:icon="@drawable/ic_pencil"
             app:iconSize="14dp"
             app:iconTint="#EE4D2D"
@@ -661,6 +662,7 @@
             <!-- Nút chỉnh sửa to -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnMainEdit"
+                android:visibility="gone"
                 app:icon="@drawable/ic_pencil"
                 app:iconSize="16dp"
                 app:iconTint="#FFFFFF"

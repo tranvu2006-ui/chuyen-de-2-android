@@ -73,6 +73,7 @@ class StoreProfileFragment : Fragment() {
 
     private var pendingAvatarBase64: String? = null
     private var currentDialogAvatarPreview: ImageView? = null
+    private var canEditStore: Boolean = false
     private var currentDialogAvatarPlaceholder: View? = null
 
     private val pickAvatarLauncher = registerForActivityResult(
@@ -134,14 +135,14 @@ class StoreProfileFragment : Fragment() {
     private fun checkRoleAndSetupUI() {
         viewLifecycleOwner.lifecycleScope.launch {
             val role = authRepository.getUserRole()?.uppercase()
-            val isMerchantOnly = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT || 
-                                 role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER
-            if (isMerchantOnly) {
-                binding.btnTopEdit.visibility = View.GONE
-                binding.btnMainEdit.visibility = View.GONE
-            } else {
+            canEditStore = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT ||
+                           role == com.chuyen_de_2.foodorder.core.data.model.User.Role.ADMIN
+            if (canEditStore) {
                 binding.btnTopEdit.visibility = View.VISIBLE
                 binding.btnMainEdit.visibility = View.VISIBLE
+            } else {
+                binding.btnTopEdit.visibility = View.GONE
+                binding.btnMainEdit.visibility = View.GONE
             }
         }
     }
@@ -212,21 +213,7 @@ class StoreProfileFragment : Fragment() {
         }
     }
 
-    data class SupportedBank(val name: String, val bin: String)
-
-    private val supportedBanks = listOf(
-        SupportedBank("MB Bank (Quân Đội)", "970422"),
-        SupportedBank("Vietcombank (Ngoại Thương)", "970436"),
-        SupportedBank("Techcombank (Kỹ Thương)", "970407"),
-        SupportedBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
-        SupportedBank("ACB (Á Châu)", "970416"),
-        SupportedBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
-        SupportedBank("Agribank (Nông Nghiệp)", "970405"),
-        SupportedBank("TPBank (Tiên Phong)", "970423"),
-        SupportedBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
-        SupportedBank("VIB (Quốc Tế)", "970441"),
-        SupportedBank("OCB (Phương Đông)", "970448")
-    )
+    private val supportedBanks = com.chuyen_de_2.foodorder.core.util.BankData.SUPPORTED_BANKS
 
     private fun processAndPreviewAvatar(uri: Uri) {
         try {
@@ -359,13 +346,13 @@ class StoreProfileFragment : Fragment() {
      * Luồng hướng tới: Gọi [FirebaseRepository.updateStoreProfile] để lưu Firestore và cập nhật giao diện ngay lập tức.
      */
     private fun showEditStoreDialog() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val role = authRepository.getUserRole()?.uppercase()
-            if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT || 
-                role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER) {
-                Toast.makeText(requireContext(), "ℹ️ Thông tin chi nhánh do Chủ thương hiệu (Boss) quản lý. Bạn không có quyền chỉnh sửa.", Toast.LENGTH_LONG).show()
-                return@launch
-            }
+        if (!canEditStore) {
+            Toast.makeText(
+                requireContext(),
+                "ℹ️ Thông tin chi nhánh & tài khoản ngân hàng do Chủ thương hiệu (Boss) quản lý. Bạn không có quyền chỉnh sửa.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
         }
 
         val dialog = Dialog(requireContext())

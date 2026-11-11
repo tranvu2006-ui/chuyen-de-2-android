@@ -53,7 +53,7 @@ class OrderHistoryAdapter(
             val shopName = order.shopName.ifBlank { "Quán Ăn Oishi Food" }
             binding.tvShopName.text = shopName
 
-            val orderCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#ORD_OISHI_${order.orderId.takeLast(6).uppercase()}"
+            val orderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
             binding.tvOrderCodeMono.text = orderCode
 
             // Logo mini quán dạng emoji fallback

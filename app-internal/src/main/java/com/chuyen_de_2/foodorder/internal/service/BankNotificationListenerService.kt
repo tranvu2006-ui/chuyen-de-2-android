@@ -51,22 +51,143 @@ class BankNotificationListenerService : NotificationListenerService() {
             }
             context.startActivity(intent)
         }
+
+        /**
+         * Lệnh phổ quát kết nối lại Service trên mọi dòng máy (Universal Auto-Toggle & RequestRebind).
+         * Ép toàn bộ các hệ điều hành (Samsung, Xiaomi, Vivo, OPPO, Realme...) kết nối lại ngay lập tức.
+         */
+        fun forceRebindService(context: Context) {
+            if (!isPermissionGranted(context)) return
+            try {
+                val component = android.content.ComponentName(context, BankNotificationListenerService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    requestRebind(component)
+                }
+                val pm = context.packageManager
+                pm.setComponentEnabledSetting(
+                    component,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+                )
+                pm.setComponentEnabledSetting(
+                    component,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+                )
+                Log.i(TAG, "✓ Universal Auto-Toggle completed successfully for BankNotificationListenerService")
+            } catch (e: Exception) {
+                Log.e(TAG, "Lỗi forceRebindService: ${e.message}")
+            }
+        }
+
+        /** Yêu cầu hệ thống Android bỏ qua giới hạn pin (Chuẩn Android gốc chạy trên 100% mọi dòng máy) */
+        fun requestIgnoreBatteryOptimizations(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                    val packageName = context.packageName
+                    if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = android.net.Uri.parse("package:$packageName")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    }
+                } catch (e: Exception) {
+                    try {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
+        /** Giữ nguyên alias cũ để tương thích ngược */
+        fun requestRebindIfNecessary(context: Context) {
+            forceRebindService(context)
+        }
+
+        /** Mở màn hình cài đặt Tự Khởi Chạy (Autostart) trên Xiaomi/MIUI/HyperOS/Vivo */
+        fun openAutostartSettings(context: Context) {
+            val intents = listOf(
+                Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+                Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")),
+                Intent().setComponent(android.content.ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.PurviewTabActivity")),
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(android.net.Uri.fromParts("package", context.packageName, null))
+            )
+            for (intent in intents) {
+                try {
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    context.startActivity(intent)
+                    return
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.i(TAG, "✓✓✓ BankNotificationListenerService ĐÃ KẾT NỐI THÀNH CÔNG VỚI ANDROID! Sẵn sàng lắng nghe thông báo ngân hàng.")
+        // Quét ngay các thông báo ngân hàng đang có sẵn trên thanh trạng thái chưa kịp đọc
+        try {
+            activeNotifications?.forEach { sbn ->
+                onNotificationPosted(sbn)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi quét thông báo hiện có: ${e.message}")
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
         val packageName = sbn.packageName.orEmpty()
 
-        // Bỏ qua thông báo của chính ứng dụng nội bộ Oishi để tránh vòng lặp tự kích hoạt
+        // 1. Bỏ qua thông báo của chính ứng dụng nội bộ Oishi để tránh vòng lặp tự kích hoạt
         if (packageName == applicationContext.packageName) return
 
+        // 2. CHẶN ĐỨNG 100% CÁC ỨNG DỤNG CHAT VÀ MẠNG XÃ HỘI (Zalo, Messenger, Telegram, WhatsApp...)
+        if (com.chuyen_de_2.foodorder.core.util.BankData.BLACKLISTED_CHAT_PACKAGES.contains(packageName) ||
+            packageName.contains("zalo", ignoreCase = true) ||
+            packageName.contains("orca", ignoreCase = true) ||
+            packageName.contains("telegram", ignoreCase = true) ||
+            packageName.contains("whatsapp", ignoreCase = true)
+        ) {
+            Log.w(TAG, "🚫 ĐÃ CHẶN THÔNG BÁO TỪ ỨNG DỤNG CHAT/MẠNG XÃ HỘI: $packageName")
+            return
+        }
+
         val extras = sbn.notification?.extras ?: return
-        val title = extras.getString(Notification.EXTRA_TITLE).orEmpty()
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
+        val title = extras.getString(Notification.EXTRA_TITLE).orEmpty().trim()
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty().trim()
+        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty().trim()
 
         val fullContent = "$title $text $bigText".trim()
         if (fullContent.isBlank()) return
+
+        // 3. KIỂM TRA NGUỒN PHÁT THÔNG BÁO: CHỈ CHẤP NHẬN CÁC ỨNG DỤNG NGÂN HÀNG/VÍ ĐIỆN TỬ HOẶC SMS BRANDNAME CHÍNH THỐNG
+        val isOfficialBankApp = com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.contains(packageName) ||
+                com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.any { packageName.startsWith(it, ignoreCase = true) }
+
+        val isSmsApp = packageName in listOf(
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.samsung.android.messaging",
+            "com.xiaomi.mms"
+        )
+
+        val isValidSmsBrandname = if (isSmsApp) {
+            val upperTitle = title.uppercase()
+            com.chuyen_de_2.foodorder.core.util.BankData.VALID_BANK_SMS_BRANDNAMES.any { brand ->
+                upperTitle.contains(brand)
+            }
+        } else false
+
+        if (!isOfficialBankApp && !isValidSmsBrandname) {
+            Log.d(TAG, "Bỏ qua thông báo không thuộc danh mục ngân hàng/ví điện tử: $packageName (Tiêu đề: $title)")
+            return
+        }
 
         // Regex bóc tách mã đơn chuẩn OISHI_****** (linh hoạt cả OISHI_XXXXXX, OISHI XXXXXX, OISHIXXXXXX)
         val orderCodeRegex = Regex("""OISHI[_ ]?([A-Z0-9]{6})""", RegexOption.IGNORE_CASE)
@@ -125,12 +246,21 @@ class BankNotificationListenerService : NotificationListenerService() {
     private suspend fun processAutoConfirmPayment(orderId: String, receivedAmount: Long, packageName: String) {
         try {
             val db = FirebaseDatabase.getInstance()
-            val orderRef = db.getReference("orders").child(orderId)
-            val snapshot = orderRef.get().await()
+            var targetOrderRef = db.getReference("orders").child(orderId)
+            var snapshot = targetOrderRef.get().await()
 
             if (!snapshot.exists()) {
-                Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' trên hệ thống Firebase")
-                return
+                // Thử tìm linh hoạt cả trường hợp có hoặc không có dấu gạch dưới
+                val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
+                val altRef = db.getReference("orders").child(altId)
+                val altSnap = altRef.get().await()
+                if (altSnap.exists()) {
+                    targetOrderRef = altRef
+                    snapshot = altSnap
+                } else {
+                    Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' hoặc '$altId' trên hệ thống Firebase")
+                    return
+                }
             }
 
             val currentPaymentStatus = snapshot.child("paymentStatus").getValue(String::class.java).orEmpty()
@@ -177,8 +307,8 @@ class BankNotificationListenerService : NotificationListenerService() {
                 "paymentNote" to "Tự động duyệt từ thông báo ngân hàng ($packageName) với số tiền ${finalPaidAmount.toVndCurrency()}"
             )
 
-            orderRef.updateChildren(updates).await()
-            Log.i(TAG, "✓ XÁC NHẬN THÀNH CÔNG: Đơn '$orderId' đã chuyển sang trạng thái PAID!")
+            targetOrderRef.updateChildren(updates).await()
+            Log.i(TAG, "✓ XÁC NHẬN THÀNH CÔNG: Đơn '${targetOrderRef.key}' đã chuyển sang trạng thái PAID!")
 
             // Phát thông báo âm thanh chuông báo nổi bật cho Quán/Boss
             showSuccessNotification(orderId, finalPaidAmount, packageName, customerName)

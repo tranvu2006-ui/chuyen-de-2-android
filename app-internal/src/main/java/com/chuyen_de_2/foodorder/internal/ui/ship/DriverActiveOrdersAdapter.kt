@@ -41,8 +41,7 @@ class DriverActiveOrdersAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(order: Order) {
-            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-            binding.tvActiveOrderCode.text = "#ORD_OISHI_$shortCode"
+            binding.tvActiveOrderCode.text = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
 
             val ch = bindingAdapterPosition + 1
             if (orders.size > 1) {

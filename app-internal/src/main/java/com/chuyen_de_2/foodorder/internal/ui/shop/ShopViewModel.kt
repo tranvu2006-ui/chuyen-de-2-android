@@ -98,7 +98,11 @@ class ShopViewModel @Inject constructor(
         val tab = _currentTab.value ?: TabType.NEW
 
         // Cập nhật số lượng đếm trên từng tab
-        _countNew.value = orders.count { it.status == Order.Status.PENDING || it.status == Order.Status.PAID }
+        _countNew.value = orders.count {
+            it.status == Order.Status.PENDING ||
+            it.status == Order.Status.PAID ||
+            it.status == Order.Status.AWAITING_PAYMENT
+        }
         _countCooking.value = orders.count { it.status == Order.Status.PREPARING }
         _countDelivering.value = orders.count {
             it.status == Order.Status.READY ||
@@ -138,7 +142,11 @@ class ShopViewModel @Inject constructor(
 
         // Lọc danh sách theo tab được chọn
         filteredOrders.value = when (tab) {
-            TabType.NEW -> orders.filter { it.status == Order.Status.PENDING || it.status == Order.Status.PAID }
+            TabType.NEW -> orders.filter {
+                it.status == Order.Status.PENDING ||
+                it.status == Order.Status.PAID ||
+                it.status == Order.Status.AWAITING_PAYMENT
+            }
             TabType.COOKING -> orders.filter { it.status == Order.Status.PREPARING }
             TabType.DELIVERING -> orders.filter {
                 it.status == Order.Status.READY ||
@@ -161,7 +169,11 @@ class ShopViewModel @Inject constructor(
     private fun observeOrders() {
         viewModelScope.launch {
             firebaseRepository.observeAllOrders().collectLatest { orders ->
-                val pendingCount = orders.count { it.status == Order.Status.PENDING }
+                val pendingCount = orders.count {
+                    it.status == Order.Status.PENDING ||
+                    it.status == Order.Status.PAID ||
+                    it.status == Order.Status.AWAITING_PAYMENT
+                }
                 if (pendingCount > previousOrderCount && previousOrderCount > 0) {
                     _newOrderAlert.value = true
                 }
@@ -192,6 +204,27 @@ class ShopViewModel @Inject constructor(
         updateLocalOrderStatus(orderId, Order.Status.PREPARING)
         viewModelScope.launch {
             firebaseRepository.updateOrderStatus(orderId, Order.Status.PREPARING)
+        }
+    }
+
+    /** Quán chủ động kiểm tra sao kê ngân hàng và bấm duyệt đơn thủ công khi chưa nhận được webhook/thông báo */
+    fun confirmManualPaidAndPrepare(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.PREPARING)
+        viewModelScope.launch {
+            val updates = mapOf<String, Any>(
+                "status" to Order.Status.PREPARING,
+                "orderStatus" to Order.Status.PREPARING,
+                "paymentStatus" to Order.PaymentStatus.PAID,
+                "isPaid" to true,
+                "paidAt" to System.currentTimeMillis(),
+                "paymentMethod" to Order.PaymentMethod.BANKING,
+                "manualPaidBy" to "SHOP_MANUAL_VERIFY",
+                "paymentNote" to "Quán đã tự kiểm tra tài khoản ngân hàng và duyệt đơn"
+            )
+            com.google.firebase.database.FirebaseDatabase.getInstance()
+                .getReference("orders")
+                .child(orderId)
+                .updateChildren(updates)
         }
     }
 

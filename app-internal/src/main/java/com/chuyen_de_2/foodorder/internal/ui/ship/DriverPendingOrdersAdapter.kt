@@ -39,8 +39,7 @@ class DriverPendingOrdersAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(order: Order) {
-            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-            binding.tvPendingOrderCode.text = "#ORD_OISHI_$shortCode"
+            binding.tvPendingOrderCode.text = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
 
             val fee = if (order.shippingFee > 0) order.shippingFee else 20000L
             binding.tvPendingOrderFee.text = "+${fee.toVndCurrency()}"

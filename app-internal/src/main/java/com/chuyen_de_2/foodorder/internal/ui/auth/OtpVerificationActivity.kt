@@ -1,35 +1,46 @@
 package com.chuyen_de_2.foodorder.internal.ui.auth
 
+import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.model.User
-import android.view.MotionEvent
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityOtpVerificationInternalBinding
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
- * Màn hình xác thực OTP riêng biệt cho luồng đăng ký tài khoản đối tác (Chủ quán/Tài xế).
- * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP riêng biệt, thẻ email nổi bật,
+ * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập đối tác.
+ * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
  * bộ đếm ngược thời gian và nút gửi lại trực quan.
  */
 @AndroidEntryPoint
 class OtpVerificationActivity : AppCompatActivity() {
 
     companion object {
+        const val EXTRA_FLOW = "extra_flow"
+        const val FLOW_REGISTER = "flow_register"
+        const val FLOW_LOGIN = "flow_login"
+
         const val EXTRA_NAME = "extra_name"
         const val EXTRA_EMAIL = "extra_email"
         const val EXTRA_PASSWORD = "extra_password"
@@ -41,6 +52,10 @@ class OtpVerificationActivity : AppCompatActivity() {
     private lateinit var binding: ActivityOtpVerificationInternalBinding
     private val viewModel: AuthViewModel by viewModels()
 
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    private var flow: String = FLOW_REGISTER
     private var name: String = ""
     private var email: String = ""
     private var password: String = ""
@@ -70,17 +85,27 @@ class OtpVerificationActivity : AppCompatActivity() {
         InsetUtils.initEdgeToEdge(this, true)
         InsetUtils.applyImeAndSystemInsets(binding.root)
 
-        name = intent.getStringExtra(EXTRA_NAME).orEmpty()
+        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
         email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
         password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
-        confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
-        phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
-        role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.BOSSMERCHANT
 
-        if (email.isBlank() || password.isBlank()) {
-            Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
-            finish()
-            return
+        if (flow == FLOW_LOGIN) {
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        } else {
+            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
+            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
+            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
+            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.BOSSMERCHANT
+
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
         }
 
         setupUI()
@@ -90,6 +115,16 @@ class OtpVerificationActivity : AppCompatActivity() {
 
     private fun setupUI() {
         binding.tvTargetEmail.text = email
+
+        if (flow == FLOW_LOGIN) {
+            binding.tvTitle.text = "Xác Thực Đăng Nhập"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
+        } else {
+            binding.tvTitle.text = "Xác Thực Mã OTP"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
+        }
 
         binding.btnBack.setOnClickListener {
             finish()
@@ -129,7 +164,11 @@ class OtpVerificationActivity : AppCompatActivity() {
             showOtpError(null)
             isResendEnabled = false
             binding.btnResendOtp.isEnabled = false
-            viewModel.requestEmailOtp(email)
+            if (flow == FLOW_LOGIN) {
+                viewModel.requestLoginOtp(email)
+            } else {
+                viewModel.requestEmailOtp(email)
+            }
         }
 
         binding.btnConfirmRegister.setOnClickListener {
@@ -169,51 +208,32 @@ class OtpVerificationActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Hiển thị hoặc ẩn thông báo lỗi OTP với hiệu ứng rung nhẹ.
-     */
-    private fun showOtpError(message: String?) {
-        if (message.isNullOrBlank()) {
+    private fun showOtpError(errorMsg: String?) {
+        if (errorMsg.isNullOrBlank()) {
             binding.tvOtpError.visibility = View.GONE
+            binding.tvOtpError.text = ""
             updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
         } else {
-            binding.tvOtpError.text = message
             binding.tvOtpError.visibility = View.VISIBLE
+            binding.tvOtpError.text = errorMsg
             updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
-            shakeOtpBoxes()
         }
     }
 
-    /**
-     * Hiệu ứng rung khung 6 ô số khi nhập sai hoặc xảy ra lỗi.
-     */
-    private fun shakeOtpBoxes() {
-        binding.layoutOtpBoxes.animate()
-            .translationXBy(12f)
-            .setDuration(45)
-            .withEndAction {
-                binding.layoutOtpBoxes.animate()
-                    .translationXBy(-24f)
-                    .setDuration(45)
-                    .withEndAction {
-                        binding.layoutOtpBoxes.animate()
-                            .translationXBy(12f)
-                            .setDuration(45)
-                            .start()
-                    }.start()
-            }.start()
-    }
-
     private fun submitOtpVerification(code: String) {
-        viewModel.registerWithOtp(
-            name = name,
-            email = email,
-            pass = password,
-            confirmPass = confirmPassword,
-            role = role,
-            phone = phone,
-            otpCode = code
-        )
+        if (flow == FLOW_LOGIN) {
+            viewModel.verifyLoginOtp(email, password, code)
+        } else {
+            viewModel.registerWithOtp(
+                name = name,
+                email = email,
+                pass = password,
+                confirmPass = confirmPassword,
+                role = role,
+                phone = phone,
+                otpCode = code
+            )
+        }
     }
 
     private fun observeViewModel() {
@@ -270,6 +290,53 @@ class OtpVerificationActivity : AppCompatActivity() {
                 binding.etOtp.requestFocus()
                 Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
             }
+        }
+
+        viewModel.loginOtpResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun checkRoleAndRoute() {
+        lifecycleScope.launch {
+            try {
+                val statusCheck = authRepository.checkAccountActiveStatus()
+                if (statusCheck.isFailure) {
+                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                    AlertDialog.Builder(this@OtpVerificationActivity)
+                        .setTitle("Tài khoản bị khóa")
+                        .setMessage(reason)
+                        .setPositiveButton("Đóng") { _, _ -> finish() }
+                        .show()
+                } else {
+                    val intent = Intent(this@OtpVerificationActivity, DashboardActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                }
+            } catch (_: Exception) {}
         }
     }
 

@@ -34,7 +34,7 @@ class RegisterActivity : AppCompatActivity() {
     private var pendingEmail = ""
     private var pendingPassword = ""
     private var pendingConfirmPassword = ""
-    private val pendingRole = User.Role.MERCHANT
+    private val pendingRole = User.Role.BOSSMERCHANT
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()

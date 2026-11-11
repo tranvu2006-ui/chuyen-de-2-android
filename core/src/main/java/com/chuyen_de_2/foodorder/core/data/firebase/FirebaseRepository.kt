@@ -3022,11 +3022,22 @@ class FirebaseRepository @Inject constructor(
         storeName: String,
         address: String,
         district: String = "",
-        phone: String = ""
+        phone: String = "",
+        latitude: Double = 0.0,
+        longitude: Double = 0.0
     ): Result<String> {
         return try {
             val primaryStoreId = resolveStoreIdForUser(bossUid)
             val primaryStore = if (primaryStoreId.isNotBlank()) getStoreOnce(primaryStoreId) else null
+
+            // Fallback GPS nếu chưa có tọa độ từ map picker
+            val (resolvedLat, resolvedLng) = if (latitude != 0.0 && longitude != 0.0) {
+                latitude to longitude
+            } else {
+                val coords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[district.trim()]
+                    ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                coords.latitude to coords.longitude
+            }
 
             val storeRef = database.getReference("stores").push()
             val newStoreId = storeRef.key ?: "store_${System.currentTimeMillis()}"
@@ -3039,6 +3050,8 @@ class FirebaseRepository @Inject constructor(
                 address = address.trim(),
                 district = district.trim(),
                 phone = phone.trim(),
+                latitude = resolvedLat,
+                longitude = resolvedLng,
                 ownerName = primaryStore?.ownerName.orEmpty(),
                 cccdNumber = primaryStore?.cccdNumber.orEmpty(),
                 bankName = primaryStore?.bankName?.ifBlank { "MB Bank" } ?: "MB Bank",

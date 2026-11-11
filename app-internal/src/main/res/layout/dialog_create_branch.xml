@@ -70,15 +70,37 @@
         app:boxCornerRadiusBottomEnd="10dp"
         app:boxCornerRadiusBottomStart="10dp"
         app:boxCornerRadiusTopEnd="10dp"
-        app:boxCornerRadiusTopStart="10dp">
+        app:boxCornerRadiusTopStart="10dp"
+        app:endIconDrawable="@drawable/ic_map_pin"
+        app:endIconMode="custom"
+        app:endIconTint="#EE4D2D">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etBranchAddress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textPostalAddress"
+            android:clickable="true"
+            android:cursorVisible="false"
+            android:focusable="false"
+            android:inputType="none"
             android:textColor="#0F172A" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Nút chọn / ghim vị trí quán trên bản đồ -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPickBranchLocationMap"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginTop="8dp"
+        android:text="📍 Chọn / Ghim vị trí chi nhánh trên bản đồ"
+        android:textAllCaps="false"
+        android:textColor="#EE4D2D"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        app:cornerRadius="10dp"
+        app:strokeColor="#EE4D2D"
+        app:strokeWidth="1.2dp" />
 
     <!-- Quận / Huyện -->
     <com.google.android.material.textfield.TextInputLayout
@@ -87,7 +109,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:hint="Quận / Huyện (ví dụ: Quận 1, Quận 7)"
+        android:hint="Quận / Huyện (Tự động nhận diện từ bản đồ) *"
         app:boxCornerRadiusBottomEnd="10dp"
         app:boxCornerRadiusBottomStart="10dp"
         app:boxCornerRadiusTopEnd="10dp"

@@ -20600,124 +20600,6 @@ class SelectLocationActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossMerchantAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.boss
-
-import android.graphics.Color
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ItemBossMerchantBinding
-
-class BossMerchantAdapter(
-    private val onAssignBranchClick: (User) -> Unit,
-    private val onUnassignBranchClick: (User) -> Unit,
-    private val onToggleLockMerchantClick: (User) -> Unit
-) : ListAdapter<User, BossMerchantAdapter.MerchantViewHolder>(MerchantDiffCallback()) {
-
-    private var storesMap: Map<String, Store> = emptyMap()
-
-    fun setStores(stores: List<Store>) {
-        storesMap = stores.associateBy { it.id }
-        notifyDataSetChanged()
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MerchantViewHolder {
-        val binding = ItemBossMerchantBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return MerchantViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: MerchantViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class MerchantViewHolder(
-        private val binding: ItemBossMerchantBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(merchant: User) {
-            binding.tvMerchantItemName.text = merchant.name.ifBlank { "Quản lý chưa đặt tên" }
-            binding.tvMerchantItemEmail.text = merchant.email
-            binding.tvMerchantItemPhone.text = merchant.phone.ifBlank { "Chưa có SĐT" }
-
-            val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-
-            if (isLocked) {
-                binding.tvMerchantStatusBadge.text = "🔴 Đã khóa"
-                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#B91C1C"))
-
-                binding.btnToggleLockMerchant.text = "🔓 Mở khóa"
-                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#15803D"))
-
-                binding.tvMerchantAssignedBranch.text = "Tài khoản đang bị khóa"
-                binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EF4444"))
-                binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EF4444"))
-
-                binding.btnAssignMerchantItem.isEnabled = false
-                binding.btnAssignMerchantItem.alpha = 0.5f
-                binding.btnUnassignMerchantItem.visibility = View.GONE
-            } else {
-                binding.tvMerchantStatusBadge.text = "🟢 Hoạt động"
-                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
-                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#15803D"))
-
-                binding.btnToggleLockMerchant.text = "🔒 Khóa"
-                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#EF4444"))
-
-                binding.btnAssignMerchantItem.isEnabled = true
-                binding.btnAssignMerchantItem.alpha = 1.0f
-
-                val assignedStore = if (merchant.storeId.isNotBlank()) storesMap[merchant.storeId] else null
-                if (assignedStore != null) {
-                    binding.tvMerchantAssignedBranch.text = "Chi nhánh: ${assignedStore.name}"
-                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#2563EB"))
-                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#2563EB"))
-                    binding.btnAssignMerchantItem.text = "Đổi quán"
-                    binding.btnUnassignMerchantItem.visibility = View.VISIBLE
-                } else {
-                    binding.tvMerchantAssignedBranch.text = "Chưa phân công chi nhánh"
-                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EA580C"))
-                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EA580C"))
-                    binding.btnAssignMerchantItem.text = "Phân công"
-                    binding.btnUnassignMerchantItem.visibility = View.GONE
-                }
-            }
-
-            binding.btnAssignMerchantItem.setOnClickListener {
-                if (!isLocked) {
-                    onAssignBranchClick(merchant)
-                }
-            }
-
-            binding.btnUnassignMerchantItem.setOnClickListener {
-                onUnassignBranchClick(merchant)
-            }
-
-            binding.btnToggleLockMerchant.setOnClickListener {
-                onToggleLockMerchantClick(merchant)
-            }
-        }
-    }
-
-    class MerchantDiffCallback : DiffUtil.ItemCallback<User>() {
-        override fun areItemsTheSame(oldItem: User, newItem: User): Boolean = oldItem.uid == newItem.uid
-        override fun areContentsTheSame(oldItem: User, newItem: User): Boolean = oldItem == newItem
-    }
-}
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/DriverPendingOrdersAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -26149,15 +26031,37 @@ class FoodOrderInternalApp : Application() {
         app:boxCornerRadiusBottomEnd="10dp"
         app:boxCornerRadiusBottomStart="10dp"
         app:boxCornerRadiusTopEnd="10dp"
-        app:boxCornerRadiusTopStart="10dp">
+        app:boxCornerRadiusTopStart="10dp"
+        app:endIconDrawable="@drawable/ic_map_pin"
+        app:endIconMode="custom"
+        app:endIconTint="#EE4D2D">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etBranchAddress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textPostalAddress"
+            android:clickable="true"
+            android:cursorVisible="false"
+            android:focusable="false"
+            android:inputType="none"
             android:textColor="#0F172A" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Nút chọn / ghim vị trí quán trên bản đồ -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPickBranchLocationMap"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginTop="8dp"
+        android:text="📍 Chọn / Ghim vị trí chi nhánh trên bản đồ"
+        android:textAllCaps="false"
+        android:textColor="#EE4D2D"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        app:cornerRadius="10dp"
+        app:strokeColor="#EE4D2D"
+        app:strokeWidth="1.2dp" />
 
     <!-- Quận / Huyện -->
     <com.google.android.material.textfield.TextInputLayout
@@ -26166,7 +26070,7 @@ class FoodOrderInternalApp : Application() {
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:hint="Quận / Huyện (ví dụ: Quận 1, Quận 7)"
+        android:hint="Quận / Huyện (Tự động nhận diện từ bản đồ) *"
         app:boxCornerRadiusBottomEnd="10dp"
         app:boxCornerRadiusBottomStart="10dp"
         app:boxCornerRadiusTopEnd="10dp"
@@ -28375,191 +28279,6 @@ class FoodOrderInternalApp : Application() {
         android:textStyle="bold"
         tools:text="55.000 đ" />
 </LinearLayout>
-````
-
-## File: app-internal/src/main/res/layout/item_boss_merchant.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginHorizontal="16dp"
-    android:layout_marginBottom="12dp"
-    app:cardBackgroundColor="#FFFFFF"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="0dp"
-    app:strokeColor="#E2E8F0"
-    app:strokeWidth="1dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                app:cardBackgroundColor="#EFF6FF"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp">
-
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_user"
-                    app:tint="#2563EB" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvMerchantItemName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Nguyễn Văn A"
-                    android:textColor="#0F172A"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvMerchantItemEmail"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="merchant@gmail.com"
-                    android:textColor="#64748B"
-                    android:textSize="12.5sp" />
-
-                <TextView
-                    android:id="@+id/tvMerchantItemPhone"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0901234567"
-                    android:textColor="#64748B"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="end|center_vertical"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvMerchantStatusBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_badge_green"
-                    android:paddingHorizontal="8dp"
-                    android:paddingVertical="3dp"
-                    android:text="🟢 Hoạt động"
-                    android:textColor="#15803D"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnToggleLockMerchant"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:layout_marginTop="4dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:paddingHorizontal="6dp"
-                    android:text="🔒 Khóa"
-                    android:textColor="#EF4444"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Divider -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginVertical="12dp"
-            android:background="#F1F5F9" />
-
-        <!-- Assigned Branch Info -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:id="@+id/ivBranchBadgeIcon"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:src="@drawable/ic_store"
-                    app:tint="#2563EB" />
-
-                <TextView
-                    android:id="@+id/tvMerchantAssignedBranch"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:text="Chi nhánh: Quán Của Vũ"
-                    android:textColor="#2563EB"
-                    android:textSize="12.5sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAssignMerchantItem"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:backgroundTint="#EFF6FF"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingHorizontal="12dp"
-                android:text="Phân công"
-                android:textColor="#2563EB"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnUnassignMerchantItem"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:layout_marginStart="4dp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingHorizontal="8dp"
-                android:text="Gỡ"
-                android:textColor="#EF4444"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-        </LinearLayout>
-
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
 ````
 
 ## File: app-internal/src/main/res/layout/item_bundle_order_card.xml
@@ -66489,6 +66208,124 @@ class BossBranchAdapter(
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossMerchantAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.boss
+
+import android.graphics.Color
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ItemBossMerchantBinding
+
+class BossMerchantAdapter(
+    private val onAssignBranchClick: (User) -> Unit,
+    private val onUnassignBranchClick: (User) -> Unit,
+    private val onToggleLockMerchantClick: (User) -> Unit
+) : ListAdapter<User, BossMerchantAdapter.MerchantViewHolder>(MerchantDiffCallback()) {
+
+    private var storesMap: Map<String, Store> = emptyMap()
+
+    fun setStores(stores: List<Store>) {
+        storesMap = stores.associateBy { it.id }
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MerchantViewHolder {
+        val binding = ItemBossMerchantBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return MerchantViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: MerchantViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class MerchantViewHolder(
+        private val binding: ItemBossMerchantBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(merchant: User) {
+            binding.tvMerchantItemName.text = merchant.name.ifBlank { "Quản lý chưa đặt tên" }
+            binding.tvMerchantItemEmail.text = merchant.email
+            binding.tvMerchantItemPhone.text = merchant.phone.ifBlank { "Chưa có SĐT" }
+
+            val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+
+            if (isLocked) {
+                binding.tvMerchantStatusBadge.text = "🔴 Đã khóa"
+                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#B91C1C"))
+
+                binding.btnToggleLockMerchant.text = "🔓 Mở khóa"
+                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#15803D"))
+
+                binding.tvMerchantAssignedBranch.text = "Tài khoản đang bị khóa"
+                binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EF4444"))
+                binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EF4444"))
+
+                binding.btnAssignMerchantItem.isEnabled = false
+                binding.btnAssignMerchantItem.alpha = 0.5f
+                binding.btnUnassignMerchantItem.visibility = View.GONE
+            } else {
+                binding.tvMerchantStatusBadge.text = "🟢 Hoạt động"
+                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#15803D"))
+
+                binding.btnToggleLockMerchant.text = "🔒 Khóa"
+                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#EF4444"))
+
+                binding.btnAssignMerchantItem.isEnabled = true
+                binding.btnAssignMerchantItem.alpha = 1.0f
+
+                val assignedStore = if (merchant.storeId.isNotBlank()) storesMap[merchant.storeId] else null
+                if (assignedStore != null) {
+                    binding.tvMerchantAssignedBranch.text = "Chi nhánh: ${assignedStore.name}"
+                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#2563EB"))
+                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#2563EB"))
+                    binding.btnAssignMerchantItem.text = "Đổi quán"
+                    binding.btnUnassignMerchantItem.visibility = View.VISIBLE
+                } else {
+                    binding.tvMerchantAssignedBranch.text = "Chưa phân công chi nhánh"
+                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EA580C"))
+                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EA580C"))
+                    binding.btnAssignMerchantItem.text = "Phân công"
+                    binding.btnUnassignMerchantItem.visibility = View.GONE
+                }
+            }
+
+            binding.btnAssignMerchantItem.setOnClickListener {
+                if (!isLocked) {
+                    onAssignBranchClick(merchant)
+                }
+            }
+
+            binding.btnUnassignMerchantItem.setOnClickListener {
+                onUnassignBranchClick(merchant)
+            }
+
+            binding.btnToggleLockMerchant.setOnClickListener {
+                onToggleLockMerchantClick(merchant)
+            }
+        }
+    }
+
+    class MerchantDiffCallback : DiffUtil.ItemCallback<User>() {
+        override fun areItemsTheSame(oldItem: User, newItem: User): Boolean = oldItem.uid == newItem.uid
+        override fun areContentsTheSame(oldItem: User, newItem: User): Boolean = oldItem == newItem
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/DriverActiveOrdersAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -71259,6 +71096,191 @@ class ShopViewModel @Inject constructor(
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-internal/src/main/res/layout/item_boss_merchant.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="#FFFFFF"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeColor="#E2E8F0"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                app:cardBackgroundColor="#EFF6FF"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_user"
+                    app:tint="#2563EB" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvMerchantItemName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Nguyễn Văn A"
+                    android:textColor="#0F172A"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvMerchantItemEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="merchant@gmail.com"
+                    android:textColor="#64748B"
+                    android:textSize="12.5sp" />
+
+                <TextView
+                    android:id="@+id/tvMerchantItemPhone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0901234567"
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="end|center_vertical"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvMerchantStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_green"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp"
+                    android:text="🟢 Hoạt động"
+                    android:textColor="#15803D"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnToggleLockMerchant"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="4dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingHorizontal="6dp"
+                    android:text="🔒 Khóa"
+                    android:textColor="#EF4444"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="12dp"
+            android:background="#F1F5F9" />
+
+        <!-- Assigned Branch Info -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/ivBranchBadgeIcon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_store"
+                    app:tint="#2563EB" />
+
+                <TextView
+                    android:id="@+id/tvMerchantAssignedBranch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="Chi nhánh: Quán Của Vũ"
+                    android:textColor="#2563EB"
+                    android:textSize="12.5sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAssignMerchantItem"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:backgroundTint="#EFF6FF"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="12dp"
+                android:text="Phân công"
+                android:textColor="#2563EB"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnUnassignMerchantItem"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="Gỡ"
+                android:textColor="#EF4444"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </LinearLayout>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+````
+
 ## File: app-internal/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -71275,6 +71297,20 @@ class ShopViewModel @Inject constructor(
     <background android:drawable="@drawable/ic_launcher_bg" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
+````
+
+## File: app-internal/src/main/res/values/strings.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Oshi Merchant</string>
+    <string name="login_title">Đăng nhập nội bộ</string>
+    <string name="email_hint">Email nhân viên</string>
+    <string name="password_hint">Mật khẩu</string>
+    <string name="btn_login">Đăng nhập</string>
+    <string name="empty_orders">Chưa có đơn hàng nào</string>
+    <string name="empty_assigned">Chưa có đơn được gán</string>
+</resources>
 ````
 
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/DeliveryCountdownConfig.kt
@@ -89268,20 +89304,6 @@ class OrderAdapter(
 </com.google.android.material.card.MaterialCardView>
 ````
 
-## File: app-internal/src/main/res/values/strings.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Oshi Merchant</string>
-    <string name="login_title">Đăng nhập nội bộ</string>
-    <string name="email_hint">Email nhân viên</string>
-    <string name="password_hint">Mật khẩu</string>
-    <string name="btn_login">Đăng nhập</string>
-    <string name="empty_orders">Chưa có đơn hàng nào</string>
-    <string name="empty_assigned">Chưa có đơn được gán</string>
-</resources>
-````
-
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/firebase/EmailOtpApi.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.firebase
@@ -106843,217 +106865,6 @@ data class OrderItem(
 }
 ````
 
-## File: database.rules.json
-````json
-{
-  "rules": {
-    ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.admin == true)",
-    ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.admin == true)",
-    "roles": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-    },
-    "user_statuses": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-    },
-    "approval_statuses": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-    },
-    "store_statuses": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-    },
-    "penalty_tiers": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-    },
-    "delivery_time_frames": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-    },
-    "system_config": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-    },
-    "users": {
-      ".indexOn": [
-        "role",
-        "roleId",
-        "status",
-        "email",
-        "phone",
-        "storeId",
-        "trustScore"
-      ],
-      ".read": "auth != null",
-      "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'DRIVER' || root.child('users').child(auth.uid).child('role').val() == 'SHIPPER')"
-      }
-    },
-    "customers": {
-      ".indexOn": [
-        "trustScore",
-        "status",
-        "email",
-        "phone"
-      ],
-      ".read": "auth != null",
-      "$userId": {
-        ".write": "auth != null"
-      }
-    },
-    "merchants": {
-      ".indexOn": [
-        "storeId",
-        "status",
-        "approvalStatus"
-      ],
-      ".read": "auth != null",
-      "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
-      }
-    },
-    "bank_accounts": {
-      ".indexOn": [
-        "userId",
-        "storeId"
-      ],
-      ".read": "auth != null",
-      "$bankAccountId": {
-        ".write": "auth != null && (data.child('userId').val() == auth.uid || newData.child('userId').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-      }
-    },
-    "drivers": {
-      ".indexOn": [
-        "dutyStatus",
-        "storeId",
-        "email",
-        "phone",
-        "driverCode"
-      ],
-      ".read": "auth != null",
-      "$userId": {
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
-      }
-    },
-    "stores": {
-      ".indexOn": [
-        "merchantId",
-        "ownerId",
-        "storeStatus",
-        "status",
-        "category",
-        "isVerified",
-        "penaltyTier"
-      ],
-      ".read": true,
-      ".write": "auth != null"
-    },
-    "carts": {
-      "$userId": {
-        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')",
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-      }
-    },
-    "orders": {
-      ".indexOn": [
-        "customerId",
-        "shipperId",
-        "driverId",
-        "shopId",
-        "storeId",
-        "status",
-        "orderStatus",
-        "timestamp",
-        "createdAt"
-      ],
-      ".read": "auth != null",
-      "$orderId": {
-        ".write": "auth != null"
-      }
-    },
-    "tracking": {
-      ".read": "auth != null",
-      "$orderId": {
-        ".write": "auth != null"
-      }
-    },
-    "order_chats": {
-      ".read": "auth != null",
-      "$orderId": {
-        ".write": "auth != null"
-      }
-    },
-    "restaurants": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
-    },
-    "categories": {
-      ".indexOn": [
-        "displayOrder",
-        "isActive",
-        "status"
-      ],
-      ".read": true,
-      ".write": "auth != null"
-    },
-    "menus": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
-    },
-    "combos": {
-      ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
-    },
-    "dish_reviews": {
-      ".indexOn": [
-        "dishId",
-        "storeId",
-        "orderId",
-        "customerId",
-        "createdAt"
-      ],
-      ".read": true,
-      "$reviewId": {
-        ".write": "auth != null"
-      }
-    },
-    "complaints": {
-      ".indexOn": [
-        "customerId",
-        "storeId",
-        "orderId",
-        "status",
-        "createdAt"
-      ],
-      ".read": "auth != null",
-      "$complaintId": {
-        ".write": "auth != null"
-      }
-    },
-    "customer_addresses": {
-      "$userId": {
-        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')",
-        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
-      }
-    },
-    "trust_score_logs": {
-      ".indexOn": [
-        "customerId",
-        "orderId",
-        "createdAt"
-      ],
-      ".read": "auth != null",
-      "$logId": {
-        ".write": "auth != null"
-      }
-    }
-  }
-}
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/checkout/CheckoutActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.checkout
@@ -108128,640 +107939,222 @@ class LoginActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossDashboardActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.boss
-
-import android.app.Dialog
-import android.content.Context
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.os.Bundle
-import android.view.View
-import android.view.Window
-import android.widget.RadioButton
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityBossDashboardBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignBranchToMerchantBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignMerchantBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateBranchBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateMerchantBinding
-import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Màn hình Bảng điều khiển Quản lý Chuỗi dành riêng cho BOSSMERCHANT.
- * Cho phép tạo chi nhánh, tạo tài khoản Merchant, xem và quản lý danh sách Merchant đã tạo,
- * phân công/gỡ Merchant cho từng chi nhánh, và truy cập trực tiếp vào bất kỳ chi nhánh nào để vận hành.
- */
-@AndroidEntryPoint
-class BossDashboardActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityBossDashboardBinding
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    private lateinit var branchAdapter: BossBranchAdapter
-    private lateinit var merchantAdapter: BossMerchantAdapter
-    private var currentBossUid: String = ""
-    private var cachedBranches: List<Store> = emptyList()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        InsetUtils.initEdgeToEdge(this, true)
-        binding = ActivityBossDashboardBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        val currentUser = authRepository.currentUser
-        if (currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
-            return
-        }
-
-        currentBossUid = currentUser.uid
-        setupUI()
-        observeBranches()
-        observeMerchants()
-        observeBusinessProfile()
+## File: database.rules.json
+````json
+{
+  "rules": {
+    ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.admin == true)",
+    ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || auth.token.admin == true)",
+    "roles": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+    },
+    "user_statuses": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+    },
+    "approval_statuses": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+    },
+    "store_statuses": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+    },
+    "penalty_tiers": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+    },
+    "delivery_time_frames": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+    },
+    "system_config": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+    },
+    "users": {
+      ".indexOn": [
+        "role",
+        "roleId",
+        "status",
+        "email",
+        "phone",
+        "storeId",
+        "bossId",
+        "trustScore"
+      ],
+      ".read": "auth != null",
+      "$userId": {
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'DRIVER' || root.child('users').child(auth.uid).child('role').val() == 'SHIPPER')"
+      }
+    },
+    "customers": {
+      ".indexOn": [
+        "trustScore",
+        "status",
+        "email",
+        "phone"
+      ],
+      ".read": "auth != null",
+      "$userId": {
+        ".write": "auth != null"
+      }
+    },
+    "merchants": {
+      ".indexOn": [
+        "storeId",
+        "status",
+        "approvalStatus"
+      ],
+      ".read": "auth != null",
+      "$userId": {
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+      }
+    },
+    "bank_accounts": {
+      ".indexOn": [
+        "userId",
+        "storeId"
+      ],
+      ".read": "auth != null",
+      "$bankAccountId": {
+        ".write": "auth != null && (data.child('userId').val() == auth.uid || newData.child('userId').val() == auth.uid || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+      }
+    },
+    "drivers": {
+      ".indexOn": [
+        "dutyStatus",
+        "storeId",
+        "email",
+        "phone",
+        "driverCode"
+      ],
+      ".read": "auth != null",
+      "$userId": {
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+      }
+    },
+    "stores": {
+      ".indexOn": [
+        "merchantId",
+        "ownerId",
+        "bossId",
+        "storeStatus",
+        "status",
+        "category",
+        "isVerified",
+        "penaltyTier"
+      ],
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "boss_stores": {
+      "$bossUid": {
+        ".read": "auth != null && (auth.uid == $bossUid || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')",
+        ".write": "auth != null && (auth.uid == $bossUid || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+      }
+    },
+    "carts": {
+      "$userId": {
+        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')",
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+      }
+    },
+    "orders": {
+      ".indexOn": [
+        "customerId",
+        "shipperId",
+        "driverId",
+        "shopId",
+        "storeId",
+        "status",
+        "orderStatus",
+        "timestamp",
+        "createdAt"
+      ],
+      ".read": "auth != null",
+      "$orderId": {
+        ".write": "auth != null"
+      }
+    },
+    "tracking": {
+      ".read": "auth != null",
+      "$orderId": {
+        ".write": "auth != null"
+      }
+    },
+    "order_chats": {
+      ".read": "auth != null",
+      "$orderId": {
+        ".write": "auth != null"
+      }
+    },
+    "restaurants": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+    },
+    "categories": {
+      ".indexOn": [
+        "displayOrder",
+        "isActive",
+        "status"
+      ],
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "menus": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+    },
+    "combos": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com' || root.child('users').child(auth.uid).child('role').val() == 'BOSSMERCHANT' || root.child('users').child(auth.uid).child('role').val() == 'BOSS' || root.child('users').child(auth.uid).child('role').val() == 'MANAGER' || root.child('users').child(auth.uid).child('role').val() == 'MERCHANT')"
+    },
+    "dish_reviews": {
+      ".indexOn": [
+        "dishId",
+        "storeId",
+        "orderId",
+        "customerId",
+        "createdAt"
+      ],
+      ".read": true,
+      "$reviewId": {
+        ".write": "auth != null"
+      }
+    },
+    "complaints": {
+      ".indexOn": [
+        "customerId",
+        "storeId",
+        "orderId",
+        "status",
+        "createdAt"
+      ],
+      ".read": "auth != null",
+      "$complaintId": {
+        ".write": "auth != null"
+      }
+    },
+    "customer_addresses": {
+      "$userId": {
+        ".read": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')",
+        ".write": "auth != null && (auth.uid == $userId || root.child('users').child(auth.uid).child('role').val() == 'ADMIN' || root.child('users').child(auth.uid).child('role').val() == 'admin' || auth.token.email == 'admin@gmail.com')"
+      }
+    },
+    "trust_score_logs": {
+      ".indexOn": [
+        "customerId",
+        "orderId",
+        "createdAt"
+      ],
+      ".read": "auth != null",
+      "$logId": {
+        ".write": "auth != null"
+      }
     }
-
-    private fun observeBusinessProfile() {
-        lifecycleScope.launch {
-            val storeId = firebaseRepository.resolveStoreIdForUser(currentBossUid)
-            if (storeId.isNotBlank()) {
-                val store = firebaseRepository.getStoreOnce(storeId)
-                val hasBank = store != null && store.bankAccountNumber.isNotBlank() && store.cccdNumber.isNotBlank()
-                binding.cardMissingBankAlert.visibility = if (hasBank) View.GONE else View.VISIBLE
-            } else {
-                binding.cardMissingBankAlert.visibility = View.VISIBLE
-            }
-        }
-    }
-
-    private fun setupUI() {
-        val email = authRepository.currentUser?.email.orEmpty()
-        val displayName = authRepository.currentUser?.displayName.orEmpty()
-        binding.tvBossSubtitle.text = buildString {
-            append("BOSSMERCHANT • ")
-            append(displayName.ifBlank { email })
-        }
-
-        // Branch Adapter
-        branchAdapter = BossBranchAdapter(
-            onEnterBranchClick = { store -> enterBranchAsManager(store) },
-            onAssignManagerClick = { store -> showAssignMerchantDialog(store) },
-            onUnassignManagerClick = { store -> unassignManagerFromStore(store) }
-        ).apply {
-            currentBossUid = this@BossDashboardActivity.currentBossUid
-        }
-        binding.rvBossBranches.layoutManager = LinearLayoutManager(this)
-        binding.rvBossBranches.adapter = branchAdapter
-
-        // Merchant Adapter
-        merchantAdapter = BossMerchantAdapter(
-            onAssignBranchClick = { merchant -> showAssignBranchToMerchantDialog(merchant) },
-            onUnassignBranchClick = { merchant -> unassignMerchant(merchant) },
-            onToggleLockMerchantClick = { merchant -> confirmToggleLockMerchant(merchant) }
-        )
-        binding.rvBossMerchants.layoutManager = LinearLayoutManager(this)
-        binding.rvBossMerchants.adapter = merchantAdapter
-
-        // Tab Toggle Group
-        binding.toggleGroupBossTab.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (isChecked) {
-                if (checkedId == R.id.btnTabBranches) {
-                    binding.layoutBranchesSection.visibility = View.VISIBLE
-                    binding.layoutMerchantsSection.visibility = View.GONE
-                } else if (checkedId == R.id.btnTabMerchants) {
-                    binding.layoutBranchesSection.visibility = View.GONE
-                    binding.layoutMerchantsSection.visibility = View.VISIBLE
-                }
-            }
-        }
-
-        binding.btnCreateBranch.setOnClickListener {
-            showCreateBranchDialog()
-        }
-
-        binding.btnCreateMerchant.setOnClickListener {
-            showCreateMerchantDialog()
-        }
-
-        binding.btnBossBusinessProfile.setOnClickListener {
-            val uid = authRepository.currentUser?.uid.orEmpty()
-            lifecycleScope.launch {
-                val storeId = firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
-                val intent = Intent(this@BossDashboardActivity, com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
-                    putExtra("STORE_ID", storeId)
-                }
-                startActivity(intent)
-            }
-        }
-
-        binding.cardMissingBankAlert.setOnClickListener {
-            binding.btnBossBusinessProfile.performClick()
-        }
-
-        binding.btnBossLogout.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("🚪 Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất tài khoản Chủ chuỗi (Boss) không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
-                    authRepository.logout()
-                    startActivity(Intent(this, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
-                    })
-                    finish()
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    private fun observeBranches() {
-        binding.progressBarBoss.visibility = View.VISIBLE
-        lifecycleScope.launch {
-            firebaseRepository.getStoresByBoss(currentBossUid).collect { stores ->
-                binding.progressBarBoss.visibility = View.GONE
-                // Tự động dọn dẹp nếu chi nhánh bị lưu nhầm merchantId là UID của Boss
-                for (st in stores) {
-                    if (st.merchantId == currentBossUid) {
-                        launch { firebaseRepository.unassignMerchantFromBranch("", st.id) }
-                    }
-                }
-                cachedBranches = stores
-                branchAdapter.submitList(stores)
-                merchantAdapter.setStores(stores)
-
-                val count = stores.size
-                binding.btnTabBranches.text = "🏪 Chi Nhánh ($count)"
-                binding.tvChainStats.text = "$count chi nhánh đang vận hành"
-                binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
-                binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
-            }
-        }
-    }
-
-    private fun observeMerchants() {
-        lifecycleScope.launch {
-            firebaseRepository.getMerchantsForBoss(currentBossUid).collect { merchants ->
-                merchantAdapter.submitList(merchants)
-                merchantAdapter.setStores(cachedBranches)
-
-                val count = merchants.size
-                binding.btnTabMerchants.text = "👥 Quản Lý ($count)"
-                binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
-                binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
-            }
-        }
-    }
-
-    /**
-     * Boss chọn một chi nhánh để vào làm việc thay cho Merchant.
-     * Lưu chi nhánh vào SharedPreferences để khi thoát ra vào lại vẫn ở chi nhánh này.
-     */
-    private fun enterBranchAsManager(store: Store) {
-        lifecycleScope.launch {
-            // Lưu vào SharedPreferences cho Session Persistence
-            getSharedPreferences("boss_session", Context.MODE_PRIVATE)
-                .edit()
-                .putString("selected_branch_store_id", store.id)
-                .putString("selected_branch_store_name", store.name)
-                .apply()
-
-            // Đồng bộ lên Realtime DB
-            firebaseRepository.setActiveStoreForBoss(currentBossUid, store.id)
-
-            Toast.makeText(
-                this@BossDashboardActivity,
-                "✓ Đã vào chi nhánh: ${store.name}",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            val intent = Intent(this@BossDashboardActivity, DashboardActivity::class.java).apply {
-                putExtra("STORE_ID", store.id)
-                putExtra("FROM_BOSS", true)
-            }
-            startActivity(intent)
-            finish()
-        }
-    }
-
-    /**
-     * Dialog tạo chi nhánh mới: TÊN CHI NHÁNH, Địa chỉ...
-     */
-    private fun showCreateBranchDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogCreateBranchBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        dialogBinding.btnCancelCreateBranch.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitCreateBranch.setOnClickListener {
-            val name = dialogBinding.etBranchName.text?.toString()?.trim().orEmpty()
-            val address = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
-            val district = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
-            val phone = dialogBinding.etBranchPhone.text?.toString()?.trim().orEmpty()
-
-            if (name.isBlank()) {
-                dialogBinding.tilBranchName.error = "Vui lòng nhập tên chi nhánh"
-                return@setOnClickListener
-            }
-            if (address.isBlank()) {
-                dialogBinding.tilBranchAddress.error = "Vui lòng nhập địa chỉ chi nhánh"
-                return@setOnClickListener
-            }
-
-            dialogBinding.btnSubmitCreateBranch.isEnabled = false
-            dialogBinding.btnSubmitCreateBranch.text = "Đang tạo..."
-
-            lifecycleScope.launch {
-                val result = firebaseRepository.createBranchStore(
-                    bossUid = currentBossUid,
-                    storeName = name,
-                    address = address,
-                    district = district,
-                    phone = phone
-                )
-                dialog.dismiss()
-                result.onSuccess { newId ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "🎉 Tạo chi nhánh '$name' thành công!",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }.onFailure { err ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "Lỗi tạo chi nhánh: ${err.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Dialog tạo tài khoản MERCHANT (Quản lý) mới do Boss tạo.
-     */
-    private fun showCreateMerchantDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogCreateMerchantBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        dialogBinding.btnCancelCreateMerchant.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitCreateMerchant.setOnClickListener {
-            dialogBinding.tilMerchantName.error = null
-            dialogBinding.tilMerchantEmail.error = null
-            dialogBinding.tilMerchantPhone.error = null
-            dialogBinding.tilMerchantPassword.error = null
-
-            val name = dialogBinding.etMerchantName.text?.toString()?.trim().orEmpty()
-            val email = dialogBinding.etMerchantEmail.text?.toString()?.trim().orEmpty()
-            val phone = dialogBinding.etMerchantPhone.text?.toString()?.trim().orEmpty()
-            val password = dialogBinding.etMerchantPassword.text?.toString()?.trim().orEmpty()
-
-            var hasError = false
-            if (name.isBlank()) {
-                dialogBinding.tilMerchantName.error = "Vui lòng nhập họ tên"
-                hasError = true
-            }
-            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                dialogBinding.tilMerchantEmail.error = "Vui lòng nhập email hợp lệ"
-                hasError = true
-            }
-            if (phone.isBlank()) {
-                dialogBinding.tilMerchantPhone.error = "Vui lòng nhập số điện thoại"
-                hasError = true
-            }
-            if (password.length < 6) {
-                dialogBinding.tilMerchantPassword.error = "Mật khẩu phải có tối thiểu 6 ký tự"
-                hasError = true
-            }
-
-            if (hasError) return@setOnClickListener
-
-            dialogBinding.btnSubmitCreateMerchant.isEnabled = false
-            dialogBinding.btnSubmitCreateMerchant.text = "Đang tạo..."
-
-            lifecycleScope.launch {
-                val result = firebaseRepository.createMerchantByBoss(
-                    context = this@BossDashboardActivity,
-                    bossUid = currentBossUid,
-                    email = email,
-                    password = password,
-                    name = name,
-                    phone = phone
-                )
-                dialog.dismiss()
-                result.onSuccess { user ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "✓ Tạo tài khoản quản lý '${user.name}' thành công! Giờ bạn có thể phân công quản lý này vào chi nhánh.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    // Tự động chuyển sang tab Quản lý để Boss xem danh sách
-                    binding.toggleGroupBossTab.check(R.id.btnTabMerchants)
-                }.onFailure { err ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "Lỗi tạo quản lý: ${err.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Dialog gán tài khoản MERCHANT cho một Chi nhánh cụ thể (hoặc để trống - null Merchant).
-     */
-    private fun showAssignMerchantDialog(store: Store) {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogAssignMerchantBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        dialogBinding.tvAssignTargetBranch.text = "Chi nhánh: ${store.name}"
-
-        var selectedUid: String? = null
-        var selectedName: String = ""
-
-        lifecycleScope.launch {
-            val merchants = firebaseRepository.getMerchantsForBoss(currentBossUid).firstOrNull().orEmpty()
-
-            for (merchant in merchants) {
-                val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-                val rb = RadioButton(this@BossDashboardActivity).apply {
-                    id = View.generateViewId()
-                    text = if (isLocked) "🔒 ${merchant.name} (${merchant.email}) [Đã khóa]" else "👤 ${merchant.name} (${merchant.email})"
-                    setTextColor(if (isLocked) Color.parseColor("#94A3B8") else Color.parseColor("#0F172A"))
-                    textSize = 14f
-                    setPadding(0, 16, 0, 16)
-                    tag = merchant
-                    isEnabled = !isLocked
-                    if (merchant.uid == store.merchantId) {
-                        isChecked = true
-                        selectedUid = merchant.uid
-                        selectedName = merchant.name
-                    }
-                }
-                dialogBinding.rgMerchants.addView(rb)
-            }
-
-            if (store.merchantId.isBlank()) {
-                dialogBinding.rbNoMerchant.isChecked = true
-            }
-        }
-
-        dialogBinding.rgMerchants.setOnCheckedChangeListener { group, checkedId ->
-            if (checkedId == dialogBinding.rbNoMerchant.id) {
-                selectedUid = null
-                selectedName = ""
-            } else {
-                val checkedRb = group.findViewById<RadioButton>(checkedId)
-                val merchant = checkedRb?.tag as? User
-                if (merchant != null) {
-                    selectedUid = merchant.uid
-                    selectedName = merchant.name
-                }
-            }
-        }
-
-        dialogBinding.btnCancelAssign.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitAssign.setOnClickListener {
-            dialogBinding.btnSubmitAssign.isEnabled = false
-            dialogBinding.btnSubmitAssign.text = "Đang lưu..."
-
-            lifecycleScope.launch {
-                val result = firebaseRepository.assignMerchantToStore(
-                    storeId = store.id,
-                    merchantUid = selectedUid,
-                    merchantName = selectedName
-                )
-                dialog.dismiss()
-                result.onSuccess {
-                    val msg = if (selectedUid != null) {
-                        "✓ Đã phân công quản lý '$selectedName' cho chi nhánh '${store.name}'!"
-                    } else {
-                        "✓ Đã chuyển chi nhánh '${store.name}' về chế độ Boss tự quản lý!"
-                    }
-                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
-                }.onFailure { err ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "Lỗi phân công: ${err.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Gỡ quản lý khỏi một chi nhánh cụ thể từ danh sách Chi Nhánh
-     */
-    private fun unassignManagerFromStore(store: Store) {
-        val managerDisplayName = if (store.merchantName.isNotBlank()) store.merchantName else "quản lý này"
-        AlertDialog.Builder(this)
-            .setTitle("Gỡ Quản Lý")
-            .setMessage("Bạn có chắc muốn gỡ $managerDisplayName khỏi chi nhánh '${store.name}' không? Chi nhánh sẽ chuyển về chế độ Boss tự quản lý.")
-            .setPositiveButton("Gỡ") { _, _ ->
-                lifecycleScope.launch {
-                    val result = firebaseRepository.unassignMerchantFromBranch(store.merchantId, store.id)
-                    result.onSuccess {
-                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh '${store.name}'!", Toast.LENGTH_SHORT).show()
-                    }.onFailure { err ->
-                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    /**
-     * Dialog phân công chi nhánh cho một Quản lý (Merchant) được chọn từ danh sách Quản lý
-     */
-    private fun showAssignBranchToMerchantDialog(merchant: User) {
-        val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-        if (isLocked) {
-            Toast.makeText(this, "Tài khoản quản lý này đang bị khóa, không thể phân công chi nhánh!", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogAssignBranchToMerchantBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        dialogBinding.tvAssignTargetMerchant.text = "Quản lý: ${merchant.name.ifBlank { merchant.email }}"
-
-        var selectedStoreId: String = merchant.storeId
-        for (branch in cachedBranches) {
-            val rb = RadioButton(this).apply {
-                id = View.generateViewId()
-                text = "🏪 ${branch.name} (${branch.address.ifBlank { "Chưa có địa chỉ" }})"
-                setTextColor(Color.parseColor("#0F172A"))
-                textSize = 14f
-                setPadding(0, 16, 0, 16)
-                tag = branch.id
-                if (branch.id == merchant.storeId) {
-                    isChecked = true
-                }
-            }
-            dialogBinding.rgBranches.addView(rb)
-        }
-
-        if (merchant.storeId.isBlank()) {
-            dialogBinding.rbNoBranch.isChecked = true
-        }
-
-        dialogBinding.rgBranches.setOnCheckedChangeListener { group, checkedId ->
-            if (checkedId == dialogBinding.rbNoBranch.id) {
-                selectedStoreId = ""
-            } else {
-                val checkedRb = group.findViewById<RadioButton>(checkedId)
-                selectedStoreId = checkedRb?.tag as? String ?: ""
-            }
-        }
-
-        dialogBinding.btnCancelAssignBranch.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitAssignBranch.setOnClickListener {
-            dialogBinding.btnSubmitAssignBranch.isEnabled = false
-            dialogBinding.btnSubmitAssignBranch.text = "Đang lưu..."
-            lifecycleScope.launch {
-                val targetBranchName = cachedBranches.firstOrNull { it.id == selectedStoreId }?.name.orEmpty()
-                val result = firebaseRepository.assignMerchantToBranch(
-                    merchantUid = merchant.uid,
-                    merchantName = merchant.name,
-                    targetStoreId = selectedStoreId,
-                    previousStoreId = merchant.storeId
-                )
-                dialog.dismiss()
-                result.onSuccess {
-                    val msg = if (selectedStoreId.isNotBlank()) {
-                        "✓ Đã phân công quản lý '${merchant.name}' cho chi nhánh '$targetBranchName'!"
-                    } else {
-                        "✓ Đã chuyển quản lý '${merchant.name}' về trạng thái tự do!"
-                    }
-                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
-                }.onFailure { err ->
-                    Toast.makeText(this@BossDashboardActivity, "Lỗi phân công: ${err.message}", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-        dialog.show()
-    }
-
-    /**
-     * Gỡ quản lý khỏi chi nhánh
-     */
-    private fun unassignMerchant(merchant: User) {
-        AlertDialog.Builder(this)
-            .setTitle("Gỡ Quản Lý")
-            .setMessage("Bạn có chắc muốn gỡ quản lý '${merchant.name}' khỏi chi nhánh đang phụ trách không?")
-            .setPositiveButton("Gỡ") { _, _ ->
-                lifecycleScope.launch {
-                    val result = firebaseRepository.unassignMerchantFromBranch(merchant.uid, merchant.storeId)
-                    result.onSuccess {
-                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh!", Toast.LENGTH_SHORT).show()
-                    }.onFailure { err ->
-                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    /**
-     * Khóa hoặc Mở khóa tài khoản Quản lý (thay thế xóa tài khoản)
-     */
-    private fun confirmToggleLockMerchant(merchant: User) {
-        val isCurrentlyLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-        val shouldLock = !isCurrentlyLocked
-
-        val title = if (shouldLock) "🔒 Khóa Tài Khoản Quản Lý" else "🔓 Mở Khóa Tài Khoản Quản Lý"
-        val message = if (shouldLock) {
-            "Bạn có chắc muốn KHÓA tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nQuản lý này sẽ bị gỡ khỏi chi nhánh (nếu có) và không thể đăng nhập vào ứng dụng."
-        } else {
-            "Bạn có chắc muốn MỞ KHÓA cho tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nSau khi mở khóa, quản lý này có thể đăng nhập và được phân công lại vào chi nhánh."
-        }
-        val positiveBtn = if (shouldLock) "Khóa tài khoản" else "Mở khóa"
-
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setPositiveButton(positiveBtn) { _, _ ->
-                lifecycleScope.launch {
-                    val result = firebaseRepository.toggleMerchantLockByBoss(merchant, shouldLock)
-                    result.onSuccess {
-                        val msg = if (shouldLock) "✓ Đã khóa tài khoản quản lý '${merchant.name}'!" else "✓ Đã mở khóa cho quản lý '${merchant.name}'!"
-                        Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
-                    }.onFailure { err ->
-                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
+  }
 }
 ````
 
@@ -109208,6 +108601,704 @@ class ComplaintActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossDashboardActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.boss
+
+import android.app.Dialog
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Bundle
+import android.view.View
+import android.view.Window
+import android.widget.RadioButton
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityBossDashboardBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignBranchToMerchantBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignMerchantBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateBranchBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateMerchantBinding
+import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import com.chuyen_de_2.foodorder.internal.ui.auth.SelectLocationActivity
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Màn hình Bảng điều khiển Quản lý Chuỗi dành riêng cho BOSSMERCHANT.
+ * Cho phép tạo chi nhánh, tạo tài khoản Merchant, xem và quản lý danh sách Merchant đã tạo,
+ * phân công/gỡ Merchant cho từng chi nhánh, và truy cập trực tiếp vào bất kỳ chi nhánh nào để vận hành.
+ */
+@AndroidEntryPoint
+class BossDashboardActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityBossDashboardBinding
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    private lateinit var branchAdapter: BossBranchAdapter
+    private lateinit var merchantAdapter: BossMerchantAdapter
+    private var currentBossUid: String = ""
+    private var cachedBranches: List<Store> = emptyList()
+
+    private var branchDialogBinding: DialogCreateBranchBinding? = null
+    private var branchSelectedLat: Double? = null
+    private var branchSelectedLng: Double? = null
+
+    private val selectBranchLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            val displayAddress = if (!fullAddress.isNullOrBlank()) fullAddress else streetAddress.orEmpty()
+            if (displayAddress.isNotBlank()) {
+                branchDialogBinding?.etBranchAddress?.setText(displayAddress)
+                branchDialogBinding?.tilBranchAddress?.error = null
+            }
+            if (!district.isNullOrBlank()) {
+                branchDialogBinding?.etBranchDistrict?.setText(district)
+                branchDialogBinding?.tilBranchDistrict?.error = null
+            }
+            if (lat != 0.0 && lng != 0.0) {
+                branchSelectedLat = lat
+                branchSelectedLng = lng
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        InsetUtils.initEdgeToEdge(this, true)
+        binding = ActivityBossDashboardBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        val currentUser = authRepository.currentUser
+        if (currentUser == null) {
+            startActivity(Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
+
+        currentBossUid = currentUser.uid
+        setupUI()
+        observeBranches()
+        observeMerchants()
+        observeBusinessProfile()
+    }
+
+    private fun observeBusinessProfile() {
+        lifecycleScope.launch {
+            val storeId = firebaseRepository.resolveStoreIdForUser(currentBossUid)
+            if (storeId.isNotBlank()) {
+                val store = firebaseRepository.getStoreOnce(storeId)
+                val hasBank = store != null && store.bankAccountNumber.isNotBlank() && store.cccdNumber.isNotBlank()
+                binding.cardMissingBankAlert.visibility = if (hasBank) View.GONE else View.VISIBLE
+            } else {
+                binding.cardMissingBankAlert.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun setupUI() {
+        val email = authRepository.currentUser?.email.orEmpty()
+        val displayName = authRepository.currentUser?.displayName.orEmpty()
+        binding.tvBossSubtitle.text = buildString {
+            append("BOSSMERCHANT • ")
+            append(displayName.ifBlank { email })
+        }
+
+        // Branch Adapter
+        branchAdapter = BossBranchAdapter(
+            onEnterBranchClick = { store -> enterBranchAsManager(store) },
+            onAssignManagerClick = { store -> showAssignMerchantDialog(store) },
+            onUnassignManagerClick = { store -> unassignManagerFromStore(store) }
+        ).apply {
+            currentBossUid = this@BossDashboardActivity.currentBossUid
+        }
+        binding.rvBossBranches.layoutManager = LinearLayoutManager(this)
+        binding.rvBossBranches.adapter = branchAdapter
+
+        // Merchant Adapter
+        merchantAdapter = BossMerchantAdapter(
+            onAssignBranchClick = { merchant -> showAssignBranchToMerchantDialog(merchant) },
+            onUnassignBranchClick = { merchant -> unassignMerchant(merchant) },
+            onToggleLockMerchantClick = { merchant -> confirmToggleLockMerchant(merchant) }
+        )
+        binding.rvBossMerchants.layoutManager = LinearLayoutManager(this)
+        binding.rvBossMerchants.adapter = merchantAdapter
+
+        // Tab Toggle Group
+        binding.toggleGroupBossTab.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                if (checkedId == R.id.btnTabBranches) {
+                    binding.layoutBranchesSection.visibility = View.VISIBLE
+                    binding.layoutMerchantsSection.visibility = View.GONE
+                } else if (checkedId == R.id.btnTabMerchants) {
+                    binding.layoutBranchesSection.visibility = View.GONE
+                    binding.layoutMerchantsSection.visibility = View.VISIBLE
+                }
+            }
+        }
+
+        binding.btnCreateBranch.setOnClickListener {
+            showCreateBranchDialog()
+        }
+
+        binding.btnCreateMerchant.setOnClickListener {
+            showCreateMerchantDialog()
+        }
+
+        binding.btnBossBusinessProfile.setOnClickListener {
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            lifecycleScope.launch {
+                val storeId = firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
+                val intent = Intent(this@BossDashboardActivity, com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
+                    putExtra("STORE_ID", storeId)
+                }
+                startActivity(intent)
+            }
+        }
+
+        binding.cardMissingBankAlert.setOnClickListener {
+            binding.btnBossBusinessProfile.performClick()
+        }
+
+        binding.btnBossLogout.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất tài khoản Chủ chuỗi (Boss) không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                    authRepository.logout()
+                    startActivity(Intent(this, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    })
+                    finish()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    private fun observeBranches() {
+        binding.progressBarBoss.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            firebaseRepository.getStoresByBoss(currentBossUid).collect { stores ->
+                binding.progressBarBoss.visibility = View.GONE
+                // Tự động dọn dẹp nếu chi nhánh bị lưu nhầm merchantId là UID của Boss
+                for (st in stores) {
+                    if (st.merchantId == currentBossUid) {
+                        launch { firebaseRepository.unassignMerchantFromBranch("", st.id) }
+                    }
+                }
+                cachedBranches = stores
+                branchAdapter.submitList(stores)
+                merchantAdapter.setStores(stores)
+
+                val count = stores.size
+                binding.btnTabBranches.text = "🏪 Chi Nhánh ($count)"
+                binding.tvChainStats.text = "$count chi nhánh đang vận hành"
+                binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
+                binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    private fun observeMerchants() {
+        lifecycleScope.launch {
+            firebaseRepository.getMerchantsForBoss(currentBossUid).collect { merchants ->
+                merchantAdapter.submitList(merchants)
+                merchantAdapter.setStores(cachedBranches)
+
+                val count = merchants.size
+                binding.btnTabMerchants.text = "👥 Quản Lý ($count)"
+                binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
+                binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    /**
+     * Boss chọn một chi nhánh để vào làm việc thay cho Merchant.
+     * Lưu chi nhánh vào SharedPreferences để khi thoát ra vào lại vẫn ở chi nhánh này.
+     */
+    private fun enterBranchAsManager(store: Store) {
+        lifecycleScope.launch {
+            // Lưu vào SharedPreferences cho Session Persistence
+            getSharedPreferences("boss_session", Context.MODE_PRIVATE)
+                .edit()
+                .putString("selected_branch_store_id", store.id)
+                .putString("selected_branch_store_name", store.name)
+                .apply()
+
+            // Đồng bộ lên Realtime DB
+            firebaseRepository.setActiveStoreForBoss(currentBossUid, store.id)
+
+            Toast.makeText(
+                this@BossDashboardActivity,
+                "✓ Đã vào chi nhánh: ${store.name}",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            val intent = Intent(this@BossDashboardActivity, DashboardActivity::class.java).apply {
+                putExtra("STORE_ID", store.id)
+                putExtra("FROM_BOSS", true)
+            }
+            startActivity(intent)
+            finish()
+        }
+    }
+
+    /**
+     * Dialog tạo chi nhánh mới: TÊN CHI NHÁNH, Địa chỉ bản đồ GPS...
+     */
+    private fun showCreateBranchDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogCreateBranchBinding.inflate(layoutInflater)
+        branchDialogBinding = dialogBinding
+        branchSelectedLat = null
+        branchSelectedLng = null
+
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val openMapAction = {
+            val currentAddress = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
+            val curDistrict = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
+            val intent = Intent(this, SelectLocationActivity::class.java).apply {
+                if (currentAddress.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
+                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
+                }
+                branchSelectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                branchSelectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectBranchLocationLauncher.launch(intent)
+        }
+
+        dialogBinding.btnPickBranchLocationMap.setOnClickListener { openMapAction() }
+        dialogBinding.etBranchAddress.setOnClickListener { openMapAction() }
+        dialogBinding.tilBranchAddress.setOnClickListener { openMapAction() }
+
+        dialog.setOnDismissListener {
+            branchDialogBinding = null
+        }
+
+        dialogBinding.btnCancelCreateBranch.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitCreateBranch.setOnClickListener {
+            val name = dialogBinding.etBranchName.text?.toString()?.trim().orEmpty()
+            val address = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
+            val district = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
+            val phone = dialogBinding.etBranchPhone.text?.toString()?.trim().orEmpty()
+
+            if (name.isBlank()) {
+                dialogBinding.tilBranchName.error = "Vui lòng nhập tên chi nhánh"
+                return@setOnClickListener
+            }
+            if (address.isBlank()) {
+                dialogBinding.tilBranchAddress.error = "Vui lòng chọn địa chỉ chi nhánh trên bản đồ"
+                return@setOnClickListener
+            }
+
+            dialogBinding.btnSubmitCreateBranch.isEnabled = false
+            dialogBinding.btnSubmitCreateBranch.text = "Đang tạo..."
+
+            lifecycleScope.launch {
+                val result = firebaseRepository.createBranchStore(
+                    bossUid = currentBossUid,
+                    storeName = name,
+                    address = address,
+                    district = district,
+                    phone = phone,
+                    latitude = branchSelectedLat ?: 0.0,
+                    longitude = branchSelectedLng ?: 0.0
+                )
+                dialog.dismiss()
+                result.onSuccess { newId ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "🎉 Tạo chi nhánh '$name' thành công!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }.onFailure { err ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "Lỗi tạo chi nhánh: ${err.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Dialog tạo tài khoản MERCHANT (Quản lý) mới do Boss tạo.
+     */
+    private fun showCreateMerchantDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogCreateMerchantBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        dialogBinding.btnCancelCreateMerchant.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitCreateMerchant.setOnClickListener {
+            dialogBinding.tilMerchantName.error = null
+            dialogBinding.tilMerchantEmail.error = null
+            dialogBinding.tilMerchantPhone.error = null
+            dialogBinding.tilMerchantPassword.error = null
+
+            val name = dialogBinding.etMerchantName.text?.toString()?.trim().orEmpty()
+            val email = dialogBinding.etMerchantEmail.text?.toString()?.trim().orEmpty()
+            val phone = dialogBinding.etMerchantPhone.text?.toString()?.trim().orEmpty()
+            val password = dialogBinding.etMerchantPassword.text?.toString()?.trim().orEmpty()
+
+            var hasError = false
+            if (name.isBlank()) {
+                dialogBinding.tilMerchantName.error = "Vui lòng nhập họ tên"
+                hasError = true
+            }
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                dialogBinding.tilMerchantEmail.error = "Vui lòng nhập email hợp lệ"
+                hasError = true
+            }
+            if (phone.isBlank()) {
+                dialogBinding.tilMerchantPhone.error = "Vui lòng nhập số điện thoại"
+                hasError = true
+            }
+            if (password.length < 6) {
+                dialogBinding.tilMerchantPassword.error = "Mật khẩu phải có tối thiểu 6 ký tự"
+                hasError = true
+            }
+
+            if (hasError) return@setOnClickListener
+
+            dialogBinding.btnSubmitCreateMerchant.isEnabled = false
+            dialogBinding.btnSubmitCreateMerchant.text = "Đang tạo..."
+
+            lifecycleScope.launch {
+                val result = firebaseRepository.createMerchantByBoss(
+                    context = this@BossDashboardActivity,
+                    bossUid = currentBossUid,
+                    email = email,
+                    password = password,
+                    name = name,
+                    phone = phone
+                )
+                dialog.dismiss()
+                result.onSuccess { user ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "✓ Tạo tài khoản quản lý '${user.name}' thành công! Giờ bạn có thể phân công quản lý này vào chi nhánh.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    // Tự động chuyển sang tab Quản lý để Boss xem danh sách
+                    binding.toggleGroupBossTab.check(R.id.btnTabMerchants)
+                }.onFailure { err ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "Lỗi tạo quản lý: ${err.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Dialog gán tài khoản MERCHANT cho một Chi nhánh cụ thể (hoặc để trống - null Merchant).
+     */
+    private fun showAssignMerchantDialog(store: Store) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogAssignMerchantBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        dialogBinding.tvAssignTargetBranch.text = "Chi nhánh: ${store.name}"
+
+        var selectedUid: String? = null
+        var selectedName: String = ""
+
+        lifecycleScope.launch {
+            val merchants = firebaseRepository.getMerchantsForBoss(currentBossUid).firstOrNull().orEmpty()
+
+            for (merchant in merchants) {
+                val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+                val rb = RadioButton(this@BossDashboardActivity).apply {
+                    id = View.generateViewId()
+                    text = if (isLocked) "🔒 ${merchant.name} (${merchant.email}) [Đã khóa]" else "👤 ${merchant.name} (${merchant.email})"
+                    setTextColor(if (isLocked) Color.parseColor("#94A3B8") else Color.parseColor("#0F172A"))
+                    textSize = 14f
+                    setPadding(0, 16, 0, 16)
+                    tag = merchant
+                    isEnabled = !isLocked
+                    if (merchant.uid == store.merchantId) {
+                        isChecked = true
+                        selectedUid = merchant.uid
+                        selectedName = merchant.name
+                    }
+                }
+                dialogBinding.rgMerchants.addView(rb)
+            }
+
+            if (store.merchantId.isBlank()) {
+                dialogBinding.rbNoMerchant.isChecked = true
+            }
+        }
+
+        dialogBinding.rgMerchants.setOnCheckedChangeListener { group, checkedId ->
+            if (checkedId == dialogBinding.rbNoMerchant.id) {
+                selectedUid = null
+                selectedName = ""
+            } else {
+                val checkedRb = group.findViewById<RadioButton>(checkedId)
+                val merchant = checkedRb?.tag as? User
+                if (merchant != null) {
+                    selectedUid = merchant.uid
+                    selectedName = merchant.name
+                }
+            }
+        }
+
+        dialogBinding.btnCancelAssign.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitAssign.setOnClickListener {
+            dialogBinding.btnSubmitAssign.isEnabled = false
+            dialogBinding.btnSubmitAssign.text = "Đang lưu..."
+
+            lifecycleScope.launch {
+                val result = firebaseRepository.assignMerchantToStore(
+                    storeId = store.id,
+                    merchantUid = selectedUid,
+                    merchantName = selectedName
+                )
+                dialog.dismiss()
+                result.onSuccess {
+                    val msg = if (selectedUid != null) {
+                        "✓ Đã phân công quản lý '$selectedName' cho chi nhánh '${store.name}'!"
+                    } else {
+                        "✓ Đã chuyển chi nhánh '${store.name}' về chế độ Boss tự quản lý!"
+                    }
+                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                }.onFailure { err ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "Lỗi phân công: ${err.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Gỡ quản lý khỏi một chi nhánh cụ thể từ danh sách Chi Nhánh
+     */
+    private fun unassignManagerFromStore(store: Store) {
+        val managerDisplayName = if (store.merchantName.isNotBlank()) store.merchantName else "quản lý này"
+        AlertDialog.Builder(this)
+            .setTitle("Gỡ Quản Lý")
+            .setMessage("Bạn có chắc muốn gỡ $managerDisplayName khỏi chi nhánh '${store.name}' không? Chi nhánh sẽ chuyển về chế độ Boss tự quản lý.")
+            .setPositiveButton("Gỡ") { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.unassignMerchantFromBranch(store.merchantId, store.id)
+                    result.onSuccess {
+                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh '${store.name}'!", Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Dialog phân công chi nhánh cho một Quản lý (Merchant) được chọn từ danh sách Quản lý
+     */
+    private fun showAssignBranchToMerchantDialog(merchant: User) {
+        val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+        if (isLocked) {
+            Toast.makeText(this, "Tài khoản quản lý này đang bị khóa, không thể phân công chi nhánh!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogAssignBranchToMerchantBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        dialogBinding.tvAssignTargetMerchant.text = "Quản lý: ${merchant.name.ifBlank { merchant.email }}"
+
+        var selectedStoreId: String = merchant.storeId
+        for (branch in cachedBranches) {
+            val rb = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = "🏪 ${branch.name} (${branch.address.ifBlank { "Chưa có địa chỉ" }})"
+                setTextColor(Color.parseColor("#0F172A"))
+                textSize = 14f
+                setPadding(0, 16, 0, 16)
+                tag = branch.id
+                if (branch.id == merchant.storeId) {
+                    isChecked = true
+                }
+            }
+            dialogBinding.rgBranches.addView(rb)
+        }
+
+        if (merchant.storeId.isBlank()) {
+            dialogBinding.rbNoBranch.isChecked = true
+        }
+
+        dialogBinding.rgBranches.setOnCheckedChangeListener { group, checkedId ->
+            if (checkedId == dialogBinding.rbNoBranch.id) {
+                selectedStoreId = ""
+            } else {
+                val checkedRb = group.findViewById<RadioButton>(checkedId)
+                selectedStoreId = checkedRb?.tag as? String ?: ""
+            }
+        }
+
+        dialogBinding.btnCancelAssignBranch.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitAssignBranch.setOnClickListener {
+            dialogBinding.btnSubmitAssignBranch.isEnabled = false
+            dialogBinding.btnSubmitAssignBranch.text = "Đang lưu..."
+            lifecycleScope.launch {
+                val targetBranchName = cachedBranches.firstOrNull { it.id == selectedStoreId }?.name.orEmpty()
+                val result = firebaseRepository.assignMerchantToBranch(
+                    merchantUid = merchant.uid,
+                    merchantName = merchant.name,
+                    targetStoreId = selectedStoreId,
+                    previousStoreId = merchant.storeId
+                )
+                dialog.dismiss()
+                result.onSuccess {
+                    val msg = if (selectedStoreId.isNotBlank()) {
+                        "✓ Đã phân công quản lý '${merchant.name}' cho chi nhánh '$targetBranchName'!"
+                    } else {
+                        "✓ Đã chuyển quản lý '${merchant.name}' về trạng thái tự do!"
+                    }
+                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                }.onFailure { err ->
+                    Toast.makeText(this@BossDashboardActivity, "Lỗi phân công: ${err.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * Gỡ quản lý khỏi chi nhánh
+     */
+    private fun unassignMerchant(merchant: User) {
+        AlertDialog.Builder(this)
+            .setTitle("Gỡ Quản Lý")
+            .setMessage("Bạn có chắc muốn gỡ quản lý '${merchant.name}' khỏi chi nhánh đang phụ trách không?")
+            .setPositiveButton("Gỡ") { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.unassignMerchantFromBranch(merchant.uid, merchant.storeId)
+                    result.onSuccess {
+                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh!", Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Khóa hoặc Mở khóa tài khoản Quản lý (thay thế xóa tài khoản)
+     */
+    private fun confirmToggleLockMerchant(merchant: User) {
+        val isCurrentlyLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+        val shouldLock = !isCurrentlyLocked
+
+        val title = if (shouldLock) "🔒 Khóa Tài Khoản Quản Lý" else "🔓 Mở Khóa Tài Khoản Quản Lý"
+        val message = if (shouldLock) {
+            "Bạn có chắc muốn KHÓA tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nQuản lý này sẽ bị gỡ khỏi chi nhánh (nếu có) và không thể đăng nhập vào ứng dụng."
+        } else {
+            "Bạn có chắc muốn MỞ KHÓA cho tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nSau khi mở khóa, quản lý này có thể đăng nhập và được phân công lại vào chi nhánh."
+        }
+        val positiveBtn = if (shouldLock) "Khóa tài khoản" else "Mở khóa"
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(positiveBtn) { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.toggleMerchantLockByBoss(merchant, shouldLock)
+                    result.onSuccess {
+                        val msg = if (shouldLock) "✓ Đã khóa tài khoản quản lý '${merchant.name}'!" else "✓ Đã mở khóa cho quản lý '${merchant.name}'!"
+                        Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 }
 ````
@@ -117681,11 +117772,22 @@ class FirebaseRepository @Inject constructor(
         storeName: String,
         address: String,
         district: String = "",
-        phone: String = ""
+        phone: String = "",
+        latitude: Double = 0.0,
+        longitude: Double = 0.0
     ): Result<String> {
         return try {
             val primaryStoreId = resolveStoreIdForUser(bossUid)
             val primaryStore = if (primaryStoreId.isNotBlank()) getStoreOnce(primaryStoreId) else null
+
+            // Fallback GPS nếu chưa có tọa độ từ map picker
+            val (resolvedLat, resolvedLng) = if (latitude != 0.0 && longitude != 0.0) {
+                latitude to longitude
+            } else {
+                val coords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[district.trim()]
+                    ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                coords.latitude to coords.longitude
+            }
 
             val storeRef = database.getReference("stores").push()
             val newStoreId = storeRef.key ?: "store_${System.currentTimeMillis()}"
@@ -117698,6 +117800,8 @@ class FirebaseRepository @Inject constructor(
                 address = address.trim(),
                 district = district.trim(),
                 phone = phone.trim(),
+                latitude = resolvedLat,
+                longitude = resolvedLng,
                 ownerName = primaryStore?.ownerName.orEmpty(),
                 cccdNumber = primaryStore?.cccdNumber.orEmpty(),
                 bankName = primaryStore?.bankName?.ifBlank { "MB Bank" } ?: "MB Bank",

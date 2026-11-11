@@ -10,6 +10,7 @@ import android.view.View
 import android.view.Window
 import android.widget.RadioButton
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -26,6 +27,7 @@ import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignMerchantBindin
 import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateBranchBinding
 import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateMerchantBinding
 import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import com.chuyen_de_2.foodorder.internal.ui.auth.SelectLocationActivity
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.firstOrNull
@@ -52,6 +54,37 @@ class BossDashboardActivity : AppCompatActivity() {
     private lateinit var merchantAdapter: BossMerchantAdapter
     private var currentBossUid: String = ""
     private var cachedBranches: List<Store> = emptyList()
+
+    private var branchDialogBinding: DialogCreateBranchBinding? = null
+    private var branchSelectedLat: Double? = null
+    private var branchSelectedLng: Double? = null
+
+    private val selectBranchLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            val displayAddress = if (!fullAddress.isNullOrBlank()) fullAddress else streetAddress.orEmpty()
+            if (displayAddress.isNotBlank()) {
+                branchDialogBinding?.etBranchAddress?.setText(displayAddress)
+                branchDialogBinding?.tilBranchAddress?.error = null
+            }
+            if (!district.isNullOrBlank()) {
+                branchDialogBinding?.etBranchDistrict?.setText(district)
+                branchDialogBinding?.tilBranchDistrict?.error = null
+            }
+            if (lat != 0.0 && lng != 0.0) {
+                branchSelectedLat = lat
+                branchSelectedLng = lng
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -240,18 +273,44 @@ class BossDashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * Dialog tạo chi nhánh mới: TÊN CHI NHÁNH, Địa chỉ...
+     * Dialog tạo chi nhánh mới: TÊN CHI NHÁNH, Địa chỉ bản đồ GPS...
      */
     private fun showCreateBranchDialog() {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val dialogBinding = DialogCreateBranchBinding.inflate(layoutInflater)
+        branchDialogBinding = dialogBinding
+        branchSelectedLat = null
+        branchSelectedLng = null
+
         dialog.setContentView(dialogBinding.root)
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.window?.setLayout(
             (resources.displayMetrics.widthPixels * 0.92).toInt(),
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT
         )
+
+        val openMapAction = {
+            val currentAddress = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
+            val curDistrict = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
+            val intent = Intent(this, SelectLocationActivity::class.java).apply {
+                if (currentAddress.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
+                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
+                }
+                branchSelectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                branchSelectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectBranchLocationLauncher.launch(intent)
+        }
+
+        dialogBinding.btnPickBranchLocationMap.setOnClickListener { openMapAction() }
+        dialogBinding.etBranchAddress.setOnClickListener { openMapAction() }
+        dialogBinding.tilBranchAddress.setOnClickListener { openMapAction() }
+
+        dialog.setOnDismissListener {
+            branchDialogBinding = null
+        }
 
         dialogBinding.btnCancelCreateBranch.setOnClickListener { dialog.dismiss() }
 
@@ -266,7 +325,7 @@ class BossDashboardActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             if (address.isBlank()) {
-                dialogBinding.tilBranchAddress.error = "Vui lòng nhập địa chỉ chi nhánh"
+                dialogBinding.tilBranchAddress.error = "Vui lòng chọn địa chỉ chi nhánh trên bản đồ"
                 return@setOnClickListener
             }
 
@@ -279,7 +338,9 @@ class BossDashboardActivity : AppCompatActivity() {
                     storeName = name,
                     address = address,
                     district = district,
-                    phone = phone
+                    phone = phone,
+                    latitude = branchSelectedLat ?: 0.0,
+                    longitude = branchSelectedLng ?: 0.0
                 )
                 dialog.dismiss()
                 result.onSuccess { newId ->

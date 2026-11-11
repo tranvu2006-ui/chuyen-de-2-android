@@ -104,6 +104,8 @@ class DeliveryTripActivity : AppCompatActivity() {
     private var pendingIncidentReason = "Khách không nghe máy (Đã gọi 3 cuộc không liên lạc được)"
     private var countdownRound = 1
     private var isRiskReported = false
+    private var isRestoringCountdown = false
+    private var hasShownRound1ExpirationDialog = false
     private var activeIncidentDialog: AlertDialog? = null
 
     private val incidentCallProofByOrder = mutableMapOf<String, String>()
@@ -1510,6 +1512,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         pendingIncidentReason = reason
         isCountdownActive = true
         isRiskReported = (round >= 2)
+        hasShownRound1ExpirationDialog = false
         val targetMinutes = if (round == 1) round1Minutes else round2Minutes
         val totalSec = targetMinutes * 60
 
@@ -1628,6 +1631,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             .setPositiveButton("Xác nhận") { _, _ ->
                 countdownTimer?.cancel()
                 isCountdownActive = false
+                hasShownRound1ExpirationDialog = false
                 val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
                 targetOrder?.let { o ->
                     getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
@@ -1656,57 +1660,63 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     private fun checkAndRestoreActiveCountdown() {
-        val targetOrder = (if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder) ?: return
-        val prefs = getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
-        var startTime = prefs.getLong("start_time_${targetOrder.orderId}", 0L)
-        var round = prefs.getInt("round_${targetOrder.orderId}", 1)
+        if (isRestoringCountdown) return
+        isRestoringCountdown = true
+        try {
+            val targetOrder = (if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder) ?: return
+            val prefs = getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
+            var startTime = prefs.getLong("start_time_${targetOrder.orderId}", 0L)
+            var round = prefs.getInt("round_${targetOrder.orderId}", 1)
 
-        // Fallback từ Firebase nếu prefs local chưa có
-        if (startTime <= 0L && targetOrder.incidentWarningTime > 0L) {
-            startTime = targetOrder.incidentWarningTime
-            round = if (targetOrder.countdownRound > 0) targetOrder.countdownRound else 1
-            prefs.edit()
-                .putLong("start_time_${targetOrder.orderId}", startTime)
-                .putInt("round_${targetOrder.orderId}", round)
-                .putString("reason_${targetOrder.orderId}", targetOrder.incidentWarningText)
-                .apply()
-        }
-
-        if (startTime > 0L) {
-            val elapsedSec = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-            countdownRound = round
-            val targetMinutes = if (countdownRound == 1) round1Minutes else round2Minutes
-            val totalSec = targetMinutes * 60
-            pendingIncidentReason = prefs.getString("reason_${targetOrder.orderId}", targetOrder.incidentWarningText.ifBlank { "Khách không nhận món" }).orEmpty()
-            isRiskReported = (countdownRound >= 2)
-            binding.cardCountdownWarning.visibility = View.GONE
-            if (elapsedSec >= totalSec) {
-                countdownSecondsRemaining = 0
-                isCountdownActive = false
-                onCountdownExpired()
-            } else {
-                isCountdownActive = true
-                countdownSecondsRemaining = maxOf(1, totalSec - elapsedSec)
-                binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
-                binding.btnCountdownExpiredAction.visibility = View.GONE
-                binding.tvCountdownBadge.text = if (countdownRound == 1) "Chờ ${round1Minutes} phút" else "Gia hạn ${round2Minutes} phút"
-                if (countdownRound == 1) {
-                    binding.tvCountdownSubtext.text = "LẦN 1/2 • phút còn lại"
-                    binding.tvCountdownSubtext.setTextColor(Color.parseColor("#9A3412"))
-                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược ${round1Minutes} phút LẦN 1 chờ khách (${targetOrder.customerName})..."
-                    binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
-                    binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
-                    binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#78350F"))
-                } else {
-                    binding.tvCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
-                    binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-                    binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược ${round2Minutes} phút LẦN 2 (Cảnh báo gia hạn đơn rủi ro)..."
-                    binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
-                    binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
-                    binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
-                }
-                runCountdownTimer()
+            // Fallback từ Firebase nếu prefs local chưa có
+            if (startTime <= 0L && targetOrder.incidentWarningTime > 0L) {
+                startTime = targetOrder.incidentWarningTime
+                round = if (targetOrder.countdownRound > 0) targetOrder.countdownRound else 1
+                prefs.edit()
+                    .putLong("start_time_${targetOrder.orderId}", startTime)
+                    .putInt("round_${targetOrder.orderId}", round)
+                    .putString("reason_${targetOrder.orderId}", targetOrder.incidentWarningText)
+                    .apply()
             }
+
+            if (startTime > 0L) {
+                val elapsedSec = ((System.currentTimeMillis() - startTime) / 1000).toInt()
+                countdownRound = round
+                val targetMinutes = if (countdownRound == 1) round1Minutes else round2Minutes
+                val totalSec = targetMinutes * 60
+                pendingIncidentReason = prefs.getString("reason_${targetOrder.orderId}", targetOrder.incidentWarningText.ifBlank { "Khách không nhận món" }).orEmpty()
+                isRiskReported = (countdownRound >= 2)
+                binding.cardCountdownWarning.visibility = View.GONE
+                if (elapsedSec >= totalSec) {
+                    countdownSecondsRemaining = 0
+                    isCountdownActive = false
+                    onCountdownExpired()
+                } else {
+                    isCountdownActive = true
+                    countdownSecondsRemaining = maxOf(1, totalSec - elapsedSec)
+                    binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
+                    binding.btnCountdownExpiredAction.visibility = View.GONE
+                    binding.tvCountdownBadge.text = if (countdownRound == 1) "Chờ ${round1Minutes} phút" else "Gia hạn ${round2Minutes} phút"
+                    if (countdownRound == 1) {
+                        binding.tvCountdownSubtext.text = "LẦN 1/2 • phút còn lại"
+                        binding.tvCountdownSubtext.setTextColor(Color.parseColor("#9A3412"))
+                        binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược ${round1Minutes} phút LẦN 1 chờ khách (${targetOrder.customerName})..."
+                        binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF3C7"))
+                        binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#B45309"))
+                        binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#78350F"))
+                    } else {
+                        binding.tvCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
+                        binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
+                        binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược ${round2Minutes} phút LẦN 2 (Cảnh báo gia hạn đơn rủi ro)..."
+                        binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
+                        binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
+                        binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
+                    }
+                    runCountdownTimer()
+                }
+            }
+        } finally {
+            isRestoringCountdown = false
         }
     }
 
@@ -1730,7 +1740,10 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.btnCountdownExpiredAction.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#EA580C"))
 
             targetOrder?.let {
-                if (activeIncidentDialog?.isShowing != true) showIncidentReportDialog(it, isExpiredRoundOne = true)
+                if (!hasShownRound1ExpirationDialog && activeIncidentDialog?.isShowing != true) {
+                    hasShownRound1ExpirationDialog = true
+                    showIncidentReportDialog(it, isExpiredRoundOne = true)
+                }
             }
         } else {
             // HẾT LẦN 2: Chính thức hủy đơn bom và quay về Quán trả hàng
@@ -1983,9 +1996,11 @@ class DeliveryTripActivity : AppCompatActivity() {
      */
     private fun showIncidentReportDialog(order: Order, isExpiredRoundOne: Boolean = false) {
         activeIncidentDialog?.dismiss()
-        checkAndRestoreActiveCountdown()
-        if (!isCountdownActive && !isExpiredRoundOne) {
-            start15MinCountdown(order, "Đang đếm ngược ${round1Minutes} phút thời gian chờ nhận hàng")
+        if (!isExpiredRoundOne) {
+            checkAndRestoreActiveCountdown()
+            if (!isCountdownActive) {
+                start15MinCountdown(order, "Đang đếm ngược ${round1Minutes} phút thời gian chờ nhận hàng")
+            }
         }
         val repBinding = com.chuyen_de_2.foodorder.internal.databinding.DialogReportIncidentBinding.inflate(layoutInflater)
         val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)

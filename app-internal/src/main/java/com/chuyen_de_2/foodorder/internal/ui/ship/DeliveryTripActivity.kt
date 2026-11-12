@@ -1379,7 +1379,6 @@ class DeliveryTripActivity : AppCompatActivity() {
                             val nextRemaining = remainingOrders.first()
                             val nextIdx = bundleOrders.indexOf(nextRemaining)
                             switchActiveBundleCustomer(nextIdx)
-                            updateStepUI(3)
                         } else {
                             finish()
                         }
@@ -2721,7 +2720,6 @@ class DeliveryTripActivity : AppCompatActivity() {
             flowBinding.btnConfirmBomAction.setOnClickListener {
                 dialog.dismiss()
                 switchActiveBundleCustomer(nextIdx)
-                updateStepUI(3)
             }
 
             // Lựa chọn 2: Về quán trả món ngay
@@ -2790,7 +2788,6 @@ class DeliveryTripActivity : AppCompatActivity() {
                 flowBinding.btnBomReturnToStoreNow.setOnClickListener {
                     dialog.dismiss()
                     switchActiveBundleCustomer(nextIdx)
-                    updateStepUI(3)
                 }
             } else {
                 flowBinding.btnBomReturnToStoreNow.visibility = View.GONE
@@ -2815,7 +2812,6 @@ class DeliveryTripActivity : AppCompatActivity() {
                         flowBinding.btnConfirmBomAction.setOnClickListener {
                             dialog.dismiss()
                             switchActiveBundleCustomer(nextIdx)
-                            updateStepUI(3)
                         }
                     } else {
                         flowBinding.tvBomStoreStatus.text = "✓ ĐÃ TRẢ MÓN & NHẬN ĐỦ ${totalRefund.toVndCurrency()} TỪ ${sName}!"
@@ -2965,6 +2961,10 @@ class DeliveryTripActivity : AppCompatActivity() {
                 firebaseRepository.updateOrderStatus(ordId, Order.Status.COMPLETED)
                 firebaseRepository.clearTracking(ordId)
                 completedBundleOrderIds.add(ordId)
+                val completedIdx = bundleOrders.indexOfFirst { it.orderId == ordId }
+                if (completedIdx >= 0) {
+                    bundleOrders[completedIdx] = bundleOrders[completedIdx].copy(status = Order.Status.COMPLETED)
+                }
                 getSharedPreferences("delivery_trip_state", Context.MODE_PRIVATE)
                     .edit().remove("step_$ordId").apply()
                 getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
@@ -2992,7 +2992,6 @@ class DeliveryTripActivity : AppCompatActivity() {
                         .setMessage("Đơn hàng #${scCurrent} của ${targetOrder?.customerName} đã được hoàn tất thành công.\n\nTiếp tục di chuyển giao đơn tiếp theo: #${scNext} cho khách: ${nextOrder.customerName} (Còn ${remainingOrders.size} đơn)!")
                         .setPositiveButton("🛵 GIAO TIẾP ĐƠN #${scNext} ➔") { _, _ ->
                             switchActiveBundleCustomer(nextIdx)
-                            updateStepUI(3)
                         }
                         .setCancelable(false)
                         .show()

@@ -5,6 +5,7 @@ import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -295,9 +296,26 @@ class OrderHistoryAdapter(
                     binding.btnActionSecondary.text = "✕ Hủy đơn"
                     binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
 
-                    binding.btnActionPrimary.text = "✓ Xác Nhận Đơn ➔"
+                    binding.btnActionPrimary.text = "✓ Xác Nhận"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
-                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                    binding.btnActionPrimary.setOnClickListener {
+                        binding.btnActionPrimary.isEnabled = false
+                        binding.btnActionPrimary.text = "Đang gửi..."
+                        val updates = mapOf<String, Any>(
+                            "status" to Order.Status.PENDING,
+                            "orderStatus" to Order.Status.PENDING,
+                            "customerConfirmedAt" to System.currentTimeMillis()
+                        )
+                        com.google.firebase.database.FirebaseDatabase.getInstance()
+                            .getReference("orders").child(order.orderId)
+                            .updateChildren(updates).addOnSuccessListener {
+                                Toast.makeText(context, "✓ Bạn đã xác nhận đơn hàng thành công!\nQuán đã nhận được đơn của bạn.", Toast.LENGTH_SHORT).show()
+                            }.addOnFailureListener {
+                                binding.btnActionPrimary.isEnabled = true
+                                binding.btnActionPrimary.text = "✓ Xác Nhận"
+                                Toast.makeText(context, "Lỗi gửi xác nhận, vui lòng thử lại.", Toast.LENGTH_SHORT).show()
+                            }
+                    }
                 }
 
                 Order.Status.AWAITING_PAYMENT, Order.Status.PENDING -> {

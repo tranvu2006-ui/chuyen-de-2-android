@@ -132,6 +132,10 @@ class OrderSuccessActivity : AppCompatActivity() {
                         binding.tvBadgeDesc.text = "Chỉ khi bạn bấm xác nhận, quán mới nhận được đơn để tránh đặt nhầm. Vui lòng bấm xác nhận bên dưới."
                     } else {
                         binding.btnConfirmOrder.visibility = View.GONE
+                        binding.tvHeadlineTitle.text = "ĐẶT HÀNG THÀNH CÔNG!"
+                        binding.tvHeadlineSubtitle.text = "Quán $shopName đang chuẩn bị món ăn cho bạn.\nShipper sẽ sớm nhận đơn và giao đến địa chỉ của bạn."
+                        binding.tvBadgeTitle.text = "ĐƠN HÀNG ĐÃ ĐƯỢC XÁC NHẬN"
+                        binding.tvBadgeDesc.text = "Đơn hàng đã được chuyển tới quán thành công."
                     }
                 }
                 override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}

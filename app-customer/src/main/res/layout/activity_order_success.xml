@@ -416,6 +416,7 @@
             android:textColor="@color/white"
             android:textSize="14sp"
             android:textStyle="bold"
+            android:visibility="gone"
             app:cornerRadius="12dp" />
 
         <com.google.android.material.button.MaterialButton

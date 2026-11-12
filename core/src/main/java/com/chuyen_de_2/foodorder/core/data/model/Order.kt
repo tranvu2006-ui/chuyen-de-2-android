@@ -148,6 +148,9 @@ data class Order(
     @SerializedName("riskReason")
     val riskReason: String = "",
 
+    @SerializedName("riskStatus")
+    val riskStatus: String = "",
+
     @SerializedName("isRiskOrder")
     val isRiskOrder: Boolean = false,
 

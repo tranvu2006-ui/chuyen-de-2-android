@@ -1522,13 +1522,13 @@ class DeliveryTripActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 try {
                     val sc = QRCodeUtils.getShortOrderCode(order.orderId)
-                    val warningText = if (round == 1) {
-                        "⚠️ CẢNH BÁO MẤT ĐƠN #${sc} (LẦN 1): Tài xế đang đợi tại điểm giao. Bạn có ${round1Minutes} phút để ra nhận món. Quá thời gian này đơn sẽ chuyển sang đơn rủi ro!"
-                    } else {
+                    val warningText = if (round >= 2) {
                         "⚠️ CẢNH BÁO GIA HẠN LẦN 2 #${sc}: Đơn đã vào danh sách Rủi ro. Bạn có ${round2Minutes} phút cuối cùng để ra nhận món trước khi đơn bị hủy bom hàng và trả về quán!"
+                    } else {
+                        ""
                     }
                     val updates = mapOf<String, Any>(
-                        "hasIncidentWarning" to true,
+                        "hasIncidentWarning" to (round >= 2),
                         "incidentWarningTime" to startTimeToUse,
                         "incidentWarningText" to warningText,
                         "countdownRound" to round,

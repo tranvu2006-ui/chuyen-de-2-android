@@ -343,9 +343,9 @@ class OrderHistoryActivity : AppCompatActivity() {
     private fun isActiveWarningOrder(order: Order): Boolean {
         val st = order.effectiveStatus.uppercase()
         if (st == Order.Status.COMPLETED || isBombedOrCancelledOrder(order)) return false
-        return order.hasIncidentWarning ||
-                order.note.contains("cảnh báo", ignoreCase = true) ||
-                order.note.contains("gọi", ignoreCase = true)
+        return ((order.hasIncidentWarning || order.isRiskOrder) && order.countdownRound >= 2) ||
+                order.riskStatus == "RISK_REPORTED" ||
+                order.riskStatus == "RISK_CONFIRMED"
     }
 
     /**

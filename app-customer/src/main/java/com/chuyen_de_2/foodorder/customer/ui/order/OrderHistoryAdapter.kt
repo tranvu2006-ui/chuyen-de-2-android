@@ -210,9 +210,9 @@ class OrderHistoryAdapter(
                     effectiveStatus == Order.Status.RETURNED_TO_STORE
 
             val isWarningOrder = !isTerminalOrBombed && (
-                    order.hasIncidentWarning ||
-                    order.note.contains("cảnh báo", ignoreCase = true) ||
-                    order.note.contains("gọi", ignoreCase = true)
+                ((order.hasIncidentWarning || order.isRiskOrder) && order.countdownRound >= 2) ||
+                order.riskStatus == "RISK_REPORTED" ||
+                order.riskStatus == "RISK_CONFIRMED"
             )
 
             binding.cardOrder.setOnClickListener { onTrackClick(order) }

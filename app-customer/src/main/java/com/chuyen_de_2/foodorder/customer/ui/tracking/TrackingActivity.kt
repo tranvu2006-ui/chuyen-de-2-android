@@ -656,14 +656,20 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             setupDishRatingList(order)
         }
 
-        // Hiển thị cảnh báo mất đơn theo thời gian thực nếu shipper kích hoạt đếm ngược
-        if (order.hasIncidentWarning && order.status != Order.Status.COMPLETED &&
-            order.status != Order.Status.CANCELLED && order.status != Order.Status.BOOM &&
-            order.status != Order.Status.RETURNING_TO_STORE && order.status != Order.Status.RETURNED_TO_STORE) {
-            binding.boxWarningActiveOnOrder.isVisible = true
-            binding.btnHeaderWarn.isVisible = true
+        // Hiển thị cảnh báo mất đơn theo thời gian thực nếu shipper kích hoạt đếm ngược Lần 2 (hoặc đơn đã vào danh sách rủi ro)
+        val isWarningActive = (order.hasIncidentWarning || order.isRiskOrder) &&
+            order.countdownRound >= 2 &&
+            order.status != Order.Status.COMPLETED &&
+            order.status != Order.Status.CANCELLED &&
+            order.status != Order.Status.BOOM &&
+            order.status != Order.Status.RETURNING_TO_STORE &&
+            order.status != Order.Status.RETURNED_TO_STORE
+
+        binding.boxWarningActiveOnOrder.isVisible = isWarningActive
+        binding.btnHeaderWarn.isVisible = isWarningActive
+        if (isWarningActive) {
             val warnMsg = order.incidentWarningText.ifBlank {
-                "Tài xế đã có mặt tại địa chỉ và đang chờ bạn nhận món. Vui lòng chuẩn bị mã QR bên dưới để đối soát ngay!"
+                "Tài xế đã có mặt tại địa chỉ và đang chờ bạn nhận món (Gia hạn Lần 2). Vui lòng chuẩn bị mã QR bên dưới để đối soát ngay!"
             }
             binding.lblWarningInlineDesc.text = warnMsg
             binding.btnScrollToQr.setOnClickListener {

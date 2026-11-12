@@ -694,48 +694,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- ============================================== -->
-            <!-- CARD BẢN ĐỒ GOOGLE MAPS (GPS Realtime Shipper) -->
-            <!-- ============================================== -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardMapContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/border_light"
-                app:strokeWidth="1dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:paddingHorizontal="14dp"
-                        android:paddingVertical="10dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Vị trí Shipper &amp; Lộ trình di chuyển"
-                            android:textColor="#0F172A"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <androidx.fragment.app.FragmentContainerView
-                        android:id="@+id/map_fragment"
-                        android:name="com.google.android.gms.maps.SupportMapFragment"
-                        android:layout_width="match_parent"
-                        android:layout_height="180dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
             <!-- ============================================== -->
             <!-- CARD 2: Mã QR Gộp (Delivery Token) (b9.html)   -->

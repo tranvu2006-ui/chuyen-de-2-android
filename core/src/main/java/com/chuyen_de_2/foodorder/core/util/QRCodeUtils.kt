@@ -48,8 +48,13 @@ object QRCodeUtils {
         val shortCode = getShortOrderCode(orderId)
         val cleanToken = deliveryToken.trim()
         return when {
-            cleanToken.startsWith("TOKEN_OISHI_", ignoreCase = true) -> cleanToken.uppercase()
-            shortCode.isNotBlank() -> "TOKEN_OISHI_$shortCode"
+            cleanToken.startsWith("TOKEN_OISHI_", ignoreCase = true) -> {
+                cleanToken.uppercase().replace("TOKEN_OISHI_OISHI_", "TOKEN_OISHI_")
+            }
+            shortCode.isNotBlank() -> {
+                if (shortCode.startsWith("OISHI")) "TOKEN_$shortCode"
+                else "TOKEN_OISHI_$shortCode"
+            }
             cleanToken.isNotBlank() -> cleanToken.uppercase()
             else -> "TOKEN_OISHI_ORDER"
         }

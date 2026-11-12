@@ -155,7 +155,7 @@ class CheckoutViewModel @Inject constructor(
                     val resolvedShopImage = targetStore?.effectiveImageUrl.orEmpty().trim()
 
                     val initialStatus = if (paymentMode == Order.PaymentMode.COD) {
-                        Order.Status.PENDING
+                        Order.Status.AWAITING_CUSTOMER_CONFIRMATION
                     } else {
                         Order.Status.AWAITING_PAYMENT
                     }

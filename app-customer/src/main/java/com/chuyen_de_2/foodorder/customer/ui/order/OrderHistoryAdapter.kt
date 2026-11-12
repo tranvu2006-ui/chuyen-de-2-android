@@ -272,6 +272,34 @@ class OrderHistoryAdapter(
                 binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
 
             } else when (effectiveStatus) {
+                Order.Status.AWAITING_CUSTOMER_CONFIRMATION -> {
+                    // CHỜ KHÁCH BẤM XÁC NHẬN
+                    binding.cardOrder.strokeColor = Color.parseColor("#F59E0B")
+                    binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFBEB"))
+
+                    binding.tvOrderStatusBadge.text = "📝 Chờ bạn xác nhận"
+                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#D97706"))
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
+
+                    binding.tvShipperInfo.visibility = View.VISIBLE
+                    binding.tvShipperInfo.text = "👆 Vui lòng bấm xác nhận để quán nhận đơn"
+                    binding.tvShipperInfo.setTextColor(Color.parseColor("#D97706"))
+
+                    binding.layoutAlertBox.visibility = View.VISIBLE
+                    binding.tvAlertIcon.text = "👆"
+                    binding.tvAlertTitle.text = "Cần bạn xác nhận"
+                    binding.tvAlertCountdown.visibility = View.GONE
+                    binding.tvAlertMessage.text = "Quán chỉ bắt đầu chuẩn bị món sau khi bạn bấm xác nhận đơn hàng."
+
+                    binding.btnActionSecondary.visibility = View.VISIBLE
+                    binding.btnActionSecondary.text = "✕ Hủy đơn"
+                    binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
+
+                    binding.btnActionPrimary.text = "✓ Xác Nhận Đơn ➔"
+                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
+                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                }
+
                 Order.Status.AWAITING_PAYMENT, Order.Status.PENDING -> {
                     // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
                     val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||

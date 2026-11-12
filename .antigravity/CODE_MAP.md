@@ -10234,7 +10234,7 @@ class CheckoutViewModel @Inject constructor(
                     val resolvedShopImage = targetStore?.effectiveImageUrl.orEmpty().trim()
 
                     val initialStatus = if (paymentMode == Order.PaymentMode.COD) {
-                        Order.Status.PENDING
+                        Order.Status.AWAITING_CUSTOMER_CONFIRMATION
                     } else {
                         Order.Status.AWAITING_PAYMENT
                     }
@@ -17867,14 +17867,27 @@ class AddressBookAdapter(
         app:layout_constraintBottom_toBottomOf="parent">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTrackOrder"
+            android:id="@+id/btnConfirmOrder"
             style="@style/Widget.FoodOrder.Button.Primary"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="Theo Dõi Đơn Hàng"
+            android:layout_height="50dp"
+            android:backgroundTint="#16A34A"
+            android:text="✓ Tôi Xác Nhận Đơn Hàng"
+            android:textColor="@color/white"
             android:textSize="14sp"
             android:textStyle="bold"
             app:cornerRadius="12dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTrackOrder"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:text="Theo Dõi Đơn Hàng"
+            android:textSize="13.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="10dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnChatShop"
@@ -83071,6 +83084,13 @@ class PaymentActivity : AppCompatActivity() {
             "Chuyển khoản VietQR ($currentBankName)"
         }
 
+        // Cập nhật trạng thái đơn hàng sang chờ khách xác nhận trước khi quán làm món
+        val updates = mapOf<String, Any>(
+            "status" to Order.Status.AWAITING_CUSTOMER_CONFIRMATION,
+            "orderStatus" to Order.Status.AWAITING_CUSTOMER_CONFIRMATION
+        )
+        FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
+
         // Bật thông báo Toast thành công
         val successMessage = if (isMomoChannel) {
             "Hệ thống đã tự động ghi nhận thanh toán MoMo thành công!"
@@ -95372,6 +95392,52 @@ class OrderSuccessActivity : AppCompatActivity() {
     }
 
     private fun setupActions(orderId: String, shopName: String) {
+        // Lắng nghe trạng thái đơn để hiển thị nút "Tôi Xác Nhận Đơn Hàng"
+        if (orderId.isNotBlank()) {
+            val orderRef = com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(orderId)
+            orderRef.addValueEventListener(object : com.google.firebase.database.ValueEventListener {
+                override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                    val status = snapshot.child("status").getValue(String::class.java)
+                        ?: snapshot.child("orderStatus").getValue(String::class.java).orEmpty()
+                    if (status == com.chuyen_de_2.foodorder.core.data.model.Order.Status.AWAITING_CUSTOMER_CONFIRMATION) {
+                        binding.btnConfirmOrder.visibility = View.VISIBLE
+                        binding.btnConfirmOrder.isEnabled = true
+                        binding.btnConfirmOrder.text = "✓ Tôi Xác Nhận Đơn Hàng"
+                        binding.tvHeadlineTitle.text = "ĐẶT ĐƠN THÀNH CÔNG! VUI LÒNG XÁC NHẬN"
+                        binding.tvHeadlineSubtitle.text = "Bấm 'Tôi Xác Nhận Đơn Hàng' bên dưới để quán $shopName nhận đơn và bắt đầu chuẩn bị món ăn cho bạn."
+                        binding.tvBadgeTitle.text = "📝 CHỜ BẠN XÁC NHẬN ĐƠN"
+                        binding.tvBadgeDesc.text = "Chỉ khi bạn bấm xác nhận, quán mới nhận được đơn để tránh đặt nhầm. Vui lòng bấm xác nhận bên dưới."
+                    } else {
+                        binding.btnConfirmOrder.visibility = View.GONE
+                    }
+                }
+                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+            })
+
+            binding.btnConfirmOrder.setOnClickListener {
+                binding.btnConfirmOrder.isEnabled = false
+                binding.btnConfirmOrder.text = "Đang gửi xác nhận tới quán..."
+                val updates = mapOf<String, Any>(
+                    "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.PENDING,
+                    "orderStatus" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.PENDING,
+                    "customerConfirmedAt" to System.currentTimeMillis()
+                )
+                orderRef.updateChildren(updates).addOnSuccessListener {
+                    android.widget.Toast.makeText(this, "✓ Bạn đã xác nhận đơn hàng thành công!\nQuán đã nhận được đơn và sẽ làm món ngay.", android.widget.Toast.LENGTH_LONG).show()
+                    binding.btnConfirmOrder.visibility = View.GONE
+                    binding.tvHeadlineTitle.text = "ĐƠN ĐÃ GỬI TỚI QUÁN!"
+                    binding.tvHeadlineSubtitle.text = "Quán $shopName đang chuẩn bị món ăn cho bạn.\nShipper sẽ sớm nhận đơn và giao đến địa chỉ của bạn."
+                    binding.tvBadgeTitle.text = "ĐƠN HÀNG ĐÃ ĐƯỢC XÁC NHẬN"
+                }.addOnFailureListener {
+                    binding.btnConfirmOrder.isEnabled = true
+                    binding.btnConfirmOrder.text = "✓ Tôi Xác Nhận Đơn Hàng"
+                    android.widget.Toast.makeText(this, "Lỗi gửi xác nhận, vui lòng thử lại.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            binding.btnConfirmOrder.visibility = View.GONE
+        }
+
         // Nút Theo dõi đơn hàng -> mở TrackingActivity
         binding.btnTrackOrder.setOnClickListener {
             val intent = Intent(this, TrackingActivity::class.java).apply {
@@ -96421,6 +96487,22 @@ class OrderSuccessActivity : AppCompatActivity() {
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:orientation="vertical">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCustomerConfirmOrder"
+                            style="@style/Widget.FoodOrder.Button.Primary"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginBottom="8dp"
+                            android:backgroundTint="#16A34A"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="✓ Xác Nhận Đơn Hàng Ngay"
+                            android:textColor="@color/white"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:visibility="gone"
+                            app:cornerRadius="10dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnCallShop"
@@ -107559,11 +107641,10 @@ class ShopViewModel @Inject constructor(
         }
         val tab = _currentTab.value ?: TabType.NEW
 
-        // Cập nhật số lượng đếm trên từng tab
+        // Cập nhật số lượng đếm trên từng tab (Chỉ đếm các đơn khách đã xác nhận)
         _countNew.value = orders.count {
             it.status == Order.Status.PENDING ||
-            it.status == Order.Status.PAID ||
-            it.status == Order.Status.AWAITING_PAYMENT
+            it.status == Order.Status.PAID
         }
         _countCooking.value = orders.count { it.status == Order.Status.PREPARING }
         _countDelivering.value = orders.count {
@@ -107602,12 +107683,11 @@ class ShopViewModel @Inject constructor(
         }
         _todayRevenue.value = calculatedRevenue
 
-        // Lọc danh sách theo tab được chọn
+        // Lọc danh sách theo tab được chọn (Tab NEW: Chỉ hiện đơn khách đã xác nhận)
         filteredOrders.value = when (tab) {
             TabType.NEW -> orders.filter {
                 it.status == Order.Status.PENDING ||
-                it.status == Order.Status.PAID ||
-                it.status == Order.Status.AWAITING_PAYMENT
+                it.status == Order.Status.PAID
             }
             TabType.COOKING -> orders.filter { it.status == Order.Status.PREPARING }
             TabType.DELIVERING -> orders.filter {
@@ -107633,8 +107713,7 @@ class ShopViewModel @Inject constructor(
             firebaseRepository.observeAllOrders().collectLatest { orders ->
                 val pendingCount = orders.count {
                     it.status == Order.Status.PENDING ||
-                    it.status == Order.Status.PAID ||
-                    it.status == Order.Status.AWAITING_PAYMENT
+                    it.status == Order.Status.PAID
                 }
                 if (pendingCount > previousOrderCount && previousOrderCount > 0) {
                     _newOrderAlert.value = true
@@ -108987,6 +109066,34 @@ class OrderHistoryAdapter(
                 binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
 
             } else when (effectiveStatus) {
+                Order.Status.AWAITING_CUSTOMER_CONFIRMATION -> {
+                    // CHỜ KHÁCH BẤM XÁC NHẬN
+                    binding.cardOrder.strokeColor = Color.parseColor("#F59E0B")
+                    binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFBEB"))
+
+                    binding.tvOrderStatusBadge.text = "📝 Chờ bạn xác nhận"
+                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#D97706"))
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
+
+                    binding.tvShipperInfo.visibility = View.VISIBLE
+                    binding.tvShipperInfo.text = "👆 Vui lòng bấm xác nhận để quán nhận đơn"
+                    binding.tvShipperInfo.setTextColor(Color.parseColor("#D97706"))
+
+                    binding.layoutAlertBox.visibility = View.VISIBLE
+                    binding.tvAlertIcon.text = "👆"
+                    binding.tvAlertTitle.text = "Cần bạn xác nhận"
+                    binding.tvAlertCountdown.visibility = View.GONE
+                    binding.tvAlertMessage.text = "Quán chỉ bắt đầu chuẩn bị món sau khi bạn bấm xác nhận đơn hàng."
+
+                    binding.btnActionSecondary.visibility = View.VISIBLE
+                    binding.btnActionSecondary.text = "✕ Hủy đơn"
+                    binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
+
+                    binding.btnActionPrimary.text = "✓ Xác Nhận Đơn ➔"
+                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
+                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                }
+
                 Order.Status.AWAITING_PAYMENT, Order.Status.PENDING -> {
                     // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
                     val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||
@@ -112141,6 +112248,7 @@ data class Order(
     }
 
     object Status {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
         const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
         const val PENDING = "PENDING"
@@ -112158,6 +112266,7 @@ data class Order(
     }
 
     object OrderStatus {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
         const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
         const val PENDING = "PENDING"
@@ -112467,6 +112576,27 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             startActivity(intent)
         }
 
+        // Nút khách bấm xác nhận đơn hàng
+        binding.btnCustomerConfirmOrder.setOnClickListener {
+            val orderId = currentOrderId
+            if (orderId.isNotBlank()) {
+                binding.btnCustomerConfirmOrder.isEnabled = false
+                val updates = mapOf<String, Any>(
+                    "status" to Order.Status.PENDING,
+                    "orderStatus" to Order.Status.PENDING,
+                    "customerConfirmedAt" to System.currentTimeMillis()
+                )
+                com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(orderId)
+                    .updateChildren(updates).addOnSuccessListener {
+                        Toast.makeText(this, "✓ Bạn đã xác nhận đơn hàng thành công!\nĐơn đã được chuyển tới quán.", Toast.LENGTH_LONG).show()
+                        binding.btnCustomerConfirmOrder.visibility = View.GONE
+                    }.addOnFailureListener {
+                        binding.btnCustomerConfirmOrder.isEnabled = true
+                        Toast.makeText(this, "Lỗi gửi xác nhận, vui lòng thử lại.", Toast.LENGTH_SHORT).show()
+                    }
+            }
+        }
+
         // Nút hủy đơn / gửi yêu cầu hủy đơn
         binding.btnCancelOrder.setOnClickListener {
             handleCancelOrderClick()
@@ -112481,7 +112611,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun handleCancelOrderClick() {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
-        if (status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
+        if (status == Order.Status.AWAITING_CUSTOMER_CONFIRMATION || status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
             showInstantCancelDialog(order)
         } else if (status == Order.Status.PREPARING || status == Order.Status.READY) {
             showRequestCancelDialog(order)
@@ -112857,19 +112987,28 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRejectReason.ifBlank { "Quán đã nấu xong món ăn, không thể hủy đơn." }}\nĐơn hàng vẫn tiếp tục được thực hiện."
                 binding.btnWithdrawCancelRequest.isVisible = false
             }
+            statusUpper == Order.Status.AWAITING_CUSTOMER_CONFIRMATION -> {
+                binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCancelOrder.isVisible = true
+                binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng"
+                binding.btnCustomerConfirmOrder.isVisible = true
+            }
             statusUpper == Order.Status.PENDING || statusUpper == Order.Status.PAID || statusUpper == Order.Status.AWAITING_PAYMENT -> {
                 binding.boxCancelRequestStatus.isVisible = false
                 binding.btnCancelOrder.isVisible = true
                 binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng (Đặt Nhầm)"
+                binding.btnCustomerConfirmOrder.isVisible = false
             }
             statusUpper == Order.Status.PREPARING || statusUpper == Order.Status.READY -> {
                 binding.boxCancelRequestStatus.isVisible = false
                 binding.btnCancelOrder.isVisible = true
                 binding.btnCancelOrder.text = "✕ Gửi Yêu Cầu Hủy Đơn"
+                binding.btnCustomerConfirmOrder.isVisible = false
             }
             else -> {
                 binding.btnCancelOrder.isVisible = false
                 binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCustomerConfirmOrder.isVisible = false
             }
         }
 
@@ -112995,6 +113134,24 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val greenColor = ContextCompat.getColor(this, R.color.status_completed)
 
         when (status) {
+            Order.Status.AWAITING_CUSTOMER_CONFIRMATION -> {
+                setTimelineProgress(0)
+                setNodeActive(1)
+                binding.lblStatusIcon.text = "📝"
+                binding.lblStatusHeadline.text = "Chờ bạn xác nhận đơn hàng"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Bấm xác nhận để quán nhận đơn"
+                binding.lblDetailIcon.text = "👆"
+                binding.lblDetailDesc.text =
+                    "Đơn hàng của bạn đã sẵn sàng. Vui lòng bấm 'Xác Nhận Đơn Hàng Ngay' bên dưới để quán $currentStoreName bắt đầu nấu món."
+                binding.boxCustomerCancelledNotice.isVisible = false
+                binding.boxWarningActiveOnOrder.isVisible = false
+                binding.btnHeaderWarn.isVisible = false
+                binding.ratingCard.isVisible = false
+                binding.qrCompletedBox.isVisible = false
+                binding.qrCodeWrapper.isVisible = true
+                binding.tokenPill.isVisible = true
+            }
+
             Order.Status.AWAITING_PAYMENT -> {
                 setTimelineProgress(0)
                 setNodeActive(1)
@@ -119169,6 +119326,233 @@ class OrderListFragment : Fragment() {
 }
 ````
 
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/LoginActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.auth
+
+import android.content.Intent
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.View
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityLoginBinding
+import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+
+/**
+ * Màn hình đăng nhập khách hàng.
+ * Nếu tài khoản chưa xác thực OTP hoặc phiên 24h đã hết hạn, hệ thống sẽ chuyển sang
+ * màn hình OtpVerificationActivity riêng biệt (tương tự như luồng Đăng ký).
+ */
+@AndroidEntryPoint
+class LoginActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityLoginBinding
+    private val viewModel: AuthViewModel by viewModels()
+
+    private var pendingEmail: String = ""
+    private var pendingPassword: String = ""
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
+
+        setupUI()
+        observeViewModel()
+
+        val isLogout = intent.getBooleanExtra("LOGOUT", false)
+        if (isLogout) {
+            viewModel.logout()
+        } else if (viewModel.isLoggedIn) {
+            checkRoleAndRoute()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (viewModel.isLoggedIn) {
+            checkRoleAndRoute()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("LOGOUT", false)) {
+            viewModel.logout()
+        }
+    }
+
+    private fun setupUI() {
+        binding.etEmail.doAfterTextChanged {
+            binding.tilEmail.error = null
+        }
+        binding.etPassword.doAfterTextChanged {
+            binding.tilPassword.error = null
+        }
+
+        // Nút "Đăng nhập"
+        binding.btnLogin.setOnClickListener {
+            if (viewModel.isLoading.value == true) return@setOnClickListener
+            val email = binding.etEmail.text.toString().trim()
+            val password = binding.etPassword.text.toString().trim()
+
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
+                binding.etEmail.requestFocus()
+                return@setOnClickListener
+            }
+            if (password.isBlank()) {
+                binding.tilPassword.error = "Vui lòng nhập mật khẩu"
+                binding.etPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            binding.tilEmail.error = null
+            binding.tilPassword.error = null
+
+            val isAdmin = email.lowercase() == "admin@gmail.com"
+            val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, email)
+
+            if (hasSession) {
+                // Email đã có phiên xác minh hợp lệ trong 24h hoặc là admin -> Đăng nhập trực tiếp
+                viewModel.login(email, password)
+            } else {
+                // Chưa xác minh hoặc hết hạn 24h -> Chuyển sang OtpVerificationActivity
+                pendingEmail = email
+                pendingPassword = password
+
+                val remainingCooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+                if (remainingCooldown > 0L) {
+                    // Mã OTP vừa gửi vẫn còn hạn/cooldown -> Chuyển thẳng sang OtpVerificationActivity
+                    openOtpVerificationActivity(email, password)
+                } else {
+                    // Gửi mã OTP mới đến email
+                    binding.btnLogin.isEnabled = false
+                    viewModel.requestLoginOtp(email)
+                }
+            }
+        }
+
+        // Chuyển sang màn hình Đăng ký
+        binding.tvRegister.setOnClickListener {
+            val intent = Intent(this, RegisterActivity::class.java)
+            startActivity(intent)
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            binding.btnLogin.isEnabled = !isLoading
+        }
+
+        viewModel.otpRequestResult.observe(this) { result ->
+            binding.btnLogin.isEnabled = true
+            result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                openOtpVerificationActivity(pendingEmail, pendingPassword)
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                    openOtpVerificationActivity(pendingEmail, pendingPassword)
+                } else {
+                    val msg = error.message ?: "Không gửi được mã OTP"
+                    if (msg.contains("chưa được đăng ký", ignoreCase = true)) {
+                        binding.tilEmail.error = msg
+                        binding.etEmail.requestFocus()
+                    }
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        viewModel.loginResult.observe(this) { result ->
+            result.onSuccess {
+                val email = binding.etEmail.text.toString().trim()
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                if (error is com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException) {
+                    val email = binding.etEmail.text.toString().trim()
+                    val password = binding.etPassword.text.toString()
+                    pendingEmail = email
+                    pendingPassword = password
+                    viewModel.requestLoginOtp(email)
+                } else {
+                    val msg = error.message.orEmpty()
+                    val userMsg = if (
+                        msg.contains("password", ignoreCase = true) ||
+                        msg.contains("credential", ignoreCase = true) ||
+                        msg.contains("mật khẩu", ignoreCase = true)
+                    ) {
+                        binding.tilPassword.error = "Mật khẩu không chính xác"
+                        "Mật khẩu không chính xác"
+                    } else if (msg.contains("no user", ignoreCase = true) || msg.contains("user-not-found", ignoreCase = true)) {
+                        binding.tilEmail.error = "Không tìm thấy tài khoản với email này"
+                        "Không tìm thấy tài khoản với email này"
+                    } else {
+                        msg.ifBlank { "Đăng nhập thất bại" }
+                    }
+                    Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun openOtpVerificationActivity(email: String, password: String) {
+        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
+            putExtra(OtpVerificationActivity.EXTRA_FLOW, OtpVerificationActivity.FLOW_LOGIN)
+            putExtra(OtpVerificationActivity.EXTRA_EMAIL, email)
+            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, password)
+        }
+        startActivity(intent)
+    }
+
+    private fun checkRoleAndRoute() {
+        lifecycleScope.launch {
+            try {
+                val role = viewModel.getUserRole()
+                if (isFinishing || isDestroyed) return@launch
+                if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
+                    val intent = Intent(this@LoginActivity, HomeActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                } else {
+                    Toast.makeText(this@LoginActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
+                    viewModel.logout()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/dashboard/DashboardActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.dashboard
@@ -119657,9 +120041,9 @@ class DashboardActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/LoginActivity.kt
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/LoginActivity.kt
 ````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.auth
+package com.chuyen_de_2.foodorder.internal.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
@@ -119667,28 +120051,34 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.customer.databinding.ActivityLoginBinding
-import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
- * Màn hình đăng nhập khách hàng.
+ * Màn hình đăng nhập đối tác nội bộ (Chủ quán/Tài xế).
  * Nếu tài khoản chưa xác thực OTP hoặc phiên 24h đã hết hạn, hệ thống sẽ chuyển sang
  * màn hình OtpVerificationActivity riêng biệt (tương tự như luồng Đăng ký).
  */
 @AndroidEntryPoint
 class LoginActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityLoginBinding
+    private lateinit var binding: ActivityLoginInternalBinding
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
     private val viewModel: AuthViewModel by viewModels()
 
     private var pendingEmail: String = ""
@@ -119696,7 +120086,15 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityLoginBinding.inflate(layoutInflater)
+
+        val isLogout = intent.getBooleanExtra("LOGOUT", false)
+        if (isLogout) {
+            authRepository.logout()
+        } else if (authRepository.isLoggedIn) {
+            checkActiveStatusAndNavigate()
+        }
+
+        binding = ActivityLoginInternalBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         InsetUtils.initEdgeToEdge(this, true)
@@ -119704,19 +120102,12 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
-
-        val isLogout = intent.getBooleanExtra("LOGOUT", false)
-        if (isLogout) {
-            viewModel.logout()
-        } else if (viewModel.isLoggedIn) {
-            checkRoleAndRoute()
-        }
     }
 
     override fun onResume() {
         super.onResume()
-        if (viewModel.isLoggedIn) {
-            checkRoleAndRoute()
+        if (authRepository.isLoggedIn) {
+            checkActiveStatusAndNavigate()
         }
     }
 
@@ -119724,7 +120115,7 @@ class LoginActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra("LOGOUT", false)) {
-            viewModel.logout()
+            authRepository.logout()
         }
     }
 
@@ -119760,7 +120151,7 @@ class LoginActivity : AppCompatActivity() {
             val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, email)
 
             if (hasSession) {
-                // Email đã có phiên xác minh hợp lệ trong 24h hoặc là admin -> Đăng nhập trực tiếp
+                // Đã có phiên xác minh hợp lệ trong 24h hoặc là admin -> Đăng nhập trực tiếp
                 viewModel.login(email, password)
             } else {
                 // Chưa xác minh hoặc hết hạn 24h -> Chuyển sang OtpVerificationActivity
@@ -119779,8 +120170,8 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
-        // Chuyển sang màn hình Đăng ký
-        binding.tvRegister.setOnClickListener {
+        // Chuyển sang màn hình Đăng ký đối tác
+        binding.tvGoToRegister.setOnClickListener {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)
         }
@@ -119820,7 +120211,7 @@ class LoginActivity : AppCompatActivity() {
                 val email = binding.etEmail.text.toString().trim()
                 OtpSessionManager.markEmailVerified(this, email)
                 Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                checkRoleAndRoute()
+                navigateToDashboard()
             }.onFailure { error ->
                 if (error is com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException) {
                     val email = binding.etEmail.text.toString().trim()
@@ -119858,23 +120249,31 @@ class LoginActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun checkRoleAndRoute() {
+    private fun checkActiveStatusAndNavigate() {
         lifecycleScope.launch {
             try {
-                val role = viewModel.getUserRole()
+                val statusCheck = authRepository.checkAccountActiveStatus()
                 if (isFinishing || isDestroyed) return@launch
-                if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
-                    val intent = Intent(this@LoginActivity, HomeActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
+                if (statusCheck.isFailure) {
+                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                    AlertDialog.Builder(this@LoginActivity)
+                        .setTitle("Tài khoản bị khóa")
+                        .setMessage(reason)
+                        .setPositiveButton("Đóng", null)
+                        .show()
                 } else {
-                    Toast.makeText(this@LoginActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
-                    viewModel.logout()
+                    navigateToDashboard()
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    private fun navigateToDashboard() {
+        val intent = Intent(this, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -121111,248 +121510,6 @@ class AuthRepository @Inject constructor(
 
     /** Kiểm tra đã đăng nhập chưa */
     val isLoggedIn: Boolean get() = auth.currentUser != null
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/LoginActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.auth
-
-import android.content.Intent
-import android.os.Bundle
-import android.view.MotionEvent
-import android.view.View
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
-import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Màn hình đăng nhập đối tác nội bộ (Chủ quán/Tài xế).
- * Nếu tài khoản chưa xác thực OTP hoặc phiên 24h đã hết hạn, hệ thống sẽ chuyển sang
- * màn hình OtpVerificationActivity riêng biệt (tương tự như luồng Đăng ký).
- */
-@AndroidEntryPoint
-class LoginActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityLoginInternalBinding
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    private val viewModel: AuthViewModel by viewModels()
-
-    private var pendingEmail: String = ""
-    private var pendingPassword: String = ""
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        val isLogout = intent.getBooleanExtra("LOGOUT", false)
-        if (isLogout) {
-            authRepository.logout()
-        } else if (authRepository.isLoggedIn) {
-            checkActiveStatusAndNavigate()
-        }
-
-        binding = ActivityLoginInternalBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyImeAndSystemInsets(binding.root)
-
-        setupUI()
-        observeViewModel()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (authRepository.isLoggedIn) {
-            checkActiveStatusAndNavigate()
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent.getBooleanExtra("LOGOUT", false)) {
-            authRepository.logout()
-        }
-    }
-
-    private fun setupUI() {
-        binding.etEmail.doAfterTextChanged {
-            binding.tilEmail.error = null
-        }
-        binding.etPassword.doAfterTextChanged {
-            binding.tilPassword.error = null
-        }
-
-        // Nút "Đăng nhập"
-        binding.btnLogin.setOnClickListener {
-            if (viewModel.isLoading.value == true) return@setOnClickListener
-            val email = binding.etEmail.text.toString().trim()
-            val password = binding.etPassword.text.toString().trim()
-
-            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
-                binding.etEmail.requestFocus()
-                return@setOnClickListener
-            }
-            if (password.isBlank()) {
-                binding.tilPassword.error = "Vui lòng nhập mật khẩu"
-                binding.etPassword.requestFocus()
-                return@setOnClickListener
-            }
-
-            binding.tilEmail.error = null
-            binding.tilPassword.error = null
-
-            val isAdmin = email.lowercase() == "admin@gmail.com"
-            val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, email)
-
-            if (hasSession) {
-                // Đã có phiên xác minh hợp lệ trong 24h hoặc là admin -> Đăng nhập trực tiếp
-                viewModel.login(email, password)
-            } else {
-                // Chưa xác minh hoặc hết hạn 24h -> Chuyển sang OtpVerificationActivity
-                pendingEmail = email
-                pendingPassword = password
-
-                val remainingCooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-                if (remainingCooldown > 0L) {
-                    // Mã OTP vừa gửi vẫn còn hạn/cooldown -> Chuyển thẳng sang OtpVerificationActivity
-                    openOtpVerificationActivity(email, password)
-                } else {
-                    // Gửi mã OTP mới đến email
-                    binding.btnLogin.isEnabled = false
-                    viewModel.requestLoginOtp(email)
-                }
-            }
-        }
-
-        // Chuyển sang màn hình Đăng ký đối tác
-        binding.tvGoToRegister.setOnClickListener {
-            val intent = Intent(this, RegisterActivity::class.java)
-            startActivity(intent)
-        }
-    }
-
-    private fun observeViewModel() {
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.btnLogin.isEnabled = !isLoading
-        }
-
-        viewModel.otpRequestResult.observe(this) { result ->
-            binding.btnLogin.isEnabled = true
-            result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                openOtpVerificationActivity(pendingEmail, pendingPassword)
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                    openOtpVerificationActivity(pendingEmail, pendingPassword)
-                } else {
-                    val msg = error.message ?: "Không gửi được mã OTP"
-                    if (msg.contains("chưa được đăng ký", ignoreCase = true)) {
-                        binding.tilEmail.error = msg
-                        binding.etEmail.requestFocus()
-                    }
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        viewModel.loginResult.observe(this) { result ->
-            result.onSuccess {
-                val email = binding.etEmail.text.toString().trim()
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                navigateToDashboard()
-            }.onFailure { error ->
-                if (error is com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException) {
-                    val email = binding.etEmail.text.toString().trim()
-                    val password = binding.etPassword.text.toString()
-                    pendingEmail = email
-                    pendingPassword = password
-                    viewModel.requestLoginOtp(email)
-                } else {
-                    val msg = error.message.orEmpty()
-                    val userMsg = if (
-                        msg.contains("password", ignoreCase = true) ||
-                        msg.contains("credential", ignoreCase = true) ||
-                        msg.contains("mật khẩu", ignoreCase = true)
-                    ) {
-                        binding.tilPassword.error = "Mật khẩu không chính xác"
-                        "Mật khẩu không chính xác"
-                    } else if (msg.contains("no user", ignoreCase = true) || msg.contains("user-not-found", ignoreCase = true)) {
-                        binding.tilEmail.error = "Không tìm thấy tài khoản với email này"
-                        "Không tìm thấy tài khoản với email này"
-                    } else {
-                        msg.ifBlank { "Đăng nhập thất bại" }
-                    }
-                    Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-
-    private fun openOtpVerificationActivity(email: String, password: String) {
-        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
-            putExtra(OtpVerificationActivity.EXTRA_FLOW, OtpVerificationActivity.FLOW_LOGIN)
-            putExtra(OtpVerificationActivity.EXTRA_EMAIL, email)
-            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, password)
-        }
-        startActivity(intent)
-    }
-
-    private fun checkActiveStatusAndNavigate() {
-        lifecycleScope.launch {
-            try {
-                val statusCheck = authRepository.checkAccountActiveStatus()
-                if (isFinishing || isDestroyed) return@launch
-                if (statusCheck.isFailure) {
-                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                    AlertDialog.Builder(this@LoginActivity)
-                        .setTitle("Tài khoản bị khóa")
-                        .setMessage(reason)
-                        .setPositiveButton("Đóng", null)
-                        .show()
-                } else {
-                    navigateToDashboard()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun navigateToDashboard() {
-        val intent = Intent(this, DashboardActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        startActivity(intent)
-        finish()
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
-    }
 }
 ````
 

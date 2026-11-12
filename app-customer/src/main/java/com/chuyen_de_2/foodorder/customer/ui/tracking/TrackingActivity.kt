@@ -218,6 +218,27 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             startActivity(intent)
         }
 
+        // Nút khách bấm xác nhận đơn hàng
+        binding.btnCustomerConfirmOrder.setOnClickListener {
+            val orderId = currentOrderId
+            if (orderId.isNotBlank()) {
+                binding.btnCustomerConfirmOrder.isEnabled = false
+                val updates = mapOf<String, Any>(
+                    "status" to Order.Status.PENDING,
+                    "orderStatus" to Order.Status.PENDING,
+                    "customerConfirmedAt" to System.currentTimeMillis()
+                )
+                com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(orderId)
+                    .updateChildren(updates).addOnSuccessListener {
+                        Toast.makeText(this, "✓ Bạn đã xác nhận đơn hàng thành công!\nĐơn đã được chuyển tới quán.", Toast.LENGTH_LONG).show()
+                        binding.btnCustomerConfirmOrder.visibility = View.GONE
+                    }.addOnFailureListener {
+                        binding.btnCustomerConfirmOrder.isEnabled = true
+                        Toast.makeText(this, "Lỗi gửi xác nhận, vui lòng thử lại.", Toast.LENGTH_SHORT).show()
+                    }
+            }
+        }
+
         // Nút hủy đơn / gửi yêu cầu hủy đơn
         binding.btnCancelOrder.setOnClickListener {
             handleCancelOrderClick()
@@ -232,7 +253,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun handleCancelOrderClick() {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
-        if (status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
+        if (status == Order.Status.AWAITING_CUSTOMER_CONFIRMATION || status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
             showInstantCancelDialog(order)
         } else if (status == Order.Status.PREPARING || status == Order.Status.READY) {
             showRequestCancelDialog(order)
@@ -608,19 +629,28 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRejectReason.ifBlank { "Quán đã nấu xong món ăn, không thể hủy đơn." }}\nĐơn hàng vẫn tiếp tục được thực hiện."
                 binding.btnWithdrawCancelRequest.isVisible = false
             }
+            statusUpper == Order.Status.AWAITING_CUSTOMER_CONFIRMATION -> {
+                binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCancelOrder.isVisible = true
+                binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng"
+                binding.btnCustomerConfirmOrder.isVisible = true
+            }
             statusUpper == Order.Status.PENDING || statusUpper == Order.Status.PAID || statusUpper == Order.Status.AWAITING_PAYMENT -> {
                 binding.boxCancelRequestStatus.isVisible = false
                 binding.btnCancelOrder.isVisible = true
                 binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng (Đặt Nhầm)"
+                binding.btnCustomerConfirmOrder.isVisible = false
             }
             statusUpper == Order.Status.PREPARING || statusUpper == Order.Status.READY -> {
                 binding.boxCancelRequestStatus.isVisible = false
                 binding.btnCancelOrder.isVisible = true
                 binding.btnCancelOrder.text = "✕ Gửi Yêu Cầu Hủy Đơn"
+                binding.btnCustomerConfirmOrder.isVisible = false
             }
             else -> {
                 binding.btnCancelOrder.isVisible = false
                 binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCustomerConfirmOrder.isVisible = false
             }
         }
 
@@ -746,6 +776,24 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val greenColor = ContextCompat.getColor(this, R.color.status_completed)
 
         when (status) {
+            Order.Status.AWAITING_CUSTOMER_CONFIRMATION -> {
+                setTimelineProgress(0)
+                setNodeActive(1)
+                binding.lblStatusIcon.text = "📝"
+                binding.lblStatusHeadline.text = "Chờ bạn xác nhận đơn hàng"
+                binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Bấm xác nhận để quán nhận đơn"
+                binding.lblDetailIcon.text = "👆"
+                binding.lblDetailDesc.text =
+                    "Đơn hàng của bạn đã sẵn sàng. Vui lòng bấm 'Xác Nhận Đơn Hàng Ngay' bên dưới để quán $currentStoreName bắt đầu nấu món."
+                binding.boxCustomerCancelledNotice.isVisible = false
+                binding.boxWarningActiveOnOrder.isVisible = false
+                binding.btnHeaderWarn.isVisible = false
+                binding.ratingCard.isVisible = false
+                binding.qrCompletedBox.isVisible = false
+                binding.qrCodeWrapper.isVisible = true
+                binding.tokenPill.isVisible = true
+            }
+
             Order.Status.AWAITING_PAYMENT -> {
                 setTimelineProgress(0)
                 setNodeActive(1)

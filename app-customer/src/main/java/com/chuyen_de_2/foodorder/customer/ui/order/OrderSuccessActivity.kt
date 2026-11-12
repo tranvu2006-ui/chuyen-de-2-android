@@ -115,6 +115,52 @@ class OrderSuccessActivity : AppCompatActivity() {
     }
 
     private fun setupActions(orderId: String, shopName: String) {
+        // Lắng nghe trạng thái đơn để hiển thị nút "Tôi Xác Nhận Đơn Hàng"
+        if (orderId.isNotBlank()) {
+            val orderRef = com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(orderId)
+            orderRef.addValueEventListener(object : com.google.firebase.database.ValueEventListener {
+                override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                    val status = snapshot.child("status").getValue(String::class.java)
+                        ?: snapshot.child("orderStatus").getValue(String::class.java).orEmpty()
+                    if (status == com.chuyen_de_2.foodorder.core.data.model.Order.Status.AWAITING_CUSTOMER_CONFIRMATION) {
+                        binding.btnConfirmOrder.visibility = View.VISIBLE
+                        binding.btnConfirmOrder.isEnabled = true
+                        binding.btnConfirmOrder.text = "✓ Tôi Xác Nhận Đơn Hàng"
+                        binding.tvHeadlineTitle.text = "ĐẶT ĐƠN THÀNH CÔNG! VUI LÒNG XÁC NHẬN"
+                        binding.tvHeadlineSubtitle.text = "Bấm 'Tôi Xác Nhận Đơn Hàng' bên dưới để quán $shopName nhận đơn và bắt đầu chuẩn bị món ăn cho bạn."
+                        binding.tvBadgeTitle.text = "📝 CHỜ BẠN XÁC NHẬN ĐƠN"
+                        binding.tvBadgeDesc.text = "Chỉ khi bạn bấm xác nhận, quán mới nhận được đơn để tránh đặt nhầm. Vui lòng bấm xác nhận bên dưới."
+                    } else {
+                        binding.btnConfirmOrder.visibility = View.GONE
+                    }
+                }
+                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+            })
+
+            binding.btnConfirmOrder.setOnClickListener {
+                binding.btnConfirmOrder.isEnabled = false
+                binding.btnConfirmOrder.text = "Đang gửi xác nhận tới quán..."
+                val updates = mapOf<String, Any>(
+                    "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.PENDING,
+                    "orderStatus" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.PENDING,
+                    "customerConfirmedAt" to System.currentTimeMillis()
+                )
+                orderRef.updateChildren(updates).addOnSuccessListener {
+                    android.widget.Toast.makeText(this, "✓ Bạn đã xác nhận đơn hàng thành công!\nQuán đã nhận được đơn và sẽ làm món ngay.", android.widget.Toast.LENGTH_LONG).show()
+                    binding.btnConfirmOrder.visibility = View.GONE
+                    binding.tvHeadlineTitle.text = "ĐƠN ĐÃ GỬI TỚI QUÁN!"
+                    binding.tvHeadlineSubtitle.text = "Quán $shopName đang chuẩn bị món ăn cho bạn.\nShipper sẽ sớm nhận đơn và giao đến địa chỉ của bạn."
+                    binding.tvBadgeTitle.text = "ĐƠN HÀNG ĐÃ ĐƯỢC XÁC NHẬN"
+                }.addOnFailureListener {
+                    binding.btnConfirmOrder.isEnabled = true
+                    binding.btnConfirmOrder.text = "✓ Tôi Xác Nhận Đơn Hàng"
+                    android.widget.Toast.makeText(this, "Lỗi gửi xác nhận, vui lòng thử lại.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            binding.btnConfirmOrder.visibility = View.GONE
+        }
+
         // Nút Theo dõi đơn hàng -> mở TrackingActivity
         binding.btnTrackOrder.setOnClickListener {
             val intent = Intent(this, TrackingActivity::class.java).apply {

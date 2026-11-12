@@ -225,6 +225,7 @@ data class Order(
     }
 
     object Status {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
         const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
         const val PENDING = "PENDING"
@@ -242,6 +243,7 @@ data class Order(
     }
 
     object OrderStatus {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
         const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
         const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
         const val PENDING = "PENDING"

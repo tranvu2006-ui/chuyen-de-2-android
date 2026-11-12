@@ -355,13 +355,22 @@ class DeliveryTripActivity : AppCompatActivity() {
                             .setDuration(120)
                             .withEndAction {
                                 v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                updateStepUI(4)
                                 val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
                                 targetOrder?.let {
+                                    val updatedOrder = it.copy(status = Order.Status.ARRIVED_AT_CUSTOMER)
+                                    if (isBundleMode && activeBundleIndex in bundleOrders.indices) {
+                                        bundleOrders[activeBundleIndex] = updatedOrder
+                                    }
+                                    currentOrder = updatedOrder
+                                    currentOrderId = it.orderId
+                                    saveStep(it.orderId, 4)
                                     lifecycleScope.launch {
                                         firebaseRepository.updateOrderStatus(it.orderId, Order.Status.ARRIVED_AT_CUSTOMER)
                                     }
-                                    start15MinCountdown(it, "Đang đếm ngược ${round1Minutes} phút thời gian chờ nhận hàng")
+                                    start15MinCountdown(updatedOrder, "Đang đếm ngược ${round1Minutes} phút thời gian chờ nhận hàng")
+                                    updateStepUI(4)
+                                    bindCustomerQuickSwitchStep3()
+                                    updateBundleStepperUI()
                                 }
                                 thumb.translationX = 0f
                                 label.alpha = 1f
@@ -516,8 +525,21 @@ class DeliveryTripActivity : AppCompatActivity() {
         sp.edit().putInt("step_$orderId", step).apply()
     }
 
+    private fun getEffectiveStepForOrder(order: Order): Int {
+        val targetStep = when (order.status) {
+            Order.Status.COMPLETED -> 4
+            Order.Status.ARRIVED_AT_CUSTOMER -> 4
+            Order.Status.DELIVERING -> 3
+            Order.Status.ARRIVED_AT_SHOP -> 2
+            else -> 1
+        }
+        val saved = getSavedStep(order.orderId)
+        return maxOf(targetStep, saved)
+    }
+
     private fun syncStepFromOrderStatus(status: String) {
         val targetStep = when (status) {
+            Order.Status.COMPLETED -> 4
             Order.Status.ARRIVED_AT_CUSTOMER -> 4
             Order.Status.DELIVERING -> 3
             Order.Status.ARRIVED_AT_SHOP -> 2
@@ -653,7 +675,8 @@ class DeliveryTripActivity : AppCompatActivity() {
                     }
 
                     if (currentStep >= 3) {
-                        updateStepUI(currentStep)
+                        val effStep = if (activeOrder != null) maxOf(3, getEffectiveStepForOrder(activeOrder)) else currentStep
+                        updateStepUI(effStep)
                     }
                     checkAndRestoreActiveCountdown()
                 } else if (!isBundleMode) {
@@ -989,17 +1012,26 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.choicePayment1.setTextColor(if (collect1 > 0) ContextCompat.getColor(this, R.color.primary) else ContextCompat.getColor(this, R.color.brand_green))
 
             val isDone1 = completedBundleOrderIds.contains(order1.orderId)
+            val isArrived1 = order1.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order1.orderId) >= 4
             if (isDone1) {
                 binding.choiceBadge1.text = "✓ Đã giao"
                 binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.choiceBadge1.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
                 binding.btnChoiceCust1.setBackgroundResource(R.drawable.bg_choice_card_idle)
             } else if (activeBundleIndex == 0) {
-                binding.choiceBadge1.text = "⚡ Đang giao"
+                binding.choiceBadge1.text = if (isArrived1) "📍 Đã đến nhà khách" else "⚡ Đang giao"
                 binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.choiceBadge1.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 binding.btnChoiceCust1.setBackgroundResource(R.drawable.bg_choice_card_active)
+            } else if (isArrived1) {
+                binding.choiceBadge1.text = "📍 Đã đến nhà khách"
+                binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_blue)
+                binding.choiceBadge1.setTextColor(Color.parseColor("#1D4ED8"))
+                binding.btnChoiceCust1.setBackgroundResource(R.drawable.bg_choice_card_idle)
             } else {
                 binding.choiceBadge1.text = "Giao sau"
                 binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_duty_off)
+                binding.choiceBadge1.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
                 binding.btnChoiceCust1.setBackgroundResource(R.drawable.bg_choice_card_idle)
             }
 
@@ -1021,17 +1053,26 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.choicePayment2.setTextColor(if (collect2 > 0) ContextCompat.getColor(this, R.color.primary) else ContextCompat.getColor(this, R.color.brand_green))
 
             val isDone2 = completedBundleOrderIds.contains(order2.orderId)
+            val isArrived2 = order2.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order2.orderId) >= 4
             if (isDone2) {
                 binding.choiceBadge2.text = "✓ Đã giao"
                 binding.choiceBadge2.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.choiceBadge2.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
                 binding.btnChoiceCust2.setBackgroundResource(R.drawable.bg_choice_card_idle)
             } else if (activeBundleIndex == 1) {
-                binding.choiceBadge2.text = "⚡ Đang giao"
+                binding.choiceBadge2.text = if (isArrived2) "📍 Đã đến nhà khách" else "⚡ Đang giao"
                 binding.choiceBadge2.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.choiceBadge2.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 binding.btnChoiceCust2.setBackgroundResource(R.drawable.bg_choice_card_active)
+            } else if (isArrived2) {
+                binding.choiceBadge2.text = "📍 Đã đến nhà khách"
+                binding.choiceBadge2.setBackgroundResource(R.drawable.bg_badge_blue)
+                binding.choiceBadge2.setTextColor(Color.parseColor("#1D4ED8"))
+                binding.btnChoiceCust2.setBackgroundResource(R.drawable.bg_choice_card_idle)
             } else {
                 binding.choiceBadge2.text = "Giao sau"
                 binding.choiceBadge2.setBackgroundResource(R.drawable.bg_badge_duty_off)
+                binding.choiceBadge2.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
                 binding.btnChoiceCust2.setBackgroundResource(R.drawable.bg_choice_card_idle)
             }
 
@@ -1054,17 +1095,26 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.choicePayment3.setTextColor(if (collect3 > 0) ContextCompat.getColor(this, R.color.primary) else ContextCompat.getColor(this, R.color.brand_green))
 
             val isDone3 = completedBundleOrderIds.contains(order3.orderId)
+            val isArrived3 = order3.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order3.orderId) >= 4
             if (isDone3) {
                 binding.choiceBadge3.text = "✓ Đã giao"
                 binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.choiceBadge3.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
                 binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_idle)
             } else if (activeBundleIndex == 2) {
-                binding.choiceBadge3.text = "⚡ Đang giao"
+                binding.choiceBadge3.text = if (isArrived3) "📍 Đã đến nhà khách" else "⚡ Đang giao"
                 binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.choiceBadge3.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_active)
+            } else if (isArrived3) {
+                binding.choiceBadge3.text = "📍 Đã đến nhà khách"
+                binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_blue)
+                binding.choiceBadge3.setTextColor(Color.parseColor("#1D4ED8"))
+                binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_idle)
             } else {
                 binding.choiceBadge3.text = "Giao sau"
                 binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_duty_off)
+                binding.choiceBadge3.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
                 binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_idle)
             }
 
@@ -1102,7 +1152,9 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.stepBundleCust2Text.text = if (order2 != null) "${order2.customerName.take(6).ifBlank { "Khách 2" }} (#${sc2})" else "Khách 2"
 
         val isDone1 = order1 != null && completedBundleOrderIds.contains(order1.orderId)
+        val isArrived1 = order1 != null && (order1.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order1.orderId) >= 4)
         val isDone2 = order2 != null && completedBundleOrderIds.contains(order2.orderId)
+        val isArrived2 = order2 != null && (order2.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order2.orderId) >= 4)
 
         // Trạng thái Khách 1
         if (isDone1) {
@@ -1110,6 +1162,10 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.stepBundleCust1Badge.text = "✓"
             binding.stepBundleCust1Text.setTextColor(colorGreen)
             binding.stepBundleDivider1.setBackgroundColor(colorGreen)
+        } else if (isArrived1) {
+            binding.stepBundleCust1Badge.setBackgroundResource(if (activeBundleIndex == 0) R.drawable.bg_badge_orange else R.drawable.bg_badge_blue)
+            binding.stepBundleCust1Badge.text = "📍"
+            binding.stepBundleCust1Text.setTextColor(if (activeBundleIndex == 0) colorPrimary else Color.parseColor("#1D4ED8"))
         } else if (activeBundleIndex == 0) {
             binding.stepBundleCust1Badge.setBackgroundResource(R.drawable.bg_badge_orange)
             binding.stepBundleCust1Badge.text = "1"
@@ -1126,6 +1182,10 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.stepBundleCust2Badge.text = "✓"
             binding.stepBundleCust2Text.setTextColor(colorGreen)
             binding.stepBundleDivider2.setBackgroundColor(colorGreen)
+        } else if (isArrived2) {
+            binding.stepBundleCust2Badge.setBackgroundResource(if (activeBundleIndex == 1) R.drawable.bg_badge_orange else R.drawable.bg_badge_blue)
+            binding.stepBundleCust2Badge.text = "📍"
+            binding.stepBundleCust2Text.setTextColor(if (activeBundleIndex == 1) colorPrimary else Color.parseColor("#1D4ED8"))
         } else if (activeBundleIndex == 1) {
             binding.stepBundleCust2Badge.setBackgroundResource(R.drawable.bg_badge_orange)
             binding.stepBundleCust2Badge.text = "2"
@@ -1144,11 +1204,16 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.stepBundleCust3Text.text = "${order3.customerName.take(6).ifBlank { "Khách 3" }} (#${sc3})"
 
             val isDone3 = completedBundleOrderIds.contains(order3.orderId)
+            val isArrived3 = order3.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order3.orderId) >= 4
             if (isDone3) {
                 binding.stepBundleCust3Badge.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.stepBundleCust3Badge.text = "✓"
                 binding.stepBundleCust3Text.setTextColor(colorGreen)
                 binding.stepBundleDivider3.setBackgroundColor(colorGreen)
+            } else if (isArrived3) {
+                binding.stepBundleCust3Badge.setBackgroundResource(if (activeBundleIndex == 2) R.drawable.bg_badge_orange else R.drawable.bg_badge_blue)
+                binding.stepBundleCust3Badge.text = "📍"
+                binding.stepBundleCust3Text.setTextColor(if (activeBundleIndex == 2) colorPrimary else Color.parseColor("#1D4ED8"))
             } else if (activeBundleIndex == 2) {
                 binding.stepBundleCust3Badge.setBackgroundResource(R.drawable.bg_badge_orange)
                 binding.stepBundleCust3Badge.text = "3"
@@ -1181,19 +1246,22 @@ class DeliveryTripActivity : AppCompatActivity() {
         currentOrder = targetOrder
         resetStep4QrUI()
         bindCustomerQuickSwitchStep3()
+        updateBundleStepperUI()
         bindOrderData(targetOrder)
 
-        if (currentStep >= 3) {
-            updateStepUI(3)
-        }
+        val targetStep = getEffectiveStepForOrder(targetOrder)
+        val finalStep = maxOf(3, targetStep)
+        updateStepUI(finalStep)
 
         val shortCode = QRCodeUtils.getShortOrderCode(targetOrder.orderId)
-        // Toast nổi thông báo đổi tuyến theo 6.html
-        binding.tvRouteToastText.text = "🛵 Đang giao đơn #${shortCode} (${targetOrder.customerName})!"
+        val statusMsg = if (finalStep == 4) "📍 Đã đến nhà ${targetOrder.customerName}! Chờ đối soát." else "🛵 Đang giao đơn #${shortCode} (${targetOrder.customerName})!"
+        binding.tvRouteToastText.text = statusMsg
         binding.layoutRouteToast.visibility = View.VISIBLE
         binding.layoutRouteToast.postDelayed({
             binding.layoutRouteToast.visibility = View.GONE
         }, 2200)
+
+        checkAndRestoreActiveCountdown()
     }
 
     private fun resetStep4QrUI() {

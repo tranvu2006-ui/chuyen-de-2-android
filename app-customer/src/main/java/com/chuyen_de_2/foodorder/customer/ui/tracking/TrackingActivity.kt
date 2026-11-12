@@ -136,7 +136,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         setupUI()
-        setupMap()
         setupListeners()
         setupRatingComponent()
 
@@ -149,7 +148,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(currentOrderId)
         binding.tvHeaderOrderCode.text = displayOrderCode
         binding.lblStatusSub.text = "Mã đơn: $displayOrderCode • Quán đang kiểm tra món ăn"
-        val tokenText = if (currentOrderId.startsWith("OISHI", ignoreCase = true)) "TOKEN_$currentOrderId" else "TOKEN_OISHI_$shortCode"
+        val tokenText = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getDisplayToken(currentOrderId)
         binding.tokenPill.text = tokenText
 
         // Sinh và hiển thị mã QR thực tế sắc nét bằng QRCodeUtils
@@ -164,13 +163,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun setupListeners() {
         binding.btnBack.setOnClickListener {
             finish()
-        }
-
-        // Bấm vào bản đồ mở ứng dụng Google Maps dẫn đường trực tiếp
-        binding.mapFragment.setOnClickListener {
-            customerLatLng?.let { dest ->
-                GoogleMapUtils.openGoogleMapsNavigation(this, dest.latitude, dest.longitude, "Điểm giao hàng")
-            }
         }
 
         // Gọi cho quán
@@ -564,9 +556,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun setupMap() {
-        val mapFragment = supportFragmentManager
-            .findFragmentById(R.id.map_fragment) as? SupportMapFragment
-        mapFragment?.getMapAsync(this)
+        // Đã xóa phần hiển thị bản đồ theo yêu cầu
     }
 
     override fun onMapReady(map: GoogleMap) {

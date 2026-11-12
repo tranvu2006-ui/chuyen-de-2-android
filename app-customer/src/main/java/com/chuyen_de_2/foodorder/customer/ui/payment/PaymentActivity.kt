@@ -152,23 +152,19 @@ class PaymentActivity : AppCompatActivity() {
 
         binding.btnConfirmPaid.setOnClickListener {
             binding.btnConfirmPaid.isEnabled = false
-            binding.btnConfirmPaid.text = "Đang gửi xác nhận tới quán..."
+            binding.btnConfirmPaid.text = "Đang lưu xác nhận đơn..."
             val updates = mapOf<String, Any>(
-                "paymentStatus" to Order.PaymentStatus.PAID,
-                "isPaid" to true,
-                "paidAt" to System.currentTimeMillis(),
-                "status" to Order.Status.PAID,
-                "orderStatus" to Order.Status.PAID,
+                "customerConfirmed" to true,
                 "customerConfirmedAt" to System.currentTimeMillis()
             )
             FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
                 .addOnSuccessListener {
-                    Toast.makeText(this, "✓ Bạn đã xác nhận chuyển khoản thành công!\nĐơn đã được chuyển tới quán.", Toast.LENGTH_LONG).show()
-                    navigateToOrderSuccessAuto()
+                    binding.btnConfirmPaid.text = "✓ Đã Xác Nhận Đặt Đơn Hàng"
+                    Toast.makeText(this, "✓ Bạn đã xác nhận đặt đơn hàng!\nVui lòng chuyển khoản đúng số tiền để quán nhận đơn.", Toast.LENGTH_LONG).show()
                 }
                 .addOnFailureListener {
                     binding.btnConfirmPaid.isEnabled = true
-                    binding.btnConfirmPaid.text = "✓ Tôi Đã Chuyển Khoản (Xác Nhận Đơn)"
+                    binding.btnConfirmPaid.text = "Xác Nhận Đặt Đơn Hàng"
                     Toast.makeText(this, "Lỗi kết nối, vui lòng thử lại.", Toast.LENGTH_SHORT).show()
                 }
         }
@@ -191,7 +187,13 @@ class PaymentActivity : AppCompatActivity() {
         // 2. Thiết lập bộ lắng nghe ValueEventListener
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                // Đọc trạng thái thanh toán từ Firebase
+                // Đọc trạng thái xác nhận và thanh toán từ Firebase
+                val isConfirmed = snapshot.child("customerConfirmed").getValue(Boolean::class.java) ?: false
+                if (isConfirmed && binding.btnConfirmPaid.isEnabled) {
+                    binding.btnConfirmPaid.isEnabled = false
+                    binding.btnConfirmPaid.text = "✓ Đã Xác Nhận Đặt Đơn Hàng"
+                }
+
                 val status = snapshot.child("paymentStatus").getValue(String::class.java).orEmpty()
                 // Nếu trạng thái đã là PAID -> Kích hoạt chuyển màn hình tự động
                 if (status.equals(Order.PaymentStatus.PAID, ignoreCase = true)) {

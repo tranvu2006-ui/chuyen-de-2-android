@@ -273,7 +273,7 @@ class OrderHistoryAdapter(
                 binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
 
             } else when (effectiveStatus) {
-                Order.Status.AWAITING_PAYMENT, Order.Status.PENDING -> {
+                Order.Status.AWAITING_PAYMENT, Order.Status.PENDING, Order.Status.PAID -> {
                     // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
                     val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||
                             (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L)

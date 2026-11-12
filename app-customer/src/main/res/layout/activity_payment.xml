@@ -413,9 +413,9 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:backgroundTint="#16A34A"
-            android:text="✓ Tôi Đã Chuyển Khoản (Xác Nhận Đơn)"
+            android:text="Xác Nhận Đặt Đơn Hàng"
             android:textColor="@color/white"
-            android:textSize="13.5sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             app:cornerRadius="12dp" />
 

@@ -170,7 +170,13 @@ data class Order(
     val cancelRequestStatus: String = "",
 
     @SerializedName("cancelRejectReason")
-    val cancelRejectReason: String = ""
+    val cancelRejectReason: String = "",
+
+    @SerializedName("customerConfirmed")
+    val customerConfirmed: Boolean = false,
+
+    @SerializedName("customerConfirmedAt")
+    val customerConfirmedAt: Long? = null
 ) {
     @get:Exclude
     val effectiveStoreId: String

@@ -181,6 +181,8 @@ class CheckoutViewModel @Inject constructor(
                         depositAmount = depositAmount,
                         remainAmount = remainAmount,
                         paymentStatus = Order.PaymentStatus.UNPAID,
+                        customerConfirmed = (paymentMode == Order.PaymentMode.COD),
+                        customerConfirmedAt = if (paymentMode == Order.PaymentMode.COD) System.currentTimeMillis() else null,
                         deliveryToken = token,
                         items = cart.items.mapValues { (_, item) ->
                             com.chuyen_de_2.foodorder.core.data.model.OrderItem(

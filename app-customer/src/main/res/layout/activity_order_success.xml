@@ -415,7 +415,6 @@
             android:textSize="14sp"
             android:textStyle="bold"
             app:cornerRadius="12dp" />
-            app:cornerRadius="10dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnChatShop"

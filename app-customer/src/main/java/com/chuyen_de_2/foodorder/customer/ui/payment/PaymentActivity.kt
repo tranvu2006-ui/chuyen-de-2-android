@@ -157,8 +157,8 @@ class PaymentActivity : AppCompatActivity() {
                 "paymentStatus" to Order.PaymentStatus.PAID,
                 "isPaid" to true,
                 "paidAt" to System.currentTimeMillis(),
-                "status" to Order.Status.PENDING,
-                "orderStatus" to Order.Status.PENDING,
+                "status" to Order.Status.PAID,
+                "orderStatus" to Order.Status.PAID,
                 "customerConfirmedAt" to System.currentTimeMillis()
             )
             FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
@@ -220,10 +220,10 @@ class PaymentActivity : AppCompatActivity() {
             "Chuyển khoản VietQR ($currentBankName)"
         }
 
-        // Cập nhật trạng thái đơn hàng sang chờ khách xác nhận trước khi quán làm món
+        // Cập nhật trạng thái đơn hàng sang PAID khi đã thanh toán thành công
         val updates = mapOf<String, Any>(
-            "status" to Order.Status.AWAITING_CUSTOMER_CONFIRMATION,
-            "orderStatus" to Order.Status.AWAITING_CUSTOMER_CONFIRMATION
+            "status" to Order.Status.PAID,
+            "orderStatus" to Order.Status.PAID
         )
         FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
 

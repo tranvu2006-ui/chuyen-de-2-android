@@ -150,6 +150,29 @@ class PaymentActivity : AppCompatActivity() {
             "Đang chờ xác nhận giao dịch VietQR..."
         }
 
+        binding.btnConfirmPaid.setOnClickListener {
+            binding.btnConfirmPaid.isEnabled = false
+            binding.btnConfirmPaid.text = "Đang gửi xác nhận tới quán..."
+            val updates = mapOf<String, Any>(
+                "paymentStatus" to Order.PaymentStatus.PAID,
+                "isPaid" to true,
+                "paidAt" to System.currentTimeMillis(),
+                "status" to Order.Status.PENDING,
+                "orderStatus" to Order.Status.PENDING,
+                "customerConfirmedAt" to System.currentTimeMillis()
+            )
+            FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
+                .addOnSuccessListener {
+                    Toast.makeText(this, "✓ Bạn đã xác nhận chuyển khoản thành công!\nĐơn đã được chuyển tới quán.", Toast.LENGTH_LONG).show()
+                    navigateToOrderSuccessAuto()
+                }
+                .addOnFailureListener {
+                    binding.btnConfirmPaid.isEnabled = true
+                    binding.btnConfirmPaid.text = "✓ Tôi Đã Chuyển Khoản (Xác Nhận Đơn)"
+                    Toast.makeText(this, "Lỗi kết nối, vui lòng thử lại.", Toast.LENGTH_SHORT).show()
+                }
+        }
+
         binding.btnCancelToHome.setOnClickListener { navigateHome() }
         binding.btnHomeNav.setOnClickListener { navigateHome() }
     }

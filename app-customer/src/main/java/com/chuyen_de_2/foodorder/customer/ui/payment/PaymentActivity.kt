@@ -222,13 +222,6 @@ class PaymentActivity : AppCompatActivity() {
             "Chuyển khoản VietQR ($currentBankName)"
         }
 
-        // Cập nhật trạng thái đơn hàng sang PAID khi đã thanh toán thành công
-        val updates = mapOf<String, Any>(
-            "status" to Order.Status.PAID,
-            "orderStatus" to Order.Status.PAID
-        )
-        FirebaseDatabase.getInstance().getReference("orders").child(orderId).updateChildren(updates)
-
         // Bật thông báo Toast thành công
         val successMessage = if (isMomoChannel) {
             "Hệ thống đã tự động ghi nhận thanh toán MoMo thành công!"

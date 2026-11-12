@@ -100,7 +100,8 @@ class ShopViewModel @Inject constructor(
         // Cập nhật số lượng đếm trên từng tab (Chỉ đếm các đơn khách đã xác nhận)
         _countNew.value = orders.count {
             it.status == Order.Status.PENDING ||
-            it.status == Order.Status.PAID
+            it.status == Order.Status.PAID ||
+            (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)
         }
         _countCooking.value = orders.count { it.status == Order.Status.PREPARING }
         _countDelivering.value = orders.count {
@@ -143,7 +144,8 @@ class ShopViewModel @Inject constructor(
         filteredOrders.value = when (tab) {
             TabType.NEW -> orders.filter {
                 it.status == Order.Status.PENDING ||
-                it.status == Order.Status.PAID
+                it.status == Order.Status.PAID ||
+                (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)        
             }
             TabType.COOKING -> orders.filter { it.status == Order.Status.PREPARING }
             TabType.DELIVERING -> orders.filter {
@@ -169,7 +171,8 @@ class ShopViewModel @Inject constructor(
             firebaseRepository.observeAllOrders().collectLatest { orders ->
                 val pendingCount = orders.count {
                     it.status == Order.Status.PENDING ||
-                    it.status == Order.Status.PAID
+                    it.status == Order.Status.PAID ||
+                    (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)
                 }
                 if (pendingCount > previousOrderCount && previousOrderCount > 0) {
                     _newOrderAlert.value = true

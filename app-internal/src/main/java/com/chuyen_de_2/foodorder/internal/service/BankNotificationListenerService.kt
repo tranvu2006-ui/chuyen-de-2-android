@@ -245,22 +245,33 @@ class BankNotificationListenerService : NotificationListenerService() {
      */
     private suspend fun processAutoConfirmPayment(orderId: String, receivedAmount: Long, packageName: String) {
         try {
-            val db = FirebaseDatabase.getInstance()
+            val db = FirebaseDatabase.getInstance(com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL)
             var targetOrderRef = db.getReference("orders").child(orderId)
             var snapshot = targetOrderRef.get().await()
 
-            if (!snapshot.exists()) {
-                // Thử tìm linh hoạt cả trường hợp có hoặc không có dấu gạch dưới
-                val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
-                val altRef = db.getReference("orders").child(altId)
-                val altSnap = altRef.get().await()
-                if (altSnap.exists()) {
-                    targetOrderRef = altRef
-                    snapshot = altSnap
-                } else {
-                    Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' hoặc '$altId' trên hệ thống Firebase")
-                    return
+            // Retry tối đa 5 lần (mỗi lần cách nhau 1.5s) để đợi WebSocket đồng bộ đơn từ Server
+            var retries = 0
+            while (!snapshot.exists() && retries < 5) {
+                retries++
+                Log.d(TAG, "Chưa thấy đơn '$orderId', đang đợi đồng bộ Firebase (lần $retries/5)...")
+                kotlinx.coroutines.delay(1500)
+                snapshot = targetOrderRef.get().await()
+                if (!snapshot.exists()) {
+                    val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
+                    val altRef = db.getReference("orders").child(altId)
+                    val altSnap = altRef.get().await()
+                    if (altSnap.exists()) {
+                        targetOrderRef = altRef
+                        snapshot = altSnap
+                        break
+                    }
                 }
+            }
+
+            if (!snapshot.exists()) {
+                val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
+                Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' hoặc '$altId' trên hệ thống Firebase sau 5 lần thử")
+                return
             }
 
             val currentPaymentStatus = snapshot.child("paymentStatus").getValue(String::class.java).orEmpty()

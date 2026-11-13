@@ -228,6 +228,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             showInstantCancelDialog(order)
         } else if (status == Order.Status.PREPARING || status == Order.Status.READY) {
             showRequestCancelDialog(order)
+        } else if (status == Order.Status.DELIVERING || status == Order.Status.ARRIVED_AT_CUSTOMER) {
+            showDeliveringCancelDialog(order)
         }
     }
 
@@ -324,6 +326,109 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             }
             .setNegativeButton("Đóng", null)
             .show()
+    }
+
+    private fun showDeliveringCancelDialog(order: Order) {
+        val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
+                order.paymentMode == Order.PaymentMode.COD ||
+                order.remainAmount > 0L ||
+                order.paymentStatus != Order.PaymentStatus.PAID
+
+        val reasons = arrayOf(
+            "Đổi ý, không còn nhu cầu ăn nữa",
+            "Bận việc đột xuất, không có ở nhà nhận món",
+            "Tài xế giao quá lâu so với dự kiến",
+            "Đặt nhầm địa chỉ / sai số điện thoại",
+            "Lý do khác..."
+        )
+        var selectedIndex = 0
+        val input = EditText(this).apply {
+            hint = "Nhập lý do cụ thể..."
+            visibility = View.GONE
+            setPadding(40, 20, 40, 20)
+        }
+
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(input)
+        }
+
+        val title = if (isCod) "✕ HỦY ĐƠN COD ĐANG GIAO (-30 ĐIỂM)" else "✕ HỦY ĐƠN HÀNG ĐANG GIAO"
+        val message = if (isCod) {
+            "⚠️ CẢNH BÁO MẤT ĐIỂM UY TÍN:\n\n" +
+            "Đơn hàng đang trên đường giao tới bạn. Nếu bạn chọn hủy đơn không nhận món:\n" +
+            "• Tài xế sẽ nhận được thông báo mang món quay về quán.\n" +
+            "• Vì đây là đơn thanh toán tiền mặt (COD), việc từ chối nhận hàng sẽ bị tính là BOM HÀNG và TRỪ 30 ĐIỂM UY TÍN!\n" +
+            "(Nếu điểm uy tín dưới 90 điểm sẽ bị khóa tính năng đặt COD).\n\n" +
+            "Bạn có chắc chắn muốn hủy nhận đơn không?"
+        } else {
+            "⚠️ LƯU Ý HỦY ĐƠN ĐANG GIAO:\n\n" +
+            "Đơn hàng đang trên đường giao tới bạn. Nếu bạn chọn hủy đơn không nhận món:\n" +
+            "• Tài xế sẽ nhận được thông báo mang món quay về quán.\n" +
+            "• Vì đơn đã thanh toán Online đủ, bạn KHÔNG bị trừ điểm uy tín. Tiền món sẽ được xử lý hoàn trả theo chính sách của quán ăn.\n\n" +
+            "Bạn có chắc chắn muốn hủy nhận đơn không?"
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setSingleChoiceItems(reasons, 0) { _, which ->
+                selectedIndex = which
+                input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
+            }
+            .setView(container)
+            .setPositiveButton("Xác Nhận Hủy") { _, _ ->
+                val reason = if (selectedIndex == reasons.size - 1) {
+                    val custom = input.text.toString().trim()
+                    if (custom.isNotBlank()) custom else "Khách không nhận món khi đang giao"
+                } else {
+                    reasons[selectedIndex]
+                }
+                executeDeliveringCancel(order, reason, isCod)
+            }
+            .setNegativeButton("Giữ Lại Đơn", null)
+            .show()
+    }
+
+    private fun executeDeliveringCancel(order: Order, reason: String, isCod: Boolean) {
+        val fullReason = "Khách hủy khi đang giao: $reason"
+        lifecycleScope.launch {
+            try {
+                val updates = mutableMapOf<String, Any>(
+                    "status" to Order.Status.RETURNING_TO_STORE,
+                    "orderStatus" to Order.Status.RETURNING_TO_STORE,
+                    "cancelReason" to fullReason,
+                    "riskReason" to fullReason,
+                    "bomStatus" to "RETURNING_TO_STORE",
+                    "isRiskOrder" to true,
+                    "riskStatus" to "RISK_CONFIRMED",
+                    "hasIncidentWarning" to false,
+                    "cancelledBy" to "CUSTOMER",
+                    "cancelledAt" to System.currentTimeMillis(),
+                    "updatedAt" to System.currentTimeMillis()
+                )
+                com.google.firebase.database.FirebaseDatabase.getInstance()
+                    .getReference("orders")
+                    .child(order.orderId)
+                    .updateChildren(updates)
+
+                firebaseRepository.updateOrderStatus(
+                    orderId = order.orderId,
+                    status = Order.Status.RETURNING_TO_STORE,
+                    reason = fullReason,
+                    targetCustomerId = order.customerId
+                )
+
+                val toastMsg = if (isCod) {
+                    "✓ Đã hủy đơn hàng! Shipper sẽ trả món về quán. Bạn bị trừ 30 điểm uy tín do hủy đơn COD."
+                } else {
+                    "✓ Đã hủy đơn hàng! Shipper sẽ nhận thông báo mang món quay về quán."
+                }
+                Toast.makeText(this@TrackingActivity, toastMsg, Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@TrackingActivity, "Lỗi khi hủy đơn: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun setupRatingComponent() {
@@ -575,8 +680,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         when {
             statusUpper == Order.Status.CANCELLED || statusUpper == Order.Status.BOOM ||
             statusUpper == Order.Status.COMPLETED || statusUpper == Order.Status.RETURNING_TO_STORE ||
-            statusUpper == Order.Status.RETURNED_TO_STORE || statusUpper == Order.Status.DELIVERING ||
-            statusUpper == Order.Status.ARRIVED_AT_CUSTOMER || statusUpper == Order.Status.ARRIVED_AT_SHOP ||
+            statusUpper == Order.Status.RETURNED_TO_STORE || statusUpper == Order.Status.ARRIVED_AT_SHOP ||
             statusUpper == Order.Status.ASSIGNED -> {
                 binding.btnCancelOrder.isVisible = false
                 binding.boxCancelRequestStatus.isVisible = false
@@ -607,6 +711,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.boxCancelRequestStatus.isVisible = false
                 binding.btnCancelOrder.isVisible = true
                 binding.btnCancelOrder.text = "✕ Gửi Yêu Cầu Hủy Đơn"
+            }
+            statusUpper == Order.Status.DELIVERING || statusUpper == Order.Status.ARRIVED_AT_CUSTOMER -> {
+                binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCancelOrder.isVisible = true
+                binding.btnCancelOrder.text = "✕ Không Nhận Món (Hủy Giao Hàng)"
             }
             else -> {
                 binding.btnCancelOrder.isVisible = false

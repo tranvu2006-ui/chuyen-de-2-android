@@ -471,10 +471,14 @@ class OrderHistoryAdapter(
                 }
 
                 Order.Status.BOOM, Order.Status.RETURNING_TO_STORE, Order.Status.RETURNED_TO_STORE, Order.Status.CANCELLED -> {
+                    val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
+                            order.paymentMode == Order.PaymentMode.COD ||
+                            order.remainAmount > 0L ||
+                            order.paymentStatus != Order.PaymentStatus.PAID
+
                     val isBombed = effectiveStatus == Order.Status.BOOM ||
-                            effectiveStatus == Order.Status.RETURNING_TO_STORE ||
-                            effectiveStatus == Order.Status.RETURNED_TO_STORE ||
-                            order.isRiskOrder ||
+                            (effectiveStatus == Order.Status.RETURNING_TO_STORE && isCod) ||
+                            (effectiveStatus == Order.Status.RETURNED_TO_STORE && isCod) ||
                             order.cancelReason.contains("bom", ignoreCase = true) ||
                             order.riskReason.contains("bom", ignoreCase = true)
 
@@ -485,7 +489,7 @@ class OrderHistoryAdapter(
                     binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_red)
 
                     if (isBombed) {
-                        // ĐƠN KHÁCH ĐÃ BOM
+                        // ĐƠN KHÁCH ĐÃ BOM (COD)
                         binding.tvOrderStatusBadge.text = "🚫 Đã bom hàng"
 
                         binding.tvShipperInfo.visibility = View.VISIBLE
@@ -503,8 +507,24 @@ class OrderHistoryAdapter(
                         binding.tvAlertCountdown.visibility = View.GONE
                         binding.tvAlertMessage.text = order.cancelReason.ifBlank {
                             order.riskReason.ifBlank {
-                                "Tài xế báo sự cố: Khách không nghe máy / từ chối nhận món sau thời gian chờ (Bom hàng)."
+                                "Khách hủy khi đang giao / từ chối nhận món (Trừ 30 điểm uy tín do là đơn COD)."
                             }
+                        }
+                    } else if (effectiveStatus == Order.Status.RETURNING_TO_STORE || effectiveStatus == Order.Status.RETURNED_TO_STORE) {
+                        // ĐƠN HỦY KHI ĐANG GIAO (ĐÃ THANH TOÁN ONLINE)
+                        binding.tvOrderStatusBadge.text = "🏪 Trả món về quán"
+
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#EA580C"))
+                        val shipper = order.shipperName.ifBlank { "Tài xế" }
+                        binding.tvShipperInfo.text = "🛵 Shipper: $shipper đang hoàn trả món về quán"
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "⚠️"
+                        binding.tvAlertTitle.text = "KHÁCH HỦY KHI ĐANG GIAO (ĐÃ THANH TOÁN ONLINE):"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            "Đơn hàng được yêu cầu hủy khi đang giao. Tiền món sẽ được đối soát hoàn trả theo quy định."
                         }
                     } else {
                         // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG

@@ -546,31 +546,59 @@ class FirebaseRepository @Inject constructor(
                         }
                         Order.Status.BOOM, Order.Status.RETURNING_TO_STORE -> {
                             if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
-                                newScore = maxOf(0L, currentScore - 30L)
-                                scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Bom hàng đơn #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #$shortCode (-30 điểm)"
-                                statsUpdates["boomOrders"] = currentBoom + 1
-                                statsUpdates["totalOrders"] = currentTotal + 1
-                                statsUpdates["trustScore"] = newScore
-                                if (newScore < 20L) {
-                                    statsUpdates["status"] = "LOCKED"
-                                    statsUpdates["isActive"] = false
-                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                                val pMethod = prevOrderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                                val pMode = prevOrderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+                                val pStatus = prevOrderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty().uppercase()
+                                val remain = prevOrderSnap?.child("remainAmount")?.getValue(Long::class.java) ?: 0L
+
+                                val isCod = pMethod.equals("COD", ignoreCase = true) ||
+                                        pMode.equals("COD", ignoreCase = true) ||
+                                        remain > 0L ||
+                                        pStatus != "PAID"
+
+                                if (isCod) {
+                                    newScore = maxOf(0L, currentScore - 30L)
+                                    scoreChange = (newScore - currentScore).toInt()
+                                    logReason = if (reason.isNotBlank()) "Hủy đơn COD / Bom đơn #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn COD #$shortCode (-30 điểm)"
+                                    statsUpdates["boomOrders"] = currentBoom + 1
+                                    statsUpdates["totalOrders"] = currentTotal + 1
+                                    statsUpdates["trustScore"] = newScore
+                                    if (newScore < 20L) {
+                                        statsUpdates["status"] = "LOCKED"
+                                        statsUpdates["isActive"] = false
+                                        statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng COD"
+                                    }
+                                } else {
+                                    statsUpdates["totalOrders"] = currentTotal + 1
                                 }
                             }
                         }
                         Order.Status.RETURNED_TO_STORE -> {
                             if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
-                                newScore = maxOf(0L, currentScore - 30L)
-                                scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Bom hàng trả về quán #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #$shortCode (-30 điểm)"
-                                statsUpdates["boomOrders"] = currentBoom + 1
-                                statsUpdates["totalOrders"] = currentTotal + 1
-                                statsUpdates["trustScore"] = newScore
-                                if (newScore < 20L) {
-                                    statsUpdates["status"] = "LOCKED"
-                                    statsUpdates["isActive"] = false
-                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                                val pMethod = prevOrderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                                val pMode = prevOrderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+                                val pStatus = prevOrderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty().uppercase()
+                                val remain = prevOrderSnap?.child("remainAmount")?.getValue(Long::class.java) ?: 0L
+
+                                val isCod = pMethod.equals("COD", ignoreCase = true) ||
+                                        pMode.equals("COD", ignoreCase = true) ||
+                                        remain > 0L ||
+                                        pStatus != "PAID"
+
+                                if (isCod) {
+                                    newScore = maxOf(0L, currentScore - 30L)
+                                    scoreChange = (newScore - currentScore).toInt()
+                                    logReason = if (reason.isNotBlank()) "Trả món về quán / Hủy đơn COD #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn COD #$shortCode (-30 điểm)"
+                                    statsUpdates["boomOrders"] = currentBoom + 1
+                                    statsUpdates["totalOrders"] = currentTotal + 1
+                                    statsUpdates["trustScore"] = newScore
+                                    if (newScore < 20L) {
+                                        statsUpdates["status"] = "LOCKED"
+                                        statsUpdates["isActive"] = false
+                                        statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng COD"
+                                    }
+                                } else {
+                                    statsUpdates["totalOrders"] = currentTotal + 1
                                 }
                             }
                         }

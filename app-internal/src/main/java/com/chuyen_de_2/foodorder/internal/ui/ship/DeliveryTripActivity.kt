@@ -1012,12 +1012,18 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.choicePayment1.setTextColor(if (collect1 > 0) ContextCompat.getColor(this, R.color.primary) else ContextCompat.getColor(this, R.color.brand_green))
 
             val isDone1 = completedBundleOrderIds.contains(order1.orderId)
+            val isReturning1 = order1.status == Order.Status.RETURNING_TO_STORE
             val isArrived1 = order1.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order1.orderId) >= 4
             if (isDone1) {
                 binding.choiceBadge1.text = "✓ Đã giao"
                 binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.choiceBadge1.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
                 binding.btnChoiceCust1.setBackgroundResource(R.drawable.bg_choice_card_idle)
+            } else if (isReturning1) {
+                binding.choiceBadge1.text = "🚨 Khách hủy (Về quán)"
+                binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.choiceBadge1.setTextColor(Color.parseColor("#DC2626"))
+                binding.btnChoiceCust1.setBackgroundResource(if (activeBundleIndex == 0) R.drawable.bg_choice_card_active else R.drawable.bg_choice_card_idle)
             } else if (activeBundleIndex == 0) {
                 binding.choiceBadge1.text = if (isArrived1) "📍 Đã đến nhà khách" else "⚡ Đang giao"
                 binding.choiceBadge1.setBackgroundResource(R.drawable.bg_badge_orange)
@@ -1053,12 +1059,18 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.choicePayment2.setTextColor(if (collect2 > 0) ContextCompat.getColor(this, R.color.primary) else ContextCompat.getColor(this, R.color.brand_green))
 
             val isDone2 = completedBundleOrderIds.contains(order2.orderId)
+            val isReturning2 = order2.status == Order.Status.RETURNING_TO_STORE
             val isArrived2 = order2.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order2.orderId) >= 4
             if (isDone2) {
                 binding.choiceBadge2.text = "✓ Đã giao"
                 binding.choiceBadge2.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.choiceBadge2.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
                 binding.btnChoiceCust2.setBackgroundResource(R.drawable.bg_choice_card_idle)
+            } else if (isReturning2) {
+                binding.choiceBadge2.text = "🚨 Khách hủy (Về quán)"
+                binding.choiceBadge2.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.choiceBadge2.setTextColor(Color.parseColor("#DC2626"))
+                binding.btnChoiceCust2.setBackgroundResource(if (activeBundleIndex == 1) R.drawable.bg_choice_card_active else R.drawable.bg_choice_card_idle)
             } else if (activeBundleIndex == 1) {
                 binding.choiceBadge2.text = if (isArrived2) "📍 Đã đến nhà khách" else "⚡ Đang giao"
                 binding.choiceBadge2.setBackgroundResource(R.drawable.bg_badge_orange)
@@ -1095,12 +1107,18 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.choicePayment3.setTextColor(if (collect3 > 0) ContextCompat.getColor(this, R.color.primary) else ContextCompat.getColor(this, R.color.brand_green))
 
             val isDone3 = completedBundleOrderIds.contains(order3.orderId)
+            val isReturning3 = order3.status == Order.Status.RETURNING_TO_STORE
             val isArrived3 = order3.status == Order.Status.ARRIVED_AT_CUSTOMER || getSavedStep(order3.orderId) >= 4
             if (isDone3) {
                 binding.choiceBadge3.text = "✓ Đã giao"
                 binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.choiceBadge3.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
                 binding.btnChoiceCust3.setBackgroundResource(R.drawable.bg_choice_card_idle)
+            } else if (isReturning3) {
+                binding.choiceBadge3.text = "🚨 Khách hủy (Về quán)"
+                binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_orange)
+                binding.choiceBadge3.setTextColor(Color.parseColor("#DC2626"))
+                binding.btnChoiceCust3.setBackgroundResource(if (activeBundleIndex == 2) R.drawable.bg_choice_card_active else R.drawable.bg_choice_card_idle)
             } else if (activeBundleIndex == 2) {
                 binding.choiceBadge3.text = if (isArrived3) "📍 Đã đến nhà khách" else "⚡ Đang giao"
                 binding.choiceBadge3.setBackgroundResource(R.drawable.bg_badge_orange)
@@ -1238,6 +1256,13 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         if (completedBundleOrderIds.contains(targetOrder.orderId)) {
             Toast.makeText(this, "Đơn của ${targetOrder.customerName} đã được giao thành công!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (targetOrder.status == Order.Status.RETURNING_TO_STORE) {
+            val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) && it.status != Order.Status.RETURNING_TO_STORE }
+            val nextOrder = remainingOrders.firstOrNull()
+            showBomReturnFlowDialog(targetOrder, isReturningToStore = (nextOrder == null), nextOrder = nextOrder)
             return
         }
 

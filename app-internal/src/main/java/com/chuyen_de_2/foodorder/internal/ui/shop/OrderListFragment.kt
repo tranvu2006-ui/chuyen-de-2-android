@@ -689,16 +689,8 @@ class OrderListFragment : Fragment() {
             binding.tvCompletedOrdersCount.text = "$count đơn"
         }
 
-        // Banner cảnh báo ở tab Đang Giao
-        viewModel.hasDeliveringWarning.observe(viewLifecycleOwner) { hasWarning ->
-            val isDeliveringTab = viewModel.currentTab.value == ShopViewModel.TabType.DELIVERING
-            binding.bannerTabDeliveringWarning.isVisible = hasWarning && isDeliveringTab
-        }
-
-        viewModel.currentTab.observe(viewLifecycleOwner) { tab ->
-            val hasWarning = viewModel.hasDeliveringWarning.value ?: false
-            binding.bannerTabDeliveringWarning.isVisible = hasWarning && tab == ShopViewModel.TabType.DELIVERING
-        }
+        // Banner cảnh báo ở tab Đang Giao - Đã tắt theo yêu cầu giao diện
+        binding.bannerTabDeliveringWarning.isVisible = false
 
         // Chuông báo đơn mới
         viewModel.newOrderAlert.observe(viewLifecycleOwner) { hasNewOrder ->

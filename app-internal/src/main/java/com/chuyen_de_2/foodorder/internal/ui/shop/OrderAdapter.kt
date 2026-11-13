@@ -116,26 +116,11 @@ class OrderAdapter(
             val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Địa chỉ nhận món" } }
             binding.tvOrderAddress.text = "📍 Giao đến: $customerName - $address"
 
-            // 3. Kiểm tra xem đơn có bị cảnh báo mất đơn không
-            val isWarning = order.note.contains("cảnh báo", ignoreCase = true) ||
-                    order.note.contains("gọi", ignoreCase = true) ||
-                    order.status == "WARNING"
-
-            if (isWarning) {
-                binding.cardOrderItem.strokeColor = ContextCompat.getColor(context, R.color.error)
-                binding.cardOrderItem.strokeWidth = (2 * context.resources.displayMetrics.density).toInt()
-                binding.tvOrderBadge.text = "🚨 CẢNH BÁO MẤT ĐƠN"
-                binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                binding.boxWarningIncident.visibility = View.VISIBLE
-                binding.btnWarningDetail.visibility = View.VISIBLE
-            } else {
-                binding.cardOrderItem.strokeColor = ContextCompat.getColor(context, R.color.border)
-                binding.cardOrderItem.strokeWidth = (1 * context.resources.displayMetrics.density).toInt()
-                binding.boxWarningIncident.visibility = View.GONE
-                binding.btnWarningDetail.visibility = View.GONE
-            }
+            // 3. Tắt phần đơn hàng bị cảnh báo màu đỏ theo yêu cầu
+            binding.cardOrderItem.strokeColor = ContextCompat.getColor(context, R.color.border)
+            binding.cardOrderItem.strokeWidth = (1 * context.resources.displayMetrics.density).toInt()
+            binding.boxWarningIncident.visibility = View.GONE
+            binding.btnWarningDetail.visibility = View.GONE
 
             // 3.5 Khách hàng gửi yêu cầu hủy đơn (khi đang nấu hoặc sẵn sàng)
             if (order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING) {
@@ -206,7 +191,7 @@ class OrderAdapter(
                     binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
 
                     binding.boxDriverStatus.visibility = View.GONE
-
+                    binding.btnMainAction.visibility = View.VISIBLE
                     binding.btnMainAction.apply {
                         isEnabled = true
                         text = "👁️ ĐÃ CHECK TIỀN ➔ DUYỆT & NẤU"
@@ -222,7 +207,7 @@ class OrderAdapter(
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 
                     binding.boxDriverStatus.visibility = View.GONE
-
+                    binding.btnMainAction.visibility = View.VISIBLE
                     binding.btnMainAction.apply {
                         isEnabled = true
                         text = "✓ XÁC NHẬN & NẤU MÓN ➔"
@@ -238,7 +223,7 @@ class OrderAdapter(
                     binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
 
                     binding.boxDriverStatus.visibility = View.GONE
-
+                    binding.btnMainAction.visibility = View.VISIBLE
                     binding.btnMainAction.apply {
                         isEnabled = true
                         text = "✓ XÁC NHẬN ĐƠN CỦA KHÁCH ➔"
@@ -261,6 +246,7 @@ class OrderAdapter(
                     }
                     binding.btnCallDriver.visibility = View.GONE
 
+                    binding.btnMainAction.visibility = View.VISIBLE
                     binding.btnMainAction.apply {
                         isEnabled = true
                         text = "🍳 XÁC NHẬN ĐÃ NẤU XONG ➔"
@@ -284,13 +270,7 @@ class OrderAdapter(
                             setTextColor(Color.parseColor("#B45309"))
                         }
                         binding.btnCallDriver.visibility = View.GONE
-
-                        binding.btnMainAction.apply {
-                            isEnabled = false
-                            text = "⏳ ĐANG CHỜ TÀI XẾ BẤM NHẬN ĐƠN..."
-                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.text_secondary)
-                            setTextColor(Color.WHITE)
-                        }
+                        binding.btnMainAction.visibility = View.GONE
                     } else {
                         // Trường hợp tài xế đã nhận
                         val driverText = order.shipperName.ifBlank { "Tài xế" }
@@ -305,13 +285,8 @@ class OrderAdapter(
                             setTextColor(Color.parseColor("#047857"))
                         }
                         binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-
-                        binding.btnMainAction.apply {
-                            isEnabled = true
-                            text = "🛵 XÁC NHẬN GIAO MÓN CHO $driverText ➔"
-                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
-                            setTextColor(Color.WHITE)
-                        }
+                        // Bỏ nút xác nhận đơn cho tài xế bên quán
+                        binding.btnMainAction.visibility = View.GONE
                     }
                 }
 
@@ -330,13 +305,8 @@ class OrderAdapter(
                         setTextColor(Color.parseColor("#047857"))
                     }
                     binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-
-                    binding.btnMainAction.apply {
-                        isEnabled = true
-                        text = "🛵 XÁC NHẬN GIAO MÓN CHO $driverText ➔"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
-                        setTextColor(Color.WHITE)
-                    }
+                    // Bỏ nút xác nhận đơn cho tài xế bên quán
+                    binding.btnMainAction.visibility = View.GONE
                 }
 
                 Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
@@ -354,13 +324,7 @@ class OrderAdapter(
                         setTextColor(Color.parseColor("#047857"))
                     }
                     binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-
-                    binding.btnMainAction.apply {
-                        isEnabled = false
-                        text = if (isAtCustomer) "📍 ĐÃ ĐẾN NHÀ KHÁCH" else "✓ ĐÃ GIAO CHO TÀI XẾ"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green_bg)
-                        setTextColor(Color.parseColor("#047857"))
-                    }
+                    binding.btnMainAction.visibility = View.GONE
                 }
 
                 Order.Status.COMPLETED -> {
@@ -369,12 +333,7 @@ class OrderAdapter(
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 
                     binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.apply {
-                        isEnabled = false
-                        text = "✓ ĐƠN ĐÃ HOÀN TẤT"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.border)
-                        setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-                    }
+                    binding.btnMainAction.visibility = View.GONE
                 }
 
                 Order.Status.RETURNING_TO_STORE -> {
@@ -384,12 +343,7 @@ class OrderAdapter(
 
                     binding.boxDriverStatus.visibility = View.VISIBLE
                     binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-                    binding.btnMainAction.apply {
-                        isEnabled = false
-                        text = "⚠️ SHIPPER ĐANG ĐEM MÓN VỀ TRẢ"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_orange_bg)
-                        setTextColor(Color.parseColor("#B45309"))
-                    }
+                    binding.btnMainAction.visibility = View.GONE
                 }
 
                 Order.Status.RETURNED_TO_STORE -> {
@@ -398,12 +352,7 @@ class OrderAdapter(
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 
                     binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.apply {
-                        isEnabled = false
-                        text = "✓ QUÁN ĐÃ NHẬN LẠI MÓN"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.border)
-                        setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-                    }
+                    binding.btnMainAction.visibility = View.GONE
                 }
 
                 Order.Status.CANCELLED, Order.Status.BOOM -> {
@@ -413,12 +362,7 @@ class OrderAdapter(
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 
                     binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.apply {
-                        isEnabled = false
-                        text = "✕ ĐƠN ĐÃ HỦY"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.border)
-                        setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-                    }
+                    binding.btnMainAction.visibility = View.GONE
                 }
             }
         }

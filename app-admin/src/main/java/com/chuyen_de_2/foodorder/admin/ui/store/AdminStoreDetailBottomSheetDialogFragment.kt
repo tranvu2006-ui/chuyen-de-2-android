@@ -21,6 +21,7 @@ class AdminStoreDetailBottomSheetDialogFragment(
     private val onApprove: (Store) -> Unit,
     private val onLock: (Store) -> Unit,
     private val onApplyPenalty: (storeId: String, tier: String, reason: String) -> Unit,
+    private val onReject: ((Store, String) -> Unit)? = null,
     private val onEditAll: ((Store) -> Unit)? = null
 ) : BottomSheetDialogFragment() {
 
@@ -90,16 +91,21 @@ class AdminStoreDetailBottomSheetDialogFragment(
         binding.tvDetailCccdInfo.text = "Họ tên chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • Số CCCD: ${store.cccdNumber.ifBlank { "Chưa cập nhật" }}"
 
         // Status badge
+        val roleHint = if (store.bossId.isNotBlank()) "BOSSMERCHANT" else "QUÁN"
         if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "CHỜ DUYỆT CCCD"
+            binding.tvDetailStatusBadge.text = "CHỜ DUYỆT CCCD ($roleHint)"
             binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
             binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+        } else if (store.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "BỊ TỪ CHỐI HỒ SƠ"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
         } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
             binding.tvDetailStatusBadge.text = "BỊ KHÓA"
             binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
             binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
         } else if (store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "ĐANG MỞ CỬA"
+            binding.tvDetailStatusBadge.text = "ĐANG MỞ CỬA ($roleHint)"
             binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
             binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
         } else {
@@ -135,6 +141,24 @@ class AdminStoreDetailBottomSheetDialogFragment(
         binding.btnApproveStore.setOnClickListener {
             onApprove(store)
             dismiss()
+        }
+
+        binding.btnRejectStore.setOnClickListener {
+            val input = android.widget.EditText(requireContext()).apply {
+                hint = "Nhập lý do từ chối hồ sơ..."
+                setText("Ảnh CCCD chưa rõ hoặc thông tin chưa chính xác")
+            }
+            AlertDialog.Builder(requireContext())
+                .setTitle("Từ chối hồ sơ đối tác")
+                .setMessage("Nhập lý do từ chối hồ sơ của '${store.name}':")
+                .setView(input)
+                .setPositiveButton("Xác nhận từ chối") { _, _ ->
+                    val reason = input.text.toString().trim().ifBlank { "Hồ sơ chưa đạt yêu cầu" }
+                    onReject?.invoke(store, reason)
+                    dismiss()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
         }
 
         binding.btnLockStore.setOnClickListener {

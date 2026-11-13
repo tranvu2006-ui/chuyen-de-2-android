@@ -55,8 +55,21 @@ data class User(
     val emailVerified: Boolean = false,
 
     @SerializedName("phoneVerified")
-    val phoneVerified: Boolean = false
+    val phoneVerified: Boolean = false,
+
+    @SerializedName("approvalStatus")
+    val approvalStatus: String = ApprovalStatus.APPROVED,
+
+    @SerializedName("rejectReason")
+    val rejectReason: String = ""
 ) {
+    /** Trạng thái duyệt hồ sơ (Merchant & BossMerchant) */
+    object ApprovalStatus {
+        const val PENDING = "PENDING"
+        const val APPROVED = "APPROVED"
+        const val REJECTED = "REJECTED"
+    }
+
     /** Role constants — RBAC phân quyền 4 Actors + Boss */
     object Role {
         const val ADMIN = "ADMIN"

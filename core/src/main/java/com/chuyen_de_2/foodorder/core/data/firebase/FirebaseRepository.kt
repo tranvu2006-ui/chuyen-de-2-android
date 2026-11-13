@@ -1096,11 +1096,11 @@ class FirebaseRepository @Inject constructor(
                 "bankAccountName" to bankAccountName.trim().uppercase(),
                 "openHours" to openHours.trim(),
                 "prepTime" to prepTime.trim(),
-                "isVerified" to true,
-                "verified" to true,
-                "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN,
-                "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN,
-                "open" to true
+                "isVerified" to false,
+                "verified" to false,
+                "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
+                "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
+                "open" to false
             )
             if (merchantUid.isNotBlank()) {
                 val userSnap = try { database.getReference("users").child(merchantUid).get().await() } catch (_: Exception) { null }
@@ -1118,10 +1118,27 @@ class FirebaseRepository @Inject constructor(
                 } else {
                     updates["merchantId"] = merchantUid
                     updates["ownerId"] = merchantUid
-                    try {
-                        database.getReference("users").child(merchantUid).child("storeId").setValue(storeId).await()
-                    } catch (_: Exception) {}
                 }
+                try {
+                    val userUpdates = mapOf<String, Any>(
+                        "storeId" to storeId,
+                        "approvalStatus" to com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.PENDING,
+                        "rejectReason" to ""
+                    )
+                    database.getReference("users").child(merchantUid).updateChildren(userUpdates).await()
+
+                    val merchantData = mapOf<String, Any>(
+                        "merchantId" to merchantUid,
+                        "storeId" to storeId,
+                        "cccdNumber" to cccdNumber.trim(),
+                        "cccdFrontUrl" to cccdFrontUrl,
+                        "bankName" to bankName.trim(),
+                        "bankAccount" to bankAccountNumber.trim(),
+                        "approvalStatus" to com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.PENDING,
+                        "createdAt" to System.currentTimeMillis()
+                    )
+                    database.getReference("merchants").child(merchantUid).updateChildren(merchantData).await()
+                } catch (_: Exception) {}
             }
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
             if (cccdFrontUrl.isNotBlank()) updates["cccdFrontUrl"] = cccdFrontUrl
@@ -1130,7 +1147,7 @@ class FirebaseRepository @Inject constructor(
 
             database.getReference("stores").child(storeId).updateChildren(updates).await()
 
-            // Nếu là Boss, đồng bộ CCCD & STK ngân hàng sang toàn bộ các chi nhánh của Boss
+            // Nếu là Boss, đồng bộ thông tin định danh sang các chi nhánh của Boss
             if (updates.containsKey("bossId")) {
                 val bossUid = updates["bossId"] as String
                 try {
@@ -1140,9 +1157,7 @@ class FirebaseRepository @Inject constructor(
                         "cccdNumber" to cccdNumber.trim(),
                         "bankName" to bankName.trim(),
                         "bankAccountNumber" to bankAccountNumber.trim(),
-                        "bankAccountName" to bankAccountName.trim().uppercase(),
-                        "isVerified" to true,
-                        "verified" to true
+                        "bankAccountName" to bankAccountName.trim().uppercase()
                     )
                     if (bankBin.isNotBlank()) legalUpdates["bankBin"] = bankBin.trim()
                     if (cccdFrontUrl.isNotBlank()) legalUpdates["cccdFrontUrl"] = cccdFrontUrl
@@ -2414,7 +2429,7 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Duyệt hoặc từ chối hồ sơ Quán ăn (Admin CCCD review) */
+    /** Duyệt hồ sơ Quán ăn / Chủ chuỗi (Admin CCCD review) */
     suspend fun verifyStore(storeId: String, isApproved: Boolean): Result<Unit> {
         return try {
             val status = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN 
@@ -2424,9 +2439,74 @@ class FirebaseRepository @Inject constructor(
                 "verified" to isApproved,
                 "storeStatus" to status,
                 "status" to status,
-                "open" to isApproved
+                "open" to isApproved,
+                "penaltyReason" to if (isApproved) "" else "Admin khóa hoặc từ chối"
             )
             database.getReference("stores").child(storeId).updateChildren(updates).await()
+
+            // Cập nhật tài khoản Boss / Merchant sở hữu quán
+            try {
+                val storeSnap = database.getReference("stores").child(storeId).get().await()
+                val bossId = storeSnap.child("bossId").getValue(String::class.java).orEmpty()
+                val merchantId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
+                    .ifBlank { storeSnap.child("ownerId").getValue(String::class.java).orEmpty() }
+
+                val targetUids = listOf(bossId, merchantId).filter { it.isNotBlank() }.distinct()
+                for (tUid in targetUids) {
+                    val userUpdates = mapOf<String, Any>(
+                        "approvalStatus" to if (isApproved) com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.APPROVED else com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.PENDING,
+                        "status" to if (isApproved) com.chuyen_de_2.foodorder.core.data.model.User.Status.ACTIVE else com.chuyen_de_2.foodorder.core.data.model.User.Status.LOCKED,
+                        "isActive" to isApproved
+                    )
+                    database.getReference("users").child(tUid).updateChildren(userUpdates).await()
+
+                    val merchantUpdates = mapOf<String, Any>(
+                        "approvalStatus" to if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.APPROVED else com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.PENDING
+                    )
+                    database.getReference("merchants").child(tUid).updateChildren(merchantUpdates).await()
+                }
+            } catch (_: Exception) {}
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Từ chối hồ sơ Quán ăn / Chủ chuỗi có kèm lý do */
+    suspend fun rejectStore(storeId: String, reason: String): Result<Unit> {
+        return try {
+            val updates = mapOf<String, Any>(
+                "isVerified" to false,
+                "verified" to false,
+                "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.REJECTED,
+                "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.REJECTED,
+                "open" to false,
+                "penaltyReason" to reason.trim()
+            )
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+
+            try {
+                val storeSnap = database.getReference("stores").child(storeId).get().await()
+                val bossId = storeSnap.child("bossId").getValue(String::class.java).orEmpty()
+                val merchantId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
+                    .ifBlank { storeSnap.child("ownerId").getValue(String::class.java).orEmpty() }
+
+                val targetUids = listOf(bossId, merchantId).filter { it.isNotBlank() }.distinct()
+                for (tUid in targetUids) {
+                    val userUpdates = mapOf<String, Any>(
+                        "approvalStatus" to com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.REJECTED,
+                        "rejectReason" to reason.trim()
+                    )
+                    database.getReference("users").child(tUid).updateChildren(userUpdates).await()
+
+                    val merchantUpdates = mapOf<String, Any>(
+                        "approvalStatus" to com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.REJECTED
+                    )
+                    database.getReference("merchants").child(tUid).updateChildren(merchantUpdates).await()
+                }
+            } catch (_: Exception) {}
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

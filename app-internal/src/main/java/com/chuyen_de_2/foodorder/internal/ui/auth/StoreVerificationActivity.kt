@@ -645,19 +645,21 @@ class StoreVerificationActivity : AppCompatActivity() {
             binding.btnSubmitVerification.isEnabled = true
 
             result.onSuccess {
-                Toast.makeText(this@StoreVerificationActivity, "🎉 Xác minh hồ sơ và thiết lập địa chỉ quán thành công!", Toast.LENGTH_LONG).show()
                 val role = authRepository.getUserRole()?.uppercase()
                 if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
                     firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
-                    startActivity(Intent(this@StoreVerificationActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    })
-                } else {
-                    startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    })
                 }
-                finish()
+                androidx.appcompat.app.AlertDialog.Builder(this@StoreVerificationActivity)
+                    .setTitle("🎉 Gửi Hồ Sơ Thành Công!")
+                    .setMessage("Hồ sơ đăng ký đối tác và thông tin xác thực CCCD của bạn đã được gửi thành công đến Quản trị viên (Admin).\n\nQuản trị viên sẽ tiến hành kiểm duyệt hồ sơ trong thời gian sớm nhất. Bạn có thể theo dõi trạng thái tại màn hình chính.")
+                    .setPositiveButton("Đã hiểu") { _, _ ->
+                        startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        })
+                        finish()
+                    }
+                    .setCancelable(false)
+                    .show()
             }.onFailure { err ->
                 Toast.makeText(this@StoreVerificationActivity, "Lỗi khi cập nhật hồ sơ: ${err.message}", Toast.LENGTH_LONG).show()
             }

@@ -110,9 +110,20 @@ class AdminStoreViewModel @Inject constructor(
         viewModelScope.launch {
             val result = firebaseRepo.verifyStore(storeId, isApproved = true)
             if (result.isSuccess) {
-                _message.value = "Đã phê duyệt và mở quyền hoạt động cho quán!"
+                _message.value = "Đã phê duyệt và mở quyền hoạt động cho quán / Boss!"
             } else {
                 _message.value = "Phê duyệt thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun rejectStore(storeId: String, reason: String) {
+        viewModelScope.launch {
+            val result = firebaseRepo.rejectStore(storeId, reason)
+            if (result.isSuccess) {
+                _message.value = "Đã từ chối hồ sơ đăng ký của quán / Boss!"
+            } else {
+                _message.value = "Từ chối thất bại: ${result.exceptionOrNull()?.localizedMessage}"
             }
         }
     }

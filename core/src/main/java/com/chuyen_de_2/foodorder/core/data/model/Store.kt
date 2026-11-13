@@ -170,6 +170,7 @@ data class Store(
         const val OPEN = "OPEN"
         const val LOCKED = "LOCKED"
         const val CLOSED = "CLOSED"
+        const val REJECTED = "REJECTED"
     }
 
     /** Chế tài xử phạt — Admin áp đặt */

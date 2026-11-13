@@ -50,6 +50,7 @@ class AdminStoreListFragment : Fragment() {
                 onApprove = { s -> viewModel.approveStore(s.id) },
                 onLock = { s -> viewModel.lockStore(s.id) },
                 onApplyPenalty = { sId, tier, reason -> viewModel.applyPenalty(sId, tier, reason) },
+                onReject = { s, reason -> viewModel.rejectStore(s.id, reason) },
                 onEditAll = { s ->
                     val editDialog = EditStoreDialogFragment(s) { updatedStore ->
                         viewModel.saveStoreFull(updatedStore)

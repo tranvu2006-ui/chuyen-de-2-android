@@ -2538,7 +2538,8 @@
               </div>
               <select class="select-filter" id="filter-customer-role" onchange="filterCustomers()">
                 <option value="CUSTOMER">Vai trò: Khách hàng</option>
-                <option value="ALL">Tất cả tài khoản (Khách + Quán + Tài xế)</option>
+                <option value="ALL">Tất cả tài khoản (Khách + Boss + Quán + Tài xế)</option>
+                <option value="BOSSMERCHANT">Chủ chuỗi (BOSSMERCHANT)</option>
                 <option value="MERCHANT">Chủ quán (Merchant)</option>
                 <option value="DRIVER">Tài xế (Driver)</option>
               </select>
@@ -2606,9 +2607,10 @@
                 <input type="text" id="filter-store-search" placeholder="Tìm tên quán, chủ quán, SĐT, số CCCD..." oninput="filterStores()">
               </div>
               <select class="select-filter" id="filter-store-status" onchange="filterStores()">
-                <option value="ALL">Tất cả trạng thái (4 loại)</option>
-                <option value="PENDING">Chờ duyệt</option>
+                <option value="ALL">Tất cả trạng thái (5 loại)</option>
+                <option value="PENDING">Chờ duyệt (KYC)</option>
                 <option value="OPEN">Đang hoạt động</option>
+                <option value="REJECTED">Bị từ chối hồ sơ</option>
                 <option value="LOCKED">Bị khóa</option>
                 <option value="CLOSED">Tạm nghỉ</option>
               </select>
@@ -4120,6 +4122,7 @@
         }
         if (role === 'MANAGER') role = 'MERCHANT';
         if (role === 'SHIPPER') role = 'DRIVER';
+        if (role === 'BOSS' || role === 'BOSSMERCHANT') role = 'BOSSMERCHANT';
 
         const rawSt = (u.status || cNode.status || '').toUpperCase();
         const isLockedOrSusp = rawSt === 'LOCKED' || rawSt === 'SUSPENDED' || u.isActive === false || u.active === false || cNode.status === 'LOCKED';
@@ -4163,6 +4166,7 @@
           area: resolvedArea || 'Chưa cập nhật',
           trustScore: cNode.trustScore !== undefined ? Number(cNode.trustScore) : (u.trustScore !== undefined ? Number(u.trustScore) : 100),
           status: status,
+          approvalStatus: u.approvalStatus || (sNode && sNode.isVerified ? 'APPROVED' : 'PENDING'),
           lockReason: u.lockReason || cNode.lockReason || ''
         };
       });
@@ -5459,7 +5463,10 @@
         const score = (c.trustScore !== undefined && c.trustScore !== null) ? c.trustScore : 100;
 
         let rolePill = '';
-        if (c.role === 'MERCHANT') {
+        if (c.role === 'BOSSMERCHANT') {
+          const apprText = c.approvalStatus === 'PENDING' ? ' • Chờ duyệt' : (c.approvalStatus === 'REJECTED' ? ' • Bị từ chối' : '');
+          rolePill = `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#F3E8FF; color:#7E22CE; font-weight:700; margin-left:6px;">Chủ chuỗi (Boss)${apprText}</span>`;
+        } else if (c.role === 'MERCHANT') {
           rolePill = `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#FEF3C7; color:#B45309; font-weight:700; margin-left:6px;">Chủ quán${c.storeName ? ': ' + c.storeName : ''}</span>`;
         } else if (c.role === 'DRIVER') {
           rolePill = `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:#E0E7FF; color:#4338CA; font-weight:700; margin-left:6px;">Tài xế</span>`;
@@ -5818,6 +5825,8 @@
           statusBadgeHtml = `<span class="badge badge-status-locked" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="${s.lockReason || 'Cửa hàng đã bị khóa do vi phạm'}"><span class="badge-dot"></span>Bị khóa ▾</span>`;
         } else if (s.status === 'CLOSED') {
           statusBadgeHtml = `<span class="badge badge-status-closed" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="Bấm để đổi trạng thái quán"><span class="badge-dot"></span>Tạm nghỉ ▾</span>`;
+        } else if (s.status === 'REJECTED') {
+          statusBadgeHtml = `<span class="badge badge-status-locked" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;" title="${s.lockReason || 'Hồ sơ đã bị từ chối'}"><span class="badge-dot"></span>Bị từ chối ▾</span>`;
         } else {
           statusBadgeHtml = `<span class="badge badge-status-open" onclick="openChangeStatusModal('${s.id}')" style="cursor:pointer;"><span class="badge-dot"></span>Đang hoạt động ▾</span>`;
         }
@@ -5827,6 +5836,7 @@
           <td onclick="openStoreDetailModal('${s.id}')" style="cursor: pointer;" title="Bấm vào tên quán để xem Đơn hàng, Thực đơn & Tài xế thuộc quán">
             <div class="store-name-link">
               <strong>${s.name}</strong>
+              ${s.bossId ? '<span class="badge" style="background:#F3E8FF; color:#7E22CE; font-weight:700; font-size:10px; padding:1px 5px; margin-left:4px;">Boss Chuỗi</span>' : ''}
               <span class="store-badge-view">Đơn / Menu / TX</span>
             </div>
             <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">${s.address || 'Hồ Chí Minh'}</div>
@@ -5891,21 +5901,17 @@
     function rejectPendingStore(storeId) {
       const store = stores.find(s => s.id === storeId);
       if (!store) return;
-      if (confirm(`Bạn có chắc chắn muốn HỦY / TỪ CHỐI hồ sơ đăng ký của cửa hàng "${store.name}" (Chủ quán: ${store.owner})?`)) {
-        stores = stores.filter(s => s.id !== storeId);
-        if (fbDb && isFirebaseReady) {
-          fbDb.ref(`stores/${storeId}`).remove().catch(() => {});
-        }
-        saveState();
-        renderStores();
-        renderOverviewStores();
-        renderKPIs();
-        addLog(`Hủy hồ sơ đăng ký của quán "${store.name}"`, 'warning');
-        showToast(`Đã hủy hồ sơ đăng ký của quán "${store.name}" trên Firebase!`, 'warning');
-      }
+      const reason = prompt(`Nhập lý do từ chối hồ sơ "${store.name}" (Chủ quán/Boss: ${store.owner}):`, 'Ảnh CCCD mờ hoặc thông tin đăng ký chưa hợp lệ');
+      if (reason === null) return;
+      syncStoreStatusToFirebase(store, 'REJECTED', reason, 'NONE');
+      saveState();
+      renderStores();
+      renderOverviewStores();
+      renderKPIs();
+      addLog(`Từ chối hồ sơ đăng ký của quán "${store.name}" (Lý do: ${reason})`, 'warning');
+      showToast(`Đã từ chối hồ sơ quán "${store.name}" trên Firebase!`, 'warning');
     }
 
-    
     /* ========================================================
        15. STORE ORDERS, MENU DISHES & DRIVERS DETAIL + GLOBAL ORDERS
        ======================================================== */
@@ -5927,26 +5933,41 @@
       } else if (newStatus === 'LOCKED') {
         store.penaltyTier = penaltyTier || 'LOCK';
         store.lockReason = reason || store.lockReason || 'Vi phạm quy định nền tảng';
+      } else if (newStatus === 'REJECTED') {
+        store.penaltyTier = penaltyTier || 'NONE';
+        store.lockReason = reason || store.lockReason || 'Hồ sơ bị từ chối';
       } else if (newStatus === 'CLOSED') {
         store.penaltyTier = penaltyTier || 'NONE';
         if (reason) store.lockReason = reason;
       }
 
       if (fbDb && isFirebaseReady) {
+        const isApproved = (newStatus === 'OPEN');
         const updates = {
           status: newStatus,
           storeStatus: newStatus,
-          open: newStatus === 'OPEN',
-          cccdStatus: store.cccdStatus || 'VERIFIED',
+          open: isApproved,
+          isVerified: isApproved,
+          verified: isApproved,
+          cccdStatus: isApproved ? 'VERIFIED' : (newStatus === 'REJECTED' ? 'REJECTED' : 'PENDING'),
           penaltyTier: store.penaltyTier || 'NONE',
           lockReason: store.lockReason || null,
           penaltyReason: store.lockReason || ''
         };
         fbDb.ref(`stores/${store.id}`).update(updates).catch(() => {});
-        if (store.ownerId) {
-          fbDb.ref(`users/${store.ownerId}`).update({
-            status: newStatus === 'LOCKED' ? 'LOCKED' : 'ACTIVE',
-            isActive: newStatus !== 'LOCKED'
+
+        const targetOwnerId = store.bossId || store.merchantId || store.ownerId;
+        if (targetOwnerId) {
+          const userUpdates = {
+            approvalStatus: isApproved ? 'APPROVED' : (newStatus === 'REJECTED' ? 'REJECTED' : 'PENDING'),
+            status: newStatus === 'LOCKED' ? 'LOCKED' : (newStatus === 'REJECTED' ? 'REJECTED' : 'ACTIVE'),
+            isActive: newStatus !== 'LOCKED',
+            rejectReason: (newStatus === 'REJECTED' || newStatus === 'LOCKED') ? (reason || store.lockReason || '') : null
+          };
+          fbDb.ref(`users/${targetOwnerId}`).update(userUpdates).catch(() => {});
+          fbDb.ref(`merchants/${targetOwnerId}`).update({
+            approvalStatus: isApproved ? 'APPROVED' : (newStatus === 'REJECTED' ? 'REJECTED' : 'PENDING'),
+            rejectReason: (newStatus === 'REJECTED' || newStatus === 'LOCKED') ? (reason || store.lockReason || '') : null
           }).catch(() => {});
         }
       }

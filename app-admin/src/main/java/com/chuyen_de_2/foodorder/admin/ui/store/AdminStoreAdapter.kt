@@ -62,9 +62,14 @@ class AdminStoreAdapter(
 
             // Status Badge
             if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
-                binding.tvStoreStatusBadge.text = "CHỜ DUYỆT CCCD"
+                val roleHint = if (store.bossId.isNotBlank()) "BOSSMERCHANT" else "QUÁN"
+                binding.tvStoreStatusBadge.text = "CHỜ DUYỆT ($roleHint)"
                 binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                 binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+            } else if (store.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)) {
+                binding.tvStoreStatusBadge.text = "BỊ TỪ CHỐI"
+                binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvStoreStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
             } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
                 binding.tvStoreStatusBadge.text = "BỊ KHÓA"
                 binding.tvStoreStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)

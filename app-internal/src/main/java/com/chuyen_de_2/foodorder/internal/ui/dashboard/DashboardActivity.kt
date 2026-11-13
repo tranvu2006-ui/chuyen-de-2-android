@@ -8,6 +8,7 @@ import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity
+import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.data.model.User
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityDashboardBinding
@@ -156,11 +157,13 @@ class DashboardActivity : AppCompatActivity() {
                 if (uid.isNotBlank()) {
                     val existingBranches = firebaseRepository.getStoresByBoss(uid).firstOrNull().orEmpty()
                     val defaultStore = firebaseRepository.getStoreOnce("store_$uid")
-                    if (existingBranches.isEmpty() && (defaultStore == null || !defaultStore.isVerified)) {
+                    val candidateStore = existingBranches.firstOrNull() ?: defaultStore
+
+                    if (candidateStore == null || (candidateStore.cccdNumber.isBlank() && candidateStore.address.isBlank())) {
                         val newStoreId = "store_$uid"
                         Toast.makeText(
                             this@DashboardActivity,
-                            "Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & STK ngân hàng nhận tiền.",
+                            "Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & xác thực CCCD.",
                             Toast.LENGTH_LONG
                         ).show()
                         val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
@@ -169,6 +172,52 @@ class DashboardActivity : AppCompatActivity() {
                         }
                         startActivity(intent)
                         finish()
+                        return@launch
+                    }
+
+                    val isRejected = candidateStore.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)
+                    if (isRejected) {
+                        val reason = candidateStore.penaltyReason.ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
+                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                            .setTitle("❌ Hồ Sơ Bị Từ Chối")
+                            .setMessage("Hồ sơ đăng ký Chủ chuỗi của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
+                            .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
+                                val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                                    putExtra("STORE_ID", candidateStore.id.ifBlank { "store_$uid" })
+                                }
+                                startActivity(intent)
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra("LOGOUT", true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
+                        return@launch
+                    }
+
+                    val isPending = !candidateStore.isVerified || candidateStore.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
+                    if (isPending) {
+                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                            .setTitle("⏳ Hồ Sơ Đang Chờ Admin Phê Duyệt")
+                            .setMessage("Hồ sơ đăng ký Chủ chuỗi '${candidateStore.name}' (CCCD: ${candidateStore.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, bạn sẽ có quyền truy cập đầy đủ vào trang quản lý chuỗi cửa hàng.")
+                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
+                                handleBossRoleAndProceed()
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra("LOGOUT", true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
                         return@launch
                     }
                 }
@@ -294,8 +343,7 @@ class DashboardActivity : AppCompatActivity() {
                 val storeId = firebaseRepository.resolveStoreIdForUser(uid)
                 if (storeId.isNotBlank()) {
                     val store = firebaseRepository.getStoreOnce(storeId)
-                    val isComplete = store != null && (store.isVerified || store.bossId.isNotBlank() || (store.address.isNotBlank() && store.district.isNotBlank() && store.cccdNumber.isNotBlank()))
-                    if (store == null || !isComplete || store.address.isBlank()) {
+                    if (store == null || store.address.isBlank() || store.cccdNumber.isBlank()) {
                         if (isManagedByBoss) {
                             setupMerchantNavigation()
                             return@launch
@@ -312,6 +360,54 @@ class DashboardActivity : AppCompatActivity() {
                         startActivity(intent)
                         finish()
                         return@launch
+                    }
+
+                    if (!isManagedByBoss) {
+                        val isRejected = store.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)
+                        if (isRejected) {
+                            val reason = store.penaltyReason.ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
+                            androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                                .setTitle("❌ Hồ Sơ Bị Từ Chối")
+                                .setMessage("Hồ sơ quán ăn của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
+                                .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
+                                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                                        putExtra("STORE_ID", storeId)
+                                    }
+                                    startActivity(intent)
+                                }
+                                .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                    authRepository.logout()
+                                    startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        putExtra("LOGOUT", true)
+                                    })
+                                    finish()
+                                }
+                                .setCancelable(false)
+                                .show()
+                            return@launch
+                        }
+
+                        val isPending = !store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
+                        if (isPending) {
+                            androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                                .setTitle("⏳ Hồ Sơ Đang Chờ Admin Phê Duyệt")
+                                .setMessage("Hồ sơ quán '${store.name}' (CCCD: ${store.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, quán sẽ mở cửa nhận đơn bình thường!")
+                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
+                                checkMerchantVerificationAndProceed()
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra("LOGOUT", true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
+                            return@launch
+                        }
                     }
                 } else {
                     if (isManagedByBoss) {

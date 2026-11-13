@@ -936,13 +936,25 @@ class AuthRepository @Inject constructor(
                 updates["storeId"] = finalStoreId
 
                 if (foundStoreId == null) {
+                    val defaultCoords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
                     val store = com.chuyen_de_2.foodorder.core.data.model.Store(
                         id = finalStoreId,
                         merchantId = uid,
                         name = auth.currentUser?.displayName?.ifBlank { "Quán Ăn Của Tôi" } ?: "Quán Ăn Của Tôi",
+                        latitude = defaultCoords.latitude,
+                        longitude = defaultCoords.longitude,
+                        lat = defaultCoords.latitude,
+                        lng = defaultCoords.longitude,
                         storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
                     )
                     database.getReference("stores").child(finalStoreId).setValue(store).await()
+                    val coordsUpdate = mapOf<String, Any>(
+                        "latitude" to defaultCoords.latitude,
+                        "longitude" to defaultCoords.longitude,
+                        "lat" to defaultCoords.latitude,
+                        "lng" to defaultCoords.longitude
+                    )
+                    database.getReference("stores").child(finalStoreId).updateChildren(coordsUpdate).await()
                 }
             } else if (normalizedRole == User.Role.DRIVER) {
                 val driverSnap = database.getReference("drivers").child(uid).get().await()

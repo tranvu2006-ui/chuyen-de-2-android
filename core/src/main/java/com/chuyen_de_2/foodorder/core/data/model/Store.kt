@@ -36,11 +36,25 @@ data class Store(
     @SerializedName("district")
     val district: String = "",
 
-    @SerializedName("latitude")
-    val latitude: Double = 0.0,
+    @get:com.google.firebase.database.PropertyName("latitude")
+    @set:com.google.firebase.database.PropertyName("latitude")
+    @SerializedName("latitude", alternate = ["lat"])
+    var latitude: Double = 0.0,
 
-    @SerializedName("longitude")
-    val longitude: Double = 0.0,
+    @get:com.google.firebase.database.PropertyName("longitude")
+    @set:com.google.firebase.database.PropertyName("longitude")
+    @SerializedName("longitude", alternate = ["lng"])
+    var longitude: Double = 0.0,
+
+    @get:com.google.firebase.database.PropertyName("lat")
+    @set:com.google.firebase.database.PropertyName("lat")
+    @SerializedName("lat")
+    var lat: Double = 0.0,
+
+    @get:com.google.firebase.database.PropertyName("lng")
+    @set:com.google.firebase.database.PropertyName("lng")
+    @SerializedName("lng")
+    var lng: Double = 0.0,
 
     @get:com.google.firebase.database.PropertyName("imageUrl")
     @set:com.google.firebase.database.PropertyName("imageUrl")
@@ -158,6 +172,14 @@ data class Store(
     @get:Exclude
     val rating: Float
         get() = ratingAvg
+
+    @get:Exclude
+    val resolvedLatitude: Double
+        get() = if (latitude != 0.0) latitude else lat
+
+    @get:Exclude
+    val resolvedLongitude: Double
+        get() = if (longitude != 0.0) longitude else lng
 
     /** Trả về URL hoặc Base64 ảnh đại diện quán từ bất kỳ trường nào có dữ liệu */
     @get:Exclude

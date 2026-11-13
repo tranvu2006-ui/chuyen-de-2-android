@@ -1012,8 +1012,14 @@ class FirebaseRepository @Inject constructor(
                 updates["logoUrl"] = imageUrl
                 updates["image"] = imageUrl
             }
-            if (latitude != 0.0) updates["latitude"] = latitude
-            if (longitude != 0.0) updates["longitude"] = longitude
+            if (latitude != 0.0) {
+                updates["latitude"] = latitude
+                updates["lat"] = latitude
+            }
+            if (longitude != 0.0) {
+                updates["longitude"] = longitude
+                updates["lng"] = longitude
+            }
 
             database.getReference("stores").child(storeId).updateChildren(updates).await()
             Result.success(Unit)
@@ -1038,6 +1044,14 @@ class FirebaseRepository @Inject constructor(
                 val dist = snap.child("district").getValue(String::class.java) ?: store?.district.orEmpty()
                 val cccd = snap.child("cccdNumber").getValue(String::class.java) ?: store?.cccdNumber.orEmpty()
                 val owner = snap.child("ownerName").getValue(String::class.java) ?: store?.ownerName.orEmpty()
+                val lat = snap.child("latitude").getValue(Double::class.java)
+                    ?: snap.child("lat").getValue(Double::class.java)
+                    ?: store?.latitude
+                    ?: 0.0
+                val lng = snap.child("longitude").getValue(Double::class.java)
+                    ?: snap.child("lng").getValue(Double::class.java)
+                    ?: store?.longitude
+                    ?: 0.0
                 val rawImg = snap.child("imageUrl").getValue(String::class.java)
                     ?: snap.child("avatarUrl").getValue(String::class.java)
                     ?: snap.child("avatar").getValue(String::class.java)
@@ -1054,7 +1068,11 @@ class FirebaseRepository @Inject constructor(
                     address = addr,
                     district = dist,
                     cccdNumber = cccd,
-                    ownerName = owner
+                    ownerName = owner,
+                    latitude = lat,
+                    longitude = lng,
+                    lat = lat,
+                    lng = lng
                 )
             }
         } catch (e: Exception) {
@@ -1142,8 +1160,18 @@ class FirebaseRepository @Inject constructor(
             }
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
             if (cccdFrontUrl.isNotBlank()) updates["cccdFrontUrl"] = cccdFrontUrl
-            if (latitude != 0.0) updates["latitude"] = latitude
-            if (longitude != 0.0) updates["longitude"] = longitude
+            val finalLat = if (latitude != 0.0) latitude else {
+                val fb = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict("$address, $district")
+                if (fb.latitude != 0.0) fb.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
+            }
+            val finalLng = if (longitude != 0.0) longitude else {
+                val fb = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict("$address, $district")
+                if (fb.longitude != 0.0) fb.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
+            }
+            updates["latitude"] = finalLat
+            updates["longitude"] = finalLng
+            updates["lat"] = finalLat
+            updates["lng"] = finalLng
 
             database.getReference("stores").child(storeId).updateChildren(updates).await()
 
@@ -3230,8 +3258,19 @@ class FirebaseRepository @Inject constructor(
                         val bId = child.child("bossId").getValue(String::class.java).orEmpty()
                         val mId = child.child("merchantId").getValue(String::class.java)
                             ?: child.child("ownerId").getValue(String::class.java).orEmpty()
+                        val rawLat = child.child("latitude").getValue(Double::class.java)
+                            ?: child.child("lat").getValue(Double::class.java)
+                            ?: 0.0
+                        val rawLng = child.child("longitude").getValue(Double::class.java)
+                            ?: child.child("lng").getValue(Double::class.java)
+                            ?: 0.0
+                        val finalStore = if ((store.latitude == 0.0 || store.longitude == 0.0) && (rawLat != 0.0 && rawLng != 0.0)) {
+                            store.copy(latitude = rawLat, longitude = rawLng, lat = rawLat, lng = rawLng)
+                        } else {
+                            store
+                        }
                         if (bId == bossUid || (bId.isBlank() && mId == bossUid)) {
-                            list.add(store)
+                            list.add(finalStore)
                         }
                     }
                 }
@@ -3263,9 +3302,12 @@ class FirebaseRepository @Inject constructor(
             val (resolvedLat, resolvedLng) = if (latitude != 0.0 && longitude != 0.0) {
                 latitude to longitude
             } else {
+                val fullAddr = "$address, $district, TP.HCM"
                 val coords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[district.trim()]
-                    ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                coords.latitude to coords.longitude
+                    ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict(fullAddr)
+                val finalLat = if (coords.latitude != 0.0) coords.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
+                val finalLng = if (coords.longitude != 0.0) coords.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
+                finalLat to finalLng
             }
 
             val storeRef = database.getReference("stores").push()
@@ -3281,6 +3323,8 @@ class FirebaseRepository @Inject constructor(
                 phone = phone.trim(),
                 latitude = resolvedLat,
                 longitude = resolvedLng,
+                lat = resolvedLat,
+                lng = resolvedLng,
                 ownerName = primaryStore?.ownerName.orEmpty(),
                 cccdNumber = primaryStore?.cccdNumber.orEmpty(),
                 bankName = primaryStore?.bankName?.ifBlank { "MB Bank" } ?: "MB Bank",
@@ -3295,6 +3339,16 @@ class FirebaseRepository @Inject constructor(
                 imageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400"
             )
             storeRef.setValue(newStore).await()
+
+            // Đảm bảo ghi nhận tường minh tọa độ trên Firebase RTDB tránh lỗi bỏ sót field
+            val coordMap = mapOf<String, Any>(
+                "latitude" to resolvedLat,
+                "longitude" to resolvedLng,
+                "lat" to resolvedLat,
+                "lng" to resolvedLng
+            )
+            storeRef.updateChildren(coordMap).await()
+
             database.getReference("boss_stores").child(bossUid).child(newStoreId).setValue(true).await()
             Result.success(newStoreId)
         } catch (e: Exception) {

@@ -29,6 +29,14 @@ class OrderAdapter(
     private val onRejectCancelClick: (Order) -> Unit = {}
 ) : ListAdapter<Order, OrderAdapter.ViewHolder>(DiffCallback()) {
 
+    var canOperate: Boolean = true
+        set(value) {
+            if (field != value) {
+                field = value
+                notifyDataSetChanged()
+            }
+        }
+
     inner class ViewHolder(private val binding: ItemOrderBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -141,6 +149,14 @@ class OrderAdapter(
 
             // 4. Trạng thái Quy trình 3 bước (Quán/5.html)
             setupStatusAndActions(context, order)
+
+            if (!canOperate) {
+                binding.btnMainAction.alpha = 0.65f
+                binding.boxCancelRequest.alpha = 0.65f
+            } else {
+                binding.btnMainAction.alpha = 1.0f
+                binding.boxCancelRequest.alpha = 1.0f
+            }
 
             // Click Listeners
             binding.btnMainAction.setOnClickListener { onActionClick(order) }

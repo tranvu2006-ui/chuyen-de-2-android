@@ -69,6 +69,7 @@ class OrderListFragment : Fragment() {
     private val viewModel: ShopViewModel by viewModels()
     private lateinit var adapter: OrderAdapter
     private var currentStoreId = ""
+    private var isBossUser: Boolean = false
 
     companion object {
         private var cachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
@@ -147,14 +148,14 @@ class OrderListFragment : Fragment() {
             requireActivity().finish()
         }
 
-        if (!hasSelectedBranch) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                val role = authRepository.getUserRole()?.trim()?.uppercase()
-                val isBoss = role == User.Role.BOSSMERCHANT || role == "BOSS"
-                if (isBoss) {
-                    b.btnSwitchBranch.visibility = View.VISIBLE
-                }
+        viewLifecycleOwner.lifecycleScope.launch {
+            val role = authRepository.getUserRole()?.trim()?.uppercase()
+            isBossUser = role == User.Role.BOSSMERCHANT || role == "BOSS"
+            if (isBossUser && !hasSelectedBranch) {
+                b.btnSwitchBranch.visibility = View.VISIBLE
             }
+            adapter.canOperate = canOperateCurrentStore()
+            cachedStore?.let { renderStoreHeader(it) }
         }
 
         b.btnLogoutChannel.setOnClickListener {
@@ -179,15 +180,45 @@ class OrderListFragment : Fragment() {
                     cachedStore = store
                     renderStoreHeader(store)
                     bindShopStatusSwitchListener()
+                    adapter.canOperate = canOperateCurrentStore()
                 }
             }
         }
     }
 
+    /**
+     * Kiểm tra xem phiên đăng nhập hiện tại có quyền duyệt/vận hành chi nhánh này không:
+     * - Trưởng chi nhánh (Merchant/Manager được gán): Toàn quyền duyệt.
+     * - Chủ chuỗi (Boss):
+     *    + Nếu chi nhánh CHƯA GÁN cho ai (merchantId rỗng) -> Boss trực tiếp duyệt.
+     *    + Nếu chi nhánh ĐÃ GÁN cho Trưởng chi nhánh -> Boss KHÔNG ĐƯỢC DUYỆT (chỉ ở chế độ giám sát).
+     */
+    private fun canOperateCurrentStore(): Boolean {
+        if (!isBossUser) return true
+        val hasManager = !cachedStore?.merchantId.isNullOrBlank()
+        return !hasManager
+    }
+
+    private fun showManagerRestrictedAlert() {
+        val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
+        AlertDialog.Builder(requireContext())
+            .setTitle("⛔ Quyền Hạn Vận Hành Chi Nhánh")
+            .setMessage("Chi nhánh này đã được phân công cho Trưởng chi nhánh ($managerName) trực tiếp phụ trách tiếp nhận và xử lý đơn.\n\nChủ chuỗi không được duyệt đơn khi chi nhánh đã có Trưởng chi nhánh quản lý.")
+            .setPositiveButton("Đã hiểu", null)
+            .show()
+    }
+
     private fun renderStoreHeader(store: com.chuyen_de_2.foodorder.core.data.model.Store) {
         val currentB = _binding ?: return
         currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
-        currentB.tvShopAddress.text = if (store.address.isNotBlank()) store.address else "Chưa cập nhật địa chỉ"
+
+        val hasManager = !store.merchantId.isNullOrBlank()
+        if (isBossUser && hasManager) {
+            val managerName = store.merchantName.ifBlank { "Trưởng chi nhánh" }
+            currentB.tvShopAddress.text = "${store.address.ifBlank { "TP.HCM" }} • Trưởng CN: $managerName (Chế độ giám sát)"
+        } else {
+            currentB.tvShopAddress.text = if (store.address.isNotBlank()) store.address else "Chưa cập nhật địa chỉ"
+        }
 
         com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
             imageView = currentB.ivShopHeaderLogo,
@@ -232,7 +263,17 @@ class OrderListFragment : Fragment() {
      * Luồng hướng tới: Firebase cập nhật -> Màn hình Khách hàng cập nhật thẻ Quán đóng/mở cửa.
      */
     private fun bindShopStatusSwitchListener() {
-        binding.switchShopStatus.setOnCheckedChangeListener { _, isChecked ->
+        binding.switchShopStatus.setOnCheckedChangeListener { compoundButton, isChecked ->
+            if (!canOperateCurrentStore()) {
+                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
+                compoundButton.isChecked = !isChecked
+                Toast.makeText(
+                    requireContext(),
+                    "⚠️ Chi nhánh đã bàn giao cho $managerName phụ trách vận hành. Chủ chuỗi không thể đóng/mở quán!",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnCheckedChangeListener
+            }
             val newStatus = if (isChecked) {
                 com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
             } else {
@@ -368,6 +409,10 @@ class OrderListFragment : Fragment() {
     }
 
     private fun showApproveCancelDialog(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
         val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
         AlertDialog.Builder(requireContext())
             .setTitle("Đồng ý hủy đơn $shortCode?")
@@ -381,6 +426,10 @@ class OrderListFragment : Fragment() {
     }
 
     private fun showRejectCancelDialog(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
         val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
         val input = android.widget.EditText(requireContext()).apply {
             hint = "Nhập lý do từ chối (ví dụ: Quán đã làm xong món...)"
@@ -409,6 +458,10 @@ class OrderListFragment : Fragment() {
      * Luồng hướng tới: Cập nhật Firebase -> Thông báo Realtime sang App Khách hàng & Tài xế.
      */
     private fun handleOrderAction(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
         when (order.status) {
             Order.Status.AWAITING_PAYMENT -> {
                 val totalAmount = if (order.totalPayment > 0) order.totalPayment else if (order.total > 0) order.total else 0L

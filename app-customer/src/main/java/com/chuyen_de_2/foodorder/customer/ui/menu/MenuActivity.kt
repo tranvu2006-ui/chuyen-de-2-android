@@ -110,14 +110,6 @@ class MenuActivity : AppCompatActivity() {
                 cornerDp = 14
             )
         }
-
-        binding.btnShare.setOnClickListener {
-            Toast.makeText(this, "Chia sẻ liên kết quán $shopName", Toast.LENGTH_SHORT).show()
-        }
-
-        binding.btnFavorite.setOnClickListener {
-            Toast.makeText(this, "Đã thêm $shopName vào danh sách yêu thích!", Toast.LENGTH_SHORT).show()
-        }
     }
 
     /**

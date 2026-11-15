@@ -13,15 +13,19 @@ import android.view.Window
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Chef
 import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentDriverListBinding
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentDriverListBinding
+import com.chuyen_de_2.foodorder.internal.ui.chef.ChefAdapter
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
@@ -31,14 +35,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Tên chức năng: Quản Lý Đội Ngũ Tài Xế Nội Bộ Của Quán (Store Drivers Management)
- * Cách hoạt động:
- *  - Thống kê tình trạng hoạt động của đội xe trực thuộc quán: Tổng tài xế, Đang rảnh sẵn sàng nhận đơn, Đang trên đường đi giao, Nghỉ ca.
- *  - Hiển thị danh sách chi tiết từng tài xế (Họ tên, SĐT, biển số xe, loại xe máy, số đơn đã giao, đánh giá sao uy tín).
- *  - Hỗ trợ gọi điện thoại trực tiếp cho tài xế qua ACTION_DIAL.
- *  - Hỗ trợ Quán tự tạo tài khoản mới cho Tài xế nội bộ (cấp email, mật khẩu, mã TX) lưu trữ lên Firebase Auth và Firestore.
- * Luồng hướng tới:
- *  - Tài xế được tạo sẽ đăng nhập trực tiếp trên app với vai trò DRIVER và tự động được gán vào Quán tương ứng.
+ * Quản lý Đội ngũ Nhân sự Của Quán (Staff Management):
+ * - Tab 1: Đội Tài Xế (Drivers): Thống kê, giám sát tình trạng trực/giao đơn, tạo tài khoản tài xế.
+ * - Tab 2: Đội Đầu Bếp (Chefs): Thống kê, giám sát tình trạng nấu món, tạo tài khoản đầu bếp trực thuộc quán.
  */
 @AndroidEntryPoint
 class DriverListFragment : Fragment() {
@@ -52,10 +51,13 @@ class DriverListFragment : Fragment() {
     @Inject
     lateinit var auth: FirebaseAuth
 
-    private lateinit var adapter: DriverAdapter
+    private lateinit var driverAdapter: DriverAdapter
+    private lateinit var chefAdapter: ChefAdapter
+
     private var currentStoreId = ""
     private var allDriversList: List<Driver> = emptyList()
     private var currentFilter: String = "ALL"
+    private var isChefTabSelected = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -66,39 +68,27 @@ class DriverListFragment : Fragment() {
         return binding.root
     }
 
-    /**
-     * Tên chức năng: Khởi tạo View quản lý tài xế
-     * Cách hoạt động: Thiết lập RecyclerView danh sách tài xế, gắn sự kiện thêm tài xế và nạp dữ liệu từ Firebase.
-     * Luồng hướng tới: Sẵn sàng hiển thị đội ngũ tài xế.
-     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        setupRecyclerView()
+        setupRecyclerViews()
+        setupTabs()
         setupListeners()
         resolveCurrentStoreIdAndObserve()
     }
 
-    /**
-     * Tên chức năng: Xác định storeId của quán hiện tại
-     * Cách hoạt động: Dùng UID tài khoản quán để truy vấn mã quán, sau đó bắt đầu lắng nghe danh sách tài xế thuộc quán đó.
-     * Luồng hướng tới: Gọi [observeDrivers].
-     */
     private fun resolveCurrentStoreIdAndObserve() {
         val uid = auth.currentUser?.uid.orEmpty()
         viewLifecycleOwner.lifecycleScope.launch {
             currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
             observeDrivers()
+            observeChefs()
         }
     }
 
-    /**
-     * Tên chức năng: Cấu hình RecyclerView danh sách tài xế
-     * Cách hoạt động: Gắn [DriverAdapter] và xử lý callback gọi điện thoại trực tiếp cho tài xế.
-     * Luồng hướng tới: Render danh sách tài xế.
-     */
-    private fun setupRecyclerView() {
-        adapter = DriverAdapter(
+    private fun setupRecyclerViews() {
+        // 1. Adapter Tài Xế
+        driverAdapter = DriverAdapter(
             onCallClick = { phone ->
                 try {
                     val intent = Intent(Intent.ACTION_DIAL).apply {
@@ -111,13 +101,94 @@ class DriverListFragment : Fragment() {
             }
         )
         binding.rvDrivers.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvDrivers.adapter = adapter
+        binding.rvDrivers.adapter = driverAdapter
+
+        // 2. Adapter Đầu Bếp
+        chefAdapter = ChefAdapter(
+            onCallClick = { phone ->
+                try {
+                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:$phone")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDeleteClick = { chef ->
+                showDeleteChefDialog(chef)
+            }
+        )
+        binding.rvChefs.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvChefs.adapter = chefAdapter
+    }
+
+    private fun setupTabs() {
+        binding.btnTabDrivers.setOnClickListener {
+            if (isChefTabSelected) {
+                isChefTabSelected = false
+                updateTabUI()
+            }
+        }
+
+        binding.btnTabChefs.setOnClickListener {
+            if (!isChefTabSelected) {
+                isChefTabSelected = true
+                updateTabUI()
+            }
+        }
+    }
+
+    private fun updateTabUI() {
+        if (!isChefTabSelected) {
+            // Hiển thị Tab Tài Xế
+            binding.tvStaffHeaderTitle.text = "Đội Tài Xế Của Quán"
+            binding.btnAddDriver.visibility = View.VISIBLE
+            binding.btnAddChef.visibility = View.GONE
+            binding.layoutDriverSection.visibility = View.VISIBLE
+            binding.layoutChefSection.visibility = View.GONE
+
+            binding.btnTabDrivers.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_blue)
+                setTextColor(Color.WHITE)
+                strokeWidth = 0
+            }
+            binding.btnTabChefs.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+                setStrokeColorResource(R.color.border)
+                strokeWidth = 2
+            }
+        } else {
+            // Hiển thị Tab Đầu Bếp
+            binding.tvStaffHeaderTitle.text = "Đội Đầu Bếp Của Quán"
+            binding.btnAddDriver.visibility = View.GONE
+            binding.btnAddChef.visibility = View.VISIBLE
+            binding.layoutDriverSection.visibility = View.GONE
+            binding.layoutChefSection.visibility = View.VISIBLE
+
+            binding.btnTabChefs.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_orange)
+                setTextColor(Color.WHITE)
+                strokeWidth = 0
+            }
+            binding.btnTabDrivers.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+                setStrokeColorResource(R.color.border)
+                strokeWidth = 2
+            }
+        }
     }
 
     private fun setupListeners() {
         binding.btnAddDriver.setOnClickListener {
             showAddDriverDialog()
         }
+        binding.btnAddChef.setOnClickListener {
+            showAddChefDialog()
+        }
+
         binding.layoutStatTotal.setOnClickListener {
             currentFilter = "ALL"
             applyFilter()
@@ -140,11 +211,8 @@ class DriverListFragment : Fragment() {
         }
     }
 
-    /**
-     * Tên chức năng: Giám sát danh sách tài xế của quán theo thời gian thực (Realtime Drivers Observer)
-     * Cách hoạt động: Kết hợp collection drivers và orders để phản ánh chuẩn xác 100% thời gian thực khi tài xế OFF hoặc ĐANG GIAO.
-     * Luồng hướng tới: Cập nhật giao diện tức thời.
-     */
+    // ==================== OBSERVERS ====================
+
     private fun observeDrivers() {
         binding.progressBar.visibility = View.VISIBLE
 
@@ -153,7 +221,6 @@ class DriverListFragment : Fragment() {
                 firebaseRepository.observeStoreDrivers(currentStoreId),
                 firebaseRepository.observeAllOrders()
             ) { drivers, orders ->
-                // Tìm tất cả các đơn hàng đang trên đường đi giao (realtime)
                 val activeOrders = orders.filter { order ->
                     !order.shipperId.isNullOrBlank() && (
                         order.status == Order.Status.ASSIGNED ||
@@ -165,7 +232,6 @@ class DriverListFragment : Fragment() {
                 }
                 val activeOrdersByDriver = activeOrders.groupBy { it.shipperId }
 
-                // Đồng bộ chính xác trạng thái thực tế từng tài xế (Đang giao / Đang trực / Nghỉ ca)
                 drivers.map { driver ->
                     val deliveringOrders = activeOrdersByDriver[driver.driverId].orEmpty()
                     if (deliveringOrders.isNotEmpty()) {
@@ -210,6 +276,41 @@ class DriverListFragment : Fragment() {
         }
     }
 
+    private fun observeChefs() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            combine(
+                firebaseRepository.observeStoreChefs(currentStoreId),
+                firebaseRepository.observeAllOrders()
+            ) { chefs, orders ->
+                // Đếm số đơn PREPARING mà từng đầu bếp đang nấu
+                val preparingOrders = orders.filter { it.status == Order.Status.PREPARING && !it.chefId.isNullOrBlank() }
+                val cookingCounts = preparingOrders.groupBy { it.chefId }.mapValues { it.value.size }
+
+                chefs.map { chef ->
+                    val activeCount = cookingCounts[chef.chefId] ?: 0
+                    chef.copy(activeOrdersCount = activeCount)
+                }
+            }.collectLatest { syncedChefs ->
+                val totalChefs = syncedChefs.size
+                val cookingChefs = syncedChefs.count { it.activeOrdersCount > 0 }
+                val availableChefs = syncedChefs.count { it.activeOrdersCount == 0 }
+
+                binding.tvTotalChefs.text = totalChefs.toString()
+                binding.tvChefsCooking.text = cookingChefs.toString()
+                binding.tvChefsAvailable.text = availableChefs.toString()
+
+                if (syncedChefs.isEmpty()) {
+                    binding.layoutEmptyChefs.visibility = View.VISIBLE
+                    binding.rvChefs.visibility = View.GONE
+                } else {
+                    binding.layoutEmptyChefs.visibility = View.GONE
+                    binding.rvChefs.visibility = View.VISIBLE
+                    chefAdapter.submitList(syncedChefs)
+                }
+            }
+        }
+    }
+
     private fun applyFilter() {
         val filtered = when (currentFilter) {
             Driver.DutyStatus.AVAILABLE -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
@@ -224,17 +325,112 @@ class DriverListFragment : Fragment() {
         } else {
             binding.layoutEmpty.visibility = View.GONE
             binding.rvDrivers.visibility = View.VISIBLE
-            adapter.submitList(filtered)
+            driverAdapter.submitList(filtered)
         }
     }
 
-    /**
-     * Tên chức năng: Hộp thoại Tạo tài khoản Tài xế Mới (Add Driver Modal)
-     * Cách hoạt động:
-     *  - Thu thập thông tin: Tên tài xế, SĐT, Mã TX, Biển số xe, Dòng xe, Email đăng nhập, Mật khẩu.
-     *  - Gọi [FirebaseRepository.createDriverAccount] để khởi tạo user trên Firebase Auth phụ và lưu Firestore.
-     * Luồng hướng tới: Cấp tài khoản mới cho tài xế sử dụng ngay lập tức.
-     */
+    // ==================== DIALOGS ====================
+
+    private fun showAddChefDialog() {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_add_chef)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etName = dialog.findViewById<EditText>(R.id.etChefName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etChefPhone)
+        val etTitle = dialog.findViewById<EditText>(R.id.etChefTitle)
+        val etEmail = dialog.findViewById<EditText>(R.id.etChefEmail)
+        val etPassword = dialog.findViewById<EditText>(R.id.etChefPassword)
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
+        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitChef)
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSubmit.setOnClickListener {
+            val name = etName.text.toString().trim()
+            val phone = etPhone.text.toString().trim()
+            val title = etTitle.text.toString().trim().ifBlank { "Đầu Bếp" }
+            val email = etEmail.text.toString().trim()
+            val pass = etPassword.text.toString().trim()
+
+            if (name.isBlank()) {
+                etName.error = "Vui lòng nhập họ và tên đầu bếp"
+                return@setOnClickListener
+            }
+            if (phone.isBlank()) {
+                etPhone.error = "Vui lòng nhập số điện thoại"
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !email.contains("@")) {
+                etEmail.error = "Vui lòng nhập email hợp lệ"
+                return@setOnClickListener
+            }
+            if (pass.length < 6) {
+                etPassword.error = "Mật khẩu tối thiểu 6 ký tự"
+                return@setOnClickListener
+            }
+
+            btnSubmit.isEnabled = false
+            btnSubmit.text = "Đang tạo tài khoản..."
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.createChefAccount(
+                    context = requireContext(),
+                    storeId = currentStoreId,
+                    name = name,
+                    phone = phone,
+                    email = email,
+                    pass = pass,
+                    title = title
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(
+                        requireContext(),
+                        "✓ Đã tạo tài khoản Đầu Bếp [$name] thành công!\nEmail: $email",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    btnSubmit.isEnabled = true
+                    btnSubmit.text = "Tạo tài khoản bếp"
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun showDeleteChefDialog(chef: Chef) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xóa tài khoản đầu bếp")
+            .setMessage("Bạn có chắc chắn muốn xóa đầu bếp ${chef.name} khỏi danh sách nhân sự của quán không?")
+            .setPositiveButton("Xóa") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val result = firebaseRepository.deleteChef(chef.chefId)
+                    if (result.isSuccess) {
+                        Toast.makeText(requireContext(), "Đã xóa đầu bếp ${chef.name}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
     private fun showAddDriverDialog() {
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)

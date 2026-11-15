@@ -1932,6 +1932,98 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
+    /** Lấy danh sách đầu bếp nội bộ của quán theo thời gian thực */
+    fun observeStoreChefs(storeId: String): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Chef>> = callbackFlow {
+        val ref = database.getReference("chefs")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = snapshot.children.mapNotNull {
+                    it.getValue(com.chuyen_de_2.foodorder.core.data.model.Chef::class.java)
+                }.filter {
+                    it.storeId.isEmpty() || it.storeId == storeId || storeId.isEmpty()
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /**
+     * Tạo tài khoản Đầu bếp mới cho Quán ăn
+     */
+    suspend fun createChefAccount(
+        context: android.content.Context,
+        storeId: String,
+        name: String,
+        phone: String,
+        email: String,
+        pass: String,
+        title: String = "Đầu Bếp"
+    ): Result<String> {
+        return try {
+            val secondaryApp = try {
+                com.google.firebase.FirebaseApp.getInstance("ChefCreator")
+            } catch (e: Exception) {
+                val options = com.google.firebase.FirebaseApp.getInstance().options
+                com.google.firebase.FirebaseApp.initializeApp(context.applicationContext, options, "ChefCreator")
+            }
+            val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
+            val authResult = secondaryAuth.createUserWithEmailAndPassword(email, pass).await()
+            val chefUid = authResult.user?.uid ?: return Result.failure(Exception("Không lấy được UID của đầu bếp mới"))
+            secondaryAuth.signOut()
+
+            // 1. Lưu thông tin vào users
+            val user = com.chuyen_de_2.foodorder.core.data.model.User(
+                uid = chefUid,
+                roleId = 6,
+                role = com.chuyen_de_2.foodorder.core.data.model.User.Role.CHEF,
+                name = name,
+                email = email,
+                phone = phone,
+                statusId = 1,
+                status = com.chuyen_de_2.foodorder.core.data.model.User.Status.ACTIVE,
+                isActive = true,
+                storeId = storeId,
+                emailVerified = true
+            )
+            database.getReference("users").child(chefUid).setValue(user).await()
+
+            // 2. Lưu thông tin vào chefs
+            val chef = com.chuyen_de_2.foodorder.core.data.model.Chef(
+                chefId = chefUid,
+                storeId = storeId,
+                name = name,
+                phone = phone,
+                email = email,
+                title = if (title.isNotBlank()) title else "Đầu Bếp",
+                activeOrdersCount = 0,
+                isOnline = true,
+                createdAt = System.currentTimeMillis()
+            )
+            database.getReference("chefs").child(chefUid).setValue(chef).await()
+
+            Result.success(chefUid)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa đầu bếp khỏi đội ngũ của quán */
+    suspend fun deleteChef(chefId: String): Result<Unit> {
+        return try {
+            database.getReference("chefs").child(chefId).removeValue().await()
+            database.getReference("users").child(chefId).removeValue().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Cập nhật hồ sơ thông tin tài xế */
     suspend fun updateDriverProfile(
         driverId: String,

@@ -81,7 +81,9 @@ class ShipperProfileFragment : Fragment() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val fineLocation = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        if (fineLocation) {
+        val coarseLocation = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineLocation || coarseLocation) {
+            binding.switchProfileGps.isChecked = true
             startLocationService()
         } else {
             binding.switchProfileGps.isChecked = false
@@ -106,6 +108,30 @@ class ShipperProfileFragment : Fragment() {
 
         setupUI()
         setupListeners()
+        autoEnableGps()
+    }
+
+    private fun autoEnableGps() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            binding.switchProfileGps.isChecked = true
+            startLocationService()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
     }
 
     /**

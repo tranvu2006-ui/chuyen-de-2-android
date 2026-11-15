@@ -1,11 +1,15 @@
 package com.chuyen_de_2.foodorder.internal.ui.ship
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -17,6 +21,7 @@ import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBinding
 import com.chuyen_de_2.foodorder.internal.databinding.DialogNewOrderPopupBinding
 import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperBinding
+import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -47,6 +52,49 @@ class ShipperFragment : Fragment() {
 
     private var isOnline = true
 
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fine || coarse) {
+            startLocationService()
+        }
+    }
+
+    private fun autoStartLocationServiceIfPermitted() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            startLocationService()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    private fun startLocationService() {
+        val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
+            putExtra(LocationForegroundService.EXTRA_ORDER_ID, "DRIVER_ACTIVE_DUTY")
+        }
+        try {
+            ContextCompat.startForegroundService(requireContext(), intent)
+        } catch (e: Exception) {
+            android.util.Log.e("ShipperFragment", "Error auto-starting location service: ${e.message}")
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
@@ -66,6 +114,7 @@ class ShipperFragment : Fragment() {
         setupDutyToggle()
         setupLogout()
         observeData()
+        autoStartLocationServiceIfPermitted()
     }
 
     /**
@@ -139,6 +188,13 @@ class ShipperFragment : Fragment() {
             isOnline = !isOnline
             viewModel.toggleDuty(isOnline)
             updateDutyUI()
+            if (isOnline) {
+                autoStartLocationServiceIfPermitted()
+            } else {
+                try {
+                    requireContext().stopService(Intent(requireContext(), LocationForegroundService::class.java))
+                } catch (_: Exception) {}
+            }
         }
     }
 

@@ -32,6 +32,7 @@ class LocationForegroundService : Service() {
 
     companion object {
         const val EXTRA_ORDER_ID = "extra_order_id"
+        var isRunning: Boolean = false
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -61,6 +62,7 @@ class LocationForegroundService : Service() {
 
         // Bắt đầu lắng nghe GPS
         startLocationUpdates()
+        isRunning = true
 
         return START_STICKY
     }
@@ -133,6 +135,7 @@ class LocationForegroundService : Service() {
      */
     override fun onDestroy() {
         super.onDestroy()
+        isRunning = false
         if (::locationCallback.isInitialized) {
             fusedLocationClient.removeLocationUpdates(locationCallback)
         }

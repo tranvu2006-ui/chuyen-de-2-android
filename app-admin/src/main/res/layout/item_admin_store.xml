@@ -83,7 +83,9 @@
                         android:textColor="@color/brand_orange"
                         android:textSize="11.5sp"
                         android:textStyle="bold"
-                        tools:text="⭐ 4.8" />
+                        tools:text="⭐ 4.8"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
                 </LinearLayout>
 
                 <TextView
@@ -121,84 +123,106 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tvStoreStatusBadge"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_green"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_green"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                tools:text="ĐANG MỞ CỬA" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tvChainBadge"
-                android:layout_width="wrap_content"
+                <TextView
+                    android:id="@+id/tvStoreStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_green"
+                    android:ellipsize="end"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="4dp"
+                    android:singleLine="true"
+                    android:textColor="@color/brand_green"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    tools:text="ĐANG MỞ CỬA" />
+
+                <TextView
+                    android:id="@+id/tvChainBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:ellipsize="end"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="4dp"
+                    android:singleLine="true"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:text="CHUỖI"
+                    tools:visibility="visible" />
+
+                <TextView
+                    android:id="@+id/tvPenaltyBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/bg_badge_red"
+                    android:ellipsize="end"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="4dp"
+                    android:singleLine="true"
+                    android:textColor="@color/danger"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:text="PHẠT: HIDE"
+                    tools:visibility="visible" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_orange"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                android:visibility="gone"
-                tools:visibility="visible"
-                tools:text="CHUỖI" />
+                android:layout_marginTop="6dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tvCccdBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_blue"
-                android:paddingHorizontal="9dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/brand_blue"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                tools:text="CCCD: 079123456789" />
+                <TextView
+                    android:id="@+id/tvCccdBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_blue"
+                    android:ellipsize="end"
+                    android:paddingHorizontal="9dp"
+                    android:paddingVertical="4dp"
+                    android:singleLine="true"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    tools:text="CCCD: 079123456789" />
 
-            <TextView
-                android:id="@+id/tvPenaltyBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_red"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="4dp"
-                android:textColor="@color/danger"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                android:visibility="gone"
-                tools:text="PHẠT: HIDE"
-                tools:visibility="visible" />
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:text="Quản trị"
+                    android:textColor="@color/secondary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Quản trị"
-                android:textColor="@color/secondary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <ImageView
-                android:importantForAccessibility="no"
-                android:layout_width="14dp"
-                android:layout_height="14dp"
-                android:layout_marginStart="3dp"
-                android:src="@drawable/ic_chevron_right"
-                app:tint="@color/secondary" />
+                <ImageView
+                    android:importantForAccessibility="no"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_marginStart="3dp"
+                    android:src="@drawable/ic_chevron_right"
+                    app:tint="@color/secondary" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

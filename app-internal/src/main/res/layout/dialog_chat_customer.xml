@@ -135,7 +135,9 @@
                 android:text="Sắp đến nơi 🛵"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipReply2"
@@ -150,7 +152,9 @@
                 android:text="Đang đợi trước cổng 🏠"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipReply3"
@@ -165,7 +169,9 @@
                 android:text="Mở sẵn mã QR Token nhé 📱"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -201,7 +207,9 @@
             android:text="➤"
             android:textColor="@color/white"
             android:textSize="14sp"
-            app:cornerRadius="8dp" />
+            app:cornerRadius="8dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp" />
     </LinearLayout>
 
 </LinearLayout>

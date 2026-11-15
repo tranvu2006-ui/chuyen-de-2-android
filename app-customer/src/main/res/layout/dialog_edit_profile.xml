@@ -79,7 +79,15 @@
                 app:iconGravity="textStart"
                 app:strokeColor="@color/primary"
                 app:strokeWidth="1.2dp"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -162,7 +170,15 @@
             android:text="Hủy"
             android:textColor="@color/text_muted"
             android:textSize="14sp"
-            app:cornerRadius="12dp" />
+            app:cornerRadius="12dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSaveProfile"
@@ -175,7 +191,15 @@
             android:textSize="14sp"
             android:textStyle="bold"
             app:backgroundTint="@color/primary"
-            app:cornerRadius="12dp" />
+            app:cornerRadius="12dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
 </LinearLayout>

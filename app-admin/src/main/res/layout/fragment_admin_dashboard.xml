@@ -67,7 +67,9 @@
                     android:text="● LIVE SYNC"
                     android:textColor="@color/brand_green"
                     android:textSize="10.5sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
 
             <!-- Urgent Attention Priority Banner -->
@@ -142,7 +144,15 @@
                         android:textColor="@color/white"
                         android:textSize="11.5sp"
                         android:textStyle="bold"
-                        app:cornerRadius="10dp" />
+                        app:cornerRadius="10dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -385,7 +395,9 @@
                                 android:textColor="@color/brand_orange"
                                 android:textSize="10.5sp"
                                 android:textStyle="bold"
-                                tools:text="3 chờ duyệt CCCD" />
+                                tools:text="3 chờ duyệt CCCD"
+                                android:singleLine="true"
+                                android:ellipsize="end" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -481,7 +493,9 @@
                                 android:text="Chờ phán quyết"
                                 android:textColor="@color/danger"
                                 android:textSize="10.5sp"
-                                android:textStyle="bold" />
+                                android:textStyle="bold"
+                                android:singleLine="true"
+                                android:ellipsize="end" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -983,7 +997,15 @@
                         app:iconGravity="textStart"
                         app:iconTint="@color/secondary"
                         app:strokeColor="@color/secondary"
-                        app:strokeWidth="1.5dp" />
+                        app:strokeWidth="1.5dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -1070,7 +1092,15 @@
                         android:textStyle="bold"
                         app:cornerRadius="12dp"
                         app:strokeColor="@color/brand_orange"
-                        app:strokeWidth="1.5dp" />
+                        app:strokeWidth="1.5dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

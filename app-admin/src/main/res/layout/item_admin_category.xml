@@ -83,7 +83,9 @@
                 android:textColor="@color/purple"
                 android:textSize="10.5sp"
                 android:textStyle="bold"
-                tools:text="Thứ tự: #1 • ID: cat_com" />
+                tools:text="Thứ tự: #1 • ID: cat_com"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Active Visibility Switch -->

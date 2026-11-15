@@ -101,7 +101,15 @@
                         app:icon="@drawable/ic_plus"
                         app:iconGravity="textStart"
                         app:iconSize="18dp"
-                        app:iconTint="@color/white" />
+                        app:iconTint="@color/white"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnRestoreCategoryDefaults"
@@ -120,7 +128,15 @@
                         app:iconSize="16dp"
                         app:iconTint="@color/secondary"
                         app:strokeColor="@color/secondary"
-                        app:strokeWidth="1.5dp" />
+                        app:strokeWidth="1.5dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

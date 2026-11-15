@@ -192,7 +192,9 @@
             android:textStyle="bold"
             android:textSize="12sp"
             android:paddingHorizontal="12dp"
-            android:paddingVertical="6dp" />
+            android:paddingVertical="6dp"
+            android:singleLine="true"
+            android:ellipsize="end" />
     </LinearLayout>
 
     <!-- Nội dung cuộn chính -->
@@ -238,7 +240,9 @@
                         android:text="🔥 Top Bán Chạy"
                         android:textColor="@color/primary"
                         android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
 
                     <!-- Button 2: Top Yêu Thích -->
                     <TextView
@@ -253,7 +257,9 @@
                         android:paddingHorizontal="14dp"
                         android:text="⭐ Top Yêu Thích"
                         android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
+                        android:textSize="13sp"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
 
                     <View
                         android:layout_width="0dp"

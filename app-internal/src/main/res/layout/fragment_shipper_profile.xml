@@ -39,7 +39,9 @@
                 android:text="MÃ TX: TX-14"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Thẻ Tài Xế (7.html: profile-card) -->
@@ -135,7 +137,13 @@
                     android:text="✏️ Sửa"
                     android:textColor="@color/brand_blue"
                     android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -368,7 +376,9 @@
                     android:text="Tài xế chuyên quán nội bộ • Độc quyền giao đơn"
                     android:textColor="#1E40AF"
                     android:textSize="11sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -621,7 +631,15 @@
             android:layout_height="48dp"
             android:text="Đăng Xuất Tài Khoản"
             android:textColor="@color/danger"
-            app:strokeColor="@color/danger" />
+            app:strokeColor="@color/danger"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

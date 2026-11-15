@@ -202,7 +202,7 @@ class OrderAdapter(
 
                 Order.Status.PAID -> {
                     // Đơn đã thanh toán VietQR ngân hàng -> Quán bấm xác nhận nấu
-                    binding.tvOrderBadge.text = "💰 ĐÃ THANH TOÁN (VIETQR) • CHỜ NẤU"
+                    binding.tvOrderBadge.text = "💰 Đã TT VietQR • Chờ nấu"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
                     binding.tvOrderBadge.setTextColor(Color.WHITE)
 
@@ -234,7 +234,7 @@ class OrderAdapter(
 
                 Order.Status.PREPARING -> {
                     // Bước 2: Đã xác nhận -> Bếp đang nấu
-                    binding.tvOrderBadge.text = "✓ Đã Xác Nhận Đơn • Bếp Đang Nấu"
+                    binding.tvOrderBadge.text = "✓ Đã nhận • Bếp đang nấu"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_blue)
                     binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
 
@@ -259,7 +259,7 @@ class OrderAdapter(
                     // Bước 3: Nấu xong -> Chờ tài xế bấm tự nhận đơn
                     val hasShipper = !order.shipperId.isNullOrBlank()
                     if (!hasShipper) {
-                        binding.tvOrderBadge.text = "🍳 Đã nấu xong • Đang chờ tài xế nhận đơn"
+                        binding.tvOrderBadge.text = "🍳 Đã nấu xong • Chờ tài xế"
                         binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
                         binding.tvOrderBadge.setTextColor(Color.WHITE)
 
@@ -274,7 +274,7 @@ class OrderAdapter(
                     } else {
                         // Trường hợp tài xế đã nhận
                         val driverText = order.shipperName.ifBlank { "Tài xế" }
-                        binding.tvOrderBadge.text = "🛵 Tài xế đã nhận • Đang đến quầy lấy món"
+                        binding.tvOrderBadge.text = "🛵 Tài xế đang đến quán"
                         binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
                         binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
 
@@ -294,7 +294,7 @@ class OrderAdapter(
                     // Bước 3.5: Tài xế ĐÃ bấm nhận đơn hoặc ĐÃ ĐẾN QUÁN -> Chờ bàn giao túi món
                     val driverText = order.shipperName.ifBlank { "Tài xế" }
                     val isAtShop = order.status == Order.Status.ARRIVED_AT_SHOP
-                    binding.tvOrderBadge.text = if (isAtShop) "🏪 Tài xế đã đến quán • Đang ở quầy" else "🛵 Tài xế đã nhận • Đang đến quầy lấy món"
+                    binding.tvOrderBadge.text = if (isAtShop) "🏪 Tài xế đã đến quầy" else "🛵 Tài xế đang đến quán"
                     binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
                     binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
 

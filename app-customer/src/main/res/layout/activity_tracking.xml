@@ -73,7 +73,13 @@
             android:textSize="11sp"
             android:textStyle="bold"
             android:visibility="gone"
-            app:cornerRadius="14dp" />
+            app:cornerRadius="14dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <!-- Badge Mã Đơn Hàng #ORD_... -->
         <TextView
@@ -471,7 +477,13 @@
                             android:textStyle="bold"
                             app:cornerRadius="10dp"
                             app:strokeColor="#CBD5E1"
-                            app:strokeWidth="1dp" />
+                            app:strokeWidth="1dp"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnChatShop"
@@ -488,7 +500,13 @@
                             android:textStyle="bold"
                             app:cornerRadius="10dp"
                             app:strokeColor="#BFDBFE"
-                            app:strokeWidth="1dp" />
+                            app:strokeWidth="1dp"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnCancelOrder"
@@ -506,7 +524,13 @@
                             android:visibility="gone"
                             app:cornerRadius="10dp"
                             app:strokeColor="#FECDD3"
-                            app:strokeWidth="1dp" />
+                            app:strokeWidth="1dp"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp" />
                     </LinearLayout>
 
                     <!-- Banner Trạng Thái Yêu Cầu Hủy Đơn Của Khách -->
@@ -577,7 +601,13 @@
                                 android:textStyle="bold"
                                 app:cornerRadius="8dp"
                                 app:strokeColor="#FCD34D"
-                                app:strokeWidth="1dp" />
+                                app:strokeWidth="1dp"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp"
+                                android:paddingStart="12dp"
+                                android:paddingEnd="12dp"
+                                android:paddingTop="0dp"
+                                android:paddingBottom="0dp" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -660,7 +690,13 @@
                                 android:textColor="@color/white"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
-                                app:cornerRadius="8dp" />
+                                app:cornerRadius="8dp"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp"
+                                android:paddingStart="12dp"
+                                android:paddingEnd="12dp"
+                                android:paddingTop="0dp"
+                                android:paddingBottom="0dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnViewIncidentDetailInline"
@@ -676,7 +712,13 @@
                                 android:textStyle="bold"
                                 app:cornerRadius="8dp"
                                 app:strokeColor="#FECACA"
-                                app:strokeWidth="1dp" />
+                                app:strokeWidth="1dp"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp"
+                                android:paddingStart="12dp"
+                                android:paddingEnd="12dp"
+                                android:paddingTop="0dp"
+                                android:paddingBottom="0dp" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -929,7 +971,13 @@
                         android:textColor="@color/white"
                         android:textSize="12sp"
                         android:textStyle="bold"
-                        app:cornerRadius="10dp" />
+                        app:cornerRadius="10dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -110,7 +110,9 @@
                             android:text="+2 ĐIỂM UY TÍN"
                             android:textColor="#15803D"
                             android:textSize="10.5sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
                     <TextView
@@ -414,7 +416,15 @@
             android:text="Theo Dõi Đơn Hàng"
             android:textSize="14sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            app:cornerRadius="12dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnChatShop"
@@ -426,7 +436,15 @@
             android:textColor="@color/white"
             android:textSize="12.5sp"
             android:textStyle="bold"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="10dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnGoHome"
@@ -439,7 +457,15 @@
             android:textColor="#334155"
             android:textSize="12.5sp"
             android:textStyle="bold"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="10dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
     </LinearLayout>
 

@@ -40,7 +40,9 @@
                 android:text="Tài xế nội bộ"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Thẻ Tổng Thu Nhập Khả Dụng (1.html: wallet-card) -->
@@ -181,7 +183,13 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Hôm nay"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnFilterWeek"
@@ -190,7 +198,13 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Tuần này"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnFilterMonth"
@@ -199,7 +213,13 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Tháng này"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
         <!-- Tiêu đề Danh Sách Chuyến Xe -->

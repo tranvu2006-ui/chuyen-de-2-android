@@ -138,7 +138,13 @@
                 android:textColor="@color/danger"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
-                android:visibility="gone" />
+                android:visibility="gone"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnAssignManager"
@@ -154,7 +160,13 @@
                 android:textColor="@color/brand_blue"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
-                app:cornerRadius="6dp" />
+                app:cornerRadius="6dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
 
         <!-- Action buttons row -->
@@ -179,7 +191,15 @@
                 app:iconGravity="textStart"
                 app:iconSize="18dp"
                 app:iconTint="@color/white"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
 
     </LinearLayout>

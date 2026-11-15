@@ -56,7 +56,9 @@
                 android:textColor="@color/brand_orange"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                tools:text="CHỜ XỬ LÝ" />
+                tools:text="CHỜ XỬ LÝ"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <View

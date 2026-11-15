@@ -401,7 +401,15 @@
             android:textColor="@color/on_primary"
             android:textSize="14sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            app:cornerRadius="12dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
     </LinearLayout>
 

@@ -63,7 +63,9 @@
                 android:text="Giữ Món Trên Xe"
                 android:textColor="#1D4ED8"
                 android:textSize="10.5sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Policy Note Box -->
@@ -161,7 +163,15 @@
                 android:textColor="@color/brand_blue"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
 
         <!-- Thông tin đơn ghép kế tiếp (khi đang ở chặng 1/2) -->
@@ -295,7 +305,9 @@
                     android:text="Bắt buộc"
                     android:textColor="#15803D"
                     android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
 
             <LinearLayout
@@ -421,7 +433,15 @@
             android:textColor="@color/white"
             android:textSize="12.5sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            app:cornerRadius="12dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <!-- Nút tùy chọn quay về Quán trả món ngay (Tự do của shipper) -->
         <com.google.android.material.button.MaterialButton
@@ -435,7 +455,15 @@
             android:textSize="12.5sp"
             android:textStyle="bold"
             app:cornerRadius="12dp"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
     </LinearLayout>
 </ScrollView>

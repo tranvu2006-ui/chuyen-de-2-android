@@ -41,7 +41,13 @@
             android:textStyle="bold"
             app:cornerRadius="8dp"
             app:strokeColor="#BFDBFE"
-            app:strokeWidth="1dp" />
+            app:strokeWidth="1dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView

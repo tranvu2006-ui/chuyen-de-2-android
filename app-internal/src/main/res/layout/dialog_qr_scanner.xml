@@ -165,7 +165,15 @@
         android:text="Mở Camera Quét Thực Tế"
         android:textColor="@color/white"
         android:textStyle="bold"
-        app:cornerRadius="10dp" />
+        app:cornerRadius="10dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minHeight="0dp"
+        android:minWidth="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnPickQrImageDialog"
@@ -177,7 +185,15 @@
         android:textColor="@color/primary"
         app:strokeColor="@color/primary"
         android:textStyle="bold"
-        app:cornerRadius="10dp" />
+        app:cornerRadius="10dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minHeight="0dp"
+        android:minWidth="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp" />
 
     <!-- Nhập mã dự phòng nếu màn hình khách bị mờ hoặc thiếu sáng -->
     <LinearLayout
@@ -214,7 +230,13 @@
             android:text="Kiểm tra"
             android:textSize="11.5sp"
             android:textStyle="bold"
-            app:cornerRadius="8dp" />
+            app:cornerRadius="8dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
     <!-- Action Buttons -->
@@ -233,7 +255,15 @@
             android:text="Đóng"
             android:textColor="@color/text_secondary"
             app:cornerRadius="10dp"
-            app:strokeColor="#CBD5E1" />
+            app:strokeColor="#CBD5E1"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnConfirmScannedToken"
@@ -247,7 +277,15 @@
             android:textColor="@color/white"
             android:textSize="12.5sp"
             android:textStyle="bold"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="10dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
 </LinearLayout>

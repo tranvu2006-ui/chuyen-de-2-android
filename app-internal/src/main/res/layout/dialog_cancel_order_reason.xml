@@ -54,7 +54,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Quay lại"
-            android:textColor="@color/text_secondary" />
+            android:textColor="@color/text_secondary"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCancelDialogConfirm"
@@ -63,7 +69,13 @@
             android:layout_marginStart="8dp"
             android:backgroundTint="@color/danger"
             android:text="Xác Nhận Hủy Đơn"
-            android:textColor="@color/white" />
+            android:textColor="@color/white"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
     </LinearLayout>
 
 </LinearLayout>

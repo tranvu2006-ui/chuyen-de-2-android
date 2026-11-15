@@ -34,7 +34,9 @@
                 android:text="Nhà riêng"
                 android:textColor="@color/primary"
                 android:textSize="12sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/tvDefaultBadge"
@@ -47,7 +49,9 @@
                 android:text="Mặc định"
                 android:textColor="#EA580C"
                 android:textSize="10.5sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <View
                 android:layout_width="0dp"

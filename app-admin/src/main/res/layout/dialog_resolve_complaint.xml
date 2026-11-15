@@ -219,7 +219,9 @@
                         android:text="🔍 Chạm để xem ảnh"
                         android:textColor="@color/brand_blue"
                         android:textSize="11sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
                 </FrameLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
@@ -372,7 +374,15 @@
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="Đóng"
-                android:textColor="@color/text_secondary" />
+                android:textColor="@color/text_secondary"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnQuickReject"
@@ -383,7 +393,15 @@
                 android:text="Bác Bỏ Khiếu Nại"
                 android:textColor="@color/danger"
                 app:cornerRadius="12dp"
-                app:strokeColor="@color/danger" />
+                app:strokeColor="@color/danger"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSubmitResolve"
@@ -394,7 +412,15 @@
                 android:text="LƯU PHÁN QUYẾT"
                 android:textColor="@color/white"
                 android:textStyle="bold"
-                app:cornerRadius="12dp" />
+                app:cornerRadius="12dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

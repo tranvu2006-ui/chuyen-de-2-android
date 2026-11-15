@@ -178,7 +178,13 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 app:cornerRadius="8dp"
-                app:strokeColor="@color/border_light" />
+                app:strokeColor="@color/border_light"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <!-- Khung xem trước ảnh đính kèm của món -->
             <LinearLayout

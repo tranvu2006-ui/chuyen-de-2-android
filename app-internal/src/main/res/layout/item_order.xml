@@ -43,7 +43,7 @@
                 android:maxLines="1"
                 tools:text="#OISHI_88291"
                 android:textColor="@color/text_primary"
-                android:textSize="13.5sp"
+                android:textSize="13sp"
                 android:textStyle="bold" />
 
             <View
@@ -57,14 +57,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="10dp"
+                android:paddingHorizontal="8dp"
                 android:paddingVertical="4dp"
                 android:singleLine="true"
                 android:maxLines="1"
                 android:ellipsize="end"
                 tools:text="⏳ Chờ Quán Xác Nhận Đơn"
                 android:textColor="@color/primary"
-                android:textSize="11sp"
+                android:textSize="10.5sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -118,7 +118,9 @@
                         tools:text="💵 Tiền mặt (COD)"
                         android:textColor="@color/text_secondary"
                         android:textSize="10.5sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
                 </LinearLayout>
 
                 <TextView
@@ -180,7 +182,13 @@
                 app:iconSize="13dp"
                 app:iconTint="@color/brand_blue"
                 app:strokeColor="#BFDBFE"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
 
         <!-- Trạng thái Shipper hiển thị tự động -->
@@ -242,7 +250,13 @@
                     app:iconSize="11dp"
                     app:iconTint="#047857"
                     app:strokeColor="#A7F3D0"
-                    app:strokeWidth="1dp" />
+                    app:strokeWidth="1dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -298,7 +312,9 @@
                         android:text="Đã gọi 3 lần"
                         android:textColor="@color/white"
                         android:textSize="9.5sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
                 </LinearLayout>
 
                 <TextView
@@ -397,7 +413,13 @@
                         android:textStyle="bold"
                         app:cornerRadius="8dp"
                         app:strokeColor="#CBD5E1"
-                        app:strokeWidth="1dp" />
+                        app:strokeWidth="1dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnApproveCancel"
@@ -413,7 +435,13 @@
                         android:textColor="@color/white"
                         android:textSize="11sp"
                         android:textStyle="bold"
-                        app:cornerRadius="8dp" />
+                        app:cornerRadius="8dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -443,14 +471,20 @@
                 app:iconSize="14dp"
                 app:iconTint="@color/text_secondary"
                 app:strokeColor="#CBD5E1"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <!-- Nút hành động chính theo 3 bước -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnMainAction"
                 style="@style/Widget.Material3.Button"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
                 android:backgroundTint="@color/primary"
@@ -458,11 +492,17 @@
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:letterSpacing="0.01"
+                android:minHeight="42dp"
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="6dp"
                 android:text="XÁC NHẬN ĐƠN CỦA KHÁCH ➔"
                 android:textColor="@color/white"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="10dp"
+                android:minWidth="0dp" />
 
             <!-- Nút Xem Chi Tiết Cảnh Báo -->
             <com.google.android.material.button.MaterialButton
@@ -485,7 +525,13 @@
                 app:iconSize="14dp"
                 app:iconTint="#DC2626"
                 app:strokeColor="#FECACA"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
 
     </LinearLayout>

@@ -46,7 +46,13 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Hôm nay"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnFilterWeek"
@@ -55,7 +61,13 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Tuần này"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnFilterMonth"
@@ -64,7 +76,13 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Tháng này"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <!-- 1. Revenue Card (Dark Gradient Style) -->

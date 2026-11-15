@@ -95,7 +95,13 @@
                     app:iconSize="16dp"
                     app:iconTint="@color/brand_blue"
                     app:strokeColor="@color/brand_blue"
-                    app:strokeWidth="1dp" />
+                    app:strokeWidth="1dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -250,7 +256,13 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Hủy"
-                android:textColor="@color/text_secondary" />
+                android:textColor="@color/text_secondary"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSaveCat"
@@ -261,7 +273,15 @@
                 android:text="LƯU DANH MỤC"
                 android:textColor="@color/white"
                 android:textStyle="bold"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

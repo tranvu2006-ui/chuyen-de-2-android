@@ -31,7 +31,15 @@
             android:textSize="11sp"
             android:textStyle="bold"
             app:cornerRadius="12dp"
-            app:strokeColor="#CBD5E1" />
+            app:strokeColor="#CBD5E1"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </com.google.android.material.appbar.MaterialToolbar>
 
     <androidx.core.widget.NestedScrollView
@@ -74,7 +82,9 @@
                         android:text="VIETQR LIÊN NGÂN HÀNG 24/7 (MB BANK)"
                         android:textColor="@color/brand_blue"
                         android:textSize="11sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
 
                     <TextView
                         android:id="@+id/tvAmountLabel"
@@ -274,7 +284,15 @@
                             android:textSize="10.5sp"
                             android:textStyle="bold"
                             app:cornerRadius="6dp"
-                            app:strokeColor="#CBD5E1" />
+                            app:strokeColor="#CBD5E1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp" />
                     </LinearLayout>
 
                     <View
@@ -351,7 +369,15 @@
                             android:textSize="10.5sp"
                             android:textStyle="bold"
                             app:cornerRadius="6dp"
-                            app:strokeColor="#CBD5E1" />
+                            app:strokeColor="#CBD5E1"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp" />
                     </LinearLayout>
 
                 </LinearLayout>
@@ -411,13 +437,21 @@
             android:id="@+id/btnConfirmPaid"
             style="@style/Widget.FoodOrder.Button.Primary"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="wrap_content"
             android:backgroundTint="#16A34A"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="48dp"
+            android:paddingStart="16dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="10dp"
             android:text="Xác Nhận Đặt Đơn Hàng"
             android:textColor="@color/white"
             android:textSize="14sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            app:cornerRadius="12dp"
+            android:minWidth="0dp" />
 
         <LinearLayout
             android:id="@+id/layoutAutoVerifyBox"

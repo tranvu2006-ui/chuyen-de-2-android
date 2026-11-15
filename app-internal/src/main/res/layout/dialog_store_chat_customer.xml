@@ -162,7 +162,9 @@
                 android:text="🍳 Quán đang làm món"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipReady"
@@ -175,7 +177,9 @@
                 android:text="🛵 Món đã xong, đang giao"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipOutOfStock"
@@ -188,7 +192,9 @@
                 android:text="🙏 Món tạm hết, đổi món nhé"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipThankYou"
@@ -200,7 +206,9 @@
                 android:text="❤️ Cảm ơn bạn ủng hộ quán"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
     </HorizontalScrollView>
 

@@ -154,7 +154,13 @@
                 android:textStyle="bold"
                 app:cornerRadius="8dp"
                 app:strokeColor="#A7F3D0"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <View
                 android:layout_width="0dp"

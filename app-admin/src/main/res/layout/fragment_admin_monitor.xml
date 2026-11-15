@@ -87,6 +87,7 @@
                     app:tabIndicatorColor="@color/primary"
                     app:tabIndicatorFullWidth="false"
                     app:tabIndicatorHeight="3dp"
+                    app:tabInlineLabel="true"
                     app:tabSelectedTextColor="@color/primary"
                     app:tabTextColor="@color/text_secondary">
 

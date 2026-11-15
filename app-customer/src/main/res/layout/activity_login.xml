@@ -126,7 +126,13 @@
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/button_height"
                     android:layout_marginTop="@dimen/spacing_xl"
-                    android:text="@string/btn_login" />
+                    android:text="@string/btn_login"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
 
                 <ProgressBar
                     android:id="@+id/progressBar"

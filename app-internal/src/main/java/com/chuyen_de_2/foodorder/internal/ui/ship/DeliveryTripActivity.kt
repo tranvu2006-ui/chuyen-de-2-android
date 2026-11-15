@@ -258,18 +258,23 @@ class DeliveryTripActivity : AppCompatActivity() {
                                 thumb.translationX = 0f
                                 label.alpha = 1f
                                 isConfirmed = false
-                                if (isBundleMode && bundleOrders.isNotEmpty()) {
+                                val hasAlreadyPicked = isBundleMode && bundleOrders.any { isOrderAlreadyPickedUp(it) }
+                                if (hasAlreadyPicked) {
+                                    Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy thêm đơn mới! Tiếp tục giao hàng", Toast.LENGTH_SHORT).show()
+                                } else if (isBundleMode && bundleOrders.isNotEmpty()) {
                                     Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy đủ tất cả ${bundleOrders.size} đơn gộp! Bắt đầu giao chặng 1", Toast.LENGTH_SHORT).show()
                                 } else {
                                     Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy hàng thành công! Xuất phát giao hàng", Toast.LENGTH_SHORT).show()
                                 }
                                 lifecycleScope.launch {
-                                    if (isBundleMode && bundleOrders.isNotEmpty()) {
-                                        bundleOrders.toList().forEach { o ->
-                                            firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                                        }
+                                    val ordersToPickup = if (isBundleMode && bundleOrders.isNotEmpty()) {
+                                        bundleOrders.filter { !isOrderAlreadyPickedUp(it) }
                                     } else {
-                                        firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
+                                        listOfNotNull(currentOrder).filter { !isOrderAlreadyPickedUp(it) }
+                                    }
+                                    ordersToPickup.forEach { o ->
+                                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                                        saveStep(o.orderId, 3)
                                     }
                                 }
                             }
@@ -299,7 +304,7 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun isStep2AllChecked(): Boolean {
         if (isBundleMode && bundleOrders.isNotEmpty()) {
-            return bundleOrders.all { checkedBundleOrderIds.contains(it.orderId) }
+            return bundleOrders.all { isOrderAlreadyPickedUp(it) || checkedBundleOrderIds.contains(it.orderId) }
         } else {
             for (i in 0 until binding.layoutSingleDishesContainer.childCount) {
                 val view = binding.layoutSingleDishesContainer.getChildAt(i)
@@ -311,13 +316,22 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun updateStep2ReadinessUI() {
         val allChecked = isStep2AllChecked()
+        val hasPickedOrders = isBundleMode && bundleOrders.any { isOrderAlreadyPickedUp(it) }
         if (allChecked) {
             binding.swipeTrackStep2.alpha = 1f
-            binding.tvSwipeLabelStep2.text = "Gạt sang phải ĐÃ LẤY HÀNG & ĐI GIAO ›››"
+            binding.tvSwipeLabelStep2.text = if (hasPickedOrders) {
+                "Gạt sang phải ĐÃ LẤY ĐƠN MỚI & TIẾP TỤC GIAO ›››"
+            } else {
+                "Gạt sang phải ĐÃ LẤY HÀNG & ĐI GIAO ›››"
+            }
             binding.tvSwipeLabelStep2.setTextColor(ContextCompat.getColor(this, R.color.primary))
         } else {
             binding.swipeTrackStep2.alpha = 0.55f
-            binding.tvSwipeLabelStep2.text = "⚠️ Tích đủ các món để mở khóa quẹt"
+            binding.tvSwipeLabelStep2.text = if (hasPickedOrders) {
+                "⚠️ Tích chọn đơn mới để mở khóa quẹt"
+            } else {
+                "⚠️ Tích đủ các món để mở khóa quẹt"
+            }
             binding.tvSwipeLabelStep2.setTextColor(Color.parseColor("#94A3B8"))
         }
     }
@@ -480,11 +494,13 @@ class DeliveryTripActivity : AppCompatActivity() {
                                 updateStepUI(2)
                                 lifecycleScope.launch {
                                     if (isBundleMode && bundleOrders.isNotEmpty()) {
-                                        bundleOrders.toList().forEach { o ->
+                                        bundleOrders.toList().filter { !isOrderAlreadyPickedUp(it) }.forEach { o ->
                                             firebaseRepository.updateOrderStatus(o.orderId, Order.Status.ARRIVED_AT_SHOP)
+                                            saveStep(o.orderId, 2)
                                         }
                                     } else {
                                         firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.ARRIVED_AT_SHOP)
+                                        saveStep(currentOrderId, 2)
                                     }
                                 }
                                 thumb.translationX = 0f
@@ -523,6 +539,14 @@ class DeliveryTripActivity : AppCompatActivity() {
         if (orderId.isBlank()) return
         val sp = getSharedPreferences("delivery_trip_state", Context.MODE_PRIVATE)
         sp.edit().putInt("step_$orderId", step).apply()
+    }
+
+    private fun isOrderAlreadyPickedUp(order: Order): Boolean {
+        return order.status == Order.Status.DELIVERING ||
+            order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+            order.status == Order.Status.COMPLETED ||
+            order.status == Order.Status.RETURNING_TO_STORE ||
+            getSavedStep(order.orderId) >= 3
     }
 
     private fun getEffectiveStepForOrder(order: Order): Int {
@@ -962,8 +986,15 @@ class DeliveryTripActivity : AppCompatActivity() {
             )
 
             val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
+            val isAlreadyPickedUp = isOrderAlreadyPickedUp(order)
             cardBinding.tvBundleOrderCode.text = "#${shortCode}"
-            cardBinding.tvBundleSequenceTag.text = "Chặng ${index + 1}"
+            if (isAlreadyPickedUp) {
+                cardBinding.tvBundleSequenceTag.text = "Chặng ${index + 1} • Trên xe"
+                cardBinding.tvBundleSequenceTag.setBackgroundResource(R.drawable.bg_badge_green)
+                cardBinding.tvBundleSequenceTag.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            } else {
+                cardBinding.tvBundleSequenceTag.text = "Chặng ${index + 1}"
+            }
 
             val fee = if (order.shippingFee > 0) order.shippingFee else 25000L
             val amountToCollect = amountToCollectFromCustomer(order)
@@ -1038,8 +1069,20 @@ class DeliveryTripActivity : AppCompatActivity() {
                 cardBinding.tvBundleCustomerNote.visibility = View.GONE
             }
 
-            cardBinding.cbOrderReady.isChecked = checkedBundleOrderIds.contains(order.orderId)
+            if (isAlreadyPickedUp) {
+                checkedBundleOrderIds.add(order.orderId)
+                cardBinding.cbOrderReady.isChecked = true
+                cardBinding.cbOrderReady.isEnabled = false
+                cardBinding.cbOrderReady.text = "✓ Đã lấy món trên xe (Không cần lấy lại)"
+                cardBinding.cbOrderReady.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            } else {
+                cardBinding.cbOrderReady.isEnabled = true
+                cardBinding.cbOrderReady.text = "Đã kiểm đủ món & dán tem niêm phong đơn này"
+                cardBinding.cbOrderReady.setTextColor(ContextCompat.getColor(this, R.color.text_primary))
+                cardBinding.cbOrderReady.isChecked = checkedBundleOrderIds.contains(order.orderId)
+            }
             cardBinding.cbOrderReady.setOnCheckedChangeListener { _, isChecked ->
+                if (isAlreadyPickedUp) return@setOnCheckedChangeListener
                 if (isChecked) {
                     checkedBundleOrderIds.add(order.orderId)
                     Toast.makeText(this, "✓ Đã kiểm đủ món đơn #${shortCode}", Toast.LENGTH_SHORT).show()
@@ -1511,18 +1554,23 @@ class DeliveryTripActivity : AppCompatActivity() {
         binding.btnConfirmPickDishes.setOnClickListener {
             updateStepUI(3)
             fetchRealShipperLocation()
-            if (isBundleMode && bundleOrders.isNotEmpty()) {
+            val hasAlreadyPickedOrders = isBundleMode && bundleOrders.any { isOrderAlreadyPickedUp(it) }
+            if (hasAlreadyPickedOrders) {
+                Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy thêm đơn mới! Tiếp tục giao hàng", Toast.LENGTH_SHORT).show()
+            } else if (isBundleMode && bundleOrders.isNotEmpty()) {
                 Toast.makeText(this@DeliveryTripActivity, "🛵 Đã lấy đủ tất cả ${bundleOrders.size} đơn gộp! Bắt đầu giao chặng 1", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this@DeliveryTripActivity, "🛵 Xuất phát đi giao hàng!", Toast.LENGTH_SHORT).show()
             }
             lifecycleScope.launch {
-                if (isBundleMode && bundleOrders.isNotEmpty()) {
-                    bundleOrders.toList().forEach { o ->
-                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                    }
+                val ordersToPickup = if (isBundleMode && bundleOrders.isNotEmpty()) {
+                    bundleOrders.filter { !isOrderAlreadyPickedUp(it) }
                 } else {
-                    firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
+                    listOfNotNull(currentOrder).filter { !isOrderAlreadyPickedUp(it) }
+                }
+                ordersToPickup.forEach { o ->
+                    firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                    saveStep(o.orderId, 3)
                 }
             }
         }

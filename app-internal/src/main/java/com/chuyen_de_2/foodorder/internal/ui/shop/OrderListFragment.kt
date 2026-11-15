@@ -496,13 +496,19 @@ class OrderListFragment : Fragment() {
                 ).show()
             }
             Order.Status.PREPARING -> {
-                // BƯỚC 2: XÁC NHẬN ĐÃ NẤU XONG -> CHUYỂN SANG READY (TÀI XẾ NHẬN ĐƠN)
-                viewModel.markCookingDone(order.orderId)
-                Toast.makeText(
-                    requireContext(),
-                    "✓ Quán đã XÁC NHẬN ĐÃ NẤU XONG!\nMón ăn đã sẵn sàng. Khi tài xế đến quầy nhận túi món, bấm nút 'XÁC NHẬN GIAO CHO TÀI XẾ' để hoàn tất.",
-                    Toast.LENGTH_LONG
-                ).show()
+                // QUYỀN HẠN ĐẦU BẾP: Quản lý không thể xác nhận nấu xong thay cho đầu bếp
+                val chefName = if (order.chefName.isNotBlank()) order.chefName else "Đầu bếp"
+                val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+                val message = if (hasChef) {
+                    "Đơn hàng đang được đầu bếp ($chefName) chế biến.\n\nTheo quy trình phân quyền, chỉ Đầu Bếp nhận đơn mới có quyền bấm 'Xác nhận đã nấu xong'!"
+                } else {
+                    "Đơn hàng đang chờ Đầu Bếp bấm nhận nấu trên ứng dụng Bếp.\n\nQuản lý không thể xác nhận nấu xong thay cho đầu bếp!"
+                }
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("👨‍🍳 Phân quyền Bếp chế biến")
+                    .setMessage(message)
+                    .setPositiveButton("Đã hiểu", null)
+                    .show()
             }
             Order.Status.READY -> {
                 if (!order.shipperId.isNullOrBlank()) {

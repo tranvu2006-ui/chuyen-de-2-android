@@ -274,24 +274,40 @@ class DashboardActivity : AppCompatActivity() {
                 User.Role.SHIPPER, User.Role.DRIVER -> {
                     setupShipperNavigation()
                 }
+                User.Role.CHEF -> {
+                    setupChefNavigation()
+                }
                 User.Role.CUSTOMER -> {
+                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                        .setTitle("🛵 Kích Hoạt Vai Trò Quán / Tài Xế")
+                        .setTitle("Kích Hoạt Vai Trò Đối Tác")
                         .setMessage("Tài khoản (${authRepository.currentUser?.email}) hiện đang ở vai trò Khách hàng.\n\nBạn muốn sử dụng tài khoản này trên Oishi Internal với vai trò nào?")
-                        .setPositiveButton("🛵 Tôi là Tài Xế (Shipper)") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.DRIVER)
-                                Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Tài Xế!", Toast.LENGTH_SHORT).show()
-                                setupShipperNavigation()
+                        .setItems(partnerRoles) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.MERCHANT)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn!", Toast.LENGTH_SHORT).show()
+                                        checkMerchantVerificationAndProceed()
+                                    }
+                                }
+                                1 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.DRIVER)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Tài Xế!", Toast.LENGTH_SHORT).show()
+                                        setupShipperNavigation()
+                                    }
+                                }
+                                2 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.CHEF)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Đầu Bếp!", Toast.LENGTH_SHORT).show()
+                                        setupChefNavigation()
+                                    }
+                                }
                             }
                         }
-                        .setNegativeButton("🏪 Tôi là Quán Ăn") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.MERCHANT)
-                                checkMerchantVerificationAndProceed()
-                            }
-                        }
-                        .setNeutralButton("🚪 Đăng xuất") { _, _ ->
+                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -302,25 +318,36 @@ class DashboardActivity : AppCompatActivity() {
                         .show()
                 }
                 else -> {
-                    // Nếu tài khoản chưa có vai trò đối tác, cho phép người dùng chọn Quán ăn hoặc Tài xế để kích hoạt ngay
+                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
                         .setTitle("🏪 Kích Hoạt Vai Trò Đối Tác")
                         .setMessage("Tài khoản của bạn hiện tại chưa được kích hoạt vai trò Đối Tác trên ứng dụng Oishi Internal.\n\nBạn muốn sử dụng tài khoản này với vai trò gì?")
-                        .setPositiveButton("🏪 Tôi là Quán Ăn") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.MERCHANT)
-                                Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
-                                checkMerchantVerificationAndProceed()
+                        .setItems(partnerRoles) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.MERCHANT)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
+                                        checkMerchantVerificationAndProceed()
+                                    }
+                                }
+                                1 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.DRIVER)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Tài Xế thành công!", Toast.LENGTH_SHORT).show()
+                                        setupShipperNavigation()
+                                    }
+                                }
+                                2 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.CHEF)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Đầu Bếp thành công!", Toast.LENGTH_SHORT).show()
+                                        setupChefNavigation()
+                                    }
+                                }
                             }
                         }
-                        .setNegativeButton("🛵 Tôi là Tài Xế") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.DRIVER)
-                                Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Tài Xế thành công!", Toast.LENGTH_SHORT).show()
-                                setupShipperNavigation()
-                            }
-                        }
-                        .setNeutralButton("🚪 Đăng xuất") { _, _ ->
+                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -487,6 +514,19 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         binding.bottomNavShipper.selectedItemId = R.id.nav_shipper_orders
+    }
+
+    /**
+     * Thiết lập giao diện điều phối cho Đầu Bếp (Kitchen / Chef Navigation)
+     */
+    private fun setupChefNavigation() {
+        isMerchantMode = false
+        binding.toolbar.visibility = android.view.View.GONE
+        binding.bottomNavMerchant.visibility = android.view.View.GONE
+        binding.bottomNavShipper.visibility = android.view.View.GONE
+        applyWindowPadding()
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
+        loadFragment(com.chuyen_de_2.foodorder.internal.ui.chef.ChefFragment())
     }
 
     /**

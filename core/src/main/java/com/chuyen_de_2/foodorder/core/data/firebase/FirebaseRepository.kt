@@ -385,6 +385,131 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /**
+     * Đầu bếp nhận nấu đơn hàng — Firebase Transaction
+     * Lock: Đơn phải ở trạng thái PREPARING và CHƯA có chefId.
+     */
+    fun assignChef(
+        orderId: String,
+        chefId: String,
+        chefName: String,
+        chefPhone: String = "",
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val dbRef = database.getReference("orders").child(orderId)
+
+        dbRef.runTransaction(object : Transaction.Handler {
+            override fun doTransaction(currentData: MutableData): Transaction.Result {
+                if (currentData.value == null) {
+                    return Transaction.success(currentData)
+                }
+
+                val currentChefId = currentData.child("chefId").getValue(String::class.java)
+
+                // Kiểm tra xem đơn đã có đầu bếp khác nhận nấu chưa
+                if (!currentChefId.isNullOrBlank() && currentChefId != "null") {
+                    return Transaction.abort() // Xung đột, đầu bếp khác đã nhận
+                }
+
+                val now = System.currentTimeMillis()
+                currentData.child("chefId").value = chefId
+                currentData.child("chefName").value = chefName
+                if (chefPhone.isNotBlank()) {
+                    currentData.child("chefPhone").value = chefPhone
+                }
+                currentData.child("updatedAt").value = now
+
+                return Transaction.success(currentData)
+            }
+
+            override fun onComplete(
+                error: DatabaseError?,
+                committed: Boolean,
+                snapshot: DataSnapshot?
+            ) {
+                if (committed) {
+                    onResult(true, "Nhận nấu đơn thành công!")
+                } else {
+                    onResult(false, error?.message ?: "Đơn đã có đầu bếp khác nhận nấu!")
+                }
+            }
+        })
+    }
+
+    /**
+     * Đầu bếp hủy nhận nấu đơn (trả về danh sách chờ bếp của quán)
+     */
+    fun unassignChef(
+        orderId: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val dbRef = database.getReference("orders").child(orderId)
+        val updates = mapOf<String, Any?>(
+            "chefId" to null,
+            "chefName" to "",
+            "chefPhone" to "",
+            "updatedAt" to System.currentTimeMillis()
+        )
+        dbRef.updateChildren(updates).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                onResult(true, "Đã hoàn trả đơn về danh sách chờ bếp nhận!")
+            } else {
+                onResult(false, task.exception?.message ?: "Lỗi hủy nhận nấu")
+            }
+        }
+    }
+
+    /**
+     * Đầu bếp xác nhận đã nấu xong đơn -> chuyển sang READY để phát cho tài xế
+     */
+    fun markCookingDoneByChef(
+        orderId: String,
+        chefId: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val dbRef = database.getReference("orders").child(orderId)
+        val now = System.currentTimeMillis()
+        val updates = mapOf<String, Any?>(
+            "status" to Order.Status.READY,
+            "orderStatus" to Order.Status.READY,
+            "isCooked" to true,
+            "cookedAt" to now,
+            "updatedAt" to now
+        )
+        dbRef.updateChildren(updates).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                onResult(true, "Xác nhận đã nấu xong thành công! Đã chuyển đơn sang sẵn sàng giao.")
+            } else {
+                onResult(false, task.exception?.message ?: "Lỗi cập nhật trạng thái đơn")
+            }
+        }
+    }
+
+    /**
+     * Tìm thông tin Quán của Đầu bếp (storeId, storeName)
+     */
+    suspend fun resolveStoreForChef(chefUid: String): Pair<String, String> {
+        if (chefUid.isBlank()) return Pair("", "")
+        return try {
+            val userSnap = database.getReference("users").child(chefUid).get().await()
+            var storeId = userSnap.child("storeId").getValue(String::class.java).orEmpty()
+            if (storeId.isBlank()) {
+                val chefSnap = database.getReference("chefs").child(chefUid).get().await()
+                storeId = chefSnap.child("storeId").getValue(String::class.java).orEmpty()
+            }
+            if (storeId.isNotBlank()) {
+                val storeSnap = database.getReference("stores").child(storeId).get().await()
+                val storeName = storeSnap.child("name").getValue(String::class.java)
+                    ?: storeSnap.child("storeName").getValue(String::class.java).orEmpty()
+                Pair(storeId, storeName)
+            } else {
+                Pair("", "")
+            }
+        } catch (_: Exception) {
+            Pair("", "")
+        }
+    }
+
     /** Khách hàng hủy đơn trực tiếp khi đơn chưa được quán xác nhận (PENDING, PAID, AWAITING_PAYMENT) */
     suspend fun cancelOrderImmediately(orderId: String, reason: String = "") {
         val finalReason = reason.ifBlank { "Khách hàng hủy do đặt nhầm (trước khi quán xác nhận)" }
@@ -1805,6 +1930,98 @@ class FirebaseRepository @Inject constructor(
         }
         ref.addValueEventListener(listener)
         awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Lấy danh sách đầu bếp nội bộ của quán theo thời gian thực */
+    fun observeStoreChefs(storeId: String): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Chef>> = callbackFlow {
+        val ref = database.getReference("chefs")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = snapshot.children.mapNotNull {
+                    it.getValue(com.chuyen_de_2.foodorder.core.data.model.Chef::class.java)
+                }.filter {
+                    it.storeId.isEmpty() || it.storeId == storeId || storeId.isEmpty()
+                }
+                trySend(list)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /**
+     * Tạo tài khoản Đầu bếp mới cho Quán ăn
+     */
+    suspend fun createChefAccount(
+        context: android.content.Context,
+        storeId: String,
+        name: String,
+        phone: String,
+        email: String,
+        pass: String,
+        title: String = "Đầu Bếp"
+    ): Result<String> {
+        return try {
+            val secondaryApp = try {
+                com.google.firebase.FirebaseApp.getInstance("ChefCreator")
+            } catch (e: Exception) {
+                val options = com.google.firebase.FirebaseApp.getInstance().options
+                com.google.firebase.FirebaseApp.initializeApp(context.applicationContext, options, "ChefCreator")
+            }
+            val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
+            val authResult = secondaryAuth.createUserWithEmailAndPassword(email, pass).await()
+            val chefUid = authResult.user?.uid ?: return Result.failure(Exception("Không lấy được UID của đầu bếp mới"))
+            secondaryAuth.signOut()
+
+            // 1. Lưu thông tin vào users
+            val user = com.chuyen_de_2.foodorder.core.data.model.User(
+                uid = chefUid,
+                roleId = 6,
+                role = com.chuyen_de_2.foodorder.core.data.model.User.Role.CHEF,
+                name = name,
+                email = email,
+                phone = phone,
+                statusId = 1,
+                status = com.chuyen_de_2.foodorder.core.data.model.User.Status.ACTIVE,
+                isActive = true,
+                storeId = storeId,
+                emailVerified = true
+            )
+            database.getReference("users").child(chefUid).setValue(user).await()
+
+            // 2. Lưu thông tin vào chefs
+            val chef = com.chuyen_de_2.foodorder.core.data.model.Chef(
+                chefId = chefUid,
+                storeId = storeId,
+                name = name,
+                phone = phone,
+                email = email,
+                title = if (title.isNotBlank()) title else "Đầu Bếp",
+                activeOrdersCount = 0,
+                isOnline = true,
+                createdAt = System.currentTimeMillis()
+            )
+            database.getReference("chefs").child(chefUid).setValue(chef).await()
+
+            Result.success(chefUid)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Xóa đầu bếp khỏi đội ngũ của quán */
+    suspend fun deleteChef(chefId: String): Result<Unit> {
+        return try {
+            database.getReference("chefs").child(chefId).removeValue().await()
+            database.getReference("users").child(chefId).removeValue().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /** Cập nhật hồ sơ thông tin tài xế */

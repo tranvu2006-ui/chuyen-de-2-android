@@ -178,19 +178,12 @@ class MenuManageFragment : Fragment() {
      * Luồng hướng tới: Tương tác người dùng với thực đơn.
      */
     private fun setupUI() {
-        // 1. Banner nhận đơn mới -> chuyển sang tab Đơn hàng
-        val goToOrdersAction = View.OnClickListener {
-            onNavigateToOrdersListener?.invoke()
-        }
-        binding.bannerNewOrderIncoming.setOnClickListener(goToOrdersAction)
-        binding.btnBannerGoToOrders.setOnClickListener(goToOrdersAction)
-
-        // 2. Nút Quản lý danh mục quán
+        // 1. Nút Quản lý danh mục quán
         binding.btnManageCategories.setOnClickListener {
             showManageCategoriesDialog()
         }
 
-        // 3. Nút Tạo Combo & Thêm Món
+        // 2. Nút Tạo Combo & Thêm Món
         binding.btnCreateCombo.setOnClickListener {
             showCreateComboDialog()
         }

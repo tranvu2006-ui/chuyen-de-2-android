@@ -97,7 +97,9 @@
                 android:text="Đang giao hàng"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <View
@@ -155,7 +157,9 @@
                         android:textColor="@color/white"
                         android:textSize="9.5sp"
                         android:textStyle="bold"
-                        android:visibility="gone" />
+                        android:visibility="gone"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
                 </FrameLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -297,7 +301,13 @@
                 android:textStyle="bold"
                 app:backgroundTint="#F0F9FF"
                 app:cornerRadius="8dp"
-                app:strokeColor="#BAE6FD" />
+                app:strokeColor="#BAE6FD"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <Button
                 android:id="@+id/btnActionSecondary"
@@ -311,7 +321,13 @@
                 android:textColor="@color/text_primary"
                 android:textSize="11.5sp"
                 app:cornerRadius="8dp"
-                app:strokeColor="#CBD5E1" />
+                app:strokeColor="#CBD5E1"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <Button
                 android:id="@+id/btnActionPrimary"
@@ -326,7 +342,13 @@
                 android:textColor="@color/white"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
-                app:cornerRadius="8dp" />
+                app:cornerRadius="8dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
 
     </LinearLayout>

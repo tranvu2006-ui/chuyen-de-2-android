@@ -78,7 +78,9 @@
                 android:textColor="@color/brand_green"
                 android:textSize="10.5sp"
                 android:textStyle="bold"
-                tools:text="COMPLETED" />
+                tools:text="COMPLETED"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Cancellation & Request Notice -->

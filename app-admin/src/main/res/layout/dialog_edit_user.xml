@@ -189,7 +189,13 @@
                             app:icon="@drawable/ic_image"
                             app:iconGravity="textStart"
                             app:iconSize="16dp"
-                            app:iconTint="@color/brand_blue" />
+                            app:iconTint="@color/brand_blue"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnResetAvatarDefault"
@@ -201,7 +207,13 @@
                             android:text="Đặt lại mặc định"
                             android:textAllCaps="false"
                             android:textColor="@color/danger"
-                            android:textSize="11.5sp" />
+                            android:textSize="11.5sp"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:paddingTop="0dp"
+                            android:paddingBottom="0dp" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -390,7 +402,9 @@
                             android:textColor="@color/brand_green"
                             android:textSize="11.5sp"
                             app:cornerRadius="8dp"
-                            app:strokeColor="@color/brand_green" />
+                            app:strokeColor="@color/brand_green"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnQuickMinus20"
@@ -407,7 +421,9 @@
                             android:textColor="@color/danger"
                             android:textSize="11.5sp"
                             app:cornerRadius="8dp"
-                            app:strokeColor="@color/danger" />
+                            app:strokeColor="@color/danger"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnQuickReset100"
@@ -423,7 +439,9 @@
                             android:textColor="@color/brand_blue"
                             android:textSize="11.5sp"
                             app:cornerRadius="8dp"
-                            app:strokeColor="@color/brand_blue" />
+                            app:strokeColor="@color/brand_blue"
+                            android:minHeight="0dp"
+                            android:minWidth="0dp" />
                     </LinearLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
@@ -547,7 +565,15 @@
                     android:text="Hủy Bỏ"
                     android:textColor="@color/text_secondary"
                     app:cornerRadius="12dp"
-                    app:strokeColor="@color/border" />
+                    app:strokeColor="@color/border"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSaveEditUser"
@@ -559,7 +585,15 @@
                     android:text="Lưu Thay Đổi"
                     android:textColor="@color/white"
                     android:textStyle="bold"
-                    app:cornerRadius="12dp" />
+                    app:cornerRadius="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
             </LinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

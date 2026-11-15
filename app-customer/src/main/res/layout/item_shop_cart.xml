@@ -55,7 +55,9 @@
                     android:textColor="@color/brand_blue"
                     android:textSize="11sp"
                     android:textStyle="bold"
-                    tools:text="📍 Quận 1, TP.HCM" />
+                    tools:text="📍 Quận 1, TP.HCM"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
 
             <ImageView
@@ -145,7 +147,13 @@
                 app:cornerRadius="14dp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
+                app:layout_constraintTop_toTopOf="parent"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 

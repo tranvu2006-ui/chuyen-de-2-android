@@ -44,7 +44,9 @@
                 android:text="Chặng 1"
                 android:textColor="@color/brand_blue"
                 android:textSize="10sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <View
                 android:layout_width="0dp"
@@ -61,7 +63,9 @@
                 android:text="VIETQR (0đ)"
                 android:textColor="@color/brand_green"
                 android:textSize="10.5sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Nút đổi thứ tự ưu tiên -->
@@ -149,7 +153,9 @@
                 android:text="Gọi"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Checklist món ăn -->

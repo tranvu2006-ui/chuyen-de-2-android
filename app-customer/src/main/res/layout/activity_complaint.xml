@@ -200,7 +200,9 @@
                                 android:textColor="@color/brand_green"
                                 android:textSize="10.5sp"
                                 android:textStyle="bold"
-                                tools:text="ĐÃ GIAO HÀNG" />
+                                tools:text="ĐÃ GIAO HÀNG"
+                                android:singleLine="true"
+                                android:ellipsize="end" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -249,7 +251,9 @@
                             android:text="Ưu tiên: Cao 🔴"
                             android:textColor="@color/danger"
                             android:textSize="10.5sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
                     <Spinner
@@ -422,7 +426,13 @@
                                 app:cornerRadius="8dp"
                                 app:icon="@drawable/ic_camera"
                                 app:iconSize="15dp"
-                                app:iconTint="@color/brand_blue" />
+                                app:iconTint="@color/brand_blue"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp"
+                                android:paddingStart="10dp"
+                                android:paddingEnd="10dp"
+                                android:paddingTop="0dp"
+                                android:paddingBottom="0dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnClearEvidenceImage"
@@ -439,7 +449,13 @@
                                 android:textSize="11.5sp"
                                 app:icon="@drawable/ic_trash"
                                 app:iconSize="15dp"
-                                app:iconTint="@color/danger" />
+                                app:iconTint="@color/danger"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp"
+                                android:paddingStart="8dp"
+                                android:paddingEnd="8dp"
+                                android:paddingTop="0dp"
+                                android:paddingBottom="0dp" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -504,7 +520,15 @@
             app:iconGravity="textStart"
             app:iconPadding="10dp"
             app:iconSize="20dp"
-            app:iconTint="@color/white" />
+            app:iconTint="@color/white"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -87,7 +87,9 @@
                             android:text="Đạt Chuẩn COD"
                             android:textColor="#EA580C"
                             android:textSize="11sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
                     <TextView
@@ -145,7 +147,9 @@
                             android:text="GPS vị trí"
                             android:textColor="#0284C7"
                             android:textSize="11sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
                     <!-- CHỌN NHANH TỪ SỔ ĐỊA CHỈ ĐÃ LƯU -->
@@ -443,7 +447,9 @@
                                 android:text="Cọc 20%"
                                 android:textColor="@color/brand_orange"
                                 android:textSize="11sp"
-                                android:textStyle="bold" />
+                                android:textStyle="bold"
+                                android:singleLine="true"
+                                android:ellipsize="end" />
                         </LinearLayout>
 
                         <TextView
@@ -1147,7 +1153,9 @@
                 android:text="@string/btn_place_order"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                app:cornerRadius="12dp" />
+                app:cornerRadius="12dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp" />
 
         </LinearLayout>
 

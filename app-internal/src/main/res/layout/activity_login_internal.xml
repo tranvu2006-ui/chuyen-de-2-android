@@ -131,7 +131,13 @@
                     android:layout_marginTop="@dimen/spacing_xl"
                     android:backgroundTint="@color/primary"
                     android:text="@string/btn_login"
-                    android:textColor="@color/on_primary" />
+                    android:textColor="@color/on_primary"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
 
                 <ProgressBar
                     android:id="@+id/progressBar"

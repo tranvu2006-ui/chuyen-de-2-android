@@ -72,7 +72,9 @@
                 android:text="CHỜ XỬ LÝ"
                 android:textColor="@color/brand_orange"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </androidx.appcompat.widget.Toolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -172,7 +174,9 @@
                             android:textColor="@color/brand_orange"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            tools:text="⚠️ Vệ sinh ATTP" />
+                            tools:text="⚠️ Vệ sinh ATTP"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
 
                         <!-- Badge Mức độ ưu tiên -->
                         <TextView
@@ -186,7 +190,9 @@
                             android:textColor="@color/danger"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            tools:text="🔴 ƯU TIÊN CAO" />
+                            tools:text="🔴 ƯU TIÊN CAO"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -243,7 +249,9 @@
                             android:textColor="@color/brand_green"
                             android:textSize="11sp"
                             android:textStyle="bold"
-                            tools:text="HOÀN TẤT" />
+                            tools:text="HOÀN TẤT"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
                     <View
@@ -388,7 +396,9 @@
                             android:textColor="@color/brand_blue"
                             android:textSize="10sp"
                             android:textStyle="bold"
-                            tools:text="Khách hàng" />
+                            tools:text="Khách hàng"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
 
                         <TextView
                             android:id="@+id/tvSenderName"
@@ -430,7 +440,11 @@
                                 app:icon="@drawable/ic_phone"
                                 app:iconGravity="textStart"
                                 app:iconPadding="4dp"
-                                app:iconSize="14dp" />
+                                app:iconSize="14dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnCopySenderPhone"
@@ -444,7 +458,9 @@
                                 app:icon="@drawable/ic_copy"
                                 app:iconGravity="textStart"
                                 app:iconPadding="0dp"
-                                app:iconSize="14dp" />
+                                app:iconSize="14dp"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -486,7 +502,9 @@
                             android:textColor="@color/danger"
                             android:textSize="10sp"
                             android:textStyle="bold"
-                            tools:text="Quán ăn" />
+                            tools:text="Quán ăn"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
 
                         <TextView
                             android:id="@+id/tvTargetName"
@@ -531,7 +549,11 @@
                                 app:iconGravity="textStart"
                                 app:iconPadding="4dp"
                                 app:iconSize="14dp"
-                                app:iconTint="@color/danger" />
+                                app:iconTint="@color/danger"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnCopyTargetPhone"
@@ -545,7 +567,9 @@
                                 app:icon="@drawable/ic_copy"
                                 app:iconGravity="textStart"
                                 app:iconPadding="0dp"
-                                app:iconSize="14dp" />
+                                app:iconSize="14dp"
+                                android:minHeight="0dp"
+                                android:minWidth="0dp" />
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -1020,7 +1044,15 @@
                         app:iconGravity="textStart"
                         app:iconPadding="10dp"
                         app:iconSize="20dp"
-                        app:iconTint="@color/white" />
+                        app:iconTint="@color/white"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnQuickReject"
@@ -1037,7 +1069,15 @@
                         app:iconGravity="textStart"
                         app:iconPadding="8dp"
                         app:iconSize="18dp"
-                        app:iconTint="@color/danger" />
+                        app:iconTint="@color/danger"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
 
                     <!-- Progress bar -->
                     <ProgressBar

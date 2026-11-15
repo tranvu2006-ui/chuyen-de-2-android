@@ -55,7 +55,13 @@
             android:textStyle="bold"
             app:cornerRadius="8dp"
             app:strokeColor="#FECACA"
-            app:strokeWidth="1dp" />
+            app:strokeWidth="1dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView
@@ -157,7 +163,9 @@
                             android:text="ĐÃ XÁC MINH HỒ SƠ"
                             android:textColor="@color/brand_green"
                             android:textSize="10.5sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -495,7 +503,9 @@
                             android:text="VietQR 24/7"
                             android:textColor="@color/primary"
                             android:textSize="10.5sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:singleLine="true"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
                     <TextView
@@ -612,7 +622,15 @@
                 android:textColor="@color/white"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <!-- Nút Đăng Xuất Quán -->
             <com.google.android.material.button.MaterialButton
@@ -628,7 +646,15 @@
                 android:textStyle="bold"
                 app:cornerRadius="10dp"
                 app:strokeColor="#FECACA"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

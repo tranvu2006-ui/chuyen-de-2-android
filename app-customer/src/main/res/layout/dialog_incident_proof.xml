@@ -227,7 +227,15 @@
             android:text="Lấy Mã QR Quét Ngay "
             android:textColor="@color/white"
             android:textSize="12.5sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <Button
             android:id="@+id/btnModalDismiss"
@@ -237,7 +245,15 @@
             android:layout_marginStart="8dp"
             android:text="Đóng"
             android:textColor="@color/text_secondary"
-            android:textSize="12.5sp" />
+            android:textSize="12.5sp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
 </LinearLayout>

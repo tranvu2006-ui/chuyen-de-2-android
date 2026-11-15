@@ -84,7 +84,13 @@
                 app:cornerRadius="8dp"
                 app:icon="@drawable/ic_credit_card"
                 app:iconSize="14dp"
-                app:iconTint="@color/brand_blue" />
+                app:iconTint="@color/brand_blue"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <ImageButton
                 android:id="@+id/btnBossLogout"
@@ -226,37 +232,57 @@
                     android:id="@+id/btnCreateBranch"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginEnd="6dp"
                     android:layout_weight="1"
                     android:backgroundTint="@color/primary"
+                    android:ellipsize="end"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="46dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="8dp"
+                    android:singleLine="true"
                     android:text="Tạo Chi Nhánh"
                     android:textColor="@color/white"
                     android:textSize="13sp"
                     android:textStyle="bold"
+                    app:cornerRadius="12dp"
                     app:icon="@drawable/ic_plus"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
                     app:iconTint="@color/white"
-                    app:cornerRadius="12dp" />
+                    android:minWidth="0dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCreateMerchant"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
                     android:layout_weight="1"
                     android:backgroundTint="@color/brand_blue"
+                    android:ellipsize="end"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="46dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="8dp"
+                    android:singleLine="true"
                     android:text="Tạo Merchant"
                     android:textColor="@color/white"
                     android:textSize="13sp"
                     android:textStyle="bold"
+                    app:cornerRadius="12dp"
                     app:icon="@drawable/ic_user"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
                     app:iconTint="@color/white"
-                    app:cornerRadius="12dp" />
+                    android:minWidth="0dp" />
             </LinearLayout>
 
             <!-- Segment Toggle: Chi Nhánh vs Quản Lý (Merchant) -->
@@ -276,6 +302,14 @@
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingStart="8dp"
+                    android:paddingTop="0dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="0dp"
+                    android:singleLine="true"
                     android:text="Chi Nhánh"
                     android:textColor="@color/text_primary"
                     android:textSize="13sp"
@@ -283,7 +317,9 @@
                     app:icon="@drawable/ic_store"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
-                    app:iconTint="@color/text_primary" />
+                    app:iconTint="@color/text_primary"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnTabMerchants"
@@ -291,6 +327,14 @@
                     android:layout_width="0dp"
                     android:layout_height="44dp"
                     android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingStart="8dp"
+                    android:paddingTop="0dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="0dp"
+                    android:singleLine="true"
                     android:text="Quản Lý (Merchant)"
                     android:textColor="@color/text_primary"
                     android:textSize="13sp"
@@ -298,7 +342,9 @@
                     app:icon="@drawable/ic_users"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
-                    app:iconTint="@color/text_primary" />
+                    app:iconTint="@color/text_primary"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <ProgressBar

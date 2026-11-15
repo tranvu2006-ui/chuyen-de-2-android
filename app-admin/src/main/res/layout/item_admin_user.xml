@@ -77,7 +77,9 @@
                     android:textColor="@color/brand_blue"
                     android:textSize="10sp"
                     android:textStyle="bold"
-                    tools:text="CUSTOMER" />
+                    tools:text="CUSTOMER"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
 
             <TextView
@@ -102,7 +104,9 @@
                 android:textColor="@color/brand_green"
                 android:textSize="10.5sp"
                 android:textStyle="bold"
-                tools:text="Điểm uy tín: 100 • Đơn boom: 0" />
+                tools:text="Điểm uy tín: 100 • Đơn boom: 0"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Quick Lock/Unlock Button -->
@@ -117,6 +121,14 @@
             android:textStyle="bold"
             app:cornerRadius="10dp"
             app:strokeColor="@color/danger"
-            app:strokeWidth="1.5dp" />
+            app:strokeWidth="1.5dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -115,7 +115,9 @@
                     tools:text="Chờ 1 phút"
                     android:textColor="#C2410C"
                     android:textSize="9.5sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
 
             <!-- Đồng hồ chữ số đếm ngược -->
@@ -197,7 +199,15 @@
                 android:textColor="#15803D"
                 android:textSize="13sp"
                 android:textStyle="bold"
-                app:cornerRadius="10dp" />
+                app:cornerRadius="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -426,7 +436,15 @@
         android:textColor="@color/white"
         android:textSize="12sp"
         android:textStyle="bold"
-        app:cornerRadius="10dp" />
+        app:cornerRadius="10dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minHeight="0dp"
+        android:minWidth="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnDismissIncident"
@@ -436,7 +454,15 @@
         android:layout_marginTop="4dp"
         android:text="Quay lại (Tiếp tục giao món)"
         android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:minHeight="0dp"
+        android:minWidth="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp" />
 
     </LinearLayout>
 </ScrollView>

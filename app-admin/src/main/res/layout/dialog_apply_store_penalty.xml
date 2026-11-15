@@ -121,7 +121,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Hủy"
-            android:textColor="@color/text_secondary" />
+            android:textColor="@color/text_secondary"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnConfirmPenalty"
@@ -131,6 +137,12 @@
             android:backgroundTint="@color/danger"
             android:text="ÁP DỤNG PHẠT"
             android:textColor="@color/white"
-            app:cornerRadius="8dp" />
+            app:cornerRadius="8dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
     </LinearLayout>
 </LinearLayout>

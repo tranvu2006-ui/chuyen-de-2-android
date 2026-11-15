@@ -153,7 +153,15 @@
                     android:textColor="@color/white"
                     android:textSize="13.5sp"
                     android:textStyle="bold"
-                    app:cornerRadius="20dp" />
+                    app:cornerRadius="20dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="24dp"
+                    android:paddingEnd="24dp"
+                    android:paddingTop="11dp"
+                    android:paddingBottom="11dp" />
             </LinearLayout>
 
         </androidx.constraintlayout.widget.ConstraintLayout>

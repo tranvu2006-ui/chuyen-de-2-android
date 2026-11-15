@@ -160,7 +160,9 @@
                 android:text="🥤 Ít đá, ít đường"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipStraws"
@@ -173,7 +175,9 @@
                 android:text="🥢 Xin thêm 2 ống hút"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipFast"
@@ -186,7 +190,9 @@
                 android:text="Làm nhanh giúp mình"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/chipIceSeparate"
@@ -198,7 +204,9 @@
                 android:text="🧊 Để đá riêng"
                 android:textColor="#1D4ED8"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
     </HorizontalScrollView>
 

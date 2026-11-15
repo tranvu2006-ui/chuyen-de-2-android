@@ -24,6 +24,8 @@
 
         <!-- Kiểu dáng mặc định TextInputLayout trong Admin -->
         <item name="textInputStyle">@style/Widget.FoodOrder.Admin.TextInputLayout</item>
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="elevationOverlayColor">@android:color/transparent</item>
     </style>
 
     <style name="Widget.FoodOrder.Admin.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">

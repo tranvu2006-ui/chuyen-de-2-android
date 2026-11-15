@@ -165,7 +165,9 @@
                         android:text="RBAC ROLE 1"
                         android:textColor="@color/brand_blue"
                         android:textSize="10sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
                 </LinearLayout>
 
                 <TextView
@@ -300,7 +302,15 @@
                     app:elevation="4dp"
                     app:icon="@drawable/ic_shield_alert"
                     app:iconGravity="textStart"
-                    app:iconTint="@color/white" />
+                    app:iconTint="@color/white"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
 
                 <!-- Loading Spinner -->
                 <ProgressBar

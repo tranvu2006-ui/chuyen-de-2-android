@@ -150,7 +150,9 @@
                                 android:text="-25%"
                                 android:textColor="@color/white"
                                 android:textSize="9.5sp"
-                                android:textStyle="bold" />
+                                android:textStyle="bold"
+                                android:singleLine="true"
+                                android:ellipsize="end" />
                         </FrameLayout>
 
                         <!-- Cột thông tin món bên phải -->
@@ -305,7 +307,9 @@
                         android:text="8 MÓN"
                         android:textColor="@color/white"
                         android:textSize="10sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
 
                     <View
                         android:layout_width="0dp"

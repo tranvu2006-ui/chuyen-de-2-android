@@ -60,7 +60,9 @@
                     android:textColor="#c34738"
                     android:textSize="8.5sp"
                     android:textStyle="bold"
-                    android:visibility="gone" />
+                    android:visibility="gone"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </FrameLayout>
         </com.google.android.material.card.MaterialCardView>
 

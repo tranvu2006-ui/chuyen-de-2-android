@@ -6,7 +6,7 @@
     <string name="nav_stores">Quán ăn</string>
     <string name="nav_categories">Danh mục</string>
     <string name="nav_complaints">Khiếu nại</string>
-    <string name="nav_monitor">Đơn &amp; Khách</string>
+    <string name="nav_monitor">Giám sát</string>
     <string name="action_approve">Phê duyệt</string>
     <string name="action_reject">Từ chối</string>
 </resources>

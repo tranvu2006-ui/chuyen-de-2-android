@@ -118,7 +118,15 @@
             android:textColor="@color/text_secondary"
             android:textSize="12sp"
             app:cornerRadius="12dp"
-            app:strokeColor="#CBD5E1" />
+            app:strokeColor="#CBD5E1"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSaveConfig"
@@ -131,7 +139,15 @@
             android:textColor="@android:color/white"
             android:textSize="13sp"
             android:textStyle="bold"
-            app:cornerRadius="12dp" />
+            app:cornerRadius="12dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
 </LinearLayout>

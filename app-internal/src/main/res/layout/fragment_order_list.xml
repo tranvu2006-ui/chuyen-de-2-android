@@ -91,7 +91,13 @@
                 app:iconSize="13dp"
                 app:iconTint="@color/brand_orange"
                 app:strokeColor="#FDE68A"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <!-- Nút Hồ Sơ Quán -->
             <com.google.android.material.button.MaterialButton
@@ -113,7 +119,13 @@
                 app:iconSize="13dp"
                 app:iconTint="@color/brand_blue"
                 app:strokeColor="#BFDBFE"
-                app:strokeWidth="1dp" />
+                app:strokeWidth="1dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="9dp"
+                android:paddingEnd="9dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
 
             <!-- Nút Đăng Xuất (Dạng icon vuông nhỏ gọn, không có chữ) -->
             <com.google.android.material.card.MaterialCardView
@@ -633,7 +645,9 @@
                     android:text="CẢNH BÁO"
                     android:textColor="@color/white"
                     android:textSize="10sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

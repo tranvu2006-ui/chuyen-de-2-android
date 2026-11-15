@@ -139,7 +139,9 @@
                 android:textColor="@color/brand_green"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                tools:text="Đang Mở" />
+                tools:text="Đang Mở"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <!-- Tag phân loại / Freeship -->
             <TextView
@@ -153,7 +155,9 @@
                 android:textColor="@color/primary"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                tools:text="Freeship" />
+                tools:text="Freeship"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <!-- Thời gian giao dự kiến -->
             <TextView

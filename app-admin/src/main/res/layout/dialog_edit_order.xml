@@ -371,7 +371,15 @@
                     android:text="Hủy Bỏ"
                     android:textColor="@color/text_secondary"
                     app:cornerRadius="12dp"
-                    app:strokeColor="@color/border" />
+                    app:strokeColor="@color/border"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSaveEditOrder"
@@ -383,7 +391,15 @@
                     android:text="Lưu Thay Đổi"
                     android:textColor="@color/white"
                     android:textStyle="bold"
-                    app:cornerRadius="12dp" />
+                    app:cornerRadius="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
             </LinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

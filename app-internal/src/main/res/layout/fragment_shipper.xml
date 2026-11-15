@@ -59,7 +59,9 @@
                 android:text="Tài xế nội bộ quán"
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnShipperLogoutHeader"
@@ -74,7 +76,13 @@
                 android:text="Đăng xuất"
                 android:textColor="#DC2626"
                 android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
         </LinearLayout>
 
         <!-- Driver Profile Card (2.html: driver-card) -->
@@ -149,7 +157,15 @@
                     android:textSize="11sp"
                     android:textStyle="bold"
                     app:cornerRadius="20dp"
-                    app:strokeColor="#A7F3D0" />
+                    app:strokeColor="#A7F3D0"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -306,7 +322,9 @@
                 tools:text="1 đơn"
                 android:textColor="@color/white"
                 android:textSize="10.5sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <View
                 android:layout_width="0dp"
@@ -369,7 +387,9 @@
                 tools:text="2 đơn"
                 android:textColor="@color/white"
                 android:textSize="10.5sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView

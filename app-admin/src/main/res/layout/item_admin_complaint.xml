@@ -78,7 +78,9 @@
                 android:textColor="@color/brand_orange"
                 android:textSize="10.5sp"
                 android:textStyle="bold"
-                tools:text="CHỜ XỬ LÝ" />
+                tools:text="CHỜ XỬ LÝ"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- 2-Parties Card Grid: Nguồn Gửi vs Đối Tượng Vi Phạm (Chuẩn admin.html) -->
@@ -207,7 +209,9 @@
                 android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                tools:text="📦 Đơn: #ORD-1234" />
+                tools:text="📦 Đơn: #ORD-1234"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/tvComplaintTypeBadge"
@@ -220,7 +224,9 @@
                 android:textColor="@color/danger"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                tools:text="⚠️ Vệ sinh ATTP" />
+                tools:text="⚠️ Vệ sinh ATTP"
+                android:singleLine="true"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/tvPriorityBadge"
@@ -233,7 +239,9 @@
                 android:textColor="@color/brand_orange"
                 android:textSize="10.5sp"
                 android:textStyle="bold"
-                tools:text="CAO" />
+                tools:text="CAO"
+                android:singleLine="true"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Nội dung sự việc phản ánh -->
@@ -356,7 +364,13 @@
             app:iconGravity="textStart"
             app:iconPadding="6dp"
             app:iconSize="16dp"
-            app:iconTint="@color/primary" />
+            app:iconTint="@color/primary"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

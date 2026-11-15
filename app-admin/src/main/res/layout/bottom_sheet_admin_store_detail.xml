@@ -50,7 +50,6 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
-                android:layout_marginEnd="8dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
@@ -58,6 +57,8 @@
                     android:id="@+id/tvDetailStoreName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
                     android:textColor="@color/text_primary"
                     android:textSize="19sp"
                     android:textStyle="bold"
@@ -68,22 +69,27 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
                     android:textColor="@color/text_muted"
                     android:textSize="12sp"
                     tools:text="Mã quán: store_12345" />
-            </LinearLayout>
 
-            <TextView
-                android:id="@+id/tvDetailStatusBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="5dp"
-                android:textColor="@color/brand_orange"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                tools:text="CHỜ DUYỆT CCCD" />
+                <TextView
+                    android:id="@+id/tvDetailStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:ellipsize="end"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="5dp"
+                    android:singleLine="true"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:text="CHỜ DUYỆT CCCD" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Current Penalty Alert Banner -->
@@ -350,9 +356,16 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnEditAllStoreDetails"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="wrap_content"
                 android:layout_marginBottom="10dp"
                 android:backgroundTint="@color/secondary"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
                 android:text="Tùy Chỉnh Toàn Bộ Thuộc Tính Quán"
                 android:textColor="@color/white"
                 android:textSize="13.5sp"
@@ -360,13 +373,21 @@
                 app:cornerRadius="14dp"
                 app:icon="@drawable/ic_edit"
                 app:iconGravity="textStart"
-                app:iconTint="@color/white" />
+                app:iconTint="@color/white"
+                android:minWidth="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnApproveStore"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="wrap_content"
                 android:backgroundTint="@color/brand_green"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
                 android:text="Phê Duyệt Mở Quán &amp; Xác Thực KYC"
                 android:textColor="@color/white"
                 android:textSize="13.5sp"
@@ -374,14 +395,22 @@
                 app:cornerRadius="14dp"
                 app:icon="@drawable/ic_check_circle"
                 app:iconGravity="textStart"
-                app:iconTint="@color/white" />
+                app:iconTint="@color/white"
+                android:minWidth="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRejectStore"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
-                android:layout_height="50dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
                 android:text="Từ Chối Hồ Sơ Đăng Ký / KYC"
                 android:textColor="@color/danger"
                 android:textSize="13sp"
@@ -391,14 +420,22 @@
                 app:iconGravity="textStart"
                 app:iconTint="@color/danger"
                 app:strokeColor="@color/danger"
-                app:strokeWidth="1.5dp" />
+                app:strokeWidth="1.5dp"
+                android:minWidth="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnApplyPenalty"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
-                android:layout_height="50dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
                 android:text="Áp Dụng Chế Tài Xử Phạt Quán"
                 android:textColor="@color/brand_orange"
                 android:textSize="13sp"
@@ -408,18 +445,27 @@
                 app:iconGravity="textStart"
                 app:iconTint="@color/brand_orange"
                 app:strokeColor="@color/brand_orange"
-                app:strokeWidth="1.5dp" />
+                app:strokeWidth="1.5dp"
+                android:minWidth="0dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLockStore"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="match_parent"
-                android:layout_height="46dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="44dp"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
                 android:text="Đình chỉ &amp; Khóa quyền kinh doanh quán này"
                 android:textColor="@color/danger"
                 android:textSize="13sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:minWidth="0dp" />
         </LinearLayout>
 
     </LinearLayout>

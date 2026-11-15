@@ -517,7 +517,13 @@
             android:textStyle="bold"
             app:cornerRadius="10dp"
             app:strokeColor="#CBD5E1"
-            app:strokeWidth="1dp" />
+            app:strokeWidth="1dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSheetApply"
@@ -538,7 +544,13 @@
             android:textColor="@color/white"
             android:textSize="12.5sp"
             android:textStyle="bold"
-            app:cornerRadius="10dp" />
+            app:cornerRadius="10dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
     </LinearLayout>
 
 </LinearLayout>

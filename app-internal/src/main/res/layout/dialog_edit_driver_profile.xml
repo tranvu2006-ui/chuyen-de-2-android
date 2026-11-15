@@ -153,7 +153,13 @@
                         app:iconTint="@color/brand_blue"
                         android:textColor="@color/brand_blue"
                         android:textSize="11.5sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -311,7 +317,15 @@
                     android:layout_weight="1"
                     android:text="Hủy"
                     android:textColor="@color/text_secondary"
-                    app:strokeColor="@color/border" />
+                    app:strokeColor="@color/border"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSaveEditDriver"
@@ -322,7 +336,15 @@
                     android:backgroundTint="@color/primary"
                     android:text="Lưu Hồ Sơ"
                     android:textColor="@color/white"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
             </LinearLayout>
 
         </LinearLayout>

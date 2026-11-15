@@ -68,7 +68,6 @@ class MenuManageFragment : Fragment() {
 
     private lateinit var adapter: ManageDishAdapter
     private val dishList = mutableListOf<Dish>()
-    private var isCheckedIn = true
     private var currentStoreId = ""
     private var storeCategories: MutableList<String> = mutableListOf("Món chính")
     private var selectedStoreCategory: String = "ALL"
@@ -179,24 +178,19 @@ class MenuManageFragment : Fragment() {
      * Luồng hướng tới: Tương tác người dùng với thực đơn.
      */
     private fun setupUI() {
-        // 1. Nút Check-in mở ca
-        binding.btnCheckin.setOnClickListener {
-            toggleCheckin()
-        }
-
-        // 2. Banner nhận đơn mới -> chuyển sang tab Đơn hàng
+        // 1. Banner nhận đơn mới -> chuyển sang tab Đơn hàng
         val goToOrdersAction = View.OnClickListener {
             onNavigateToOrdersListener?.invoke()
         }
         binding.bannerNewOrderIncoming.setOnClickListener(goToOrdersAction)
         binding.btnBannerGoToOrders.setOnClickListener(goToOrdersAction)
 
-        // 3. Nút Quản lý danh mục quán
+        // 2. Nút Quản lý danh mục quán
         binding.btnManageCategories.setOnClickListener {
             showManageCategoriesDialog()
         }
 
-        // 4. Nút Tạo Combo & Thêm Món
+        // 3. Nút Tạo Combo & Thêm Món
         binding.btnCreateCombo.setOnClickListener {
             showCreateComboDialog()
         }
@@ -240,36 +234,6 @@ class MenuManageFragment : Fragment() {
             }
         } catch (e: Exception) {
             android.util.Log.e("MenuManageFragment", "Error setting up category chips", e)
-        }
-    }
-
-    /**
-     * Tên chức năng: Chuyển đổi trạng thái Điểm danh / Mở ca (Check-in Toggle)
-     * Cách hoạt động: Bật/tắt trạng thái ca làm việc của nhân viên quán, đổi giao diện nút bấm và thông báo.
-     * Luồng hướng tới: Cập nhật visual feedback cho quản lý quán.
-     */
-    private fun toggleCheckin() {
-        isCheckedIn = !isCheckedIn
-        if (isCheckedIn) {
-            binding.btnCheckin.setBackgroundResource(R.drawable.bg_btn_checkin_on)
-            binding.dotCheckinStatus.setBackgroundResource(R.drawable.bg_badge_green)
-            binding.tvCheckinText.text = "ĐÃ CHECK-IN (MỞ CỬA)"
-            binding.tvCheckinText.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-            Toast.makeText(
-                requireContext(),
-                "🟢 Quán đã Check-in vào ca thành công! Khách hàng có thể đặt món trên Oishi Food.",
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            binding.btnCheckin.setBackgroundResource(R.drawable.bg_btn_checkin_off)
-            binding.dotCheckinStatus.setBackgroundResource(R.drawable.bg_order_tab_idle)
-            binding.tvCheckinText.text = "TẠM NGHỈ (ĐÓNG CỬA)"
-            binding.tvCheckinText.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-            Toast.makeText(
-                requireContext(),
-                "⚪ Quán đã chuyển sang trạng thái tạm nghỉ. Khách hàng tạm thời không thể đặt món.",
-                Toast.LENGTH_SHORT
-            ).show()
         }
     }
 

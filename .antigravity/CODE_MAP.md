@@ -10634,6 +10634,58 @@ class FoodOrderCustomerApp : Application() {
 </shape>
 ````
 
+## File: app-customer/src/main/res/drawable/bg_otp_box_active.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/primary_light" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/primary" />
+    <corners android:radius="14dp" />
+</shape>
+````
+
+## File: app-customer/src/main/res/drawable/bg_otp_box_empty.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/border" />
+    <corners android:radius="14dp" />
+</shape>
+````
+
+## File: app-customer/src/main/res/drawable/bg_otp_box_error.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFF1F2" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/error" />
+    <corners android:radius="14dp" />
+</shape>
+````
+
+## File: app-customer/src/main/res/drawable/bg_otp_box_filled.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/primary" />
+    <corners android:radius="14dp" />
+</shape>
+````
+
 ## File: app-customer/src/main/res/drawable/bg_payment_card_normal.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -16273,6 +16325,58 @@ class FoodOrderInternalApp : Application() {
     android:shape="rectangle">
     <solid android:color="@android:color/transparent" />
     <corners android:radius="8dp" />
+</shape>
+````
+
+## File: app-internal/src/main/res/drawable/bg_otp_box_active.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/primary_light" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/primary" />
+    <corners android:radius="14dp" />
+</shape>
+````
+
+## File: app-internal/src/main/res/drawable/bg_otp_box_empty.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/border" />
+    <corners android:radius="14dp" />
+</shape>
+````
+
+## File: app-internal/src/main/res/drawable/bg_otp_box_error.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFF1F2" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/error" />
+    <corners android:radius="14dp" />
+</shape>
+````
+
+## File: app-internal/src/main/res/drawable/bg_otp_box_filled.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface" />
+    <stroke
+        android:width="1.5dp"
+        android:color="@color/primary" />
+    <corners android:radius="14dp" />
 </shape>
 ````
 
@@ -54989,58 +55093,6 @@ class TrackingViewModel @Inject constructor(
 </shape>
 ````
 
-## File: app-customer/src/main/res/drawable/bg_otp_box_active.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/primary_light" />
-    <stroke
-        android:width="2dp"
-        android:color="@color/primary" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
-## File: app-customer/src/main/res/drawable/bg_otp_box_empty.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/surface" />
-    <stroke
-        android:width="1.5dp"
-        android:color="@color/border" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
-## File: app-customer/src/main/res/drawable/bg_otp_box_error.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#FFF1F2" />
-    <stroke
-        android:width="1.5dp"
-        android:color="@color/error" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
-## File: app-customer/src/main/res/drawable/bg_otp_box_filled.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/surface" />
-    <stroke
-        android:width="1.5dp"
-        android:color="@color/primary" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
 ## File: app-customer/src/main/res/drawable/ic_bun_dau.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -58749,58 +58801,6 @@ class ChatCustomerBottomSheetDialogFragment : BottomSheetDialogFragment() {
 }
 ````
 
-## File: app-internal/src/main/res/drawable/bg_otp_box_active.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/primary_light" />
-    <stroke
-        android:width="2dp"
-        android:color="@color/primary" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
-## File: app-internal/src/main/res/drawable/bg_otp_box_empty.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/surface" />
-    <stroke
-        android:width="1.5dp"
-        android:color="@color/border" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
-## File: app-internal/src/main/res/drawable/bg_otp_box_error.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="#FFF1F2" />
-    <stroke
-        android:width="1.5dp"
-        android:color="@color/error" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
-## File: app-internal/src/main/res/drawable/bg_otp_box_filled.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/surface" />
-    <stroke
-        android:width="1.5dp"
-        android:color="@color/primary" />
-    <corners android:radius="14dp" />
-</shape>
-````
-
 ## File: app-internal/src/main/res/drawable/ic_bun_dau.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -60453,6 +60453,58 @@ class ChatCustomerBottomSheetDialogFragment : BottomSheetDialogFragment() {
         android:icon="@drawable/ic_nav_report"
         android:title="Báo cáo" />
 </menu>
+````
+
+## File: app-internal/src/main/res/values/colors.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Colors — Oishi Food Merchant & Driver (chuyende2 Prototype) -->
+    <color name="primary">#EE4D2D</color>
+    <color name="primary_variant">#D73211</color>
+    <color name="primary_light">#FFF0ED</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="white">#FFFFFF</color>
+
+    <color name="secondary">#2563EB</color>
+    <color name="on_secondary">#FFFFFF</color>
+
+    <!-- Backgrounds & Surfaces -->
+    <color name="background">#F4F6F8</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="on_background">#1E293B</color>
+    <color name="on_surface">#1E293B</color>
+
+    <color name="text_primary">#1E293B</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="text_muted">#94A3B8</color>
+    <color name="border">#E2E8F0</color>
+    <color name="border_light">#F1F5F9</color>
+    <color name="divider">#F1F5F9</color>
+
+    <!-- Semantic & Accent Colors -->
+    <color name="brand_green">#10B981</color>
+    <color name="brand_green_bg">#ECFDF5</color>
+    <color name="brand_blue">#2563EB</color>
+    <color name="brand_blue_bg">#EFF6FF</color>
+    <color name="brand_orange">#F59E0B</color>
+    <color name="brand_orange_bg">#FFFBEB</color>
+    <color name="brand_teal">#14B8A6</color>
+    <color name="brand_teal_bg">#F0FDFA</color>
+    <color name="danger">#EF4444</color>
+    <color name="danger_bg">#FEE2E2</color>
+
+    <!-- Status Colors -->
+    <color name="status_pending">#F59E0B</color>
+    <color name="status_ready">#10B981</color>
+    <color name="status_delivering">#2563EB</color>
+    <color name="status_completed">#10B981</color>
+
+    <color name="error">#EF4444</color>
+    <color name="on_error">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+</resources>
 ````
 
 ## File: app-internal/src/main/res/values/dimens.xml
@@ -80259,6 +80311,401 @@ class OrderHistoryActivity : AppCompatActivity() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
+## File: app-customer/src/main/res/layout/activity_otp_verification.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp">
+
+        <!-- Back Button -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardBtnBack"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="21dp"
+            app:cardElevation="1dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Quay lại"
+                android:src="@drawable/ic_arrow_back_curved"
+                app:tint="@color/text_primary" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Header Card / Logo (Double Circle) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardOuterIcon"
+            android:layout_width="92dp"
+            android:layout_height="92dp"
+            android:layout_marginTop="20dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="46dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
+            app:strokeWidth="0dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInnerIcon"
+                android:layout_width="66dp"
+                android:layout_height="66dp"
+                android:layout_gravity="center"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="33dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="0.5dp">
+
+                <ImageView
+                    android:id="@+id/ivHeaderIcon"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="Xác thực OTP"
+                    android:src="@drawable/ic_shield"
+                    app:tint="@color/primary" />
+            </com.google.android.material.card.MaterialCardView>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:letterSpacing="-0.02"
+            android:text="Xác Thực Mã OTP"
+            android:textColor="@color/text_primary"
+            android:textSize="23sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
+
+        <!-- Subtitle -->
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            android:textColor="@color/text_secondary"
+            android:textSize="13.5sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
+
+        <!-- Target Email Highlight Badge -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardEmailBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+            app:strokeColor="#33FF5722"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="7dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="Email"
+                    android:src="@drawable/ic_mail"
+                    app:tint="@color/primary" />
+
+                <TextView
+                    android:id="@+id/tvTargetEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="email@example.com"
+                    android:textColor="@color/primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Input Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="2dp"
+            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="Nhập 6 số mã OTP"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="14dp"
+                    android:text="Chạm vào các ô bên dưới để nhập mã"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp" />
+
+                <!-- 6-Digit OTP Container -->
+                <FrameLayout
+                    android:id="@+id/layoutOtpContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal">
+
+                    <!-- 6 Display Boxes -->
+                    <LinearLayout
+                        android:id="@+id/layoutOtpBoxes"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvOtp1"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp2"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp3"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp4"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp5"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp6"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Hidden Transparent Native EditText -->
+                    <EditText
+                        android:id="@+id/etOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:autofillHints="smsOTPCode"
+                        android:background="@null"
+                        android:cursorVisible="false"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:importantForAutofill="yes"
+                        android:inputType="number"
+                        android:maxLength="6"
+                        android:textColor="@android:color/transparent" />
+                </FrameLayout>
+
+                <!-- Error Message Display -->
+                <TextView
+                    android:id="@+id/tvOtpError"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="@color/error"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <!-- Resend Layout -->
+                <LinearLayout
+                    android:id="@+id/layoutResendOtp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="18dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/ivResendIcon"
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:layout_marginEnd="6dp"
+                        android:contentDescription="Đếm ngược"
+                        android:src="@drawable/ic_clock"
+                        app:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tvResendNotice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chưa nhận được mã? "
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13.5sp" />
+
+                    <TextView
+                        android:id="@+id/btnResendOtp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="4dp"
+                        android:text="Gửi lại (60s)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Submit Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnConfirmRegister"
+                    style="@style/Widget.FoodOrder.Button.Primary"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="20dp"
+                    android:letterSpacing="0.01"
+                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
+                    android:textSize="15.5sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="14dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone" />
+
+                <!-- Security Note -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="13dp"
+                        android:layout_height="13dp"
+                        android:layout_marginEnd="5dp"
+                        android:contentDescription="Bảo mật"
+                        android:src="@drawable/ic_lock"
+                        app:tint="@color/text_muted" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
+````
+
 ## File: app-customer/src/main/res/layout/activity_profile.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -86645,7 +87092,6 @@ class MenuManageFragment : Fragment() {
 
     private lateinit var adapter: ManageDishAdapter
     private val dishList = mutableListOf<Dish>()
-    private var isCheckedIn = true
     private var currentStoreId = ""
     private var storeCategories: MutableList<String> = mutableListOf("Món chính")
     private var selectedStoreCategory: String = "ALL"
@@ -86756,24 +87202,19 @@ class MenuManageFragment : Fragment() {
      * Luồng hướng tới: Tương tác người dùng với thực đơn.
      */
     private fun setupUI() {
-        // 1. Nút Check-in mở ca
-        binding.btnCheckin.setOnClickListener {
-            toggleCheckin()
-        }
-
-        // 2. Banner nhận đơn mới -> chuyển sang tab Đơn hàng
+        // 1. Banner nhận đơn mới -> chuyển sang tab Đơn hàng
         val goToOrdersAction = View.OnClickListener {
             onNavigateToOrdersListener?.invoke()
         }
         binding.bannerNewOrderIncoming.setOnClickListener(goToOrdersAction)
         binding.btnBannerGoToOrders.setOnClickListener(goToOrdersAction)
 
-        // 3. Nút Quản lý danh mục quán
+        // 2. Nút Quản lý danh mục quán
         binding.btnManageCategories.setOnClickListener {
             showManageCategoriesDialog()
         }
 
-        // 4. Nút Tạo Combo & Thêm Món
+        // 3. Nút Tạo Combo & Thêm Món
         binding.btnCreateCombo.setOnClickListener {
             showCreateComboDialog()
         }
@@ -86817,36 +87258,6 @@ class MenuManageFragment : Fragment() {
             }
         } catch (e: Exception) {
             android.util.Log.e("MenuManageFragment", "Error setting up category chips", e)
-        }
-    }
-
-    /**
-     * Tên chức năng: Chuyển đổi trạng thái Điểm danh / Mở ca (Check-in Toggle)
-     * Cách hoạt động: Bật/tắt trạng thái ca làm việc của nhân viên quán, đổi giao diện nút bấm và thông báo.
-     * Luồng hướng tới: Cập nhật visual feedback cho quản lý quán.
-     */
-    private fun toggleCheckin() {
-        isCheckedIn = !isCheckedIn
-        if (isCheckedIn) {
-            binding.btnCheckin.setBackgroundResource(R.drawable.bg_btn_checkin_on)
-            binding.dotCheckinStatus.setBackgroundResource(R.drawable.bg_badge_green)
-            binding.tvCheckinText.text = "ĐÃ CHECK-IN (MỞ CỬA)"
-            binding.tvCheckinText.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-            Toast.makeText(
-                requireContext(),
-                "🟢 Quán đã Check-in vào ca thành công! Khách hàng có thể đặt món trên Oishi Food.",
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            binding.btnCheckin.setBackgroundResource(R.drawable.bg_btn_checkin_off)
-            binding.dotCheckinStatus.setBackgroundResource(R.drawable.bg_order_tab_idle)
-            binding.tvCheckinText.text = "TẠM NGHỈ (ĐÓNG CỬA)"
-            binding.tvCheckinText.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-            Toast.makeText(
-                requireContext(),
-                "⚪ Quán đã chuyển sang trạng thái tạm nghỉ. Khách hàng tạm thời không thể đặt món.",
-                Toast.LENGTH_SHORT
-            ).show()
         }
     }
 
@@ -87771,6 +88182,403 @@ class MenuManageFragment : Fragment() {
         app:menu="@menu/menu_bottom_nav_shipper" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+````
+
+## File: app-internal/src/main/res/layout/activity_otp_verification_internal.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp">
+
+        <!-- Back Button -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardBtnBack"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="21dp"
+            app:cardElevation="1dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Quay lại"
+                android:src="@drawable/ic_arrow_back_curved"
+                app:tint="@color/text_primary" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Header Card / Logo (Double Circle) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardOuterIcon"
+            android:layout_width="92dp"
+            android:layout_height="92dp"
+            android:layout_marginTop="20dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="46dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
+            app:strokeWidth="0dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInnerIcon"
+                android:layout_width="66dp"
+                android:layout_height="66dp"
+                android:layout_gravity="center"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="33dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="0.5dp">
+
+                <ImageView
+                    android:id="@+id/ivHeaderIcon"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="Xác thực OTP đối tác"
+                    android:src="@drawable/ic_shield"
+                    app:tint="@color/primary" />
+            </com.google.android.material.card.MaterialCardView>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:letterSpacing="-0.02"
+            android:text="Xác Thực OTP Đối Tác"
+            android:textColor="@color/text_primary"
+            android:textSize="23sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
+
+        <!-- Subtitle -->
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            android:textColor="@color/text_secondary"
+            android:textSize="13.5sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
+
+        <!-- Target Email Highlight Badge -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardEmailBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+            app:strokeColor="#33EE4D2D"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="7dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="Email"
+                    android:src="@drawable/ic_mail"
+                    app:tint="@color/primary" />
+
+                <TextView
+                    android:id="@+id/tvTargetEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="email@example.com"
+                    android:textColor="@color/primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Input Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="2dp"
+            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="Nhập 6 số mã OTP"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="14dp"
+                    android:text="Chạm vào các ô bên dưới để nhập mã"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp" />
+
+                <!-- 6-Digit OTP Container -->
+                <FrameLayout
+                    android:id="@+id/layoutOtpContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal">
+
+                    <!-- 6 Display Boxes -->
+                    <LinearLayout
+                        android:id="@+id/layoutOtpBoxes"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvOtp1"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp2"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp3"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp4"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp5"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp6"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Hidden Transparent Native EditText -->
+                    <EditText
+                        android:id="@+id/etOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:autofillHints="smsOTPCode"
+                        android:background="@null"
+                        android:cursorVisible="false"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:importantForAutofill="yes"
+                        android:inputType="number"
+                        android:maxLength="6"
+                        android:textColor="@android:color/transparent" />
+                </FrameLayout>
+
+                <!-- Error Message Display -->
+                <TextView
+                    android:id="@+id/tvOtpError"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="@color/error"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <!-- Resend Layout -->
+                <LinearLayout
+                    android:id="@+id/layoutResendOtp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="18dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/ivResendIcon"
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:layout_marginEnd="6dp"
+                        android:contentDescription="Đếm ngược"
+                        android:src="@drawable/ic_clock"
+                        app:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tvResendNotice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chưa nhận được mã? "
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13.5sp" />
+
+                    <TextView
+                        android:id="@+id/btnResendOtp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="4dp"
+                        android:text="Gửi lại (60s)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Submit Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnConfirmRegister"
+                    style="@style/Widget.Internal.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="20dp"
+                    android:backgroundTint="@color/primary"
+                    android:letterSpacing="0.01"
+                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
+                    android:textColor="@color/on_primary"
+                    android:textSize="15.5sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="14dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone" />
+
+                <!-- Security Note -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="13dp"
+                        android:layout_height="13dp"
+                        android:layout_marginEnd="5dp"
+                        android:contentDescription="Bảo mật"
+                        android:src="@drawable/ic_lock"
+                        app:tint="@color/text_muted" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
 ````
 
 ## File: app-internal/src/main/res/layout/activity_select_location.xml
@@ -91558,32 +92366,6 @@ class MenuManageFragment : Fragment() {
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
-
-            <!-- Nút Check-in Mở Ca / Đóng Cửa -->
-            <LinearLayout
-                android:id="@+id/btnCheckin"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:background="@drawable/bg_btn_checkin_on"
-                android:gravity="center_vertical"
-                android:paddingHorizontal="12dp">
-
-                <View
-                    android:id="@+id/dotCheckinStatus"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/bg_badge_green" />
-
-                <TextView
-                    android:id="@+id/tvCheckinText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:text="ĐÃ CHECK-IN (MỞ CỬA)"
-                    android:textColor="@color/brand_green"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
         </LinearLayout>
 
         <!-- Divider line -->
@@ -94668,58 +95450,6 @@ class MenuManageFragment : Fragment() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
-## File: app-internal/src/main/res/values/colors.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Brand Colors — Oishi Food Merchant & Driver (chuyende2 Prototype) -->
-    <color name="primary">#EE4D2D</color>
-    <color name="primary_variant">#D73211</color>
-    <color name="primary_light">#FFF0ED</color>
-    <color name="on_primary">#FFFFFF</color>
-    <color name="white">#FFFFFF</color>
-
-    <color name="secondary">#2563EB</color>
-    <color name="on_secondary">#FFFFFF</color>
-
-    <!-- Backgrounds & Surfaces -->
-    <color name="background">#F4F6F8</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="on_background">#1E293B</color>
-    <color name="on_surface">#1E293B</color>
-
-    <color name="text_primary">#1E293B</color>
-    <color name="text_secondary">#64748B</color>
-    <color name="text_muted">#94A3B8</color>
-    <color name="border">#E2E8F0</color>
-    <color name="border_light">#F1F5F9</color>
-    <color name="divider">#F1F5F9</color>
-
-    <!-- Semantic & Accent Colors -->
-    <color name="brand_green">#10B981</color>
-    <color name="brand_green_bg">#ECFDF5</color>
-    <color name="brand_blue">#2563EB</color>
-    <color name="brand_blue_bg">#EFF6FF</color>
-    <color name="brand_orange">#F59E0B</color>
-    <color name="brand_orange_bg">#FFFBEB</color>
-    <color name="brand_teal">#14B8A6</color>
-    <color name="brand_teal_bg">#F0FDFA</color>
-    <color name="danger">#EF4444</color>
-    <color name="danger_bg">#FEE2E2</color>
-
-    <!-- Status Colors -->
-    <color name="status_pending">#F59E0B</color>
-    <color name="status_ready">#10B981</color>
-    <color name="status_delivering">#2563EB</color>
-    <color name="status_completed">#10B981</color>
-
-    <color name="error">#EF4444</color>
-    <color name="on_error">#FFFFFF</color>
-    <color name="black">#000000</color>
-    <color name="transparent">#00000000</color>
-</resources>
-````
-
 ## File: app-internal/src/main/res/values/themes.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -97061,6 +97791,393 @@ class MenuManageFragment : Fragment() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/OtpVerificationActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.auth
+
+import android.content.Intent
+import android.content.res.ColorStateList
+import android.os.Bundle
+import android.os.CountDownTimer
+import android.view.MotionEvent
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityOtpVerificationBinding
+import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+
+/**
+ * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập.
+ * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
+ * bộ đếm ngược thời gian và nút gửi lại trực quan.
+ */
+@AndroidEntryPoint
+class OtpVerificationActivity : AppCompatActivity() {
+
+    companion object {
+        const val EXTRA_FLOW = "extra_flow"
+        const val FLOW_REGISTER = "flow_register"
+        const val FLOW_LOGIN = "flow_login"
+
+        const val EXTRA_NAME = "extra_name"
+        const val EXTRA_EMAIL = "extra_email"
+        const val EXTRA_PASSWORD = "extra_password"
+        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
+        const val EXTRA_PHONE = "extra_phone"
+        const val EXTRA_ROLE = "extra_role"
+    }
+
+    private lateinit var binding: ActivityOtpVerificationBinding
+    private val viewModel: AuthViewModel by viewModels()
+
+    private var flow: String = FLOW_REGISTER
+    private var name: String = ""
+    private var email: String = ""
+    private var password: String = ""
+    private var confirmPassword: String = ""
+    private var phone: String = ""
+    private var role: String = User.Role.CUSTOMER
+
+    private var countDownTimer: CountDownTimer? = null
+    private var isResendEnabled = false
+
+    private val otpBoxes: List<TextView> by lazy {
+        listOf(
+            binding.tvOtp1,
+            binding.tvOtp2,
+            binding.tvOtp3,
+            binding.tvOtp4,
+            binding.tvOtp5,
+            binding.tvOtp6
+        )
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityOtpVerificationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
+
+        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
+        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
+        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
+
+        if (flow == FLOW_LOGIN) {
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        } else {
+            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
+            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
+            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
+            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.CUSTOMER
+
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        }
+
+        setupUI()
+        observeViewModel()
+        startCountdown()
+    }
+
+    private fun setupUI() {
+        binding.tvTargetEmail.text = email
+
+        if (flow == FLOW_LOGIN) {
+            binding.tvTitle.text = "Xác Thực Đăng Nhập"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
+        } else {
+            binding.tvTitle.text = "Xác Thực Mã OTP"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
+        }
+
+        binding.btnBack.setOnClickListener {
+            finish()
+        }
+
+        // Khởi tạo trạng thái 6 ô số OTP
+        updateOtpBoxes("")
+
+        // Nhấn vào khung OTP để kích hoạt bàn phím số
+        binding.layoutOtpContainer.setOnClickListener {
+            binding.etOtp.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        // Tự động focus và mở bàn phím số khi vào màn hình
+        binding.etOtp.requestFocus()
+        binding.etOtp.postDelayed({
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }, 250)
+
+        binding.etOtp.doAfterTextChanged { s ->
+            showOtpError(null)
+            val code = s?.toString()?.trim().orEmpty()
+            updateOtpBoxes(code)
+
+            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
+                submitOtpVerification(code)
+            }
+        }
+
+        binding.btnResendOtp.setOnClickListener {
+            if (!isResendEnabled) return@setOnClickListener
+            showOtpError(null)
+            isResendEnabled = false
+            binding.btnResendOtp.isEnabled = false
+            if (flow == FLOW_LOGIN) {
+                viewModel.requestLoginOtp(email)
+            } else {
+                viewModel.requestEmailOtp(email)
+            }
+        }
+
+        binding.btnConfirmRegister.setOnClickListener {
+            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
+            if (code.length != 6 || !code.all { it.isDigit() }) {
+                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
+                binding.etOtp.requestFocus()
+                return@setOnClickListener
+            }
+            submitOtpVerification(code)
+        }
+    }
+
+    /**
+     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
+     */
+    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
+        val cleanCode = code.filter { it.isDigit() }
+        for (i in otpBoxes.indices) {
+            val box = otpBoxes[i]
+            if (i < cleanCode.length) {
+                box.text = cleanCode[i].toString()
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
+                )
+            } else if (i == cleanCode.length) {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
+                )
+            } else {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
+                )
+            }
+        }
+    }
+
+    private fun showOtpError(errorMsg: String?) {
+        if (errorMsg.isNullOrBlank()) {
+            binding.tvOtpError.visibility = View.GONE
+            binding.tvOtpError.text = ""
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
+        } else {
+            binding.tvOtpError.visibility = View.VISIBLE
+            binding.tvOtpError.text = errorMsg
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
+        }
+    }
+
+    private fun submitOtpVerification(code: String) {
+        if (flow == FLOW_LOGIN) {
+            viewModel.verifyLoginOtp(email, password, code)
+        } else {
+            viewModel.registerWithOtp(
+                name = name,
+                email = email,
+                password = password,
+                confirmPassword = confirmPassword,
+                role = role,
+                phone = phone,
+                otpCode = code
+            )
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            binding.btnConfirmRegister.isEnabled = !isLoading
+            binding.etOtp.isEnabled = !isLoading
+        }
+
+        viewModel.otpRequestResult.observe(this) { result ->
+            result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, email)
+                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
+                startCountdown(60_000L)
+                binding.etOtp.requestFocus()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
+                    startCountdown(if (remaining > 0L) remaining else 30_000L)
+                } else {
+                    setResendAvailableState()
+                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        viewModel.registerResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(
+                    this,
+                    "Đăng ký tài khoản thành công! Bạn có thể đăng nhập ngay.",
+                    Toast.LENGTH_LONG
+                ).show()
+                setResult(RESULT_OK)
+                finish()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+
+        viewModel.loginOtpResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun checkRoleAndRoute() {
+        lifecycleScope.launch {
+            try {
+                val role = viewModel.getUserRole()
+                if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
+                    val intent = Intent(this@OtpVerificationActivity, HomeActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                } else {
+                    Toast.makeText(this@OtpVerificationActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
+                    viewModel.logout()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun startCountdown(durationMs: Long = -1L) {
+        countDownTimer?.cancel()
+        val remainingMs = if (durationMs >= 0L) {
+            durationMs
+        } else {
+            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+            if (cooldown > 0L) cooldown else 0L
+        }
+
+        if (remainingMs <= 0L) {
+            setResendAvailableState()
+            return
+        }
+
+        isResendEnabled = false
+        binding.btnResendOtp.isEnabled = false
+        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+
+        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val sec = (millisUntilFinished + 999) / 1000
+                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
+            }
+
+            override fun onFinish() {
+                setResendAvailableState()
+            }
+        }.start()
+    }
+
+    private fun setResendAvailableState() {
+        isResendEnabled = true
+        binding.btnResendOtp.isEnabled = true
+        binding.btnResendOtp.text = "Gửi lại ngay"
+        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        countDownTimer?.cancel()
+    }
+}
+````
+
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/RegisterActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.auth
@@ -99109,401 +100226,6 @@ class OrderHistoryFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
-## File: app-customer/src/main/res/layout/activity_otp_verification.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="24dp">
-
-        <!-- Back Button -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardBtnBack"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="21dp"
-            app:cardElevation="1dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <ImageButton
-                android:id="@+id/btnBack"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Quay lại"
-                android:src="@drawable/ic_arrow_back_curved"
-                app:tint="@color/text_primary" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Header Card / Logo (Double Circle) -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardOuterIcon"
-            android:layout_width="92dp"
-            android:layout_height="92dp"
-            android:layout_marginTop="20dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="46dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
-            app:strokeWidth="0dp">
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardInnerIcon"
-                android:layout_width="66dp"
-                android:layout_height="66dp"
-                android:layout_gravity="center"
-                app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="33dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="0.5dp">
-
-                <ImageView
-                    android:id="@+id/ivHeaderIcon"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="Xác thực OTP"
-                    android:src="@drawable/ic_shield"
-                    app:tint="@color/primary" />
-            </com.google.android.material.card.MaterialCardView>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Title -->
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:letterSpacing="-0.02"
-            android:text="Xác Thực Mã OTP"
-            android:textColor="@color/text_primary"
-            android:textSize="23sp"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
-
-        <!-- Subtitle -->
-        <TextView
-            android:id="@+id/tvSubtitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            android:textColor="@color/text_secondary"
-            android:textSize="13.5sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
-
-        <!-- Target Email Highlight Badge -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardEmailBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-            app:strokeColor="#33FF5722"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="7dp">
-
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:contentDescription="Email"
-                    android:src="@drawable/ic_mail"
-                    app:tint="@color/primary" />
-
-                <TextView
-                    android:id="@+id/tvTargetEmail"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="email@example.com"
-                    android:textColor="@color/primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Input Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="22dp"
-            app:cardElevation="2dp"
-            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingHorizontal="18dp"
-                android:paddingVertical="20dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:text="Nhập 6 số mã OTP"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginBottom="14dp"
-                    android:text="Chạm vào các ô bên dưới để nhập mã"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12.5sp" />
-
-                <!-- 6-Digit OTP Container -->
-                <FrameLayout
-                    android:id="@+id/layoutOtpContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal">
-
-                    <!-- 6 Display Boxes -->
-                    <LinearLayout
-                        android:id="@+id/layoutOtpBoxes"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:id="@+id/tvOtp1"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp2"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp3"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp4"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp5"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp6"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Hidden Transparent Native EditText -->
-                    <EditText
-                        android:id="@+id/etOtp"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:autofillHints="smsOTPCode"
-                        android:background="@null"
-                        android:cursorVisible="false"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:importantForAutofill="yes"
-                        android:inputType="number"
-                        android:maxLength="6"
-                        android:textColor="@android:color/transparent" />
-                </FrameLayout>
-
-                <!-- Error Message Display -->
-                <TextView
-                    android:id="@+id/tvOtpError"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:textColor="@color/error"
-                    android:textSize="13sp"
-                    android:visibility="gone" />
-
-                <!-- Resend Layout -->
-                <LinearLayout
-                    android:id="@+id/layoutResendOtp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="18dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:id="@+id/ivResendIcon"
-                        android:layout_width="15dp"
-                        android:layout_height="15dp"
-                        android:layout_marginEnd="6dp"
-                        android:contentDescription="Đếm ngược"
-                        android:src="@drawable/ic_clock"
-                        app:tint="@color/text_secondary" />
-
-                    <TextView
-                        android:id="@+id/tvResendNotice"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chưa nhận được mã? "
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13.5sp" />
-
-                    <TextView
-                        android:id="@+id/btnResendOtp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:paddingHorizontal="4dp"
-                        android:paddingVertical="4dp"
-                        android:text="Gửi lại (60s)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- Submit Button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnConfirmRegister"
-                    style="@style/Widget.FoodOrder.Button.Primary"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="20dp"
-                    android:letterSpacing="0.01"
-                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
-                    android:textSize="15.5sp"
-                    android:textStyle="bold"
-                    app:cornerRadius="14dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp" />
-
-                <ProgressBar
-                    android:id="@+id/progressBar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="12dp"
-                    android:visibility="gone" />
-
-                <!-- Security Note -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="16dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="13dp"
-                        android:layout_height="13dp"
-                        android:layout_marginEnd="5dp"
-                        android:contentDescription="Bảo mật"
-                        android:src="@drawable/ic_lock"
-                        app:tint="@color/text_muted" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
-                        android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
-````
-
 ## File: app-customer/src/main/res/layout/bottom_sheet_nearby_stores.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -101325,403 +102047,6 @@ class RegisterActivity : AppCompatActivity() {
     </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>
-````
-
-## File: app-internal/src/main/res/layout/activity_otp_verification_internal.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="24dp">
-
-        <!-- Back Button -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardBtnBack"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="21dp"
-            app:cardElevation="1dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <ImageButton
-                android:id="@+id/btnBack"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Quay lại"
-                android:src="@drawable/ic_arrow_back_curved"
-                app:tint="@color/text_primary" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Header Card / Logo (Double Circle) -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardOuterIcon"
-            android:layout_width="92dp"
-            android:layout_height="92dp"
-            android:layout_marginTop="20dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="46dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
-            app:strokeWidth="0dp">
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardInnerIcon"
-                android:layout_width="66dp"
-                android:layout_height="66dp"
-                android:layout_gravity="center"
-                app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="33dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="0.5dp">
-
-                <ImageView
-                    android:id="@+id/ivHeaderIcon"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="Xác thực OTP đối tác"
-                    android:src="@drawable/ic_shield"
-                    app:tint="@color/primary" />
-            </com.google.android.material.card.MaterialCardView>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Title -->
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:letterSpacing="-0.02"
-            android:text="Xác Thực OTP Đối Tác"
-            android:textColor="@color/text_primary"
-            android:textSize="23sp"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
-
-        <!-- Subtitle -->
-        <TextView
-            android:id="@+id/tvSubtitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            android:textColor="@color/text_secondary"
-            android:textSize="13.5sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
-
-        <!-- Target Email Highlight Badge -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardEmailBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-            app:strokeColor="#33EE4D2D"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="7dp">
-
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:contentDescription="Email"
-                    android:src="@drawable/ic_mail"
-                    app:tint="@color/primary" />
-
-                <TextView
-                    android:id="@+id/tvTargetEmail"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="email@example.com"
-                    android:textColor="@color/primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Input Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="22dp"
-            app:cardElevation="2dp"
-            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingHorizontal="18dp"
-                android:paddingVertical="20dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:text="Nhập 6 số mã OTP"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginBottom="14dp"
-                    android:text="Chạm vào các ô bên dưới để nhập mã"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12.5sp" />
-
-                <!-- 6-Digit OTP Container -->
-                <FrameLayout
-                    android:id="@+id/layoutOtpContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal">
-
-                    <!-- 6 Display Boxes -->
-                    <LinearLayout
-                        android:id="@+id/layoutOtpBoxes"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:id="@+id/tvOtp1"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp2"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp3"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp4"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp5"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp6"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Hidden Transparent Native EditText -->
-                    <EditText
-                        android:id="@+id/etOtp"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:autofillHints="smsOTPCode"
-                        android:background="@null"
-                        android:cursorVisible="false"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:importantForAutofill="yes"
-                        android:inputType="number"
-                        android:maxLength="6"
-                        android:textColor="@android:color/transparent" />
-                </FrameLayout>
-
-                <!-- Error Message Display -->
-                <TextView
-                    android:id="@+id/tvOtpError"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:textColor="@color/error"
-                    android:textSize="13sp"
-                    android:visibility="gone" />
-
-                <!-- Resend Layout -->
-                <LinearLayout
-                    android:id="@+id/layoutResendOtp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="18dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:id="@+id/ivResendIcon"
-                        android:layout_width="15dp"
-                        android:layout_height="15dp"
-                        android:layout_marginEnd="6dp"
-                        android:contentDescription="Đếm ngược"
-                        android:src="@drawable/ic_clock"
-                        app:tint="@color/text_secondary" />
-
-                    <TextView
-                        android:id="@+id/tvResendNotice"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chưa nhận được mã? "
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13.5sp" />
-
-                    <TextView
-                        android:id="@+id/btnResendOtp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:paddingHorizontal="4dp"
-                        android:paddingVertical="4dp"
-                        android:text="Gửi lại (60s)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- Submit Button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnConfirmRegister"
-                    style="@style/Widget.Internal.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="20dp"
-                    android:backgroundTint="@color/primary"
-                    android:letterSpacing="0.01"
-                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
-                    android:textColor="@color/on_primary"
-                    android:textSize="15.5sp"
-                    android:textStyle="bold"
-                    app:cornerRadius="14dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp" />
-
-                <ProgressBar
-                    android:id="@+id/progressBar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="12dp"
-                    android:visibility="gone" />
-
-                <!-- Security Note -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="16dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="13dp"
-                        android:layout_height="13dp"
-                        android:layout_marginEnd="5dp"
-                        android:contentDescription="Bảo mật"
-                        android:src="@drawable/ic_lock"
-                        app:tint="@color/text_muted" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
-                        android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
 ````
 
 ## File: app-internal/src/main/res/layout/activity_register_internal.xml
@@ -106380,393 +106705,6 @@ class LoginActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/OtpVerificationActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.auth
-
-import android.content.Intent
-import android.content.res.ColorStateList
-import android.os.Bundle
-import android.os.CountDownTimer
-import android.view.MotionEvent
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
-import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ActivityOtpVerificationBinding
-import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-
-/**
- * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập.
- * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
- * bộ đếm ngược thời gian và nút gửi lại trực quan.
- */
-@AndroidEntryPoint
-class OtpVerificationActivity : AppCompatActivity() {
-
-    companion object {
-        const val EXTRA_FLOW = "extra_flow"
-        const val FLOW_REGISTER = "flow_register"
-        const val FLOW_LOGIN = "flow_login"
-
-        const val EXTRA_NAME = "extra_name"
-        const val EXTRA_EMAIL = "extra_email"
-        const val EXTRA_PASSWORD = "extra_password"
-        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
-        const val EXTRA_PHONE = "extra_phone"
-        const val EXTRA_ROLE = "extra_role"
-    }
-
-    private lateinit var binding: ActivityOtpVerificationBinding
-    private val viewModel: AuthViewModel by viewModels()
-
-    private var flow: String = FLOW_REGISTER
-    private var name: String = ""
-    private var email: String = ""
-    private var password: String = ""
-    private var confirmPassword: String = ""
-    private var phone: String = ""
-    private var role: String = User.Role.CUSTOMER
-
-    private var countDownTimer: CountDownTimer? = null
-    private var isResendEnabled = false
-
-    private val otpBoxes: List<TextView> by lazy {
-        listOf(
-            binding.tvOtp1,
-            binding.tvOtp2,
-            binding.tvOtp3,
-            binding.tvOtp4,
-            binding.tvOtp5,
-            binding.tvOtp6
-        )
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityOtpVerificationBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyImeAndSystemInsets(binding.root)
-
-        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
-        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
-        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
-
-        if (flow == FLOW_LOGIN) {
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        } else {
-            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
-            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
-            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
-            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.CUSTOMER
-
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        }
-
-        setupUI()
-        observeViewModel()
-        startCountdown()
-    }
-
-    private fun setupUI() {
-        binding.tvTargetEmail.text = email
-
-        if (flow == FLOW_LOGIN) {
-            binding.tvTitle.text = "Xác Thực Đăng Nhập"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
-        } else {
-            binding.tvTitle.text = "Xác Thực Mã OTP"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
-        }
-
-        binding.btnBack.setOnClickListener {
-            finish()
-        }
-
-        // Khởi tạo trạng thái 6 ô số OTP
-        updateOtpBoxes("")
-
-        // Nhấn vào khung OTP để kích hoạt bàn phím số
-        binding.layoutOtpContainer.setOnClickListener {
-            binding.etOtp.requestFocus()
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }
-
-        // Tự động focus và mở bàn phím số khi vào màn hình
-        binding.etOtp.requestFocus()
-        binding.etOtp.postDelayed({
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }, 250)
-
-        binding.etOtp.doAfterTextChanged { s ->
-            showOtpError(null)
-            val code = s?.toString()?.trim().orEmpty()
-            updateOtpBoxes(code)
-
-            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
-                submitOtpVerification(code)
-            }
-        }
-
-        binding.btnResendOtp.setOnClickListener {
-            if (!isResendEnabled) return@setOnClickListener
-            showOtpError(null)
-            isResendEnabled = false
-            binding.btnResendOtp.isEnabled = false
-            if (flow == FLOW_LOGIN) {
-                viewModel.requestLoginOtp(email)
-            } else {
-                viewModel.requestEmailOtp(email)
-            }
-        }
-
-        binding.btnConfirmRegister.setOnClickListener {
-            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
-            if (code.length != 6 || !code.all { it.isDigit() }) {
-                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
-                binding.etOtp.requestFocus()
-                return@setOnClickListener
-            }
-            submitOtpVerification(code)
-        }
-    }
-
-    /**
-     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
-     */
-    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
-        val cleanCode = code.filter { it.isDigit() }
-        for (i in otpBoxes.indices) {
-            val box = otpBoxes[i]
-            if (i < cleanCode.length) {
-                box.text = cleanCode[i].toString()
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
-                )
-            } else if (i == cleanCode.length) {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
-                )
-            } else {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
-                )
-            }
-        }
-    }
-
-    private fun showOtpError(errorMsg: String?) {
-        if (errorMsg.isNullOrBlank()) {
-            binding.tvOtpError.visibility = View.GONE
-            binding.tvOtpError.text = ""
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
-        } else {
-            binding.tvOtpError.visibility = View.VISIBLE
-            binding.tvOtpError.text = errorMsg
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
-        }
-    }
-
-    private fun submitOtpVerification(code: String) {
-        if (flow == FLOW_LOGIN) {
-            viewModel.verifyLoginOtp(email, password, code)
-        } else {
-            viewModel.registerWithOtp(
-                name = name,
-                email = email,
-                password = password,
-                confirmPassword = confirmPassword,
-                role = role,
-                phone = phone,
-                otpCode = code
-            )
-        }
-    }
-
-    private fun observeViewModel() {
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.btnConfirmRegister.isEnabled = !isLoading
-            binding.etOtp.isEnabled = !isLoading
-        }
-
-        viewModel.otpRequestResult.observe(this) { result ->
-            result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, email)
-                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
-                startCountdown(60_000L)
-                binding.etOtp.requestFocus()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
-                    startCountdown(if (remaining > 0L) remaining else 30_000L)
-                } else {
-                    setResendAvailableState()
-                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        viewModel.registerResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(
-                    this,
-                    "Đăng ký tài khoản thành công! Bạn có thể đăng nhập ngay.",
-                    Toast.LENGTH_LONG
-                ).show()
-                setResult(RESULT_OK)
-                finish()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-
-        viewModel.loginOtpResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                checkRoleAndRoute()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun checkRoleAndRoute() {
-        lifecycleScope.launch {
-            try {
-                val role = viewModel.getUserRole()
-                if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
-                    val intent = Intent(this@OtpVerificationActivity, HomeActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                } else {
-                    Toast.makeText(this@OtpVerificationActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
-                    viewModel.logout()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun startCountdown(durationMs: Long = -1L) {
-        countDownTimer?.cancel()
-        val remainingMs = if (durationMs >= 0L) {
-            durationMs
-        } else {
-            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-            if (cooldown > 0L) cooldown else 0L
-        }
-
-        if (remainingMs <= 0L) {
-            setResendAvailableState()
-            return
-        }
-
-        isResendEnabled = false
-        binding.btnResendOtp.isEnabled = false
-        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-
-        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
-            override fun onTick(millisUntilFinished: Long) {
-                val sec = (millisUntilFinished + 999) / 1000
-                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
-            }
-
-            override fun onFinish() {
-                setResendAvailableState()
-            }
-        }.start()
-    }
-
-    private fun setResendAvailableState() {
-        isResendEnabled = true
-        binding.btnResendOtp.isEnabled = true
-        binding.btnResendOtp.text = "Gửi lại ngay"
-        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        countDownTimer?.cancel()
-    }
-}
-````
-
 ## File: app-customer/src/main/res/layout/activity_home.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -108054,6 +107992,403 @@ class OtpVerificationActivity : AppCompatActivity() {
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/OtpVerificationActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.auth
+
+import android.content.Intent
+import android.content.res.ColorStateList
+import android.os.Bundle
+import android.os.CountDownTimer
+import android.view.MotionEvent
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityOtpVerificationInternalBinding
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập đối tác.
+ * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
+ * bộ đếm ngược thời gian và nút gửi lại trực quan.
+ */
+@AndroidEntryPoint
+class OtpVerificationActivity : AppCompatActivity() {
+
+    companion object {
+        const val EXTRA_FLOW = "extra_flow"
+        const val FLOW_REGISTER = "flow_register"
+        const val FLOW_LOGIN = "flow_login"
+
+        const val EXTRA_NAME = "extra_name"
+        const val EXTRA_EMAIL = "extra_email"
+        const val EXTRA_PASSWORD = "extra_password"
+        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
+        const val EXTRA_PHONE = "extra_phone"
+        const val EXTRA_ROLE = "extra_role"
+    }
+
+    private lateinit var binding: ActivityOtpVerificationInternalBinding
+    private val viewModel: AuthViewModel by viewModels()
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    private var flow: String = FLOW_REGISTER
+    private var name: String = ""
+    private var email: String = ""
+    private var password: String = ""
+    private var confirmPassword: String = ""
+    private var phone: String = ""
+    private var role: String = User.Role.BOSSMERCHANT
+
+    private var countDownTimer: CountDownTimer? = null
+    private var isResendEnabled = false
+
+    private val otpBoxes: List<TextView> by lazy {
+        listOf(
+            binding.tvOtp1,
+            binding.tvOtp2,
+            binding.tvOtp3,
+            binding.tvOtp4,
+            binding.tvOtp5,
+            binding.tvOtp6
+        )
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityOtpVerificationInternalBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
+
+        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
+        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
+        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
+
+        if (flow == FLOW_LOGIN) {
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        } else {
+            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
+            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
+            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
+            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.BOSSMERCHANT
+
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        }
+
+        setupUI()
+        observeViewModel()
+        startCountdown()
+    }
+
+    private fun setupUI() {
+        binding.tvTargetEmail.text = email
+
+        if (flow == FLOW_LOGIN) {
+            binding.tvTitle.text = "Xác Thực Đăng Nhập"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
+        } else {
+            binding.tvTitle.text = "Xác Thực Mã OTP"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
+        }
+
+        binding.btnBack.setOnClickListener {
+            finish()
+        }
+
+        // Khởi tạo trạng thái 6 ô số OTP
+        updateOtpBoxes("")
+
+        // Nhấn vào khung OTP để kích hoạt bàn phím số
+        binding.layoutOtpContainer.setOnClickListener {
+            binding.etOtp.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        // Tự động focus và mở bàn phím số khi vào màn hình
+        binding.etOtp.requestFocus()
+        binding.etOtp.postDelayed({
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }, 250)
+
+        binding.etOtp.doAfterTextChanged { s ->
+            showOtpError(null)
+            val code = s?.toString()?.trim().orEmpty()
+            updateOtpBoxes(code)
+
+            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
+                submitOtpVerification(code)
+            }
+        }
+
+        binding.btnResendOtp.setOnClickListener {
+            if (!isResendEnabled) return@setOnClickListener
+            showOtpError(null)
+            isResendEnabled = false
+            binding.btnResendOtp.isEnabled = false
+            if (flow == FLOW_LOGIN) {
+                viewModel.requestLoginOtp(email)
+            } else {
+                viewModel.requestEmailOtp(email)
+            }
+        }
+
+        binding.btnConfirmRegister.setOnClickListener {
+            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
+            if (code.length != 6 || !code.all { it.isDigit() }) {
+                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
+                binding.etOtp.requestFocus()
+                return@setOnClickListener
+            }
+            submitOtpVerification(code)
+        }
+    }
+
+    /**
+     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
+     */
+    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
+        val cleanCode = code.filter { it.isDigit() }
+        for (i in otpBoxes.indices) {
+            val box = otpBoxes[i]
+            if (i < cleanCode.length) {
+                box.text = cleanCode[i].toString()
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
+                )
+            } else if (i == cleanCode.length) {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
+                )
+            } else {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
+                )
+            }
+        }
+    }
+
+    private fun showOtpError(errorMsg: String?) {
+        if (errorMsg.isNullOrBlank()) {
+            binding.tvOtpError.visibility = View.GONE
+            binding.tvOtpError.text = ""
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
+        } else {
+            binding.tvOtpError.visibility = View.VISIBLE
+            binding.tvOtpError.text = errorMsg
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
+        }
+    }
+
+    private fun submitOtpVerification(code: String) {
+        if (flow == FLOW_LOGIN) {
+            viewModel.verifyLoginOtp(email, password, code)
+        } else {
+            viewModel.registerWithOtp(
+                name = name,
+                email = email,
+                pass = password,
+                confirmPass = confirmPassword,
+                role = role,
+                phone = phone,
+                otpCode = code
+            )
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            binding.btnConfirmRegister.isEnabled = !isLoading
+            binding.etOtp.isEnabled = !isLoading
+        }
+
+        viewModel.otpRequestResult.observe(this) { result ->
+            result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, email)
+                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
+                startCountdown(60_000L)
+                binding.etOtp.requestFocus()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
+                    startCountdown(if (remaining > 0L) remaining else 30_000L)
+                } else {
+                    setResendAvailableState()
+                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        viewModel.registerResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(
+                    this,
+                    "Đăng ký đối tác thành công! Bạn có thể đăng nhập ngay.",
+                    Toast.LENGTH_LONG
+                ).show()
+                setResult(RESULT_OK)
+                finish()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+
+        viewModel.loginOtpResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun checkRoleAndRoute() {
+        lifecycleScope.launch {
+            try {
+                val statusCheck = authRepository.checkAccountActiveStatus()
+                if (statusCheck.isFailure) {
+                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                    AlertDialog.Builder(this@OtpVerificationActivity)
+                        .setTitle("Tài khoản bị khóa")
+                        .setMessage(reason)
+                        .setPositiveButton("Đóng") { _, _ -> finish() }
+                        .show()
+                } else {
+                    val intent = Intent(this@OtpVerificationActivity, DashboardActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun startCountdown(durationMs: Long = -1L) {
+        countDownTimer?.cancel()
+        val remainingMs = if (durationMs >= 0L) {
+            durationMs
+        } else {
+            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+            if (cooldown > 0L) cooldown else 0L
+        }
+
+        if (remainingMs <= 0L) {
+            setResendAvailableState()
+            return
+        }
+
+        isResendEnabled = false
+        binding.btnResendOtp.isEnabled = false
+        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+
+        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val sec = (millisUntilFinished + 999) / 1000
+                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
+            }
+
+            override fun onFinish() {
+                setResendAvailableState()
+            }
+        }.start()
+    }
+
+    private fun setResendAvailableState() {
+        isResendEnabled = true
+        binding.btnResendOtp.isEnabled = true
+        binding.btnResendOtp.text = "Gửi lại ngay"
+        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        countDownTimer?.cancel()
+    }
+}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreProfileFragment.kt
@@ -112730,403 +113065,6 @@ class OrderSuccessActivity : AppCompatActivity() {
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/OtpVerificationActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.auth
-
-import android.content.Intent
-import android.content.res.ColorStateList
-import android.os.Bundle
-import android.os.CountDownTimer
-import android.view.MotionEvent
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
-import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityOtpVerificationInternalBinding
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập đối tác.
- * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
- * bộ đếm ngược thời gian và nút gửi lại trực quan.
- */
-@AndroidEntryPoint
-class OtpVerificationActivity : AppCompatActivity() {
-
-    companion object {
-        const val EXTRA_FLOW = "extra_flow"
-        const val FLOW_REGISTER = "flow_register"
-        const val FLOW_LOGIN = "flow_login"
-
-        const val EXTRA_NAME = "extra_name"
-        const val EXTRA_EMAIL = "extra_email"
-        const val EXTRA_PASSWORD = "extra_password"
-        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
-        const val EXTRA_PHONE = "extra_phone"
-        const val EXTRA_ROLE = "extra_role"
-    }
-
-    private lateinit var binding: ActivityOtpVerificationInternalBinding
-    private val viewModel: AuthViewModel by viewModels()
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    private var flow: String = FLOW_REGISTER
-    private var name: String = ""
-    private var email: String = ""
-    private var password: String = ""
-    private var confirmPassword: String = ""
-    private var phone: String = ""
-    private var role: String = User.Role.BOSSMERCHANT
-
-    private var countDownTimer: CountDownTimer? = null
-    private var isResendEnabled = false
-
-    private val otpBoxes: List<TextView> by lazy {
-        listOf(
-            binding.tvOtp1,
-            binding.tvOtp2,
-            binding.tvOtp3,
-            binding.tvOtp4,
-            binding.tvOtp5,
-            binding.tvOtp6
-        )
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityOtpVerificationInternalBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyImeAndSystemInsets(binding.root)
-
-        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
-        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
-        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
-
-        if (flow == FLOW_LOGIN) {
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        } else {
-            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
-            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
-            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
-            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.BOSSMERCHANT
-
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        }
-
-        setupUI()
-        observeViewModel()
-        startCountdown()
-    }
-
-    private fun setupUI() {
-        binding.tvTargetEmail.text = email
-
-        if (flow == FLOW_LOGIN) {
-            binding.tvTitle.text = "Xác Thực Đăng Nhập"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
-        } else {
-            binding.tvTitle.text = "Xác Thực Mã OTP"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
-        }
-
-        binding.btnBack.setOnClickListener {
-            finish()
-        }
-
-        // Khởi tạo trạng thái 6 ô số OTP
-        updateOtpBoxes("")
-
-        // Nhấn vào khung OTP để kích hoạt bàn phím số
-        binding.layoutOtpContainer.setOnClickListener {
-            binding.etOtp.requestFocus()
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }
-
-        // Tự động focus và mở bàn phím số khi vào màn hình
-        binding.etOtp.requestFocus()
-        binding.etOtp.postDelayed({
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }, 250)
-
-        binding.etOtp.doAfterTextChanged { s ->
-            showOtpError(null)
-            val code = s?.toString()?.trim().orEmpty()
-            updateOtpBoxes(code)
-
-            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
-                submitOtpVerification(code)
-            }
-        }
-
-        binding.btnResendOtp.setOnClickListener {
-            if (!isResendEnabled) return@setOnClickListener
-            showOtpError(null)
-            isResendEnabled = false
-            binding.btnResendOtp.isEnabled = false
-            if (flow == FLOW_LOGIN) {
-                viewModel.requestLoginOtp(email)
-            } else {
-                viewModel.requestEmailOtp(email)
-            }
-        }
-
-        binding.btnConfirmRegister.setOnClickListener {
-            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
-            if (code.length != 6 || !code.all { it.isDigit() }) {
-                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
-                binding.etOtp.requestFocus()
-                return@setOnClickListener
-            }
-            submitOtpVerification(code)
-        }
-    }
-
-    /**
-     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
-     */
-    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
-        val cleanCode = code.filter { it.isDigit() }
-        for (i in otpBoxes.indices) {
-            val box = otpBoxes[i]
-            if (i < cleanCode.length) {
-                box.text = cleanCode[i].toString()
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
-                )
-            } else if (i == cleanCode.length) {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
-                )
-            } else {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
-                )
-            }
-        }
-    }
-
-    private fun showOtpError(errorMsg: String?) {
-        if (errorMsg.isNullOrBlank()) {
-            binding.tvOtpError.visibility = View.GONE
-            binding.tvOtpError.text = ""
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
-        } else {
-            binding.tvOtpError.visibility = View.VISIBLE
-            binding.tvOtpError.text = errorMsg
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
-        }
-    }
-
-    private fun submitOtpVerification(code: String) {
-        if (flow == FLOW_LOGIN) {
-            viewModel.verifyLoginOtp(email, password, code)
-        } else {
-            viewModel.registerWithOtp(
-                name = name,
-                email = email,
-                pass = password,
-                confirmPass = confirmPassword,
-                role = role,
-                phone = phone,
-                otpCode = code
-            )
-        }
-    }
-
-    private fun observeViewModel() {
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.btnConfirmRegister.isEnabled = !isLoading
-            binding.etOtp.isEnabled = !isLoading
-        }
-
-        viewModel.otpRequestResult.observe(this) { result ->
-            result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, email)
-                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
-                startCountdown(60_000L)
-                binding.etOtp.requestFocus()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
-                    startCountdown(if (remaining > 0L) remaining else 30_000L)
-                } else {
-                    setResendAvailableState()
-                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        viewModel.registerResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(
-                    this,
-                    "Đăng ký đối tác thành công! Bạn có thể đăng nhập ngay.",
-                    Toast.LENGTH_LONG
-                ).show()
-                setResult(RESULT_OK)
-                finish()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-
-        viewModel.loginOtpResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                checkRoleAndRoute()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun checkRoleAndRoute() {
-        lifecycleScope.launch {
-            try {
-                val statusCheck = authRepository.checkAccountActiveStatus()
-                if (statusCheck.isFailure) {
-                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                    AlertDialog.Builder(this@OtpVerificationActivity)
-                        .setTitle("Tài khoản bị khóa")
-                        .setMessage(reason)
-                        .setPositiveButton("Đóng") { _, _ -> finish() }
-                        .show()
-                } else {
-                    val intent = Intent(this@OtpVerificationActivity, DashboardActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun startCountdown(durationMs: Long = -1L) {
-        countDownTimer?.cancel()
-        val remainingMs = if (durationMs >= 0L) {
-            durationMs
-        } else {
-            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-            if (cooldown > 0L) cooldown else 0L
-        }
-
-        if (remainingMs <= 0L) {
-            setResendAvailableState()
-            return
-        }
-
-        isResendEnabled = false
-        binding.btnResendOtp.isEnabled = false
-        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-
-        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
-            override fun onTick(millisUntilFinished: Long) {
-                val sec = (millisUntilFinished + 999) / 1000
-                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
-            }
-
-            override fun onFinish() {
-                setResendAvailableState()
-            }
-        }.start()
-    }
-
-    private fun setResendAvailableState() {
-        isResendEnabled = true
-        binding.btnResendOtp.isEnabled = true
-        binding.btnResendOtp.text = "Gửi lại ngay"
-        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        countDownTimer?.cancel()
-    }
-}
 ````
 
 ## File: app-internal/src/main/res/layout/activity_login_internal.xml

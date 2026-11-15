@@ -65,32 +65,6 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
-
-            <!-- Nút Check-in Mở Ca / Đóng Cửa -->
-            <LinearLayout
-                android:id="@+id/btnCheckin"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:background="@drawable/bg_btn_checkin_on"
-                android:gravity="center_vertical"
-                android:paddingHorizontal="12dp">
-
-                <View
-                    android:id="@+id/dotCheckinStatus"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/bg_badge_green" />
-
-                <TextView
-                    android:id="@+id/tvCheckinText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:text="ĐÃ CHECK-IN (MỞ CỬA)"
-                    android:textColor="@color/brand_green"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
         </LinearLayout>
 
         <!-- Divider line -->

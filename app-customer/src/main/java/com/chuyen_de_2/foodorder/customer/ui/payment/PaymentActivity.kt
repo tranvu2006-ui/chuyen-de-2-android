@@ -20,7 +20,6 @@ import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.MomoPaymentGatewayClient
 import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityPaymentBinding
@@ -31,7 +30,6 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 
@@ -48,7 +46,6 @@ class PaymentActivity : AppCompatActivity() {
     private var currentAccountNum = ""
     private var currentAccountHolder = ""
     private var currentBankBin = "970422"
-    private var isMomoChannel = false
 
     private var orderId = ""
     private var shopName = "Quán Ăn Oishi"
@@ -61,7 +58,6 @@ class PaymentActivity : AppCompatActivity() {
     private var orderRef: DatabaseReference? = null
     private var orderPaymentListener: ValueEventListener? = null
     private var hasNavigatedSuccess = false
-    private var momoQrJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,22 +79,13 @@ class PaymentActivity : AppCompatActivity() {
         val paymentMode = intent.getStringExtra("extra_payment_mode") ?: com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL
         val remainAmount = intent.getLongExtra("extra_remain", 0L)
         val createdAt = intent.getLongExtra("extra_created_at", System.currentTimeMillis())
-        isMomoChannel = intent.getStringExtra("extra_channel").orEmpty().equals("momo", ignoreCase = true)
-
-        // MoMo orders use the store's MoMo receiving details and are confirmed manually by the store.
+        // Thông tin tài khoản ngân hàng nhận tiền của quán
         val passedBankName = intent.getStringExtra("extra_bank_name")
         val passedBankNum = intent.getStringExtra("extra_bank_number")
         val passedBankHolder = intent.getStringExtra("extra_bank_holder")
         val passedBankBin = intent.getStringExtra("extra_bank_bin")
-        val passedMomoPhone = intent.getStringExtra("extra_shop_phone")
-        val passedMomoHolder = intent.getStringExtra("extra_momo_holder")
 
-        if (isMomoChannel) {
-            currentBankName = "Ví MoMo"
-            currentAccountNum = passedMomoPhone.orEmpty().ifBlank { passedBankNum.orEmpty() }
-            currentAccountHolder = passedMomoHolder.orEmpty().ifBlank { shopName }
-            currentBankBin = passedBankBin?.ifBlank { currentBankBin } ?: currentBankBin
-        } else if (!passedBankNum.isNullOrBlank()) {
+        if (!passedBankNum.isNullOrBlank()) {
             currentAccountNum = passedBankNum
             currentBankName = if (!passedBankName.isNullOrBlank()) passedBankName else "Ngân hàng thụ hưởng"
             currentAccountHolder = if (!passedBankHolder.isNullOrBlank()) passedBankHolder else shopName
@@ -117,38 +104,19 @@ class PaymentActivity : AppCompatActivity() {
             FirebaseDatabase.getInstance().getReference("stores").child(shopId).get()
                 .addOnSuccessListener { snapshot ->
                     val store = snapshot.getValue(Store::class.java)
-                    if (store != null) {
-                        if (isMomoChannel) {
-                            currentAccountNum = store.momoPhone.ifBlank {
-                                store.phone.ifBlank { store.bankAccountNumber }
-                            }
-                            currentBankName = "Ví MoMo"
-                            currentAccountHolder = store.momoAccountName
-                                .ifBlank {
-                                    store.ownerName.ifBlank {
-                                        store.bankAccountName.ifBlank { store.name }
-                                    }
-                                }
-                            currentBankBin = store.bankBin.ifBlank { currentBankBin }
-                            renderPaymentUI(orderId, amount, paymentMode, remainAmount)
-                        } else if (store.bankAccountNumber.isNotBlank()) {
-                            currentAccountNum = store.bankAccountNumber
-                            currentBankName = store.bankName.ifBlank { "MB Bank" }
-                            currentAccountHolder = store.bankAccountName.ifBlank { store.name }
-                            currentBankBin = store.bankBin.ifBlank { "970422" }
-                            renderPaymentUI(orderId, amount, paymentMode, remainAmount)
-                        }
+                    if (store != null && store.bankAccountNumber.isNotBlank()) {
+                        currentAccountNum = store.bankAccountNumber
+                        currentBankName = store.bankName.ifBlank { "MB Bank" }
+                        currentAccountHolder = store.bankAccountName.ifBlank { store.name }
+                        currentBankBin = store.bankBin.ifBlank { "970422" }
+                        renderPaymentUI(orderId, amount, paymentMode, remainAmount)
                     }
                 }
         }
 
         binding.layoutAutoVerifyBox.visibility = View.VISIBLE
         binding.pbAutoVerify.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = if (isMomoChannel) {
-            "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-        } else {
-            "Đang chờ xác nhận giao dịch VietQR..."
-        }
+        binding.tvAutoVerifyStatus.text = "Đang chờ xác nhận giao dịch VietQR..."
 
         binding.btnConfirmPaid.setOnClickListener {
             binding.btnConfirmPaid.isEnabled = false
@@ -175,7 +143,7 @@ class PaymentActivity : AppCompatActivity() {
 
     /**
      * BƯỚC QUAN TRỌNG: Lắng nghe biến động Realtime từ Firebase Database.
-     * Khi khách chuyển khoản (VietQR hoặc MoMo) -> SePay Webhook nhận tiền -> Cập nhật paymentStatus = "PAID".
+     * Khi khách chuyển khoản VietQR -> SePay Webhook nhận tiền -> Cập nhật paymentStatus = "PAID".
      * Hàm này ngay lập tức phát hiện và tự động chuyển trang mà khách không cần bấm nút nào!
      */
     private fun observeOrderPaymentRealtime() {
@@ -216,18 +184,10 @@ class PaymentActivity : AppCompatActivity() {
         hasNavigatedSuccess = true
 
         // Xác định tên phương thức thanh toán hiển thị
-        val payMethodDisplay = if (isMomoChannel) {
-            "Ví MoMo (Tự động xác nhận)"
-        } else {
-            "Chuyển khoản VietQR ($currentBankName)"
-        }
+        val payMethodDisplay = "Chuyển khoản VietQR ($currentBankName)"
 
         // Bật thông báo Toast thành công
-        val successMessage = if (isMomoChannel) {
-            "Hệ thống đã tự động ghi nhận thanh toán MoMo thành công!"
-        } else {
-            "Hệ thống đã tự động ghi nhận chuyển khoản thành công!"
-        }
+        val successMessage = "Hệ thống đã tự động ghi nhận chuyển khoản thành công!"
         Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show()
 
         // Mở màn hình OrderSuccessActivity kèm thông tin chi tiết đơn hàng
@@ -253,9 +213,7 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun setupToolbar(paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL) {
-        if (isMomoChannel) {
-            binding.toolbar.title = "Quét Mã Ví MoMo"
-        } else if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+        if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
             binding.toolbar.title = "Quét Mã Đặt Cọc 20%"
         } else {
             binding.toolbar.title = "Quét Mã Thanh Toán 100%"
@@ -265,60 +223,13 @@ class PaymentActivity : AppCompatActivity() {
         }
     }
 
-    /** Hiển thị thông tin thanh toán và tạo QR tương ứng với kênh đã chọn */
+    /** Hiển thị thông tin thanh toán và tạo QR VietQR chuẩn ngân hàng */
     private fun renderPaymentUI(orderId: String, amount: Long, paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL, remainAmount: Long = 0L) {
         if (orderId.isBlank()) return
         binding.tvAmountValue.text = amount.toVndCurrency()
         val transferSyntax = orderId.trim()
 
-        if (isMomoChannel) {
-            binding.toolbar.title = "Quét Mã Ví MoMo"
-            binding.tvPayTypeBadge.text = "📱 VÍ ĐIỆN TỬ MOMO 24/7"
-            binding.tvPayTypeBadge.setTextColor(android.graphics.Color.parseColor("#A50064"))
-            binding.tvAmountLabel.text = if (paymentMode == Order.PaymentMode.DEPOSIT) {
-                "Số tiền cọc cần thanh toán qua MoMo (20%):"
-            } else {
-                "Số tiền cần thanh toán qua MoMo:"
-            }
-            binding.tvPaymentSubNotice.text = if (paymentMode == Order.PaymentMode.DEPOSIT) {
-                "Đã cọc 20% giữ đơn. Số tiền còn lại ${remainAmount.toVndCurrency()} bạn thanh toán khi nhận hàng."
-            } else {
-                "Thanh toán qua ví MoMo; cửa hàng sẽ kiểm tra và xác nhận giao dịch."
-            }
-            binding.tvBankLabel.text = "Ví điện tử"
-            binding.tvAccountNumLabel.text = "Số điện thoại ví"
-            binding.tvBankName.text = "MoMo"
-            binding.tvAccountNum.text = currentAccountNum.ifBlank { "Chưa cập nhật" }
-            binding.tvAccountHolder.text = currentAccountHolder.ifBlank { "Chưa cập nhật" }
-            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
-            val momoTransferSyntax = if (orderId.startsWith("OISHI", ignoreCase = true)) {
-                orderId
-            } else {
-                val prefix = if (paymentMode == Order.PaymentMode.DEPOSIT) "COC" else "OISHI"
-                "$prefix $shortCode".trim()
-            }
-            binding.tvTransferSyntax.text = momoTransferSyntax
-            binding.tvPaymentGuide.text =
-                "1. Mở ứng dụng MoMo và chọn Quét Mã QR.\n" +
-                    "2. Quét mã để chuyển tiền vào tài khoản liên kết với ví MoMo; kiểm tra người nhận, số tiền và nội dung $momoTransferSyntax.\n" +
-                    "3. Cửa hàng sẽ kiểm tra giao dịch thực tế và xác nhận đơn thủ công."
-
-            if (currentAccountNum.isBlank()) {
-                binding.pbQrLoading.visibility = View.GONE
-                binding.tvAutoVerifyStatus.text =
-                    "Quán chưa cập nhật số điện thoại ví MoMo để nhận thanh toán."
-                return
-            }
-
-            binding.btnCopyAccount.setOnClickListener {
-                copyToClipboard("Số điện thoại ví MoMo", currentAccountNum)
-            }
-            binding.btnCopySyntax.setOnClickListener {
-                copyToClipboard("Nội dung chuyển khoản", momoTransferSyntax)
-            }
-            generateRealMomoQrCode(currentAccountNum, currentAccountHolder, amount, momoTransferSyntax)
-            return
-        } else if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+        if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
             binding.tvPayTypeBadge.text = "⚡ THANH TOÁN TIỀN CỌC GIỮ ĐƠN (20%)"
             binding.tvAmountLabel.text = "Số tiền cọc cần quét ngay (20%):"
             binding.tvPaymentSubNotice.text = "Đã cọc 20% giữ đơn. Số tiền còn lại ${remainAmount.toVndCurrency()} bạn thanh toán cho shipper khi nhận hàng."
@@ -328,10 +239,8 @@ class PaymentActivity : AppCompatActivity() {
             binding.tvPaymentSubNotice.text = "Đã thanh toán 100%, khi nhận hàng bạn không cần chuẩn bị tiền mặt."
         }
 
-        if (!isMomoChannel) {
-            binding.tvBankLabel.text = "Ngân hàng"
-            binding.tvAccountNumLabel.text = "Số tài khoản"
-        }
+        binding.tvBankLabel.text = "Ngân hàng"
+        binding.tvAccountNumLabel.text = "Số tài khoản"
 
         binding.tvBankName.text = currentBankName.ifBlank { "Chưa cập nhật" }
         binding.tvAccountNum.text = currentAccountNum.ifBlank { "Chưa cập nhật" }
@@ -361,10 +270,6 @@ class PaymentActivity : AppCompatActivity() {
         }
 
         // ── BƯỚC 2: Ghép URL VietQR hoàn chỉnh ─────────────────────────────────────
-        // Cấu trúc: https://api.vietqr.io/image/{BIN}-{STK}-{template}.jpg?amount=...&addInfo=...&accountName=...
-        // - amount: số tiền VNĐ (không có dấu phẩy)
-        // - addInfo: cú pháp đơn hàng để SePay nhận diện và tự xác nhận thanh toán
-        // - accountName: tên chủ tài khoản hiển thị trên app ngân hàng
         val qrUrl = "https://api.vietqr.io/image/${cleanBankBin}-${cleanAccountNo}-qLrkX2P.jpg?amount=$amount&addInfo=$encodedSyntax&accountName=$encodedAccountName"
 
         binding.pbQrLoading.visibility = View.VISIBLE
@@ -393,45 +298,6 @@ class PaymentActivity : AppCompatActivity() {
                 }
             })
             .into(binding.ivQrCode)
-    }
-
-    private fun generateRealMomoQrCode(
-        phone: String,
-        holderName: String,
-        paymentAmount: Long,
-        transferSyntax: String
-    ) {
-        momoQrJob?.cancel()
-        binding.pbQrLoading.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = "Đang tạo mã thanh toán MoMo..."
-        momoQrJob = lifecycleScope.launch {
-            val result = MomoPaymentGatewayClient.generateRealMomoQr(
-                momoPhone = phone,
-                momoHolderName = holderName.ifBlank { shopName },
-                amount = paymentAmount,
-                transferSyntax = transferSyntax,
-                bankBin = currentBankBin
-            )
-            if (isFinishing || isDestroyed) return@launch
-            binding.pbQrLoading.visibility = View.GONE
-            if (result.qrCodeData.isNotBlank()) {
-                binding.ivQrCode.setImageBitmap(
-                    QRCodeUtils.generateQRCodeBitmap(
-                        text = result.qrCodeData,
-                        width = 512,
-                        height = 512,
-                        darkColorHex = "#A50064"
-                    )
-                )
-                binding.tvAutoVerifyStatus.text = if (result.isSuccess) {
-                    "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-                } else {
-                    result.message
-                }
-            } else {
-                binding.tvAutoVerifyStatus.text = "Không tạo được mã MoMo: ${result.message}"
-            }
-        }
     }
 
     private fun startCountdownTimer(orderId: String, createdAt: Long) {

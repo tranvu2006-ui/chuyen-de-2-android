@@ -283,12 +283,10 @@ class StoreProfileFragment : Fragment() {
         binding.tvProfileOpenHours.text = store.openHours.ifBlank { "08:00 - 22:00" }
         binding.tvProfilePrepTime.text = store.prepTime.ifBlank { "15 phút" }
 
-        // Tài khoản ngân hàng & Ví MoMo
+        // Tài khoản ngân hàng VietQR
         binding.tvProfileBankName.text = store.bankName.ifBlank { "Chưa cập nhật" }
         binding.tvProfileBankAccountNumber.text = store.bankAccountNumber.ifBlank { "Chưa cập nhật" }
         binding.tvProfileBankAccountName.text = store.bankAccountName.ifBlank { "Chưa cập nhật" }
-        binding.tvProfileMomoPhone.text = store.momoPhone.ifBlank { store.phone.ifBlank { "Chưa cập nhật" } }
-        binding.tvProfileMomoAccountName.text = store.momoAccountName.ifBlank { store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa cập nhật" } } }
 
         if (store.isOpen) {
             binding.tvProfileStatus.text = "🟢 ĐANG HOẠT ĐỘNG (OPEN)"
@@ -429,12 +427,10 @@ class StoreProfileFragment : Fragment() {
         etAddress.setOnClickListener { openMapAction() }
         dialog.findViewById<View>(R.id.tilStoreAddress)?.setOnClickListener { openMapAction() }
 
-        // Các view tài khoản ngân hàng & Ví MoMo
+        // Các view tài khoản ngân hàng
         val spBank = dialog.findViewById<android.widget.Spinner>(R.id.spBankName)
         val etBankNo = dialog.findViewById<EditText>(R.id.etBankAccountNumber)
         val etBankOwner = dialog.findViewById<EditText>(R.id.etBankAccountName)
-        val etMomoPhone = dialog.findViewById<EditText>(R.id.etMomoPhone)
-        val etMomoOwner = dialog.findViewById<EditText>(R.id.etMomoAccountName)
 
         val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
@@ -466,8 +462,6 @@ class StoreProfileFragment : Fragment() {
         etPrepTime.setText(store.prepTime.ifBlank { "15 phút" })
         etBankNo.setText(store.bankAccountNumber)
         etBankOwner.setText(store.bankAccountName)
-        etMomoPhone.setText(store.momoPhone.ifBlank { store.phone })
-        etMomoOwner.setText(store.momoAccountName.ifBlank { store.bankAccountName.ifBlank { store.ownerName } })
 
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
@@ -486,8 +480,6 @@ class StoreProfileFragment : Fragment() {
             val newBankBin = selectedBank.bin
             val newBankNo = etBankNo.text.toString().trim()
             val newBankOwnerName = etBankOwner.text.toString().trim().uppercase()
-            val newMomoPhone = etMomoPhone.text.toString().trim().ifBlank { newPhone }
-            val newMomoOwnerName = etMomoOwner.text.toString().trim().uppercase().ifBlank { newBankOwnerName.ifBlank { newOwner.uppercase() } }
 
             if (newName.isBlank()) {
                 etName.error = "Vui lòng nhập tên quán"
@@ -531,8 +523,8 @@ class StoreProfileFragment : Fragment() {
                     bankAccountNumber = newBankNo,
                     bankAccountName = newBankOwnerName,
                     bankBin = newBankBin,
-                    momoPhone = newMomoPhone,
-                    momoAccountName = newMomoOwnerName,
+                    momoPhone = "",
+                    momoAccountName = "",
                     latitude = resolvedLat,
                     longitude = resolvedLng
                 )

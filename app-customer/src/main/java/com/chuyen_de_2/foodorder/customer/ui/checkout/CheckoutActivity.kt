@@ -249,7 +249,7 @@ class CheckoutActivity : AppCompatActivity() {
         }
 
         binding.cardChannelBank.setOnClickListener { selectOnlineChannel("bank") }
-        binding.cardChannelMomo.setOnClickListener { selectOnlineChannel("momo") }
+        binding.cardChannelMomo.visibility = View.GONE
 
         selectOnlineChannel("bank")
         selectPaymentMode(Order.PaymentMode.FULL)
@@ -308,7 +308,7 @@ class CheckoutActivity : AppCompatActivity() {
 
             val paymentMethod = when (selectedPaymentMode) {
                 Order.PaymentMode.COD -> Order.PaymentMethod.COD
-                else -> if (selectedChannel == "momo") Order.PaymentMethod.MOMO else Order.PaymentMethod.BANKING
+                else -> Order.PaymentMethod.BANKING
             }
 
             viewModel.placeOrder(
@@ -652,8 +652,7 @@ class CheckoutActivity : AppCompatActivity() {
 
         when (selectedPaymentMode) {
             Order.PaymentMode.FULL -> {
-                val channelName = if (selectedChannel == "momo") "Ví MoMo" else "VietQR Ngân Hàng"
-                binding.txtSelectedMode.text = "Trả thẳng 100% ($channelName)"
+                binding.txtSelectedMode.text = "Trả thẳng 100% (VietQR Ngân Hàng)"
                 binding.txtSelectedMode.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 binding.lblPayNowTitle.text = "Cần thanh toán ngay (100%):"
                 binding.lblPayNowTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
@@ -667,8 +666,7 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.btnPlaceOrder.text = "Thanh toán ngay"
             }
             Order.PaymentMode.DEPOSIT -> {
-                val channelName = if (selectedChannel == "momo") "Ví MoMo" else "VietQR Ngân Hàng"
-                binding.txtSelectedMode.text = "Đặt cọc 20% ($channelName)"
+                binding.txtSelectedMode.text = "Đặt cọc 20% (VietQR Ngân Hàng)"
                 binding.txtSelectedMode.setTextColor(Color.parseColor("#D97706"))
                 binding.lblPayNowTitle.text = "Cần thanh toán cọc ngay (20%):"
                 binding.lblPayNowTitle.setTextColor(Color.parseColor("#D97706"))
@@ -780,9 +778,7 @@ class CheckoutActivity : AppCompatActivity() {
                             putExtra("extra_payment_mode", Order.PaymentMode.DEPOSIT)
                             putExtra("extra_deposit", depositAmount)
                             putExtra("extra_remain", remainAmount)
-                            putExtra("extra_channel", selectedChannel)
-                            putExtra("extra_shop_phone", currentStore?.momoPhone?.ifBlank { currentStore?.phone }.orEmpty())
-                            putExtra("extra_momo_holder", currentStore?.momoAccountName?.ifBlank { currentStore?.bankAccountName?.ifBlank { currentStore?.ownerName } }.orEmpty())
+                            putExtra("extra_channel", "bank")
                             putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
                             putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                             putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
@@ -805,9 +801,7 @@ class CheckoutActivity : AppCompatActivity() {
                             putExtra("extra_payment_mode", Order.PaymentMode.FULL)
                             putExtra("extra_deposit", 0L)
                             putExtra("extra_remain", 0L)
-                            putExtra("extra_channel", selectedChannel)
-                            putExtra("extra_shop_phone", currentStore?.momoPhone?.ifBlank { currentStore?.phone }.orEmpty())
-                            putExtra("extra_momo_holder", currentStore?.momoAccountName?.ifBlank { currentStore?.bankAccountName?.ifBlank { currentStore?.ownerName } }.orEmpty())
+                            putExtra("extra_channel", "bank")
                             putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
                             putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                             putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
@@ -824,62 +818,40 @@ class CheckoutActivity : AppCompatActivity() {
         }
     }
 
-    /** Lắng nghe thông tin thanh toán ngân hàng và MoMo của quán để hiển thị cho khách xem trước */
+    /** Lắng nghe thông tin tài khoản ngân hàng VietQR của quán để hiển thị cho khách xem trước */
     private fun observeShopInfo(shopId: String) {
         if (shopId.isBlank()) return
         lifecycleScope.launch {
             firebaseRepository.observeStore(shopId).collectLatest { store ->
                 if (store != null) {
                     currentStore = store
-                    updatePaymentPreviewBox(selectedChannel == "momo")
+                    updatePaymentPreviewBox(false)
                 }
             }
         }
     }
 
-    private fun updatePaymentPreviewBox(isMomo: Boolean) {
+    private fun updatePaymentPreviewBox(isMomo: Boolean = false) {
         val store = currentStore
-        if (isMomo) {
-            binding.tvBankingTitle.text = "VÍ ĐIỆN TỬ MOMO 24/7"
-            binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#A50064"))
-            val momoPhone = store?.let {
-                it.momoPhone.ifBlank { it.phone.ifBlank { it.bankAccountNumber } }
-            }.orEmpty()
-            val momoHolder = store?.let {
-                it.momoAccountName.ifBlank {
-                    it.ownerName.ifBlank { it.bankAccountName.ifBlank { it.name } }
-                }
-            }.orEmpty()
-            binding.tvBankingDetails.text =
-                "• Quét mã bằng ứng dụng MoMo để chuyển tiền đến thông tin nhận tiền của quán\n" +
-                    "• Số nhận tiền: ${momoPhone.ifBlank { "Quán chưa cập nhật" }}\n" +
-                    "• Người nhận: ${momoHolder.ifBlank { "Quán chưa cập nhật" }}\n" +
-                    "• Nội dung thanh toán: Mã đơn hàng\n• Cửa hàng sẽ kiểm tra và xác nhận giao dịch"
-        } else {
-            binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
-            binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#0284C7"))
-            val bankDisplay = store?.bankName?.ifBlank { "MB Bank (Quân Đội)" } ?: "MB Bank (Quân Đội)"
-            val accNum = store?.bankAccountNumber?.ifBlank { "0988 888 888" } ?: "0988 888 888"
-            val ownerDisplay = store?.bankAccountName?.ifBlank { store.name } ?: "OISHI FOOD VIETNAM"
-            binding.tvBankingDetails.text =
-                "• Ngân hàng: $bankDisplay\n• Số tài khoản: $accNum\n• Chủ tài khoản: $ownerDisplay\n• Nội dung CK: Mã đơn hàng"
-        }
+        binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
+        binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#0284C7"))
+        val bankDisplay = store?.bankName?.ifBlank { "MB Bank (Quân Đội)" } ?: "MB Bank (Quân Đội)"
+        val accNum = store?.bankAccountNumber?.ifBlank { "0988 888 888" } ?: "0988 888 888"
+        val ownerDisplay = store?.bankAccountName?.ifBlank { store.name } ?: "OISHI FOOD VIETNAM"
+        binding.tvBankingDetails.text =
+            "• Ngân hàng: $bankDisplay\n• Số tài khoản: $accNum\n• Chủ tài khoản: $ownerDisplay\n• Nội dung CK: Mã đơn hàng"
     }
 
-    private fun selectOnlineChannel(channel: String) {
-        selectedChannel = channel
-        val isMomo = channel == "momo"
-        binding.rbBanking.isChecked = !isMomo
-        binding.rbMomo.isChecked = isMomo
-        binding.cardChannelBank.setBackgroundResource(
-            if (!isMomo) R.drawable.bg_payment_card_selected else R.drawable.bg_payment_card_normal
-        )
-        binding.cardChannelMomo.setBackgroundResource(
-            if (isMomo) R.drawable.bg_payment_card_selected else R.drawable.bg_payment_card_normal
-        )
-        binding.ivCheckBank.visibility = if (!isMomo) View.VISIBLE else View.GONE
-        binding.ivCheckMomo.visibility = if (isMomo) View.VISIBLE else View.GONE
-        updatePaymentPreviewBox(isMomo)
+    private fun selectOnlineChannel(channel: String = "bank") {
+        selectedChannel = "bank"
+        binding.rbBanking.isChecked = true
+        binding.rbMomo.isChecked = false
+        binding.cardChannelBank.setBackgroundResource(R.drawable.bg_payment_card_selected)
+        binding.cardChannelMomo.setBackgroundResource(R.drawable.bg_payment_card_normal)
+        binding.cardChannelMomo.visibility = View.GONE
+        binding.ivCheckBank.visibility = View.VISIBLE
+        binding.ivCheckMomo.visibility = View.GONE
+        updatePaymentPreviewBox(false)
     }
 
 

@@ -352,7 +352,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Khóa hoàn toàn COD • Vui lòng thanh toán VietQR/MoMo hoặc Đặt cọc 20% (+2đ/đơn để nâng hạng)"
+                    android:text="Khóa hoàn toàn COD • Vui lòng thanh toán VietQR hoặc Đặt cọc 20% (+2đ/đơn để nâng hạng)"
                     android:textColor="#475569"
                     android:textSize="11.5sp" />
             </LinearLayout>

@@ -253,7 +253,7 @@
                     android:id="@+id/tvBomNextCod"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="0 đ (Đã trả MoMo)"
+                    android:text="0 đ (Đã trả VietQR)"
                     android:textColor="#D97706"
                     android:textSize="11.5sp"
                     android:textStyle="bold" />

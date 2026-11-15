@@ -10328,7 +10328,7 @@ class CheckoutActivity : AppCompatActivity() {
         }
 
         binding.cardChannelBank.setOnClickListener { selectOnlineChannel("bank") }
-        binding.cardChannelMomo.setOnClickListener { selectOnlineChannel("momo") }
+        binding.cardChannelMomo.visibility = View.GONE
 
         selectOnlineChannel("bank")
         selectPaymentMode(Order.PaymentMode.FULL)
@@ -10387,7 +10387,7 @@ class CheckoutActivity : AppCompatActivity() {
 
             val paymentMethod = when (selectedPaymentMode) {
                 Order.PaymentMode.COD -> Order.PaymentMethod.COD
-                else -> if (selectedChannel == "momo") Order.PaymentMethod.MOMO else Order.PaymentMethod.BANKING
+                else -> Order.PaymentMethod.BANKING
             }
 
             viewModel.placeOrder(
@@ -10731,8 +10731,7 @@ class CheckoutActivity : AppCompatActivity() {
 
         when (selectedPaymentMode) {
             Order.PaymentMode.FULL -> {
-                val channelName = if (selectedChannel == "momo") "Ví MoMo" else "VietQR Ngân Hàng"
-                binding.txtSelectedMode.text = "Trả thẳng 100% ($channelName)"
+                binding.txtSelectedMode.text = "Trả thẳng 100% (VietQR Ngân Hàng)"
                 binding.txtSelectedMode.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 binding.lblPayNowTitle.text = "Cần thanh toán ngay (100%):"
                 binding.lblPayNowTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
@@ -10746,8 +10745,7 @@ class CheckoutActivity : AppCompatActivity() {
                 binding.btnPlaceOrder.text = "Thanh toán ngay"
             }
             Order.PaymentMode.DEPOSIT -> {
-                val channelName = if (selectedChannel == "momo") "Ví MoMo" else "VietQR Ngân Hàng"
-                binding.txtSelectedMode.text = "Đặt cọc 20% ($channelName)"
+                binding.txtSelectedMode.text = "Đặt cọc 20% (VietQR Ngân Hàng)"
                 binding.txtSelectedMode.setTextColor(Color.parseColor("#D97706"))
                 binding.lblPayNowTitle.text = "Cần thanh toán cọc ngay (20%):"
                 binding.lblPayNowTitle.setTextColor(Color.parseColor("#D97706"))
@@ -10859,9 +10857,7 @@ class CheckoutActivity : AppCompatActivity() {
                             putExtra("extra_payment_mode", Order.PaymentMode.DEPOSIT)
                             putExtra("extra_deposit", depositAmount)
                             putExtra("extra_remain", remainAmount)
-                            putExtra("extra_channel", selectedChannel)
-                            putExtra("extra_shop_phone", currentStore?.momoPhone?.ifBlank { currentStore?.phone }.orEmpty())
-                            putExtra("extra_momo_holder", currentStore?.momoAccountName?.ifBlank { currentStore?.bankAccountName?.ifBlank { currentStore?.ownerName } }.orEmpty())
+                            putExtra("extra_channel", "bank")
                             putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
                             putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                             putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
@@ -10884,9 +10880,7 @@ class CheckoutActivity : AppCompatActivity() {
                             putExtra("extra_payment_mode", Order.PaymentMode.FULL)
                             putExtra("extra_deposit", 0L)
                             putExtra("extra_remain", 0L)
-                            putExtra("extra_channel", selectedChannel)
-                            putExtra("extra_shop_phone", currentStore?.momoPhone?.ifBlank { currentStore?.phone }.orEmpty())
-                            putExtra("extra_momo_holder", currentStore?.momoAccountName?.ifBlank { currentStore?.bankAccountName?.ifBlank { currentStore?.ownerName } }.orEmpty())
+                            putExtra("extra_channel", "bank")
                             putExtra("extra_bank_name", currentStore?.bankName.orEmpty())
                             putExtra("extra_bank_number", currentStore?.bankAccountNumber.orEmpty())
                             putExtra("extra_bank_holder", currentStore?.bankAccountName.orEmpty())
@@ -10903,62 +10897,40 @@ class CheckoutActivity : AppCompatActivity() {
         }
     }
 
-    /** Lắng nghe thông tin thanh toán ngân hàng và MoMo của quán để hiển thị cho khách xem trước */
+    /** Lắng nghe thông tin tài khoản ngân hàng VietQR của quán để hiển thị cho khách xem trước */
     private fun observeShopInfo(shopId: String) {
         if (shopId.isBlank()) return
         lifecycleScope.launch {
             firebaseRepository.observeStore(shopId).collectLatest { store ->
                 if (store != null) {
                     currentStore = store
-                    updatePaymentPreviewBox(selectedChannel == "momo")
+                    updatePaymentPreviewBox(false)
                 }
             }
         }
     }
 
-    private fun updatePaymentPreviewBox(isMomo: Boolean) {
+    private fun updatePaymentPreviewBox(isMomo: Boolean = false) {
         val store = currentStore
-        if (isMomo) {
-            binding.tvBankingTitle.text = "VÍ ĐIỆN TỬ MOMO 24/7"
-            binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#A50064"))
-            val momoPhone = store?.let {
-                it.momoPhone.ifBlank { it.phone.ifBlank { it.bankAccountNumber } }
-            }.orEmpty()
-            val momoHolder = store?.let {
-                it.momoAccountName.ifBlank {
-                    it.ownerName.ifBlank { it.bankAccountName.ifBlank { it.name } }
-                }
-            }.orEmpty()
-            binding.tvBankingDetails.text =
-                "• Quét mã bằng ứng dụng MoMo để chuyển tiền đến thông tin nhận tiền của quán\n" +
-                    "• Số nhận tiền: ${momoPhone.ifBlank { "Quán chưa cập nhật" }}\n" +
-                    "• Người nhận: ${momoHolder.ifBlank { "Quán chưa cập nhật" }}\n" +
-                    "• Nội dung thanh toán: Mã đơn hàng\n• Cửa hàng sẽ kiểm tra và xác nhận giao dịch"
-        } else {
-            binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
-            binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#0284C7"))
-            val bankDisplay = store?.bankName?.ifBlank { "MB Bank (Quân Đội)" } ?: "MB Bank (Quân Đội)"
-            val accNum = store?.bankAccountNumber?.ifBlank { "0988 888 888" } ?: "0988 888 888"
-            val ownerDisplay = store?.bankAccountName?.ifBlank { store.name } ?: "OISHI FOOD VIETNAM"
-            binding.tvBankingDetails.text =
-                "• Ngân hàng: $bankDisplay\n• Số tài khoản: $accNum\n• Chủ tài khoản: $ownerDisplay\n• Nội dung CK: Mã đơn hàng"
-        }
+        binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
+        binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#0284C7"))
+        val bankDisplay = store?.bankName?.ifBlank { "MB Bank (Quân Đội)" } ?: "MB Bank (Quân Đội)"
+        val accNum = store?.bankAccountNumber?.ifBlank { "0988 888 888" } ?: "0988 888 888"
+        val ownerDisplay = store?.bankAccountName?.ifBlank { store.name } ?: "OISHI FOOD VIETNAM"
+        binding.tvBankingDetails.text =
+            "• Ngân hàng: $bankDisplay\n• Số tài khoản: $accNum\n• Chủ tài khoản: $ownerDisplay\n• Nội dung CK: Mã đơn hàng"
     }
 
-    private fun selectOnlineChannel(channel: String) {
-        selectedChannel = channel
-        val isMomo = channel == "momo"
-        binding.rbBanking.isChecked = !isMomo
-        binding.rbMomo.isChecked = isMomo
-        binding.cardChannelBank.setBackgroundResource(
-            if (!isMomo) R.drawable.bg_payment_card_selected else R.drawable.bg_payment_card_normal
-        )
-        binding.cardChannelMomo.setBackgroundResource(
-            if (isMomo) R.drawable.bg_payment_card_selected else R.drawable.bg_payment_card_normal
-        )
-        binding.ivCheckBank.visibility = if (!isMomo) View.VISIBLE else View.GONE
-        binding.ivCheckMomo.visibility = if (isMomo) View.VISIBLE else View.GONE
-        updatePaymentPreviewBox(isMomo)
+    private fun selectOnlineChannel(channel: String = "bank") {
+        selectedChannel = "bank"
+        binding.rbBanking.isChecked = true
+        binding.rbMomo.isChecked = false
+        binding.cardChannelBank.setBackgroundResource(R.drawable.bg_payment_card_selected)
+        binding.cardChannelMomo.setBackgroundResource(R.drawable.bg_payment_card_normal)
+        binding.cardChannelMomo.visibility = View.GONE
+        binding.ivCheckBank.visibility = View.VISIBLE
+        binding.ivCheckMomo.visibility = View.GONE
+        updatePaymentPreviewBox(false)
     }
 
 
@@ -18540,7 +18512,8 @@ class FoodOrderCustomerApp : Application() {
                             android:gravity="center_vertical"
                             android:orientation="horizontal"
                             android:paddingHorizontal="14dp"
-                            android:paddingVertical="10dp">
+                            android:paddingVertical="10dp"
+                            android:visibility="gone">
 
                             <RadioButton
                                 android:id="@+id/rbMomo"
@@ -22824,7 +22797,7 @@ class FoodOrderCustomerApp : Application() {
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Khóa hoàn toàn COD • Vui lòng thanh toán VietQR/MoMo hoặc Đặt cọc 20% (+2đ/đơn để nâng hạng)"
+                    android:text="Khóa hoàn toàn COD • Vui lòng thanh toán VietQR hoặc Đặt cọc 20% (+2đ/đơn để nâng hạng)"
                     android:textColor="#475569"
                     android:textSize="11.5sp" />
             </LinearLayout>
@@ -34011,7 +33984,7 @@ class FoodOrderInternalApp : Application() {
                     android:id="@+id/tvBomNextCod"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="0 đ (Đã trả MoMo)"
+                    android:text="0 đ (Đã trả VietQR)"
                     android:textColor="#D97706"
                     android:textSize="11.5sp"
                     android:textStyle="bold" />
@@ -35928,67 +35901,6 @@ class FoodOrderInternalApp : Application() {
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etBankAccountName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textCapCharacters"
-                android:textColor="#1E293B"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Section: Tài khoản Ví điện tử MoMo nhận tiền -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginVertical="14dp"
-            android:background="#E2E8F0" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Tài Khoản Ví Điện Tử MoMo Nhận Tiền"
-            android:textColor="#A50064"
-            android:textSize="13.5sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="Số điện thoại Ví MoMo có thể thay đổi linh hoạt để sinh mã QR MoMo cho khách quét"
-            android:textColor="#64748B"
-            android:textSize="11.5sp" />
-
-        <!-- Số điện thoại Ví MoMo -->
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="Số điện thoại Ví MoMo nhận tiền *"
-            app:boxStrokeColor="#A50064"
-            app:hintTextColor="#A50064">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etMomoPhone"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="phone"
-                android:textColor="#1E293B"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Tên chủ Ví MoMo -->
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="Tên chủ Ví MoMo (Viết hoa không dấu) *"
-            app:boxStrokeColor="#A50064"
-            app:hintTextColor="#A50064">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etMomoAccountName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textCapCharacters"
@@ -65776,42 +65688,6 @@ zipStorePath=wrapper/dists
 }
 ````
 
-## File: .gitignore
-````
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.idea/
-.kotlin/
-.DS_Store
-/build
-*/build
-captures/
-.externalNativeBuild
-.cxx
-local.properties
-.wrangler/
-**/node_modules/
-
-# Extracted web prototypes (already in repo root)
-chuyen-de-2-android-main/
-chuyende2/
-
-# Analysis and tool cache
-.claude/
-CLAUDE.md
-graphify-out/
-
-# Antigravity Repomix Code Map
-.antigravity/
-````
-
 ## File: BANG_PHAN_CONG_CONG_VIEC_TRELLO.md
 ````markdown
 # BẢNG PHÂN CÔNG CÔNG VIỆC DỰ ÁN (TRELLO WORK BREAKDOWN)
@@ -82632,69 +82508,6 @@ class ChatCustomerBottomSheetDialogFragment : BottomSheetDialogFragment() {
                             tools:text="NGUYEN VAN A" />
                     </LinearLayout>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginVertical="10dp"
-                        android:background="#E2E8F0" />
-
-                    <!-- Row: Số điện thoại Ví MoMo -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Số điện thoại Ví MoMo:"
-                            android:textColor="#A50064"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvProfileMomoPhone"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
-                            android:textColor="#A50064"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            tools:text="0908889999" />
-                    </LinearLayout>
-
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginVertical="8dp"
-                        android:background="#F8FAFC" />
-
-                    <!-- Row: Chủ Ví MoMo -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Tên chủ Ví MoMo:"
-                            android:textColor="#64748B"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:id="@+id/tvProfileMomoAccountName"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textColor="#1E293B"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            tools:text="NGUYEN VAN A" />
-                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -84420,6 +84233,45 @@ google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 google-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 google-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleCrashlytics" }
+````
+
+## File: .gitignore
+````
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.idea/
+.kotlin/
+.DS_Store
+/build
+*/build
+captures/
+.externalNativeBuild
+.cxx
+local.properties
+.wrangler/
+**/node_modules/
+
+# Extracted web prototypes (already in repo root)
+chuyen-de-2-android-main/
+chuyende2/
+
+# Analysis and tool cache
+.claude/
+CLAUDE.md
+graphify-out/
+
+# Antigravity Repomix Code Map
+.antigravity/
+
+# Database backups
+backup_*.json
 ````
 
 ## File: admin.html
@@ -100918,7 +100770,7 @@ class MenuManageFragment : Fragment() {
                                         android:id="@+id/choicePayment1"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="0 đ (MoMo)"
+                                        android:text="0 đ (VietQR)"
                                         android:textColor="#059669"
                                         android:textSize="9.5sp"
                                         android:textStyle="bold" />
@@ -103405,6 +103257,101 @@ data class Store(
 }
 ````
 
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/User.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.data.model
+
+import com.google.firebase.database.IgnoreExtraProperties
+import com.google.firebase.database.PropertyName
+import com.google.gson.annotations.SerializedName
+
+/**
+ * Tài khoản người dùng chung — lưu tại: users/{userId}
+ * 4 Roles: ADMIN, CUSTOMER, MERCHANT, DRIVER
+ * Mapping: Bảng 1 - users (database_schema.sql)
+ */
+@IgnoreExtraProperties
+data class User(
+    @SerializedName("uid")
+    val uid: String = "",
+
+    @SerializedName("roleId")
+    val roleId: Int = 2,
+
+    @SerializedName("role")
+    val role: String = Role.CUSTOMER,
+
+    @SerializedName("name")
+    val name: String = "",
+
+    @SerializedName("email")
+    val email: String = "",
+
+    @SerializedName("phone")
+    val phone: String = "",
+
+    @SerializedName("statusId")
+    val statusId: Int = 1,
+
+    @SerializedName("status")
+    val status: String = Status.ACTIVE,
+
+    @get:PropertyName("isActive")
+    @SerializedName("isActive")
+    val isActive: Boolean = true,
+
+    @SerializedName("avatarUrl", alternate = ["photoUrl", "avatar", "profileImage"])
+    val avatarUrl: String = "",
+
+    @SerializedName("fcmToken")
+    val fcmToken: String = "",
+
+    @SerializedName("storeId")
+    val storeId: String = "",
+
+    @SerializedName("bossId")
+    val bossId: String = "",
+
+    @SerializedName("emailVerified")
+    val emailVerified: Boolean = false,
+
+    @SerializedName("phoneVerified")
+    val phoneVerified: Boolean = false,
+
+    @SerializedName("approvalStatus")
+    val approvalStatus: String = ApprovalStatus.APPROVED,
+
+    @SerializedName("rejectReason")
+    val rejectReason: String = ""
+) {
+    /** Trạng thái duyệt hồ sơ (Merchant & BossMerchant) */
+    object ApprovalStatus {
+        const val PENDING = "PENDING"
+        const val APPROVED = "APPROVED"
+        const val REJECTED = "REJECTED"
+    }
+
+    /** Role constants — RBAC phân quyền 4 Actors + Boss */
+    object Role {
+        const val ADMIN = "ADMIN"
+        const val CUSTOMER = "CUSTOMER"
+        const val BOSSMERCHANT = "BOSSMERCHANT"
+        const val MERCHANT = "MERCHANT"
+        const val MANAGER = "MANAGER"
+        const val DRIVER = "DRIVER"
+        const val SHIPPER = "SHIPPER"
+    }
+
+    /** Trạng thái tài khoản */
+    object Status {
+        const val ACTIVE = "ACTIVE"
+        const val LOCKED = "LOCKED"
+        const val INACTIVE = "INACTIVE"
+        const val OFFLINE = "OFFLINE"
+    }
+}
+````
+
 ## File: database.rules.json
 ````json
 {
@@ -103622,59 +103569,6 @@ data class Store(
     }
   }
 }
-````
-
-## File: GEMINI.md
-````markdown
-# WORKSPACE RULES & TOKEN OPTIMIZATION DIRECTIVE
-# Scope: e:\Android\Chuyen-De-2 (Áp dụng riêng cho dự án Chuyên đề 2 - Oishi Food)
-
----
-
-## 1. PHẠM VI & MỤC TIÊU (SCOPE & GOALS)
-- Các quy tắc dưới đây chỉ áp dụng cho workspace `e:\Android\Chuyen-De-2`.
-- Mục tiêu: Giảm thiểu tiêu thụ Token, tăng tốc độ phản hồi của AI, ngăn ngừa tràn Context Window (tránh nén ngữ cảnh sớm), và đảm bảo code chất lượng cao.
-
----
-
-## 2. QUY TẮC PHẢN HỒI (OUTPUT CONCISENESS)
-- **Trả lời súc tích, đi thẳng vào vấn đề**: Không chào hỏi rườm rà, không thêm đoạn mở đầu/kết thúc xã giao.
-- **Sửa code dạng Diff / Partial Chunk**: Khi chỉnh sửa code, CHỈ đưa ra đoạn code thay đổi hoặc dùng tool sửa code cục bộ. Tuyệt đối KHÔNG viết lại toàn bộ file nếu file chỉ sửa một vài vị trí.
-- **Không tóm tắt lại Artifacts**: Không tóm tắt nội dung tài liệu vừa tạo/sửa trong tin nhắn chat nếu tài liệu đã được ghi ra file.
-
----
-
-## 3. QUY TẮC THAO TÁC CÔNG CỤ (TOOL OPTIMIZATION)
-- **Đọc file có giới hạn (`view_file`)**:
-  - Không đọc toàn bộ file lớn (>150 dòng) nếu chỉ cần sửa 1 hàm.
-  - Luôn chỉ định `StartLine` và `EndLine` cụ thể.
-- **Tìm kiếm có bộ lọc (`grep_search`)**:
-  - Luôn lọc theo phần mở rộng (`*.kt`, `*.xml`, `*.gradle.kts`).
-  - Loại trừ các thư mục build: `build/`, `.gradle/`, `.idea/`, `captures/`, `dist/`.
-  - Sử dụng `MatchPerLine: false` khi chỉ cần tìm danh sách tên file.
-- **Giới hạn Output dòng lệnh (`run_command`)**:
-  - Khi chạy lệnh Gradle hoặc Git, giới hạn đầu ra tối thiểu (dùng `--quiet`, `git log -n 5`, v.v.).
-  - Khi xem lỗi Logcat/Crash, chỉ trích xuất đúng khối `FATAL EXCEPTION` và stacktrace thuộc package `com.chuyen_de_2...`. Bỏ qua toàn bộ log hệ thống MIUI, SurfaceFlinger, PerfHAL.
-
----
-
-## 4. QUY TẮC KIẾN TRÚC DỰ ÁN (PROJECT CONTEXT)
-- **Kiến trúc 2 Ứng dụng (Multi-module)**:
-  - `app-customer`: App dành cho Khách hàng (`HomeActivity`, xem quán, đặt món, giỏ hàng).
-  - `app-internal`: App dành cho Quán ăn (`OrderListFragment` - Kanban) và Shipper (`ShipperFragment` - GPS).
-  - `core`: Thư viện dùng chung (Models, Firebase Repositories, Utils).
-- **Phân quyền 4 Roles**: `CUSTOMER`, `MERCHANT` (hoặc `MANAGER`), `DRIVER` (hoặc `SHIPPER`), `ADMIN`.
-
----
-
-## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
-- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và `git push origin giau-11/11`.
-
----
-
-## 6. QUY TẮC BẢN ĐỒ MÃ NGUỒN REPOMIX (LIVING CODE MAP DIRECTIVE)
-- Mỗi khi Agent trong Antigravity cần nắm lại toàn bộ cấu trúc code, hoặc sau khi vừa sửa xong hàng loạt file, hãy chạy lệnh `npx repomix` trong terminal để cập nhật lại bản đồ `.antigravity/CODE_MAP.md`.
-- Tra cứu nhanh các Class, Interface, Method Signatures trong file `.antigravity/CODE_MAP.md` với chế độ nén AST (`compress: true`) để nắm cấu trúc toàn dự án trong 1 giây mà không tốn token đọc từng file.
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/checkout/CheckoutViewModel.kt
@@ -105520,12 +105414,10 @@ class StoreProfileFragment : Fragment() {
         binding.tvProfileOpenHours.text = store.openHours.ifBlank { "08:00 - 22:00" }
         binding.tvProfilePrepTime.text = store.prepTime.ifBlank { "15 phút" }
 
-        // Tài khoản ngân hàng & Ví MoMo
+        // Tài khoản ngân hàng VietQR
         binding.tvProfileBankName.text = store.bankName.ifBlank { "Chưa cập nhật" }
         binding.tvProfileBankAccountNumber.text = store.bankAccountNumber.ifBlank { "Chưa cập nhật" }
         binding.tvProfileBankAccountName.text = store.bankAccountName.ifBlank { "Chưa cập nhật" }
-        binding.tvProfileMomoPhone.text = store.momoPhone.ifBlank { store.phone.ifBlank { "Chưa cập nhật" } }
-        binding.tvProfileMomoAccountName.text = store.momoAccountName.ifBlank { store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa cập nhật" } } }
 
         if (store.isOpen) {
             binding.tvProfileStatus.text = "🟢 ĐANG HOẠT ĐỘNG (OPEN)"
@@ -105666,12 +105558,10 @@ class StoreProfileFragment : Fragment() {
         etAddress.setOnClickListener { openMapAction() }
         dialog.findViewById<View>(R.id.tilStoreAddress)?.setOnClickListener { openMapAction() }
 
-        // Các view tài khoản ngân hàng & Ví MoMo
+        // Các view tài khoản ngân hàng
         val spBank = dialog.findViewById<android.widget.Spinner>(R.id.spBankName)
         val etBankNo = dialog.findViewById<EditText>(R.id.etBankAccountNumber)
         val etBankOwner = dialog.findViewById<EditText>(R.id.etBankAccountName)
-        val etMomoPhone = dialog.findViewById<EditText>(R.id.etMomoPhone)
-        val etMomoOwner = dialog.findViewById<EditText>(R.id.etMomoAccountName)
 
         val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
         val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
@@ -105703,8 +105593,6 @@ class StoreProfileFragment : Fragment() {
         etPrepTime.setText(store.prepTime.ifBlank { "15 phút" })
         etBankNo.setText(store.bankAccountNumber)
         etBankOwner.setText(store.bankAccountName)
-        etMomoPhone.setText(store.momoPhone.ifBlank { store.phone })
-        etMomoOwner.setText(store.momoAccountName.ifBlank { store.bankAccountName.ifBlank { store.ownerName } })
 
         btnClose.setOnClickListener { dialog.dismiss() }
         btnCancel.setOnClickListener { dialog.dismiss() }
@@ -105723,8 +105611,6 @@ class StoreProfileFragment : Fragment() {
             val newBankBin = selectedBank.bin
             val newBankNo = etBankNo.text.toString().trim()
             val newBankOwnerName = etBankOwner.text.toString().trim().uppercase()
-            val newMomoPhone = etMomoPhone.text.toString().trim().ifBlank { newPhone }
-            val newMomoOwnerName = etMomoOwner.text.toString().trim().uppercase().ifBlank { newBankOwnerName.ifBlank { newOwner.uppercase() } }
 
             if (newName.isBlank()) {
                 etName.error = "Vui lòng nhập tên quán"
@@ -105768,8 +105654,8 @@ class StoreProfileFragment : Fragment() {
                     bankAccountNumber = newBankNo,
                     bankAccountName = newBankOwnerName,
                     bankBin = newBankBin,
-                    momoPhone = newMomoPhone,
-                    momoAccountName = newMomoOwnerName,
+                    momoPhone = "",
+                    momoAccountName = "",
                     latitude = resolvedLat,
                     longitude = resolvedLng
                 )
@@ -107049,99 +106935,57 @@ class StoreProfileFragment : Fragment() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/User.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.model
+## File: GEMINI.md
+````markdown
+# WORKSPACE RULES & TOKEN OPTIMIZATION DIRECTIVE
+# Scope: e:\Android\Chuyen-De-2 (Áp dụng riêng cho dự án Chuyên đề 2 - Oishi Food)
 
-import com.google.firebase.database.IgnoreExtraProperties
-import com.google.firebase.database.PropertyName
-import com.google.gson.annotations.SerializedName
+---
 
-/**
- * Tài khoản người dùng chung — lưu tại: users/{userId}
- * 4 Roles: ADMIN, CUSTOMER, MERCHANT, DRIVER
- * Mapping: Bảng 1 - users (database_schema.sql)
- */
-@IgnoreExtraProperties
-data class User(
-    @SerializedName("uid")
-    val uid: String = "",
+## 1. PHẠM VI & MỤC TIÊU (SCOPE & GOALS)
+- Các quy tắc dưới đây chỉ áp dụng cho workspace `e:\Android\Chuyen-De-2`.
+- Mục tiêu: Giảm thiểu tiêu thụ Token, tăng tốc độ phản hồi của AI, ngăn ngừa tràn Context Window (tránh nén ngữ cảnh sớm), và đảm bảo code chất lượng cao.
 
-    @SerializedName("roleId")
-    val roleId: Int = 2,
+---
 
-    @SerializedName("role")
-    val role: String = Role.CUSTOMER,
+## 2. QUY TẮC PHẢN HỒI (OUTPUT CONCISENESS)
+- **Trả lời súc tích, đi thẳng vào vấn đề**: Không chào hỏi rườm rà, không thêm đoạn mở đầu/kết thúc xã giao.
+- **Sửa code dạng Diff / Partial Chunk**: Khi chỉnh sửa code, CHỈ đưa ra đoạn code thay đổi hoặc dùng tool sửa code cục bộ. Tuyệt đối KHÔNG viết lại toàn bộ file nếu file chỉ sửa một vài vị trí.
+- **Không tóm tắt lại Artifacts**: Không tóm tắt nội dung tài liệu vừa tạo/sửa trong tin nhắn chat nếu tài liệu đã được ghi ra file.
 
-    @SerializedName("name")
-    val name: String = "",
+---
 
-    @SerializedName("email")
-    val email: String = "",
+## 3. QUY TẮC THAO TÁC CÔNG CỤ (TOOL OPTIMIZATION)
+- **Đọc file có giới hạn (`view_file`)**:
+  - Không đọc toàn bộ file lớn (>150 dòng) nếu chỉ cần sửa 1 hàm.
+  - Luôn chỉ định `StartLine` và `EndLine` cụ thể.
+- **Tìm kiếm có bộ lọc (`grep_search`)**:
+  - Luôn lọc theo phần mở rộng (`*.kt`, `*.xml`, `*.gradle.kts`).
+  - Loại trừ các thư mục build: `build/`, `.gradle/`, `.idea/`, `captures/`, `dist/`.
+  - Sử dụng `MatchPerLine: false` khi chỉ cần tìm danh sách tên file.
+- **Giới hạn Output dòng lệnh (`run_command`)**:
+  - Khi chạy lệnh Gradle hoặc Git, giới hạn đầu ra tối thiểu (dùng `--quiet`, `git log -n 5`, v.v.).
+  - Khi xem lỗi Logcat/Crash, chỉ trích xuất đúng khối `FATAL EXCEPTION` và stacktrace thuộc package `com.chuyen_de_2...`. Bỏ qua toàn bộ log hệ thống MIUI, SurfaceFlinger, PerfHAL.
 
-    @SerializedName("phone")
-    val phone: String = "",
+---
 
-    @SerializedName("statusId")
-    val statusId: Int = 1,
+## 4. QUY TẮC KIẾN TRÚC DỰ ÁN (PROJECT CONTEXT)
+- **Kiến trúc 2 Ứng dụng (Multi-module)**:
+  - `app-customer`: App dành cho Khách hàng (`HomeActivity`, xem quán, đặt món, giỏ hàng).
+  - `app-internal`: App dành cho Quán ăn (`OrderListFragment` - Kanban) và Shipper (`ShipperFragment` - GPS).
+  - `core`: Thư viện dùng chung (Models, Firebase Repositories, Utils).
+- **Phân quyền 4 Roles**: `CUSTOMER`, `MERCHANT` (hoặc `MANAGER`), `DRIVER` (hoặc `SHIPPER`), `ADMIN`.
 
-    @SerializedName("status")
-    val status: String = Status.ACTIVE,
+---
 
-    @get:PropertyName("isActive")
-    @SerializedName("isActive")
-    val isActive: Boolean = true,
+## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
+- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và `git push origin vu-15/11`.
 
-    @SerializedName("avatarUrl", alternate = ["photoUrl", "avatar", "profileImage"])
-    val avatarUrl: String = "",
+---
 
-    @SerializedName("fcmToken")
-    val fcmToken: String = "",
-
-    @SerializedName("storeId")
-    val storeId: String = "",
-
-    @SerializedName("bossId")
-    val bossId: String = "",
-
-    @SerializedName("emailVerified")
-    val emailVerified: Boolean = false,
-
-    @SerializedName("phoneVerified")
-    val phoneVerified: Boolean = false,
-
-    @SerializedName("approvalStatus")
-    val approvalStatus: String = ApprovalStatus.APPROVED,
-
-    @SerializedName("rejectReason")
-    val rejectReason: String = ""
-) {
-    /** Trạng thái duyệt hồ sơ (Merchant & BossMerchant) */
-    object ApprovalStatus {
-        const val PENDING = "PENDING"
-        const val APPROVED = "APPROVED"
-        const val REJECTED = "REJECTED"
-    }
-
-    /** Role constants — RBAC phân quyền 4 Actors + Boss */
-    object Role {
-        const val ADMIN = "ADMIN"
-        const val CUSTOMER = "CUSTOMER"
-        const val BOSSMERCHANT = "BOSSMERCHANT"
-        const val MERCHANT = "MERCHANT"
-        const val MANAGER = "MANAGER"
-        const val DRIVER = "DRIVER"
-        const val SHIPPER = "SHIPPER"
-    }
-
-    /** Trạng thái tài khoản */
-    object Status {
-        const val ACTIVE = "ACTIVE"
-        const val LOCKED = "LOCKED"
-        const val INACTIVE = "INACTIVE"
-        const val OFFLINE = "OFFLINE"
-    }
-}
+## 6. QUY TẮC BẢN ĐỒ MÃ NGUỒN REPOMIX (LIVING CODE MAP DIRECTIVE)
+- Mỗi khi Agent trong Antigravity cần nắm lại toàn bộ cấu trúc code, hoặc sau khi vừa sửa xong hàng loạt file, hãy chạy lệnh `npx repomix` trong terminal để cập nhật lại bản đồ `.antigravity/CODE_MAP.md`.
+- Tra cứu nhanh các Class, Interface, Method Signatures trong file `.antigravity/CODE_MAP.md` với chế độ nén AST (`compress: true`) để nắm cấu trúc toàn dự án trong 1 giây mà không tốn token đọc từng file.
 ````
 
 ## File: app-customer/src/main/res/layout/activity_order_success.xml
@@ -108896,7 +108740,7 @@ class BossMerchantAdapter(
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng / MoMo để duyệt đơn VietQR -->
+        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
         <service
             android:name=".service.BankNotificationListenerService"
             android:label="Tự Động Duyệt Thanh Toán Oishi"
@@ -111094,7 +110938,6 @@ import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.MomoPaymentGatewayClient
 import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
 import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityPaymentBinding
@@ -111105,7 +110948,6 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 
@@ -111122,7 +110964,6 @@ class PaymentActivity : AppCompatActivity() {
     private var currentAccountNum = ""
     private var currentAccountHolder = ""
     private var currentBankBin = "970422"
-    private var isMomoChannel = false
 
     private var orderId = ""
     private var shopName = "Quán Ăn Oishi"
@@ -111135,7 +110976,6 @@ class PaymentActivity : AppCompatActivity() {
     private var orderRef: DatabaseReference? = null
     private var orderPaymentListener: ValueEventListener? = null
     private var hasNavigatedSuccess = false
-    private var momoQrJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -111157,22 +110997,13 @@ class PaymentActivity : AppCompatActivity() {
         val paymentMode = intent.getStringExtra("extra_payment_mode") ?: com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL
         val remainAmount = intent.getLongExtra("extra_remain", 0L)
         val createdAt = intent.getLongExtra("extra_created_at", System.currentTimeMillis())
-        isMomoChannel = intent.getStringExtra("extra_channel").orEmpty().equals("momo", ignoreCase = true)
-
-        // MoMo orders use the store's MoMo receiving details and are confirmed manually by the store.
+        // Thông tin tài khoản ngân hàng nhận tiền của quán
         val passedBankName = intent.getStringExtra("extra_bank_name")
         val passedBankNum = intent.getStringExtra("extra_bank_number")
         val passedBankHolder = intent.getStringExtra("extra_bank_holder")
         val passedBankBin = intent.getStringExtra("extra_bank_bin")
-        val passedMomoPhone = intent.getStringExtra("extra_shop_phone")
-        val passedMomoHolder = intent.getStringExtra("extra_momo_holder")
 
-        if (isMomoChannel) {
-            currentBankName = "Ví MoMo"
-            currentAccountNum = passedMomoPhone.orEmpty().ifBlank { passedBankNum.orEmpty() }
-            currentAccountHolder = passedMomoHolder.orEmpty().ifBlank { shopName }
-            currentBankBin = passedBankBin?.ifBlank { currentBankBin } ?: currentBankBin
-        } else if (!passedBankNum.isNullOrBlank()) {
+        if (!passedBankNum.isNullOrBlank()) {
             currentAccountNum = passedBankNum
             currentBankName = if (!passedBankName.isNullOrBlank()) passedBankName else "Ngân hàng thụ hưởng"
             currentAccountHolder = if (!passedBankHolder.isNullOrBlank()) passedBankHolder else shopName
@@ -111191,38 +111022,19 @@ class PaymentActivity : AppCompatActivity() {
             FirebaseDatabase.getInstance().getReference("stores").child(shopId).get()
                 .addOnSuccessListener { snapshot ->
                     val store = snapshot.getValue(Store::class.java)
-                    if (store != null) {
-                        if (isMomoChannel) {
-                            currentAccountNum = store.momoPhone.ifBlank {
-                                store.phone.ifBlank { store.bankAccountNumber }
-                            }
-                            currentBankName = "Ví MoMo"
-                            currentAccountHolder = store.momoAccountName
-                                .ifBlank {
-                                    store.ownerName.ifBlank {
-                                        store.bankAccountName.ifBlank { store.name }
-                                    }
-                                }
-                            currentBankBin = store.bankBin.ifBlank { currentBankBin }
-                            renderPaymentUI(orderId, amount, paymentMode, remainAmount)
-                        } else if (store.bankAccountNumber.isNotBlank()) {
-                            currentAccountNum = store.bankAccountNumber
-                            currentBankName = store.bankName.ifBlank { "MB Bank" }
-                            currentAccountHolder = store.bankAccountName.ifBlank { store.name }
-                            currentBankBin = store.bankBin.ifBlank { "970422" }
-                            renderPaymentUI(orderId, amount, paymentMode, remainAmount)
-                        }
+                    if (store != null && store.bankAccountNumber.isNotBlank()) {
+                        currentAccountNum = store.bankAccountNumber
+                        currentBankName = store.bankName.ifBlank { "MB Bank" }
+                        currentAccountHolder = store.bankAccountName.ifBlank { store.name }
+                        currentBankBin = store.bankBin.ifBlank { "970422" }
+                        renderPaymentUI(orderId, amount, paymentMode, remainAmount)
                     }
                 }
         }
 
         binding.layoutAutoVerifyBox.visibility = View.VISIBLE
         binding.pbAutoVerify.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = if (isMomoChannel) {
-            "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-        } else {
-            "Đang chờ xác nhận giao dịch VietQR..."
-        }
+        binding.tvAutoVerifyStatus.text = "Đang chờ xác nhận giao dịch VietQR..."
 
         binding.btnConfirmPaid.setOnClickListener {
             binding.btnConfirmPaid.isEnabled = false
@@ -111249,7 +111061,7 @@ class PaymentActivity : AppCompatActivity() {
 
     /**
      * BƯỚC QUAN TRỌNG: Lắng nghe biến động Realtime từ Firebase Database.
-     * Khi khách chuyển khoản (VietQR hoặc MoMo) -> SePay Webhook nhận tiền -> Cập nhật paymentStatus = "PAID".
+     * Khi khách chuyển khoản VietQR -> SePay Webhook nhận tiền -> Cập nhật paymentStatus = "PAID".
      * Hàm này ngay lập tức phát hiện và tự động chuyển trang mà khách không cần bấm nút nào!
      */
     private fun observeOrderPaymentRealtime() {
@@ -111290,18 +111102,10 @@ class PaymentActivity : AppCompatActivity() {
         hasNavigatedSuccess = true
 
         // Xác định tên phương thức thanh toán hiển thị
-        val payMethodDisplay = if (isMomoChannel) {
-            "Ví MoMo (Tự động xác nhận)"
-        } else {
-            "Chuyển khoản VietQR ($currentBankName)"
-        }
+        val payMethodDisplay = "Chuyển khoản VietQR ($currentBankName)"
 
         // Bật thông báo Toast thành công
-        val successMessage = if (isMomoChannel) {
-            "Hệ thống đã tự động ghi nhận thanh toán MoMo thành công!"
-        } else {
-            "Hệ thống đã tự động ghi nhận chuyển khoản thành công!"
-        }
+        val successMessage = "Hệ thống đã tự động ghi nhận chuyển khoản thành công!"
         Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show()
 
         // Mở màn hình OrderSuccessActivity kèm thông tin chi tiết đơn hàng
@@ -111327,9 +111131,7 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun setupToolbar(paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL) {
-        if (isMomoChannel) {
-            binding.toolbar.title = "Quét Mã Ví MoMo"
-        } else if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+        if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
             binding.toolbar.title = "Quét Mã Đặt Cọc 20%"
         } else {
             binding.toolbar.title = "Quét Mã Thanh Toán 100%"
@@ -111339,60 +111141,13 @@ class PaymentActivity : AppCompatActivity() {
         }
     }
 
-    /** Hiển thị thông tin thanh toán và tạo QR tương ứng với kênh đã chọn */
+    /** Hiển thị thông tin thanh toán và tạo QR VietQR chuẩn ngân hàng */
     private fun renderPaymentUI(orderId: String, amount: Long, paymentMode: String = com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.FULL, remainAmount: Long = 0L) {
         if (orderId.isBlank()) return
         binding.tvAmountValue.text = amount.toVndCurrency()
         val transferSyntax = orderId.trim()
 
-        if (isMomoChannel) {
-            binding.toolbar.title = "Quét Mã Ví MoMo"
-            binding.tvPayTypeBadge.text = "📱 VÍ ĐIỆN TỬ MOMO 24/7"
-            binding.tvPayTypeBadge.setTextColor(android.graphics.Color.parseColor("#A50064"))
-            binding.tvAmountLabel.text = if (paymentMode == Order.PaymentMode.DEPOSIT) {
-                "Số tiền cọc cần thanh toán qua MoMo (20%):"
-            } else {
-                "Số tiền cần thanh toán qua MoMo:"
-            }
-            binding.tvPaymentSubNotice.text = if (paymentMode == Order.PaymentMode.DEPOSIT) {
-                "Đã cọc 20% giữ đơn. Số tiền còn lại ${remainAmount.toVndCurrency()} bạn thanh toán khi nhận hàng."
-            } else {
-                "Thanh toán qua ví MoMo; cửa hàng sẽ kiểm tra và xác nhận giao dịch."
-            }
-            binding.tvBankLabel.text = "Ví điện tử"
-            binding.tvAccountNumLabel.text = "Số điện thoại ví"
-            binding.tvBankName.text = "MoMo"
-            binding.tvAccountNum.text = currentAccountNum.ifBlank { "Chưa cập nhật" }
-            binding.tvAccountHolder.text = currentAccountHolder.ifBlank { "Chưa cập nhật" }
-            val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)
-            val momoTransferSyntax = if (orderId.startsWith("OISHI", ignoreCase = true)) {
-                orderId
-            } else {
-                val prefix = if (paymentMode == Order.PaymentMode.DEPOSIT) "COC" else "OISHI"
-                "$prefix $shortCode".trim()
-            }
-            binding.tvTransferSyntax.text = momoTransferSyntax
-            binding.tvPaymentGuide.text =
-                "1. Mở ứng dụng MoMo và chọn Quét Mã QR.\n" +
-                    "2. Quét mã để chuyển tiền vào tài khoản liên kết với ví MoMo; kiểm tra người nhận, số tiền và nội dung $momoTransferSyntax.\n" +
-                    "3. Cửa hàng sẽ kiểm tra giao dịch thực tế và xác nhận đơn thủ công."
-
-            if (currentAccountNum.isBlank()) {
-                binding.pbQrLoading.visibility = View.GONE
-                binding.tvAutoVerifyStatus.text =
-                    "Quán chưa cập nhật số điện thoại ví MoMo để nhận thanh toán."
-                return
-            }
-
-            binding.btnCopyAccount.setOnClickListener {
-                copyToClipboard("Số điện thoại ví MoMo", currentAccountNum)
-            }
-            binding.btnCopySyntax.setOnClickListener {
-                copyToClipboard("Nội dung chuyển khoản", momoTransferSyntax)
-            }
-            generateRealMomoQrCode(currentAccountNum, currentAccountHolder, amount, momoTransferSyntax)
-            return
-        } else if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
+        if (paymentMode == com.chuyen_de_2.foodorder.core.data.model.Order.PaymentMode.DEPOSIT) {
             binding.tvPayTypeBadge.text = "⚡ THANH TOÁN TIỀN CỌC GIỮ ĐƠN (20%)"
             binding.tvAmountLabel.text = "Số tiền cọc cần quét ngay (20%):"
             binding.tvPaymentSubNotice.text = "Đã cọc 20% giữ đơn. Số tiền còn lại ${remainAmount.toVndCurrency()} bạn thanh toán cho shipper khi nhận hàng."
@@ -111402,10 +111157,8 @@ class PaymentActivity : AppCompatActivity() {
             binding.tvPaymentSubNotice.text = "Đã thanh toán 100%, khi nhận hàng bạn không cần chuẩn bị tiền mặt."
         }
 
-        if (!isMomoChannel) {
-            binding.tvBankLabel.text = "Ngân hàng"
-            binding.tvAccountNumLabel.text = "Số tài khoản"
-        }
+        binding.tvBankLabel.text = "Ngân hàng"
+        binding.tvAccountNumLabel.text = "Số tài khoản"
 
         binding.tvBankName.text = currentBankName.ifBlank { "Chưa cập nhật" }
         binding.tvAccountNum.text = currentAccountNum.ifBlank { "Chưa cập nhật" }
@@ -111435,10 +111188,6 @@ class PaymentActivity : AppCompatActivity() {
         }
 
         // ── BƯỚC 2: Ghép URL VietQR hoàn chỉnh ─────────────────────────────────────
-        // Cấu trúc: https://api.vietqr.io/image/{BIN}-{STK}-{template}.jpg?amount=...&addInfo=...&accountName=...
-        // - amount: số tiền VNĐ (không có dấu phẩy)
-        // - addInfo: cú pháp đơn hàng để SePay nhận diện và tự xác nhận thanh toán
-        // - accountName: tên chủ tài khoản hiển thị trên app ngân hàng
         val qrUrl = "https://api.vietqr.io/image/${cleanBankBin}-${cleanAccountNo}-qLrkX2P.jpg?amount=$amount&addInfo=$encodedSyntax&accountName=$encodedAccountName"
 
         binding.pbQrLoading.visibility = View.VISIBLE
@@ -111467,45 +111216,6 @@ class PaymentActivity : AppCompatActivity() {
                 }
             })
             .into(binding.ivQrCode)
-    }
-
-    private fun generateRealMomoQrCode(
-        phone: String,
-        holderName: String,
-        paymentAmount: Long,
-        transferSyntax: String
-    ) {
-        momoQrJob?.cancel()
-        binding.pbQrLoading.visibility = View.VISIBLE
-        binding.tvAutoVerifyStatus.text = "Đang tạo mã thanh toán MoMo..."
-        momoQrJob = lifecycleScope.launch {
-            val result = MomoPaymentGatewayClient.generateRealMomoQr(
-                momoPhone = phone,
-                momoHolderName = holderName.ifBlank { shopName },
-                amount = paymentAmount,
-                transferSyntax = transferSyntax,
-                bankBin = currentBankBin
-            )
-            if (isFinishing || isDestroyed) return@launch
-            binding.pbQrLoading.visibility = View.GONE
-            if (result.qrCodeData.isNotBlank()) {
-                binding.ivQrCode.setImageBitmap(
-                    QRCodeUtils.generateQRCodeBitmap(
-                        text = result.qrCodeData,
-                        width = 512,
-                        height = 512,
-                        darkColorHex = "#A50064"
-                    )
-                )
-                binding.tvAutoVerifyStatus.text = if (result.isSuccess) {
-                    "Đang chờ hệ thống tự động xác nhận giao dịch MoMo..."
-                } else {
-                    result.message
-                }
-            } else {
-                binding.tvAutoVerifyStatus.text = "Không tạo được mã MoMo: ${result.message}"
-            }
-        }
     }
 
     private fun startCountdownTimer(orderId: String, createdAt: Long) {
@@ -118804,7 +118514,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.tvStep3PaymentMethodBadge.text = "⚠️ Chưa xác nhận tiền cọc"
             binding.tvStep4CodCollection.text = "Kiểm tra thanh toán cọc trước khi giao"
         } else if (isOnlinePaymentConfirmed(order)) {
-            binding.tvStep3PaymentMethodBadge.text = "✓ ĐÃ THANH TOÁN ONLINE (VIETQR/MOMO) - KHÔNG THU TIỀN"
+            binding.tvStep3PaymentMethodBadge.text = "✓ ĐÃ THANH TOÁN ONLINE (VIETQR) - KHÔNG THU TIỀN"
             binding.tvStep4CodCollection.text = "ĐÃ THANH TOÁN TRƯỚC (COD: 0 đ)"
         } else {
             binding.tvStep3PaymentMethodBadge.text = "⚠️ Chưa xác nhận thanh toán online"

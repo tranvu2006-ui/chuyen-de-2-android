@@ -113,7 +113,7 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng / MoMo để duyệt đơn VietQR -->
+        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
         <service
             android:name=".service.BankNotificationListenerService"
             android:label="Tự Động Duyệt Thanh Toán Oishi"

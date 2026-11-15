@@ -1407,7 +1407,7 @@
                                         android:id="@+id/choicePayment1"
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:text="0 đ (MoMo)"
+                                        android:text="0 đ (VietQR)"
                                         android:textColor="#059669"
                                         android:textSize="9.5sp"
                                         android:textStyle="bold" />

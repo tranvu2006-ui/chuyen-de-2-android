@@ -808,7 +808,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             binding.tvStep3PaymentMethodBadge.text = "⚠️ Chưa xác nhận tiền cọc"
             binding.tvStep4CodCollection.text = "Kiểm tra thanh toán cọc trước khi giao"
         } else if (isOnlinePaymentConfirmed(order)) {
-            binding.tvStep3PaymentMethodBadge.text = "✓ ĐÃ THANH TOÁN ONLINE (VIETQR/MOMO) - KHÔNG THU TIỀN"
+            binding.tvStep3PaymentMethodBadge.text = "✓ ĐÃ THANH TOÁN ONLINE (VIETQR) - KHÔNG THU TIỀN"
             binding.tvStep4CodCollection.text = "ĐÃ THANH TOÁN TRƯỚC (COD: 0 đ)"
         } else {
             binding.tvStep3PaymentMethodBadge.text = "⚠️ Chưa xác nhận thanh toán online"

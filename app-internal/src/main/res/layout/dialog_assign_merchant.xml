@@ -15,17 +15,18 @@
         android:orientation="horizontal">
 
         <ImageView
+            android:importantForAccessibility="no"
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:src="@drawable/ic_users"
-            app:tint="#2563EB" />
+            app:tint="@color/brand_blue" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:text="Phân Công Quản Lý"
-            android:textColor="#0F172A"
+            android:textColor="@color/text_primary"
             android:textSize="18sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -36,7 +37,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="Chi nhánh: Cơm Tấm Q1"
-        android:textColor="#2563EB"
+        android:textColor="@color/brand_blue"
         android:textSize="14sp"
         android:textStyle="bold" />
 
@@ -45,7 +46,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:text="Chọn một tài khoản MERCHANT để giao quyền quản lý chi nhánh này, hoặc chọn để trống nếu Boss muốn tự trực tiếp vận hành."
-        android:textColor="#64748B"
+        android:textColor="@color/text_secondary"
         android:textSize="13sp" />
 
     <RadioGroup
@@ -61,7 +62,7 @@
             android:checked="true"
             android:paddingVertical="8dp"
             android:text="Để trống (Boss trực tiếp tự quản lý)"
-            android:textColor="#0F172A"
+            android:textColor="@color/text_primary"
             android:textSize="14sp" />
     </RadioGroup>
 
@@ -78,7 +79,7 @@
             android:layout_width="wrap_content"
             android:layout_height="44dp"
             android:text="Hủy"
-            android:textColor="#64748B" />
+            android:textColor="@color/text_secondary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSubmitAssign"
@@ -86,9 +87,9 @@
             android:layout_width="wrap_content"
             android:layout_height="44dp"
             android:layout_marginStart="8dp"
-            android:backgroundTint="#2563EB"
+            android:backgroundTint="@color/brand_blue"
             android:text="Lưu Phân Công"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textStyle="bold"
             app:cornerRadius="10dp" />
     </LinearLayout>

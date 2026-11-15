@@ -66,7 +66,7 @@
         <!-- Tên người nhận -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilReceiverName"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
@@ -88,7 +88,7 @@
         <!-- SĐT người nhận -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilReceiverPhone"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -121,6 +121,7 @@
             android:paddingHorizontal="12dp">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                
@@ -143,7 +144,7 @@
             android:layout_marginTop="12dp"
             android:layout_marginBottom="4dp"
             android:text="Chọn Quận / Huyện (TP.HCM):"
-            android:textColor="#64748B"
+            android:textColor="@color/text_secondary"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -157,7 +158,7 @@
         <!-- Địa chỉ cụ thể -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilStreetAddress"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
@@ -195,7 +196,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCancelAddress"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
+                style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Hủy"

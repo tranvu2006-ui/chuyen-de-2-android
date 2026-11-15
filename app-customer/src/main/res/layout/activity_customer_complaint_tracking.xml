@@ -55,7 +55,7 @@
                     app:cardBackgroundColor="@color/white"
                     app:cardCornerRadius="12dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="#E2E8F0"
+                    app:strokeColor="@color/border"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -89,7 +89,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginHorizontal="3dp"
-                    app:cardBackgroundColor="#FFFBEB"
+                    app:cardBackgroundColor="@color/brand_orange_bg"
                     app:cardCornerRadius="12dp"
                     app:cardElevation="0dp"
                     app:strokeColor="#FDE68A"
@@ -114,7 +114,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="0"
-                            android:textColor="#D97706"
+                            android:textColor="@color/brand_orange"
                             android:textSize="20sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -126,7 +126,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginStart="6dp"
-                    app:cardBackgroundColor="#ECFDF5"
+                    app:cardBackgroundColor="@color/brand_green_bg"
                     app:cardCornerRadius="12dp"
                     app:cardElevation="0dp"
                     app:strokeColor="#A7F3D0"
@@ -151,7 +151,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="0"
-                            android:textColor="#059669"
+                            android:textColor="@color/brand_green"
                             android:textSize="20sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -177,6 +177,7 @@
                     android:gravity="center_vertical">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_shield_alert"
@@ -264,6 +265,7 @@
                 tools:visibility="visible">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="72dp"
                     android:layout_height="72dp"
                     android:src="@drawable/ic_shield"

@@ -19,6 +19,7 @@
             android:background="@drawable/bg_circle_icon_red">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="22dp"
                 android:layout_height="22dp"
                 android:layout_gravity="center"
@@ -116,7 +117,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCancelPenalty"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
+            style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Hủy"

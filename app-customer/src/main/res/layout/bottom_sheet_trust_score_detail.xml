@@ -35,6 +35,7 @@
                 android:background="@drawable/bg_circle_icon_indigo">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:layout_gravity="center"
@@ -53,7 +54,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Hồ Sơ &amp; Điểm Uy Tín"
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="17.5sp"
                     android:textStyle="bold" />
 
@@ -62,17 +63,18 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="Chính sách bảo vệ văn minh đặt đồ ăn Oishi"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
             </LinearLayout>
 
             <ImageButton
+                android:importantForAccessibility="no"
                 android:id="@+id/btnCloseTrustSheet"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_close"
-                app:tint="#64748B" />
+                app:tint="@color/text_secondary" />
         </LinearLayout>
 
         <!-- Current Trust Status Card -->
@@ -101,7 +103,7 @@
                         android:id="@+id/tvSheetScoreNumber"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#D97706"
+                        android:textColor="@color/brand_orange"
                         android:textSize="38sp"
                         android:textStyle="bold"
                         tools:text="100" />
@@ -112,7 +114,7 @@
                         android:layout_marginStart="4dp"
                         android:layout_weight="1"
                         android:text="/ 100 điểm"
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
@@ -137,7 +139,7 @@
                     android:layout_marginTop="8dp"
                     android:max="100"
                     android:progress="100"
-                    android:progressTint="#D97706" />
+                    android:progressTint="@color/brand_orange" />
 
                 <!-- 3 Stats metrics -->
                 <LinearLayout
@@ -165,7 +167,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:gravity="center"
-                        android:textColor="#059669"
+                        android:textColor="@color/brand_green"
                         android:textSize="11.5sp"
                         android:textStyle="bold"
                         tools:text="Nhận: 12 (+2đ)" />
@@ -191,7 +193,7 @@
             android:layout_marginTop="18dp"
             android:layout_marginBottom="8dp"
             android:text="BẢNG ĐẶC QUYỀN HẠNG UY TÍN"
-            android:textColor="#475569"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -205,10 +207,11 @@
             android:padding="12dp">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_badge_check"
-                app:tint="#059669" />
+                app:tint="@color/brand_green" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -221,7 +224,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Hạng Kim Cương (95 - 100 điểm)"
-                    android:textColor="#059669"
+                    android:textColor="@color/brand_green"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
@@ -230,7 +233,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="Thanh toán COD không giới hạn • Tự động giảm 5.000đ ship mọi đơn • Ưu tiên điều phối giao hàng nhanh nhất"
-                    android:textColor="#475569"
+                    android:textColor="@color/text_secondary"
                     android:textSize="11.5sp" />
             </LinearLayout>
         </LinearLayout>
@@ -246,10 +249,11 @@
             android:padding="12dp">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_shield"
-                app:tint="#D97706" />
+                app:tint="@color/brand_orange" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -262,7 +266,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Hạng Vàng (90 - 94 điểm)"
-                    android:textColor="#D97706"
+                    android:textColor="@color/brand_orange"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
@@ -271,7 +275,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="Đủ điều kiện thanh toán tiền mặt COD (từ 90 điểm trở lên) • Tùy chọn đặt cọc 20%"
-                    android:textColor="#475569"
+                    android:textColor="@color/text_secondary"
                     android:textSize="11.5sp" />
             </LinearLayout>
         </LinearLayout>
@@ -287,6 +291,7 @@
             android:padding="12dp">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_alert_triangle"
@@ -312,7 +317,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="Dưới 90 điểm: CẤM COD • Vui lòng chọn Đặt cọc 20% hoặc Trả thẳng (+2đ/đơn để nâng hạng)"
-                    android:textColor="#475569"
+                    android:textColor="@color/text_secondary"
                     android:textSize="11.5sp" />
             </LinearLayout>
         </LinearLayout>
@@ -328,6 +333,7 @@
             android:padding="12dp">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_lock"
@@ -353,7 +359,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="Khóa hoàn toàn COD • Vui lòng thanh toán VietQR hoặc Đặt cọc 20% (+2đ/đơn để nâng hạng)"
-                    android:textColor="#475569"
+                    android:textColor="@color/text_secondary"
                     android:textSize="11.5sp" />
             </LinearLayout>
         </LinearLayout>
@@ -365,7 +371,7 @@
             android:layout_marginTop="18dp"
             android:layout_marginBottom="8dp"
             android:text="CƠ CHẾ TÍNH ĐIỂM TỰ ĐỘNG"
-            android:textColor="#475569"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -383,10 +389,11 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="18dp"
                     android:layout_height="18dp"
                     android:src="@drawable/ic_check_circle"
-                    app:tint="#059669" />
+                    app:tint="@color/brand_green" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -401,7 +408,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
                     android:text="+2 điểm"
-                    android:textColor="#059669"
+                    android:textColor="@color/brand_green"
                     android:textSize="12.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -414,6 +421,7 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="18dp"
                     android:layout_height="18dp"
                     android:src="@drawable/ic_alert_triangle"
@@ -445,6 +453,7 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="18dp"
                     android:layout_height="18dp"
                     android:src="@drawable/ic_close"
@@ -476,7 +485,7 @@
             android:layout_marginTop="18dp"
             android:layout_marginBottom="8dp"
             android:text="LỊCH SỬ BIẾN ĐỘNG ĐIỂM GẦN ĐÂY"
-            android:textColor="#475569"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -492,11 +501,11 @@
             android:layout_height="wrap_content"
             android:drawableTop="@drawable/ic_shield"
             android:drawablePadding="8dp"
-            android:drawableTint="#94A3B8"
+            android:drawableTint="@color/text_muted"
             android:gravity="center"
             android:paddingVertical="16dp"
             android:text="Chưa có biến động điểm nào (Mặc định: 100/100 điểm)"
-            android:textColor="#94A3B8"
+            android:textColor="@color/text_muted"
             android:textSize="12.5sp"
             android:visibility="gone" />
 

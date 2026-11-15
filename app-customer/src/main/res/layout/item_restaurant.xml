@@ -36,7 +36,7 @@
                 android:id="@+id/ivRestaurant"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#F1F5F9"
+                android:background="@color/divider"
                 android:contentDescription="Ảnh nhà hàng"
                 android:scaleType="centerCrop" />
         </com.google.android.material.card.MaterialCardView>

@@ -57,7 +57,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_badge_shop_tag"
-                android:backgroundTint="#EFF6FF"
+                android:backgroundTint="@color/brand_blue_bg"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
                 android:text="Giữ Món Trên Xe"
@@ -116,7 +116,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="📍 Về Quán"
-                    android:textColor="#059669"
+                    android:textColor="@color/brand_green"
                     android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -203,7 +203,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Khách hàng"
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="11.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -230,7 +230,7 @@
                     android:gravity="end"
                     android:maxLines="2"
                     android:text="Địa chỉ giao..."
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="11.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -254,7 +254,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="0 đ (Đã trả VietQR)"
-                    android:textColor="#D97706"
+                    android:textColor="@color/brand_orange"
                     android:textSize="11.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -317,7 +317,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="53.000 đ"
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="11.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -341,7 +341,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="+25.000 đ"
-                    android:textColor="#059669"
+                    android:textColor="@color/brand_green"
                     android:textSize="11.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -385,7 +385,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:background="@drawable/bg_warning_inline"
-            android:backgroundTint="#FFFBEB"
+            android:backgroundTint="@color/brand_orange_bg"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:padding="9dp">

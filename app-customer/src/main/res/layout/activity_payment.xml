@@ -160,7 +160,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="⏱️ Đơn hàng hết hạn sau: "
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -387,7 +387,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:text="1. Mở ứng dụng Ngân hàng và chọn chức năng Quét QR.\n2. Quét mã QR ở trên hoặc chuyển khoản theo đúng số tài khoản và cú pháp.\n3. Hệ thống sẽ tự động cập nhật đơn hàng sau khi VietQR xác nhận giao dịch."
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11.5sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

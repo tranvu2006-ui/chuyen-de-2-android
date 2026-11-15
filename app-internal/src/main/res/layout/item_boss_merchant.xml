@@ -6,10 +6,10 @@
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="16dp"
     android:layout_marginBottom="12dp"
-    app:cardBackgroundColor="#FFFFFF"
+    app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -27,16 +27,17 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                app:cardBackgroundColor="#EFF6FF"
+                app:cardBackgroundColor="@color/brand_blue_bg"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="0dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_user"
-                    app:tint="#2563EB" />
+                    app:tint="@color/brand_blue" />
             </com.google.android.material.card.MaterialCardView>
 
             <LinearLayout
@@ -51,7 +52,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Nguyễn Văn A"
-                    android:textColor="#0F172A"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -61,7 +62,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="merchant@gmail.com"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12.5sp" />
 
                 <TextView
@@ -69,7 +70,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="0901234567"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -101,7 +102,7 @@
                     android:insetBottom="0dp"
                     android:paddingHorizontal="6dp"
                     android:text="Khóa"
-                    android:textColor="#EF4444"
+                    android:textColor="@color/danger"
                     android:textSize="12sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -112,7 +113,7 @@
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginVertical="12dp"
-            android:background="#F1F5F9" />
+            android:background="@color/divider" />
 
         <!-- Assigned Branch Info -->
         <LinearLayout
@@ -129,11 +130,12 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/ivBranchBadgeIcon"
                     android:layout_width="16dp"
                     android:layout_height="16dp"
                     android:src="@drawable/ic_store"
-                    app:tint="#2563EB" />
+                    app:tint="@color/brand_blue" />
 
                 <TextView
                     android:id="@+id/tvMerchantAssignedBranch"
@@ -141,7 +143,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
                     android:text="Chi nhánh: Quán Của Vũ"
-                    android:textColor="#2563EB"
+                    android:textColor="@color/brand_blue"
                     android:textSize="12.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -151,12 +153,12 @@
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:backgroundTint="#EFF6FF"
+                android:backgroundTint="@color/brand_blue_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="12dp"
                 android:text="Phân công"
-                android:textColor="#2563EB"
+                android:textColor="@color/brand_blue"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp" />
@@ -171,7 +173,7 @@
                 android:insetBottom="0dp"
                 android:paddingHorizontal="8dp"
                 android:text="Gỡ"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:visibility="gone" />

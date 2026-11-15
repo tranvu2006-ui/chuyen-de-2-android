@@ -34,6 +34,7 @@
                 android:background="@drawable/bg_circle_icon_orange">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="18dp"
                     android:layout_height="18dp"
                     android:layout_gravity="center"
@@ -163,6 +164,7 @@
                 android:textStyle="bold" />
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="13dp"
                 android:layout_height="13dp"
                 android:layout_marginStart="4dp"

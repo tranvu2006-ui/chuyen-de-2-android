@@ -72,7 +72,7 @@
                     android:id="@+id/ivDishThumb"
                     android:layout_width="72dp"
                     android:layout_height="72dp"
-                    android:background="#F1F5F9"
+                    android:background="@color/divider"
                     android:contentDescription="Ảnh món ăn"
                     android:scaleType="centerCrop" />
 

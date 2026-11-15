@@ -11,6 +11,7 @@
     android:paddingVertical="10dp">
 
     <ImageView
+        android:importantForAccessibility="no"
         android:layout_width="18dp"
         android:layout_height="18dp"
         app:srcCompat="@drawable/ic_tag"
@@ -51,7 +52,7 @@
         android:contentDescription="Sửa tên danh mục"
         android:padding="7dp"
         app:srcCompat="@drawable/ic_edit"
-        app:tint="#475569" />
+        app:tint="@color/text_secondary" />
 
     <!-- Nút xóa -->
     <ImageButton
@@ -63,6 +64,6 @@
         android:contentDescription="Xóa danh mục"
         android:padding="7dp"
         app:srcCompat="@drawable/ic_close"
-        app:tint="#EF4444" />
+        app:tint="@color/danger" />
 
 </LinearLayout>

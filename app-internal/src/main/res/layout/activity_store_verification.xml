@@ -5,7 +5,7 @@
     android:id="@+id/rootVerification"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8FAFC">
+    android:background="@color/background">
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -31,14 +31,15 @@
                     android:layout_width="48dp"
                     android:layout_height="48dp"
                     android:background="@drawable/bg_badge_orange"
-                    android:backgroundTint="#FFF0ED">
+                    android:backgroundTint="@color/primary_light">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
                         android:layout_gravity="center"
                         app:srcCompat="@drawable/ic_store"
-                        app:tint="#EE4D2D" />
+                        app:tint="@color/primary" />
                 </FrameLayout>
 
                 <LinearLayout
@@ -52,7 +53,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="THIẾT LẬP ĐỊA CHỈ &amp; QUÁN"
-                        android:textColor="#EE4D2D"
+                        android:textColor="@color/primary"
                         android:textSize="11sp"
                         android:textStyle="bold" />
 
@@ -61,7 +62,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:text="Xác Minh Hồ Sơ Đối Tác"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="18sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -83,6 +84,7 @@
                     android:orientation="horizontal">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="18dp"
                         android:layout_height="18dp"
                         android:layout_marginEnd="8dp"
@@ -113,10 +115,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -132,17 +134,18 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="18dp"
                             android:layout_height="18dp"
                             android:layout_marginEnd="8dp"
                             app:srcCompat="@drawable/ic_map_pin"
-                            app:tint="#EE4D2D" />
+                            app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="1. Địa Chỉ &amp; Thông Tin Cửa Hàng"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -150,56 +153,56 @@
                     <!-- Tên quán -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilStoreName"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="14dp"
                         android:hint="Tên cửa hàng / Quán ăn *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etStoreName"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textCapWords"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Hotline quán -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilStorePhone"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:hint="Số điện thoại quán *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etStorePhone"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="phone"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Địa chỉ cụ thể (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS) -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilStoreAddress"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
-                        app:boxStrokeColor="#EE4D2D"
+                        app:boxStrokeColor="@color/primary"
                         app:endIconDrawable="@drawable/ic_map_pin"
                         app:endIconMode="custom"
-                        app:endIconTint="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
+                        app:endIconTint="@color/primary"
+                        app:hintTextColor="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etStoreAddress"
@@ -209,14 +212,14 @@
                             android:cursorVisible="false"
                             android:focusable="false"
                             android:inputType="none"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Nút chọn / ghim vị trí quán trên bản đồ (Place Autocomplete & GPS) -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnPickLocationMap"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:layout_marginTop="8dp"
@@ -236,7 +239,7 @@
                         android:layout_marginTop="12dp"
                         android:layout_marginBottom="4dp"
                         android:text="Quận / Huyện (Tự động nhận diện từ bản đồ) *:"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
@@ -257,14 +260,14 @@
 
                         <com.google.android.material.textfield.TextInputLayout
                             android:id="@+id/tilOpenHours"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginEnd="6dp"
                             android:layout_weight="1"
                             android:hint="Giờ mở cửa"
-                            app:boxStrokeColor="#EE4D2D"
-                            app:hintTextColor="#EE4D2D">
+                            app:boxStrokeColor="@color/primary"
+                            app:hintTextColor="@color/primary">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etOpenHours"
@@ -272,20 +275,20 @@
                                 android:layout_height="wrap_content"
                                 android:inputType="text"
                                 android:text="08:00 - 22:30"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="13sp" />
                         </com.google.android.material.textfield.TextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
                             android:id="@+id/tilPrepTime"
-                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="6dp"
                             android:layout_weight="1"
                             android:hint="Thời gian làm món"
-                            app:boxStrokeColor="#EE4D2D"
-                            app:hintTextColor="#EE4D2D">
+                            app:boxStrokeColor="@color/primary"
+                            app:hintTextColor="@color/primary">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etPrepTime"
@@ -293,7 +296,7 @@
                                 android:layout_height="wrap_content"
                                 android:inputType="text"
                                 android:text="15 phút"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="13sp" />
                         </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
@@ -306,10 +309,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -325,17 +328,18 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="18dp"
                             android:layout_height="18dp"
                             android:layout_marginEnd="8dp"
                             app:srcCompat="@drawable/ic_shield"
-                            app:tint="#EE4D2D" />
+                            app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="2. Xác Minh Danh Tính Chủ Quán (KYC)"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -346,7 +350,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="14dp"
-                        app:cardBackgroundColor="#FFFFFF"
+                        app:cardBackgroundColor="@color/white"
                         app:cardCornerRadius="14dp"
                         app:cardElevation="0dp"
                         app:strokeColor="#FED7AA"
@@ -369,14 +373,15 @@
                                     android:layout_width="38dp"
                                     android:layout_height="38dp"
                                     android:background="@drawable/bg_badge_orange"
-                                    android:backgroundTint="#FFF0ED">
+                                    android:backgroundTint="@color/primary_light">
 
                                     <ImageView
+                                        android:importantForAccessibility="no"
                                         android:layout_width="20dp"
                                         android:layout_height="20dp"
                                         android:layout_gravity="center"
                                         app:srcCompat="@drawable/ic_camera"
-                                        app:tint="#EE4D2D" />
+                                        app:tint="@color/primary" />
                                 </FrameLayout>
 
                                 <LinearLayout
@@ -390,7 +395,7 @@
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
                                         android:text="Quét Thẻ Căn Cước Công Dân (AI)"
-                                        android:textColor="#0F172A"
+                                        android:textColor="@color/text_primary"
                                         android:textSize="13.5sp"
                                         android:textStyle="bold" />
 
@@ -399,7 +404,7 @@
                                         android:layout_height="wrap_content"
                                         android:layout_marginTop="1dp"
                                         android:text="Tự động đọc Họ tên &amp; 12 số CCCD"
-                                        android:textColor="#64748B"
+                                        android:textColor="@color/text_secondary"
                                         android:textSize="11.5sp" />
                                 </LinearLayout>
 
@@ -407,11 +412,11 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:background="@drawable/bg_badge_orange"
-                                    android:backgroundTint="#FFF0ED"
+                                    android:backgroundTint="@color/primary_light"
                                     android:paddingHorizontal="7dp"
                                     android:paddingVertical="3dp"
                                     android:text="TỰ ĐỘNG ĐIỀN"
-                                    android:textColor="#EE4D2D"
+                                    android:textColor="@color/primary"
                                     android:textSize="10sp"
                                     android:textStyle="bold" />
                             </LinearLayout>
@@ -420,7 +425,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="1dp"
                                 android:layout_marginVertical="10dp"
-                                android:background="#F1F5F9" />
+                                android:background="@color/divider" />
 
                             <!-- Khung xem trước ảnh thẻ đã chụp/chọn -->
                             <FrameLayout
@@ -439,6 +444,7 @@
                                     app:strokeWidth="1dp">
 
                                     <ImageView
+                                        android:importantForAccessibility="no"
                                         android:id="@+id/ivCccdPreview"
                                         android:layout_width="match_parent"
                                         android:layout_height="match_parent"
@@ -492,7 +498,7 @@
                                     <ProgressBar
                                         android:layout_width="18dp"
                                         android:layout_height="18dp"
-                                        android:indeterminateTint="#EE4D2D" />
+                                        android:indeterminateTint="@color/primary" />
 
                                     <TextView
                                         android:layout_width="wrap_content"
@@ -513,11 +519,11 @@
 
                                 <com.google.android.material.button.MaterialButton
                                     android:id="@+id/btnCaptureCccd"
-                                    style="@style/Widget.MaterialComponents.Button"
+                                    style="@style/Widget.Material3.Button"
                                     android:layout_width="0dp"
                                     android:layout_height="44dp"
                                     android:layout_weight="1"
-                                    android:backgroundTint="#EE4D2D"
+                                    android:backgroundTint="@color/primary"
                                     android:insetTop="0dp"
                                     android:insetBottom="0dp"
                                     android:maxLines="1"
@@ -525,18 +531,18 @@
                                     android:ellipsize="none"
                                     android:paddingHorizontal="4dp"
                                     android:text="Chụp ảnh"
-                                    android:textColor="#FFFFFF"
+                                    android:textColor="@color/white"
                                     android:textSize="12.5sp"
                                     android:textStyle="bold"
                                     app:cornerRadius="8dp"
                                     app:icon="@drawable/ic_camera"
                                     app:iconGravity="textStart"
                                     app:iconSize="16dp"
-                                    app:iconTint="#FFFFFF" />
+                                    app:iconTint="@color/white" />
 
                                 <com.google.android.material.button.MaterialButton
                                     android:id="@+id/btnPickCccdGallery"
-                                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                    style="@style/Widget.Material3.Button.OutlinedButton"
                                     android:layout_width="0dp"
                                     android:layout_height="44dp"
                                     android:layout_marginStart="8dp"
@@ -548,14 +554,14 @@
                                     android:ellipsize="none"
                                     android:paddingHorizontal="4dp"
                                     android:text="Chọn từ máy"
-                                    android:textColor="#0F172A"
+                                    android:textColor="@color/text_primary"
                                     android:textSize="12.5sp"
                                     android:textStyle="bold"
                                     app:cornerRadius="8dp"
                                     app:icon="@drawable/ic_image"
                                     app:iconGravity="textStart"
                                     app:iconSize="16dp"
-                                    app:iconTint="#64748B"
+                                    app:iconTint="@color/text_secondary"
                                     app:strokeColor="#CBD5E1" />
                             </LinearLayout>
 
@@ -565,35 +571,35 @@
                     <!-- Chủ hộ kinh doanh -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilOwnerName"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="14dp"
                         android:hint="Họ và tên chủ hộ kinh doanh *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etOwnerName"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textPersonName|textCapWords"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Số CCCD 12 số -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilCccdNumber"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:hint="Số Căn cước công dân (12 chữ số) *"
-                        app:boxStrokeColor="#EE4D2D"
+                        app:boxStrokeColor="@color/primary"
                         app:counterEnabled="true"
                         app:counterMaxLength="12"
-                        app:hintTextColor="#EE4D2D">
+                        app:hintTextColor="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etCccdNumber"
@@ -601,7 +607,7 @@
                             android:layout_height="wrap_content"
                             android:inputType="number"
                             android:maxLength="12"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -613,10 +619,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -632,17 +638,18 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="18dp"
                             android:layout_height="18dp"
                             android:layout_marginEnd="8dp"
                             app:srcCompat="@drawable/ic_credit_card"
-                            app:tint="#EE4D2D" />
+                            app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="3. Tài Khoản Nhận Tiền Tự Động (VietQR)"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -652,7 +659,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="Tài khoản này dùng để tạo mã QR thanh toán động khi khách đặt đơn tại quán"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11.5sp" />
 
                     <!-- Ngân hàng -->
@@ -662,7 +669,7 @@
                         android:layout_marginTop="12dp"
                         android:layout_marginBottom="4dp"
                         android:text="Chọn Ngân hàng thụ hưởng *:"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
@@ -676,40 +683,40 @@
                     <!-- Số tài khoản -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilBankAccountNumber"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:hint="Số tài khoản ngân hàng *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etBankAccountNumber"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="number"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Tên chủ tài khoản -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilBankAccountName"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:hint="Tên chủ tài khoản (In hoa không dấu) *"
-                        app:boxStrokeColor="#EE4D2D"
-                        app:hintTextColor="#EE4D2D">
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etBankAccountName"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textCapCharacters"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -723,7 +730,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="16dp"
-                android:indeterminateTint="#EE4D2D"
+                android:indeterminateTint="@color/primary"
                 android:visibility="gone" />
 
             <!-- Nút Lưu & Kích Hoạt -->
@@ -732,15 +739,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:layout_marginTop="20dp"
-                android:backgroundTint="#EE4D2D"
+                android:backgroundTint="@color/primary"
                 android:text="Xác Nhận &amp; Bắt Đầu Hoạt Động"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 app:cornerRadius="10dp"
                 app:icon="@drawable/ic_check"
                 app:iconGravity="textStart"
-                app:iconTint="#FFFFFF" />
+                app:iconTint="@color/white" />
 
             <!-- Nút Đăng xuất -->
             <com.google.android.material.button.MaterialButton
@@ -750,7 +757,7 @@
                 android:layout_height="44dp"
                 android:layout_marginTop="8dp"
                 android:text="Đăng xuất tài khoản này"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
         </LinearLayout>

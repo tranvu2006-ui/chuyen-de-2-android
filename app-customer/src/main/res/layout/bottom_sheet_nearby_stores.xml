@@ -36,20 +36,21 @@
             android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:text="Các Quán Ăn Gần Bạn Nhất"
-            android:textColor="#0F172A"
+            android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <ImageView
+            android:importantForAccessibility="no"
             android:id="@+id/btnCloseSheet"
             android:layout_width="30dp"
             android:layout_height="30dp"
-            android:background="#F1F5F9"
+            android:background="@color/divider"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
            
-            android:textColor="#64748B"
+            android:textColor="@color/text_secondary"
            
             android:textStyle="bold" app:srcCompat="@drawable/ic_close" app:tint="@color/text_muted" />
     </LinearLayout>
@@ -61,7 +62,7 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="18dp"
         android:layout_marginBottom="10dp"
-        android:background="#EFF6FF"
+        android:background="@color/brand_blue_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:clickable="true"
@@ -83,7 +84,7 @@
             android:id="@+id/tvGpsStatusBadge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="#DBEAFE"
+            android:background="@color/brand_blue_bg"
             android:paddingHorizontal="8dp"
             android:paddingVertical="4dp"
             android:text="🗺️ Đổi trên bản đồ"
@@ -106,7 +107,7 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="6dp"
             android:text="Bán kính:"
-            android:textColor="#475569"
+            android:textColor="@color/text_secondary"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -174,7 +175,7 @@
         android:layout_height="wrap_content"
         android:layout_marginHorizontal="18dp"
         android:layout_marginBottom="6dp"
-        android:textColor="#64748B"
+        android:textColor="@color/text_secondary"
         android:textSize="11.5sp"
         android:visibility="gone" />
 
@@ -211,10 +212,10 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFilterNearbyOnly"
-            style="@style/Widget.MaterialComponents.Button"
+            style="@style/Widget.Material3.Button"
             android:layout_width="match_parent"
             android:layout_height="46dp"
-            android:backgroundTint="#10B981"
+            android:backgroundTint="@color/brand_green"
             android:text="Chỉ Lọc Món Các Quán Gần Nhất"
             android:textAllCaps="false"
             android:textColor="@color/white"

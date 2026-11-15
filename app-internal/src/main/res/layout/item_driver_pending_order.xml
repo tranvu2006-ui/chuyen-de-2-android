@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
-    app:cardBackgroundColor="#FFFFFF"
+    app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="14dp"
     app:cardElevation="2dp"
     app:strokeColor="@color/border"
@@ -59,7 +59,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             tools:text="📍 Giao đến: Minh Khang - 18 Lê Duẩn, Q.1 (5.4 km)"
-            android:textColor="#1E293B"
+            android:textColor="@color/text_primary"
             android:textSize="12sp" />
 
         <com.google.android.material.button.MaterialButton
@@ -67,9 +67,9 @@
             android:layout_width="match_parent"
             android:layout_height="42dp"
             android:layout_marginTop="10dp"
-            android:backgroundTint="#059669"
+            android:backgroundTint="@color/brand_green"
             android:text="NHẬN ĐƠN NÀY"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="12sp"
             android:textStyle="bold"
             app:cornerRadius="8dp" />

@@ -37,7 +37,7 @@
                 android:id="@+id/tvCustomerName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -61,7 +61,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="10.5sp" />
             </LinearLayout>
         </LinearLayout>
@@ -103,6 +103,7 @@
         app:strokeWidth="1dp">
 
         <ImageView
+            android:importantForAccessibility="no"
             android:id="@+id/ivReviewImage"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -127,7 +128,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="👍 Hữu ích"
-            android:textColor="#64748B"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -137,7 +138,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:text="(0)"
-            android:textColor="#64748B"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>

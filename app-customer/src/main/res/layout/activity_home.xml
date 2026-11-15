@@ -81,6 +81,7 @@
                 android:paddingVertical="4.5dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="12dp"
                     android:layout_height="12dp"
                     app:srcCompat="@drawable/ic_map_pin"
@@ -123,6 +124,7 @@
             android:paddingHorizontal="12dp">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 app:srcCompat="@drawable/ic_search"
@@ -143,6 +145,7 @@
                 android:textSize="13sp" />
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/btnClearSearch"
                 android:layout_width="22dp"
                 android:layout_height="22dp"
@@ -161,7 +164,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="#FFF3E0"
+        android:background="@color/primary_light"
         android:paddingHorizontal="16dp"
         android:paddingVertical="10dp"
         android:gravity="center_vertical"
@@ -304,7 +307,7 @@
                             android:layout_marginHorizontal="10dp"
                             android:layout_marginTop="8dp"
                             android:layout_marginBottom="6dp"
-                            android:background="#F1F5F9" />
+                            android:background="@color/divider" />
 
                         <!-- Nút Mở Bottom Sheet Bộ Lọc Nâng Cao (b1.html: btn-filter-toggle) -->
                         <LinearLayout
@@ -360,7 +363,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:background="#ECFDF5"
+                    android:background="@color/brand_green_bg"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="12dp"
@@ -381,7 +384,7 @@
                         android:id="@+id/btnClearFilter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:background="#D1FAE5"
+                        android:background="@color/brand_green_bg"
                         android:clickable="true"
                         android:focusable="true"
                         android:paddingHorizontal="8dp"

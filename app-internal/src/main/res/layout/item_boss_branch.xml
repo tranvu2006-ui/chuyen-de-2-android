@@ -8,7 +8,7 @@
     android:layout_marginVertical="8dp"
     app:cardCornerRadius="16dp"
     app:cardElevation="2dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1dp"
     app:cardBackgroundColor="@color/white">
 
@@ -30,15 +30,16 @@
                 android:layout_height="44dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="0dp"
-                app:cardBackgroundColor="#FFF0ED">
+                app:cardBackgroundColor="@color/primary_light">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/ivBranchIcon"
                     android:layout_width="26dp"
                     android:layout_height="26dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_store"
-                    app:tint="#EE4D2D" />
+                    app:tint="@color/primary" />
             </com.google.android.material.card.MaterialCardView>
 
             <LinearLayout
@@ -53,7 +54,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Cơm Tấm Oishi - Chi nhánh Q1"
-                    android:textColor="#0F172A"
+                    android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -63,7 +64,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="Đang mở cửa"
-                    android:textColor="#10B981"
+                    android:textColor="@color/brand_green"
                     android:textSize="12sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -78,10 +79,11 @@
             android:orientation="horizontal">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:src="@drawable/ic_map_pin"
-                app:tint="#64748B" />
+                app:tint="@color/text_secondary" />
 
             <TextView
                 android:id="@+id/tvBranchAddress"
@@ -91,7 +93,7 @@
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:text="123 Nguyễn Thị Minh Khai, Phường Bến Thành, Quận 1"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
         </LinearLayout>
 
@@ -101,16 +103,17 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:gravity="center_vertical"
-            android:background="#F8FAFC"
+            android:background="@color/background"
             android:paddingHorizontal="10dp"
             android:paddingVertical="8dp"
             android:orientation="horizontal">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:src="@drawable/ic_user"
-                app:tint="#2563EB" />
+                app:tint="@color/brand_blue" />
 
             <TextView
                 android:id="@+id/tvBranchManager"
@@ -119,7 +122,7 @@
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:text="Quản lý: Chưa gán"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="12.5sp"
                 android:textStyle="bold" />
 
@@ -132,7 +135,7 @@
                 android:insetBottom="0dp"
                 android:paddingHorizontal="8dp"
                 android:text="Gỡ"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
@@ -143,12 +146,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="32dp"
                 android:layout_marginStart="4dp"
-                android:backgroundTint="#EFF6FF"
+                android:backgroundTint="@color/brand_blue_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
                 android:text="Phân công"
-                android:textColor="#2563EB"
+                android:textColor="@color/brand_blue"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
                 app:cornerRadius="6dp" />
@@ -167,15 +170,15 @@
                 style="@style/Widget.Material3.Button"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
-                android:backgroundTint="#EE4D2D"
+                android:backgroundTint="@color/primary"
                 android:text="Vào Quản Lý Chi Nhánh"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 app:icon="@drawable/ic_store"
                 app:iconGravity="textStart"
                 app:iconSize="18dp"
-                app:iconTint="#FFFFFF"
+                app:iconTint="@color/white"
                 app:cornerRadius="10dp" />
         </LinearLayout>
 

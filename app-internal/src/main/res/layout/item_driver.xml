@@ -5,10 +5,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="12dp"
-    app:cardBackgroundColor="#FFFFFF"
+    app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -31,7 +31,7 @@
                 android:scaleType="centerCrop"
                 android:src="@mipmap/ic_launcher"
                 app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="2dp" />
 
             <LinearLayout
@@ -51,7 +51,7 @@
                         android:id="@+id/tvDriverName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="#1E293B"
+                        android:textColor="@color/text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold"
                         tools:text="Tên tài xế" />
@@ -61,10 +61,10 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
-                        android:background="#F1F5F9"
+                        android:background="@color/divider"
                         android:paddingHorizontal="6dp"
                         android:paddingVertical="1dp"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="10sp"
                         android:textStyle="bold"
                         tools:text="TX-14" />
@@ -75,7 +75,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="11sp"
                     tools:text="📞 0903.882.910" />
             </LinearLayout>
@@ -99,7 +99,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:background="#F8FAFC"
+            android:background="@color/background"
             android:orientation="vertical"
             android:paddingHorizontal="12dp"
             android:paddingVertical="10dp">
@@ -108,7 +108,7 @@
                 android:id="@+id/tvVehicleInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp"
                 tools:text="🏍️ Xe máy: Yamaha Sirius Fi (59-T1 882.91)" />
 
@@ -117,7 +117,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp"
                 tools:text="📦 Đã giao cho quán: 12 đơn hôm nay • 1.240 đơn tổng" />
 
@@ -126,7 +126,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp"
                 tools:text="⭐ Đánh giá uy tín: 4.9 / 5.0 (Tài xế trực thuộc quán)" />
         </LinearLayout>
@@ -144,12 +144,12 @@
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:backgroundTint="#ECFDF5"
+                android:backgroundTint="@color/brand_green_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="14dp"
                 android:text="Liên hệ"
-                android:textColor="#10B981"
+                android:textColor="@color/brand_green"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp"

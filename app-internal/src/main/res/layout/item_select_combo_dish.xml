@@ -24,14 +24,15 @@
         android:layout_marginStart="6dp"
         app:cardCornerRadius="8dp"
         app:cardElevation="0dp"
-        app:strokeColor="#F1F5F9"
+        app:strokeColor="@color/divider"
         app:strokeWidth="1dp">
 
         <ImageView
+            android:importantForAccessibility="no"
             android:id="@+id/ivDishThumb"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#F8FAFC"
+            android:background="@color/background"
             android:scaleType="centerCrop"
             tools:src="@drawable/bg_badge_orange" />
     </com.google.android.material.card.MaterialCardView>
@@ -49,7 +50,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#0F172A"
+            android:textColor="@color/text_primary"
             android:textSize="13.5sp"
             android:textStyle="bold"
             tools:text="Cơm gà xối mỡ" />

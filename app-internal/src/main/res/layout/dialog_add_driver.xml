@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="#FFFFFF">
+    android:background="@color/white">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -23,17 +23,18 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Tạo Tài Khoản Tài Xế"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="17sp"
                 android:textStyle="bold" />
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/btnCloseDialog"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_close"
-                app:tint="#64748B" />
+                app:tint="@color/text_secondary" />
         </LinearLayout>
 
         <TextView
@@ -41,44 +42,44 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="Cấp tài khoản đăng nhập ứng dụng cho tài xế giao hàng của quán"
-            android:textColor="#64748B"
+            android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 
         <!-- Họ tên -->
         <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:hint="Họ và tên tài xế *"
-            app:boxStrokeColor="#2563EB"
-            app:hintTextColor="#2563EB">
+            app:boxStrokeColor="@color/brand_blue"
+            app:hintTextColor="@color/brand_blue">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etDriverName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textPersonName"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- SĐT -->
         <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:hint="Số điện thoại liên hệ *"
-            app:boxStrokeColor="#2563EB"
-            app:hintTextColor="#2563EB">
+            app:boxStrokeColor="@color/brand_blue"
+            app:hintTextColor="@color/brand_blue">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etDriverPhone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="phone"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -90,14 +91,14 @@
             android:orientation="horizontal">
 
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="6dp"
                 android:layout_weight="1"
                 android:hint="Mã TX"
-                app:boxStrokeColor="#2563EB"
-                app:hintTextColor="#2563EB">
+                app:boxStrokeColor="@color/brand_blue"
+                app:hintTextColor="@color/brand_blue">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etDriverCode"
@@ -105,19 +106,19 @@
                     android:layout_height="wrap_content"
                     android:inputType="textCapCharacters"
                     android:text="TX-01"
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1.4"
                 android:hint="Biển số xe *"
-                app:boxStrokeColor="#2563EB"
-                app:hintTextColor="#2563EB">
+                app:boxStrokeColor="@color/brand_blue"
+                app:hintTextColor="@color/brand_blue">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etDriverPlate"
@@ -125,20 +126,20 @@
                     android:layout_height="wrap_content"
                     android:inputType="textCapCharacters"
                     android:text="59-S2 999.88"
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
         <!-- Dòng xe -->
         <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:hint="Dòng xe (VD: Honda Wave Alpha)"
-            app:boxStrokeColor="#2563EB"
-            app:hintTextColor="#2563EB">
+            app:boxStrokeColor="@color/brand_blue"
+            app:hintTextColor="@color/brand_blue">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etVehicleModel"
@@ -146,38 +147,38 @@
                 android:layout_height="wrap_content"
                 android:inputType="text"
                 android:text="Honda Wave Alpha"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Email đăng nhập cho tài xế -->
         <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:hint="Email đăng nhập của tài xế *"
-            app:boxStrokeColor="#2563EB"
-            app:hintTextColor="#2563EB">
+            app:boxStrokeColor="@color/brand_blue"
+            app:hintTextColor="@color/brand_blue">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etDriverEmail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textEmailAddress"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Mật khẩu đăng nhập -->
         <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:hint="Mật khẩu đăng nhập (ít nhất 6 ký tự) *"
-            app:boxStrokeColor="#2563EB"
-            app:hintTextColor="#2563EB"
+            app:boxStrokeColor="@color/brand_blue"
+            app:hintTextColor="@color/brand_blue"
             app:passwordToggleEnabled="true">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -185,7 +186,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textPassword"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -203,7 +204,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="44dp"
                 android:text="Hủy"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
             <com.google.android.material.button.MaterialButton
@@ -211,9 +212,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="44dp"
                 android:layout_marginStart="8dp"
-                android:backgroundTint="#2563EB"
+                android:backgroundTint="@color/brand_blue"
                 android:text="Tạo tài khoản"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="13sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp" />

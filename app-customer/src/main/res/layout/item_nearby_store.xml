@@ -7,10 +7,10 @@
     android:layout_marginBottom="8dp"
     android:clickable="true"
     android:focusable="true"
-    app:cardBackgroundColor="#F8FAFC"
+    app:cardBackgroundColor="@color/background"
     app:cardCornerRadius="12dp"
     app:cardElevation="0dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1.2dp">
 
     <LinearLayout
@@ -27,6 +27,7 @@
             android:background="@drawable/bg_search_box">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/ivNearbyStore"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -59,7 +60,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Phúc Long Tea &amp; Coffee - Huỳnh Thúc Kháng"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -71,7 +72,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="63 Huỳnh Thúc Kháng, Bến Nghé, Quận 1"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp" />
 
             <!-- Tags: Khoảng cách, Thời gian giao, Đánh giá -->
@@ -86,7 +87,7 @@
                     android:id="@+id/tvNearbyDistance"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:background="#ECFDF5"
+                    android:background="@color/brand_green_bg"
                     android:paddingHorizontal="6dp"
                     android:paddingVertical="1dp"
                     android:text="0.8 km"
@@ -99,7 +100,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="5dp"
-                    android:background="#FEF3C7"
+                    android:background="@color/brand_orange_bg"
                     android:paddingHorizontal="6dp"
                     android:paddingVertical="1dp"
                     android:text="⏱ 12-15 phút"
@@ -113,7 +114,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
                     android:text="⭐ 4.9"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/brand_orange"
                     android:textSize="10.5sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -125,7 +126,7 @@
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:background="@drawable/bg_badge_orange"
-            android:backgroundTint="#F1F5F9">
+            android:backgroundTint="@color/divider">
 
             <TextView
                 android:layout_width="wrap_content"

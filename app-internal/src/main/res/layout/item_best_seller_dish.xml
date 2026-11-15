@@ -16,7 +16,7 @@
         android:layout_height="28dp"
         android:background="@drawable/bg_badge_orange"
         android:gravity="center"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/white"
         android:textSize="12sp"
         android:textStyle="bold"
         tools:text="1" />
@@ -33,7 +33,7 @@
             android:id="@+id/tvDishRankName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#0F172A"
+            android:textColor="@color/text_primary"
             android:textSize="13.5sp"
             android:textStyle="bold"
             tools:text="Tên món ăn" />
@@ -46,6 +46,7 @@
             android:orientation="horizontal">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="12dp"
                 android:layout_height="12dp"
                 app:srcCompat="@drawable/ic_flame"
@@ -56,7 +57,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="4dp"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 tools:text="120 phần đã bán" />
         </LinearLayout>

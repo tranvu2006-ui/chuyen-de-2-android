@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
@@ -43,10 +44,10 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val isLogout = intent.getBooleanExtra("LOGOUT", false)
+        val isLogout = intent.getBooleanExtra(AppConstants.Extras.LOGOUT, false)
         if (isLogout) {
             try {
-                getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
             } catch (_: Exception) {}
             authRepository.logout()
         } else if (authRepository.isLoggedIn) {
@@ -73,9 +74,9 @@ class LoginActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.getBooleanExtra("LOGOUT", false)) {
+        if (intent.getBooleanExtra(AppConstants.Extras.LOGOUT, false)) {
             try {
-                getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
             } catch (_: Exception) {}
             authRepository.logout()
         }
@@ -109,7 +110,7 @@ class LoginActivity : AppCompatActivity() {
             binding.tilEmail.error = null
             binding.tilPassword.error = null
 
-            val isAdmin = email.lowercase() == "admin@gmail.com"
+            val isAdmin = email.lowercase() == AppConstants.Defaults.ADMIN_EMAIL
             val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, email)
 
             if (hasSession) {
@@ -171,7 +172,7 @@ class LoginActivity : AppCompatActivity() {
         viewModel.loginResult.observe(this) { result ->
             result.onSuccess {
                 try {
-                    getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
                 } catch (_: Exception) {}
                 val email = binding.etEmail.text.toString().trim()
                 OtpSessionManager.markEmailVerified(this, email)

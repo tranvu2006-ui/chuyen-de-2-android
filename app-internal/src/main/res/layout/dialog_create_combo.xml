@@ -24,7 +24,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="✨ Tạo Combo Món Mới"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="17sp"
                 android:textStyle="bold" />
 
@@ -33,7 +33,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:text="Ghép các món thành gói ưu đãi để tăng doanh thu"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -45,7 +45,7 @@
             android:contentDescription="Đóng"
             android:padding="6dp"
             app:srcCompat="@drawable/ic_close"
-            app:tint="#64748B" />
+            app:tint="@color/text_secondary" />
     </LinearLayout>
 
     <ScrollView
@@ -78,7 +78,7 @@
                 android:background="@drawable/bg_card_rounded"
                 android:hint="Ví dụ: Combo Trưa 2 Người (Cơm + Trà)"
                 android:paddingHorizontal="14dp"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="13.5sp" />
 
             <!-- Danh sách món đưa vào Combo -->
@@ -97,7 +97,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:text="Chọn ít nhất 2 món ăn / thức uống"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp" />
 
             <androidx.recyclerview.widget.RecyclerView
@@ -175,7 +175,7 @@
                             android:background="@null"
                             android:hint="Nhập giá bán (vd: 79000)"
                             android:inputType="number"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -227,6 +227,7 @@
                     app:strokeWidth="1dp">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:id="@+id/ivComboPreview"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -261,7 +262,7 @@
                     android:layout_marginStart="10dp"
                     android:layout_weight="1"
                     android:text="(Không bắt buộc, có thể dùng ảnh món thành phần)"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="11sp" />
             </LinearLayout>
 
@@ -284,7 +285,7 @@
                 android:gravity="top|start"
                 android:hint="Ví dụ: Tiết kiệm hơn khi đặt chung 1 suất cơm kèm 1 ly nước giải khát..."
                 android:padding="10dp"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="13sp" />
 
         </LinearLayout>
@@ -308,7 +309,7 @@
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:text="Hủy"
-            android:textColor="#64748B"
+            android:textColor="@color/text_secondary"
             android:textSize="13sp"
             app:cornerRadius="10dp"
             app:strokeColor="#CBD5E1"

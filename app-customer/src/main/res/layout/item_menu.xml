@@ -42,7 +42,7 @@
                     android:id="@+id/ivFood"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="#F1F5F9"
+                    android:background="@color/divider"
                     android:contentDescription="Ảnh món ăn"
                     android:scaleType="centerCrop" />
 

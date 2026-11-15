@@ -19,6 +19,7 @@ import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.R
@@ -182,7 +183,7 @@ class BossDashboardActivity : AppCompatActivity() {
                     ?: cachedBranches.firstOrNull()?.id
                     ?: firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
                 val intent = Intent(this@BossDashboardActivity, com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
-                    putExtra("STORE_ID", storeId)
+                    putExtra(AppConstants.Extras.STORE_ID, storeId)
                 }
                 startActivity(intent)
             }
@@ -197,11 +198,11 @@ class BossDashboardActivity : AppCompatActivity() {
                 .setTitle("Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất tài khoản Chủ chuỗi (Boss) không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
-                    getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
                     authRepository.logout()
                     startActivity(Intent(this, LoginActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
+                        putExtra(AppConstants.Extras.LOGOUT, true)
                     })
                     finish()
                 }
@@ -285,10 +286,10 @@ class BossDashboardActivity : AppCompatActivity() {
     private fun enterBranchAsManager(store: Store) {
         lifecycleScope.launch {
             // Lưu vào SharedPreferences cho Session Persistence
-            getSharedPreferences("boss_session", Context.MODE_PRIVATE)
+            getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE)
                 .edit()
-                .putString("selected_branch_store_id", store.id)
-                .putString("selected_branch_store_name", store.name)
+                .putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, store.id)
+                .putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_NAME, store.name)
                 .apply()
 
             // Đồng bộ lên Realtime DB
@@ -301,7 +302,7 @@ class BossDashboardActivity : AppCompatActivity() {
             ).show()
 
             val intent = Intent(this@BossDashboardActivity, DashboardActivity::class.java).apply {
-                putExtra("STORE_ID", store.id)
+                putExtra(AppConstants.Extras.STORE_ID, store.id)
                 putExtra("FROM_BOSS", true)
             }
             startActivity(intent)

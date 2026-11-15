@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8FAFC"
+    android:background="@color/background"
     android:orientation="vertical">
 
     <!-- Top Header Oishi Food (b9.html) -->
@@ -37,6 +37,7 @@
             android:orientation="horizontal">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="30dp"
                 android:layout_height="30dp"
                 android:background="@drawable/bg_badge_orange"
@@ -83,7 +84,7 @@
             android:paddingHorizontal="10dp"
             android:paddingVertical="4dp"
             android:text="#ORD_88291"
-            android:textColor="#64748B"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -91,7 +92,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#E2E8F0" />
+        android:background="@color/border" />
 
     <!-- Nội dung cuộn chính -->
     <androidx.core.widget.NestedScrollView
@@ -127,10 +128,11 @@
                     android:orientation="horizontal">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                        
-                        app:srcCompat="@drawable/ic_close" app:tint="#EF4444" />
+                        app:srcCompat="@drawable/ic_close" app:tint="@color/danger" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -239,7 +241,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
                                 android:text="Mã đơn: #ORD_88291 • Quán đang kiểm tra món ăn"
-                                android:textColor="#64748B"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="11sp" />
                         </LinearLayout>
                     </LinearLayout>
@@ -258,7 +260,7 @@
                             android:layout_gravity="top"
                             android:layout_marginHorizontal="20dp"
                             android:layout_marginTop="12dp"
-                            android:background="#E2E8F0" />
+                            android:background="@color/border" />
 
                         <!-- Thanh progress cam kết nối -->
                         <ProgressBar
@@ -328,7 +330,7 @@
                                     android:background="@drawable/bg_step_detail"
                                     android:gravity="center"
                                     android:text="2"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="11sp"
                                     android:textStyle="bold" />
 
@@ -338,7 +340,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="6dp"
                                     android:text="Quán làm"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="10.5sp" />
                             </LinearLayout>
 
@@ -358,7 +360,7 @@
                                     android:background="@drawable/bg_step_detail"
                                     android:gravity="center"
                                     android:text="3"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="11sp"
                                     android:textStyle="bold" />
 
@@ -368,7 +370,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="6dp"
                                     android:text="Đang giao"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="10.5sp" />
                             </LinearLayout>
 
@@ -388,7 +390,7 @@
                                     android:background="@drawable/bg_step_detail"
                                     android:gravity="center"
                                     android:text="4"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="11sp"
                                     android:textStyle="bold" />
 
@@ -398,7 +400,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="6dp"
                                     android:text="Đã nhận"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="10.5sp" />
                             </LinearLayout>
                         </LinearLayout>
@@ -431,7 +433,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="6dp"
                                 android:text="Thông tin trạng thái:"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
@@ -460,7 +462,7 @@
                             style="@style/Widget.FoodOrder.Button.Outlined"
                             android:layout_width="match_parent"
                             android:layout_height="42dp"
-                            android:backgroundTint="#F8FAFC"
+                            android:backgroundTint="@color/background"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
                             android:text="Gọi Cho Quán (028.3822.9999)"
@@ -477,11 +479,11 @@
                             android:layout_width="match_parent"
                             android:layout_height="42dp"
                             android:layout_marginTop="8dp"
-                            android:backgroundTint="#EFF6FF"
+                            android:backgroundTint="@color/brand_blue_bg"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
                             android:text="Nhắn Tin Cho Quán"
-                            android:textColor="#2563EB"
+                            android:textColor="@color/brand_blue"
                             android:textSize="12sp"
                             android:textStyle="bold"
                             app:cornerRadius="10dp"
@@ -498,7 +500,7 @@
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
                             android:text="✕ Hủy Đơn Hàng"
-                            android:textColor="#E11D48"
+                            android:textColor="@color/danger"
                             android:textSize="12sp"
                             android:textStyle="bold"
                             android:visibility="gone"
@@ -514,7 +516,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:visibility="gone"
-                        app:cardBackgroundColor="#FFFBEB"
+                        app:cardBackgroundColor="@color/brand_orange_bg"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp"
                         app:strokeColor="#FDE68A"
@@ -597,10 +599,11 @@
                             android:orientation="horizontal">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                
-                                app:srcCompat="@drawable/ic_alert_triangle" app:tint="#EF4444" />
+                                app:srcCompat="@drawable/ic_alert_triangle" app:tint="@color/danger" />
 
                             <TextView
                                 android:layout_width="0dp"
@@ -708,7 +711,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Mã QR Xác Nhận Nhận Hàng"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
@@ -719,7 +722,7 @@
                         android:layout_marginTop="4dp"
                         android:layout_marginBottom="12dp"
                         android:text="Đưa mã QR này cho tài xế của quán quét khi giao đồ ăn đến tay bạn"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
 
                     <!-- QR Code Visual Wrapper (b9.html: qr-code-wrapper) -->
@@ -751,7 +754,7 @@
                         android:paddingHorizontal="14dp"
                         android:paddingVertical="6dp"
                         android:text="TOKEN_OISHI_88291"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
@@ -839,7 +842,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text=""
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="13.5sp"
                             android:textStyle="bold" />
 
@@ -849,7 +852,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="Nhân viên giao hàng • Quán ăn"
-                            android:textColor="#2563EB"
+                            android:textColor="@color/brand_blue"
                             android:textSize="11sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -862,7 +865,7 @@
                         android:background="@drawable/bg_call_round"
                         android:contentDescription="Gọi tài xế"
                         android:src="@drawable/ic_phone"
-                        app:tint="#10B981" />
+                        app:tint="@color/brand_green" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -892,7 +895,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="⭐ Đánh Giá Món Ăn &amp; Dịch Vụ"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="13.5sp"
                         android:textStyle="bold" />
 
@@ -902,7 +905,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="Chấm điểm và nhận xét cho từng món ăn bạn đã nhận:"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
 
                     <!-- Danh sách các món ăn trong đơn để khách chấm điểm riêng (Cách 2) -->
@@ -919,7 +922,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="42dp"
                         android:layout_marginTop="12dp"
-                        android:backgroundTint="#10B981"
+                        android:backgroundTint="@color/brand_green"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
                         android:text="Gửi Đánh Giá &amp; Nhận 50 Điểm"
@@ -954,7 +957,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="8dp"
                         android:text="Chi tiết đơn hàng"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
@@ -977,14 +980,14 @@
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:text="1x Món ăn đã đặt"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp" />
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="35.000 đ"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp" />
                         </LinearLayout>
                     </LinearLayout>
@@ -1001,7 +1004,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="Phí giao hàng (Nội quận TP.HCM):"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
                         <TextView
@@ -1009,7 +1012,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="15.000 đ"
-                            android:textColor="#2563EB"
+                            android:textColor="@color/brand_blue"
                             android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -1018,7 +1021,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
                         android:layout_marginBottom="8dp"
-                        android:background="#E2E8F0" />
+                        android:background="@color/border" />
 
                     <!-- Tổng thanh toán -->
                     <LinearLayout
@@ -1032,7 +1035,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="Tổng thanh toán:"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="13.5sp"
                             android:textStyle="bold" />
 
@@ -1053,7 +1056,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="Hình thức: Chuyển khoản VietQR (Đã thanh toán)"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

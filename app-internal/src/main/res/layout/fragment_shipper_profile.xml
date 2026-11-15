@@ -48,7 +48,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="#FFFFFF"
+            app:cardBackgroundColor="@color/white"
             app:cardCornerRadius="18dp"
             app:cardElevation="2dp"
             app:strokeColor="@color/border"
@@ -68,6 +68,7 @@
                     android:background="@drawable/bg_badge_orange">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:id="@+id/ivDriverAvatar"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -75,6 +76,7 @@
                         android:visibility="gone" />
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:id="@+id/tvDriverAvatarEmoji"
                         android:layout_width="36dp"
                         android:layout_height="36dp"
@@ -112,7 +114,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:background="#FEF3C7"
+                        android:background="@color/brand_orange_bg"
                         android:paddingHorizontal="8dp"
                         android:paddingVertical="2dp"
                         android:text="⭐ 4.9 (158 cuốc giao)"
@@ -126,7 +128,7 @@
                     style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="wrap_content"
                     android:layout_height="34dp"
-                    android:backgroundTint="#EFF6FF"
+                    android:backgroundTint="@color/brand_blue_bg"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:paddingHorizontal="10dp"
@@ -143,7 +145,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="#FFFFFF"
+            app:cardBackgroundColor="@color/white"
             app:cardCornerRadius="16dp"
             app:cardElevation="2dp"
             app:strokeColor="@color/border"
@@ -353,7 +355,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
                     android:text="120 Võ Văn Ngân, P. Linh Chiểu, TP. Thủ Đức, TP.HCM"
-                    android:textColor="#3B82F6"
+                    android:textColor="@color/brand_blue"
                     android:textSize="11.5sp" />
 
                 <TextView
@@ -383,7 +385,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="6dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="1dp"
                 app:strokeColor="@color/border"
@@ -420,7 +422,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="1dp"
                 app:strokeColor="@color/border"
@@ -457,7 +459,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="1dp"
                 app:strokeColor="@color/border"
@@ -495,7 +497,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="14dp"
-            app:cardBackgroundColor="#FFFFFF"
+            app:cardBackgroundColor="@color/white"
             app:cardCornerRadius="16dp"
             app:cardElevation="2dp"
             app:strokeColor="@color/border"

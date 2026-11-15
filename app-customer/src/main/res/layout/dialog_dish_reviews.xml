@@ -35,7 +35,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="⭐ Đánh Giá &amp; Bình Luận"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
@@ -58,13 +58,13 @@
             android:background="@drawable/bg_btn_circle_nav"
             android:contentDescription="Đóng"
             android:src="@drawable/ic_close"
-            app:tint="#64748B" />
+            app:tint="@color/text_secondary" />
     </LinearLayout>
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#F1F5F9" />
+        android:background="@color/divider" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -119,7 +119,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:text="0 đánh giá"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="10sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -148,7 +148,7 @@
                             android:layout_width="18dp"
                             android:layout_height="wrap_content"
                             android:text="5★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="10sp"
                             android:textStyle="bold" />
 
@@ -168,7 +168,7 @@
                             android:layout_width="28dp"
                             android:layout_height="wrap_content"
                             android:text="100%"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="9.5sp" />
                     </LinearLayout>
 
@@ -184,7 +184,7 @@
                             android:layout_width="18dp"
                             android:layout_height="wrap_content"
                             android:text="4★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="10sp"
                             android:textStyle="bold" />
 
@@ -204,7 +204,7 @@
                             android:layout_width="28dp"
                             android:layout_height="wrap_content"
                             android:text="0%"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="9.5sp" />
                     </LinearLayout>
 
@@ -220,7 +220,7 @@
                             android:layout_width="18dp"
                             android:layout_height="wrap_content"
                             android:text="3★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="10sp"
                             android:textStyle="bold" />
 
@@ -240,7 +240,7 @@
                             android:layout_width="28dp"
                             android:layout_height="wrap_content"
                             android:text="0%"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="9.5sp" />
                     </LinearLayout>
                 </LinearLayout>
@@ -261,7 +261,7 @@
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/chipFilterAll"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:checked="true"
@@ -271,7 +271,7 @@
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/chipFilter5Star"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="5★ (0)"
@@ -280,7 +280,7 @@
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/chipFilter4Star"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="4★ (0)"
@@ -289,7 +289,7 @@
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/chipFilterWithImage"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="📷 Có ảnh (0)"
@@ -305,7 +305,7 @@
                 android:layout_marginTop="12dp"
                 android:layout_marginBottom="8dp"
                 android:text="BÌNH LUẬN TỪ KHÁCH HÀNG"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp"
                 android:textStyle="bold" />
 
@@ -336,7 +336,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:text="Chưa có bình luận nào ở mục này"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -345,7 +345,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="Món ăn này chưa có đánh giá nào từ khách mua hàng."
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="11sp" />
             </LinearLayout>
 

@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8FAFC"
+    android:background="@color/background"
     android:orientation="vertical">
 
     <!-- 1. Header Thông Tin Quán & Nút Check-in -->
@@ -34,6 +34,7 @@
                 app:strokeWidth="1dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:layout_gravity="center"
@@ -53,7 +54,7 @@
                     android:layout_height="wrap_content"
                     android:letterSpacing="-0.02"
                     android:text="Quản Lý Thực Đơn"
-                    android:textColor="#0F172A"
+                    android:textColor="@color/text_primary"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -61,7 +62,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Danh sách món ăn &amp; đồ uống"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
 
@@ -97,7 +98,7 @@
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="10dp"
-            android:background="#F1F5F9" />
+            android:background="@color/divider" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -123,16 +124,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Quán của bạn"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="15.5sp"
                         android:textStyle="bold" />
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:layout_marginStart="6dp"
                         app:srcCompat="@drawable/ic_badge_check"
-                        app:tint="#10B981" />
+                        app:tint="@color/brand_green" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -143,10 +145,11 @@
                     android:orientation="horizontal">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="13dp"
                         android:layout_height="13dp"
                         app:srcCompat="@drawable/ic_map_pin"
-                        app:tint="#94A3B8" />
+                        app:tint="@color/text_muted" />
 
                     <TextView
                         android:id="@+id/tvShopAddress"
@@ -156,7 +159,7 @@
                         android:ellipsize="end"
                         android:maxLines="1"
                         android:text="Chưa cập nhật địa chỉ"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11.5sp" />
                 </LinearLayout>
             </LinearLayout>
@@ -193,6 +196,7 @@
             android:padding="12dp">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="22dp"
                 android:layout_height="22dp"
                 app:srcCompat="@drawable/ic_notification"
@@ -257,7 +261,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Thực Đơn Của Quán"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="15.5sp"
                 android:textStyle="bold" />
 
@@ -267,7 +271,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="1dp"
                 android:text="2 món đang mở bán"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp" />
         </LinearLayout>
 
@@ -339,13 +343,13 @@
                 android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
                 android:text="Tạo Combo"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
                 app:cornerRadius="10dp"
                 app:icon="@drawable/ic_sparkles"
                 app:iconSize="14dp"
-                app:iconTint="#475569"
+                app:iconTint="@color/text_secondary"
                 app:strokeColor="#CBD5E1"
                 app:strokeWidth="1dp" />
 
@@ -387,16 +391,17 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="68dp"
                 android:layout_height="68dp"
-                app:cardBackgroundColor="#F1F5F9"
+                app:cardBackgroundColor="@color/divider"
                 app:cardCornerRadius="34dp"
                 app:cardElevation="0dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="32dp"
                     android:layout_height="32dp"
                     android:layout_gravity="center"
                     app:srcCompat="@drawable/ic_utensils_crossed"
-                    app:tint="#94A3B8" />
+                    app:tint="@color/text_muted" />
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
@@ -404,7 +409,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:text="Chưa có món ăn nào trong thực đơn"
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
@@ -413,7 +418,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="Bấm &#x27;+ Thêm Món&#x27; bên trên để tạo món mở bán ngay!"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
         </LinearLayout>
     </FrameLayout>

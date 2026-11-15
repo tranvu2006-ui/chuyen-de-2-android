@@ -3,6 +3,7 @@ package com.chuyen_de_2.foodorder.core.data.firebase
 import com.chuyen_de_2.foodorder.core.data.model.Customer
 import com.chuyen_de_2.foodorder.core.data.model.Driver
 import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
@@ -38,7 +39,7 @@ class AuthRepository @Inject constructor(
             val result = auth.signInWithEmailAndPassword(email, password).await()
             val firebaseUser = result.user ?: return Result.failure(Exception("Đăng nhập thất bại"))
             firebaseUser.reload().await()
-            val userRef = database.getReference("users").child(firebaseUser.uid)
+            val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
             val verificationState = if (firebaseUser.isEmailVerified) {
                 null
             } else {
@@ -50,7 +51,7 @@ class AuthRepository @Inject constructor(
                 }
             }
             val driverSnapAtLogin = try {
-                database.getReference("drivers").child(firebaseUser.uid).get().await()
+                database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await()
             } catch (_: Exception) { null }
             val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
             val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
@@ -77,7 +78,7 @@ class AuthRepository @Inject constructor(
                         .isNullOrBlank())
                 )
             val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
-            val isAdminEmail = actualEmail.equals("admin@gmail.com", ignoreCase = true)
+            val isAdminEmail = actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
 
             // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
             // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com) và DRIVER/SHIPPER/MERCHANT có storeId/bossId do quán/boss tạo không cần xác minh email tại đây.
@@ -116,7 +117,7 @@ class AuthRepository @Inject constructor(
         emailVerifiedByOtp: Boolean,
         isStoreCreatedDriver: Boolean = false
     ): FirebaseUser {
-        val userRef = database.getReference("users").child(firebaseUser.uid)
+        val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
         try { userRef.keepSynced(true) } catch (_: Exception) {}
 
         // Ưu tiên đọc trực tiếp từ Firebase Server qua REST API với idToken mới để vượt qua SQLite Persistence Cache cũ
@@ -124,7 +125,7 @@ class AuthRepository @Inject constructor(
         val userSnap = try { userRef.get().await() } catch (_: Exception) { null }
 
         val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
-        val isAdminEmail = actualEmail.equals("admin@gmail.com", ignoreCase = true)
+        val isAdminEmail = actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
 
         if (!isAdminEmail) {
             if (freshJson != null) {
@@ -170,7 +171,7 @@ class AuthRepository @Inject constructor(
                 ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
 
             val driverSnapAtLogin = try {
-                database.getReference("drivers").child(firebaseUser.uid).get().await()
+                database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await()
             } catch (_: Exception) { null }
             val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
             val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
@@ -186,9 +187,9 @@ class AuthRepository @Inject constructor(
                 )
             }
 
-            val wasCorruptedMock = dbEmail == "mai.tran@oishifood.vn" && !actualEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
+            val wasCorruptedMock = dbEmail == AppConstants.Defaults.CORRUPTED_MOCK_EMAIL && !actualEmail.equals(AppConstants.Defaults.CORRUPTED_MOCK_EMAIL, ignoreCase = true)
             val resolvedRole = when {
-                actualEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
+                actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
                 hasDriverProfile -> User.Role.DRIVER
                 dbRole.isNotBlank() -> dbRole.uppercase()
                 actualEmail.contains("boss", ignoreCase = true) -> User.Role.BOSSMERCHANT
@@ -239,9 +240,9 @@ class AuthRepository @Inject constructor(
                     "status" to User.Status.ACTIVE
                 )
                 if (resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
-                database.getReference("customers").child(firebaseUser.uid).updateChildren(custUpdates)
+                database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(firebaseUser.uid).updateChildren(custUpdates)
             } else if ((resolvedRole == User.Role.MERCHANT || resolvedRole == User.Role.MANAGER) && dbStoreId.isNotBlank()) {
-                database.getReference("stores").child(dbStoreId).child("email").setValue(actualEmail)
+                database.getReference(AppConstants.FirebaseNodes.STORES).child(dbStoreId).child("email").setValue(actualEmail)
             }
         } catch (_: Exception) {}
 
@@ -260,8 +261,8 @@ class AuthRepository @Inject constructor(
             if (cleanEmail.isBlank()) {
                 return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
             }
-            if (cleanEmail == "admin@gmail.com") {
-                return Result.failure(Exception("Tài khoản Quản trị viên (admin@gmail.com) được miễn xác thực OTP. Bạn có thể đăng nhập ngay."))
+            if (cleanEmail == AppConstants.Defaults.ADMIN_EMAIL) {
+                return Result.failure(Exception("Tài khoản Quản trị viên (${AppConstants.Defaults.ADMIN_EMAIL}) được miễn xác thực OTP. Bạn có thể đăng nhập ngay."))
             }
             val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
             if (!isRegistered) {
@@ -352,7 +353,7 @@ class AuthRepository @Inject constructor(
                 val verifiedEmail = otpRes.getOrElse { otpError ->
                     // Cho phép tài khoản Tài xế do quán tạo (có trong drivers/{uid}) đăng nhập kể cả không qua OTP
                     val isDriver = try {
-                        database.getReference("drivers").child(firebaseUser.uid).get().await().exists()
+                        database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await().exists()
                     } catch (_: Exception) { false }
                     if (isDriver) {
                         cleanEmail
@@ -379,7 +380,7 @@ class AuthRepository @Inject constructor(
                     throw Exception("Email OTP không khớp với tài khoản Firebase.")
                 }
 
-                val userRef = database.getReference("users").child(firebaseUser.uid)
+                val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
                 try {
                     userRef.child("emailVerified").setValue(true).await()
                 } catch (_: Exception) {}
@@ -448,7 +449,7 @@ class AuthRepository @Inject constructor(
         return try {
             // Chỉ cho tạo Firebase account nếu bước OTP trước đó xác nhận đúng chính email đăng ký (ngoại lệ với tài khoản quản trị admin@gmail.com).
             val isEmailVerified = (verifiedEmail.isNotBlank() && verifiedEmail.equals(email.trim(), ignoreCase = true)) ||
-                    email.trim().equals("admin@gmail.com", ignoreCase = true)
+                    email.trim().equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
             val normalizedPhone = phone.trim()
 
             // Chặn gọi register mà không có kết quả xác minh email hợp lệ.
@@ -503,7 +504,7 @@ class AuthRepository @Inject constructor(
                 emailVerified = isEmailVerified,
                 phoneVerified = false
             )
-            database.getReference("users")
+            database.getReference(AppConstants.FirebaseNodes.USERS)
                 .child(firebaseUser.uid)
                 .setValue(user)
                 .await()
@@ -524,7 +525,7 @@ class AuthRepository @Inject constructor(
                         "boomOrders" to 0,
                         "status" to User.Status.ACTIVE
                     )
-                    database.getReference("customers")
+                    database.getReference(AppConstants.FirebaseNodes.CUSTOMERS)
                         .child(firebaseUser.uid)
                         .setValue(customerMap)
                         .await()
@@ -542,7 +543,7 @@ class AuthRepository @Inject constructor(
                         ratingAvg = 5.0f,
                         dutyStatus = Driver.DutyStatus.AVAILABLE
                     )
-                    database.getReference("drivers")
+                    database.getReference(AppConstants.FirebaseNodes.DRIVERS)
                         .child(firebaseUser.uid)
                         .setValue(driver)
                         .await()
@@ -562,13 +563,13 @@ class AuthRepository @Inject constructor(
                         ratingAvg = 5.0f,
                         deliveryTime = "20-30 phút",
                         category = "Món chính",
-                        imageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400"
+                        imageUrl = AppConstants.Defaults.DEFAULT_STORE_IMAGE_URL
                     )
-                    database.getReference("stores")
+                    database.getReference(AppConstants.FirebaseNodes.STORES)
                         .child(assignedStoreId)
                         .setValue(storeData)
                         .await()
-                    database.getReference("stores")
+                    database.getReference(AppConstants.FirebaseNodes.STORES)
                         .child(assignedStoreId)
                         .child("email")
                         .setValue(email.trim())
@@ -588,7 +589,7 @@ class AuthRepository @Inject constructor(
             val uid = auth.currentUser?.uid
                 ?: return Result.failure(Exception("Chưa đăng nhập"))
 
-            val snapshot = database.getReference("customers")
+            val snapshot = database.getReference(AppConstants.FirebaseNodes.CUSTOMERS)
                 .child(uid)
                 .get()
                 .await()
@@ -612,7 +613,7 @@ class AuthRepository @Inject constructor(
             val authDisplayName = firebaseUser.displayName.orEmpty().trim()
             val authPhone = firebaseUser.phoneNumber.orEmpty().trim()
 
-            val userRef = database.getReference("users").child(uid)
+            val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(uid)
             val snapshot = userRef.get().await()
 
             var user = snapshot.getValue(User::class.java)
@@ -620,7 +621,7 @@ class AuthRepository @Inject constructor(
             val fallbackRole = when {
                 currentEmail.contains("manager", ignoreCase = true) || currentEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 currentEmail.contains("shipper", ignoreCase = true) || currentEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                currentEmail.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
+                currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
             val fallbackRoleId = when (fallbackRole) {
@@ -645,7 +646,7 @@ class AuthRepository @Inject constructor(
                 try {
                     userRef.setValue(newUser).await()
                     if (fallbackRole == User.Role.CUSTOMER) {
-                        database.getReference("customers").child(uid).updateChildren(
+                        database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(
                             mapOf(
                                 "customerId" to uid,
                                 "uid" to uid,
@@ -679,7 +680,7 @@ class AuthRepository @Inject constructor(
                 }
 
                 // Kiểm tra nếu bản ghi trên DB bị thiếu Gmail, tên hoặc bị ghi đè bởi dữ liệu mẫu cũ
-                val wasCorruptedMock = user.email == "mai.tran@oishifood.vn" && currentEmail.isNotBlank() && !currentEmail.equals("mai.tran@oishifood.vn", ignoreCase = true)
+                val wasCorruptedMock = user.email == AppConstants.Defaults.CORRUPTED_MOCK_EMAIL && currentEmail.isNotBlank() && !currentEmail.equals(AppConstants.Defaults.CORRUPTED_MOCK_EMAIL, ignoreCase = true)
                 val needEmailSync = currentEmail.isNotBlank() && (user.email.isBlank() || user.email != currentEmail)
                 val needNameSync = user.name.isBlank() || wasCorruptedMock
                 val needUidSync = user.uid.isBlank() || user.uid != uid
@@ -691,8 +692,8 @@ class AuthRepository @Inject constructor(
                         authDisplayName.ifBlank { currentEmail.substringBefore("@").ifBlank { user.name } }
                     }
                     val resolvedPhone = if (wasCorruptedMock) authPhone else user.phone.ifBlank { authPhone }
-                    val resolvedRole = if (currentEmail.equals("admin@gmail.com", ignoreCase = true)) User.Role.ADMIN else user.role.ifBlank { fallbackRole }
-                    val resolvedRoleId = if (currentEmail.equals("admin@gmail.com", ignoreCase = true)) 1 else if (user.roleId > 0) user.roleId else fallbackRoleId
+                    val resolvedRole = if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) User.Role.ADMIN else user.role.ifBlank { fallbackRole }
+                    val resolvedRoleId = if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) 1 else if (user.roleId > 0) user.roleId else fallbackRoleId
 
                     val updates = mutableMapOf<String, Any>(
                         "uid" to uid,
@@ -713,7 +714,7 @@ class AuthRepository @Inject constructor(
                             if (currentEmail.isNotBlank()) custUpdates["email"] = currentEmail
                             if (resolvedName.isNotBlank()) custUpdates["name"] = resolvedName
                             if (wasCorruptedMock || resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
-                            database.getReference("customers").child(uid).updateChildren(custUpdates)
+                            database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(custUpdates)
                         }
                     } catch (_: Exception) {}
 
@@ -764,8 +765,8 @@ class AuthRepository @Inject constructor(
             if (address.isNotBlank()) updates["address"] = address.trim()
             if (avatarUrl.isNotBlank()) updates["avatarUrl"] = avatarUrl.trim()
 
-            database.getReference("users").child(uid).updateChildren(updates).await()
-            database.getReference("customers").child(uid).updateChildren(updates).await()
+            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
+            database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -785,9 +786,9 @@ class AuthRepository @Inject constructor(
     suspend fun getUserRole(): String? {
         val uid = auth.currentUser?.uid ?: return null
         val currentEmail = auth.currentUser?.email.orEmpty().trim()
-        if (currentEmail.equals("admin@gmail.com", ignoreCase = true)) {
+        if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) {
             try {
-                database.getReference("users").child(uid).updateChildren(
+                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
                     mapOf(
                         "uid" to uid,
                         "email" to currentEmail,
@@ -816,7 +817,7 @@ class AuthRepository @Inject constructor(
 
             // 2. Tra cứu bảng drivers trước: Nếu uid có trong bảng drivers thì chắc chắn là Tài xế (khôi phục nếu từng bị nhảy sang CUSTOMER)
             try {
-                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
                 if (driverSnap.exists()) {
                     val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
                     val updates = mutableMapOf<String, Any>(
@@ -824,8 +825,8 @@ class AuthRepository @Inject constructor(
                         "roleId" to 4
                     )
                     if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
-                    database.getReference("users").child(uid).updateChildren(updates).await()
-                    try { database.getReference("customers").child(uid).removeValue() } catch (_: Exception) {}
+                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
+                    try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
                     return User.Role.DRIVER
                 }
             } catch (_: Exception) {}
@@ -846,14 +847,14 @@ class AuthRepository @Inject constructor(
 
             // 4. Tra cứu chéo: Chỉ khớp khi merchantId hoặc ownerId của store bằng đúng uid
             try {
-                val byMerchant = database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+                val byMerchant = database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
                 for (child in byMerchant.children) {
                     val merchantId = child.child("merchantId").getValue(String::class.java)
                         ?: child.child("ownerId").getValue(String::class.java)
                     if (merchantId == uid) {
                         val storeId = child.key ?: ""
                         if (storeId.isNotBlank()) {
-                            database.getReference("users").child(uid).updateChildren(
+                            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
                                 mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to storeId)
                             ).await()
                             return User.Role.MERCHANT
@@ -864,9 +865,9 @@ class AuthRepository @Inject constructor(
 
             // 3. Tra cứu chéo: Người dùng có hồ sơ tài xế không?
             try {
-                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
                 if (driverSnap.exists()) {
-                    database.getReference("users").child(uid).updateChildren(
+                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
                         mapOf("role" to User.Role.DRIVER, "roleId" to 4)
                     ).await()
                     return User.Role.DRIVER
@@ -879,7 +880,7 @@ class AuthRepository @Inject constructor(
                 when {
                     email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> return User.Role.MERCHANT
                     email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> return User.Role.DRIVER
-                    email.equals("admin@gmail.com", ignoreCase = true) -> return User.Role.ADMIN
+                    email.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> return User.Role.ADMIN
                 }
             }
 
@@ -889,7 +890,7 @@ class AuthRepository @Inject constructor(
             when {
                 email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
                 email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                email.equals("admin@gmail.com", ignoreCase = true) -> User.Role.ADMIN
+                email.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
         }
@@ -920,8 +921,8 @@ class AuthRepository @Inject constructor(
             )
 
             if (normalizedRole == User.Role.MERCHANT) {
-                val byMerchantSnap = database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
-                val storeSnap = if (byMerchantSnap.hasChildren()) byMerchantSnap else database.getReference("stores").orderByChild("ownerId").equalTo(uid).get().await()
+                val byMerchantSnap = database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
+                val storeSnap = if (byMerchantSnap.hasChildren()) byMerchantSnap else database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("ownerId").equalTo(uid).get().await()
                 var foundStoreId: String? = null
                 for (child in storeSnap.children) {
                     val mId = child.child("merchantId").getValue(String::class.java)
@@ -940,24 +941,24 @@ class AuthRepository @Inject constructor(
                     val store = com.chuyen_de_2.foodorder.core.data.model.Store(
                         id = finalStoreId,
                         merchantId = uid,
-                        name = auth.currentUser?.displayName?.ifBlank { "Quán Ăn Của Tôi" } ?: "Quán Ăn Của Tôi",
+                        name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_STORE_NAME } ?: AppConstants.Defaults.DEFAULT_STORE_NAME,
                         latitude = defaultCoords.latitude,
                         longitude = defaultCoords.longitude,
                         lat = defaultCoords.latitude,
                         lng = defaultCoords.longitude,
                         storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
                     )
-                    database.getReference("stores").child(finalStoreId).setValue(store).await()
+                    database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).setValue(store).await()
                     val coordsUpdate = mapOf<String, Any>(
                         "latitude" to defaultCoords.latitude,
                         "longitude" to defaultCoords.longitude,
                         "lat" to defaultCoords.latitude,
                         "lng" to defaultCoords.longitude
                     )
-                    database.getReference("stores").child(finalStoreId).updateChildren(coordsUpdate).await()
+                    database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).updateChildren(coordsUpdate).await()
                 }
             } else if (normalizedRole == User.Role.DRIVER) {
-                val driverSnap = database.getReference("drivers").child(uid).get().await()
+                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
                 if (driverSnap.exists()) {
                     val dStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
                     if (dStoreId.isNotBlank()) {
@@ -968,15 +969,15 @@ class AuthRepository @Inject constructor(
                         driverId = uid,
                         storeId = "",
                         driverCode = "TX-" + (10..99).random(),
-                        name = auth.currentUser?.displayName?.ifBlank { "Tài xế Oishi" } ?: "Tài xế Oishi",
+                        name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_DRIVER_NAME } ?: AppConstants.Defaults.DEFAULT_DRIVER_NAME,
                         dutyStatus = Driver.DutyStatus.AVAILABLE
                     )
-                    database.getReference("drivers").child(uid).setValue(driver).await()
+                    database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).setValue(driver).await()
                 }
-                try { database.getReference("customers").child(uid).removeValue() } catch (_: Exception) {}
+                try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
             }
 
-            database.getReference("users").child(uid).updateChildren(updates).await()
+            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -986,7 +987,7 @@ class AuthRepository @Inject constructor(
     /** Cập nhật FCM Token cho user */
     suspend fun updateFcmToken(token: String) {
         val uid = auth.currentUser?.uid ?: return
-        database.getReference("users")
+        database.getReference(AppConstants.FirebaseNodes.USERS)
             .child(uid)
             .child("fcmToken")
             .setValue(token)
@@ -1022,7 +1023,7 @@ class AuthRepository @Inject constructor(
     suspend fun checkAccountActiveStatus(uid: String? = currentUser?.uid): Result<Boolean> {
         val targetUid = uid ?: return Result.failure(Exception("Chưa đăng nhập"))
         val currentEmail = auth.currentUser?.email.orEmpty().trim()
-        if (currentEmail.equals("admin@gmail.com", ignoreCase = true)) {
+        if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) {
             return Result.success(true)
         }
         return try {
@@ -1043,7 +1044,7 @@ class AuthRepository @Inject constructor(
                 } else {
                     // Đồng bộ trạng thái đã mở khóa xuống local cache
                     try {
-                        database.getReference("users").child(targetUid).updateChildren(
+                        database.getReference(AppConstants.FirebaseNodes.USERS).child(targetUid).updateChildren(
                             mapOf(
                                 "status" to User.Status.ACTIVE,
                                 "isActive" to true,
@@ -1056,7 +1057,7 @@ class AuthRepository @Inject constructor(
                 }
             }
 
-            val userSnap = database.getReference("users").child(targetUid).get().await()
+            val userSnap = database.getReference(AppConstants.FirebaseNodes.USERS).child(targetUid).get().await()
             if (userSnap.exists()) {
                 val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
                 val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
@@ -1096,15 +1097,15 @@ class AuthRepository @Inject constructor(
 
         return try {
             // 1. Xóa giỏ hàng
-            try { database.getReference("carts").child(uid).removeValue().await() } catch (_: Exception) {}
+            try { database.getReference(AppConstants.FirebaseNodes.CARTS).child(uid).removeValue().await() } catch (_: Exception) {}
 
             // 2. Xóa hồ sơ chuyên biệt
-            try { database.getReference("customers").child(uid).removeValue().await() } catch (_: Exception) {}
-            try { database.getReference("drivers").child(uid).removeValue().await() } catch (_: Exception) {}
+            try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue().await() } catch (_: Exception) {}
+            try { database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).removeValue().await() } catch (_: Exception) {}
 
             // 3. Thu hồi các đơn đang nhận nếu user này là shipper
             try {
-                val ordersSnap = database.getReference("orders")
+                val ordersSnap = database.getReference(AppConstants.FirebaseNodes.ORDERS)
                     .orderByChild("shipperId")
                     .equalTo(uid)
                     .get()
@@ -1121,15 +1122,15 @@ class AuthRepository @Inject constructor(
                             "shipperName" to "",
                             "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY
                         )
-                        database.getReference("orders").child(order.orderId).updateChildren(updates).await()
-                        database.getReference("tracking").child(order.orderId).removeValue().await()
+                        database.getReference(AppConstants.FirebaseNodes.ORDERS).child(order.orderId).updateChildren(updates).await()
+                        database.getReference(AppConstants.FirebaseNodes.TRACKING).child(order.orderId).removeValue().await()
                     }
                 }
             } catch (_: Exception) {}
 
             // 4. Xóa khỏi users & sổ địa chỉ
             try { database.getReference("customer_addresses").child(uid).removeValue().await() } catch (_: Exception) {}
-            try { database.getReference("users").child(uid).removeValue().await() } catch (_: Exception) {}
+            try { database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).removeValue().await() } catch (_: Exception) {}
 
             // 5. Xóa tài khoản Firebase Authentication
             user.delete().await()
@@ -1154,7 +1155,7 @@ class AuthRepository @Inject constructor(
         val sid = currentStoreId.trim()
         return try {
             // 0. Kiểm tra trước xem uid có hồ sơ trong bảng drivers không (kể cả khi từng bị nhảy nhầm sang CUSTOMER)
-            val driverSnap = try { database.getReference("drivers").child(uid).get().await() } catch (_: Exception) { null }
+            val driverSnap = try { database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await() } catch (_: Exception) { null }
             if (driverSnap != null && driverSnap.exists()) {
                 val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty().ifBlank { sid }
                 if (normRole != User.Role.DRIVER || sid != driverStoreId) {
@@ -1163,8 +1164,8 @@ class AuthRepository @Inject constructor(
                         "roleId" to 4
                     )
                     if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
-                    database.getReference("users").child(uid).updateChildren(updates).await()
-                    try { database.getReference("customers").child(uid).removeValue() } catch (_: Exception) {}
+                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
+                    try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
                 }
                 return Pair(User.Role.DRIVER, driverStoreId)
             }
@@ -1177,7 +1178,7 @@ class AuthRepository @Inject constructor(
             }
 
             // Kiểm tra xem tài khoản này có phải Quản lý do Boss tạo (có bossId) không
-            val userSnap = try { database.getReference("users").child(uid).get().await() } catch (_: Exception) { null }
+            val userSnap = try { database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).get().await() } catch (_: Exception) { null }
             val bossId = userSnap?.child("bossId")?.getValue(String::class.java).orEmpty()
             if (bossId.isNotBlank()) {
                 return Pair(User.Role.MERCHANT, sid)
@@ -1185,7 +1186,7 @@ class AuthRepository @Inject constructor(
 
             // 1. Kiểm tra nếu storeId hiện tại thực sự thuộc sở hữu của uid (merchantId == uid hoặc ownerId == uid)
             if (sid.isNotBlank()) {
-                val storeSnap = database.getReference("stores").child(sid).get().await()
+                val storeSnap = database.getReference(AppConstants.FirebaseNodes.STORES).child(sid).get().await()
                 if (storeSnap.exists()) {
                     val mId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
                     val oId = storeSnap.child("ownerId").getValue(String::class.java).orEmpty()
@@ -1197,25 +1198,25 @@ class AuthRepository @Inject constructor(
 
             // 2. Kiểm tra xem uid có thực sự sở hữu bất kỳ store nào trên bảng stores không
             val byMerchant = try {
-                database.getReference("stores").orderByChild("merchantId").equalTo(uid).get().await()
+                database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
             } catch (_: Exception) { null }
             val realOwnedKey = byMerchant?.children?.firstOrNull {
                 it.child("merchantId").getValue(String::class.java) == uid ||
                     it.child("ownerId").getValue(String::class.java) == uid
             }?.key
             if (!realOwnedKey.isNullOrBlank()) {
-                database.getReference("users").child(uid).updateChildren(
+                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
                     mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to realOwnedKey)
                 ).await()
                 return Pair(User.Role.MERCHANT, realOwnedKey)
             }
 
             // 3. Chỉ khôi phục về CUSTOMER nếu user thực sự có hồ sơ trong bảng customers
-            val custSnap = try { database.getReference("customers").child(uid).get().await() } catch (_: Exception) { null }
+            val custSnap = try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).get().await() } catch (_: Exception) { null }
             val hasCustomerRecord = custSnap != null && custSnap.exists()
 
             if (hasCustomerRecord) {
-                database.getReference("users").child(uid).updateChildren(
+                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
                     mapOf(
                         "role" to User.Role.CUSTOMER,
                         "roleId" to 2,

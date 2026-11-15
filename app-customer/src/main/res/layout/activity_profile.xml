@@ -5,7 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8FAFC">
+    android:background="@color/background">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
@@ -46,7 +46,7 @@
                 app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -64,6 +64,7 @@
                         android:background="@drawable/bg_badge_orange">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:id="@+id/ivUserAvatar"
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
@@ -71,6 +72,7 @@
                             android:visibility="gone" />
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:id="@+id/ivUserAvatarPlaceholder"
                             android:layout_width="28dp"
                             android:layout_height="28dp"
@@ -117,7 +119,7 @@
                     <!-- Nút Chỉnh sửa thông tin -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnEditProfile"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="wrap_content"
                         android:layout_height="38dp"
                         android:text="Sửa "
@@ -163,6 +165,7 @@
                             android:orientation="horizontal">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="16dp"
                                 android:layout_height="16dp"
                                 android:src="@drawable/ic_shield"
@@ -203,7 +206,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="100"
-                            android:textColor="#D97706"
+                            android:textColor="@color/brand_orange"
                             android:textSize="36sp"
                             android:textStyle="bold" />
 
@@ -213,7 +216,7 @@
                             android:layout_marginStart="4dp"
                             android:layout_weight="1"
                             android:text="/ 100 điểm tín nhiệm"
-                            android:textColor="#475569"
+                            android:textColor="@color/text_secondary"
                             android:textSize="13sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -226,7 +229,7 @@
                         android:layout_marginTop="8dp"
                         android:max="100"
                         android:progress="100"
-                        android:progressTint="#D97706" />
+                        android:progressTint="@color/brand_orange" />
 
                     <!-- 3-Column Order Statistics -->
                     <LinearLayout
@@ -256,7 +259,7 @@
                             android:layout_weight="1"
                             android:gravity="center"
                             android:text="✓ Nhận: 0 (+2đ)"
-                            android:textColor="#059669"
+                            android:textColor="@color/brand_green"
                             android:textSize="11.5sp"
                             android:textStyle="bold" />
 
@@ -284,7 +287,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnViewTrustHistory"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="match_parent"
                         android:layout_height="42dp"
                         android:layout_marginTop="10dp"
@@ -300,7 +303,7 @@
                         app:iconGravity="textStart"
                         app:iconSize="16dp"
                         app:iconTint="#B45309"
-                        app:strokeColor="#F59E0B"
+                        app:strokeColor="@color/brand_orange"
                         app:strokeWidth="1dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -311,7 +314,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="ĐƠN HÀNG &amp; KHIẾU NẠI"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 
@@ -322,7 +325,7 @@
                 app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="1dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -340,7 +343,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_receipt" app:tint="@color/primary" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_receipt" app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -352,13 +355,13 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#F1F5F9" />
+                        android:background="@color/divider" />
 
                     <!-- Gửi Khiếu Nại Đơn Hàng -->
                     <LinearLayout
@@ -370,7 +373,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_shield" app:tint="#6366F1" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_shield" app:tint="#6366F1" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -382,7 +385,7 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -393,7 +396,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="6dp"
                 android:text="THÔNG TIN &amp; TIỆN ÍCH"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 
@@ -404,7 +407,7 @@
                 app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="1dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -422,7 +425,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_map_pin" app:tint="@color/primary" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_map_pin" app:tint="@color/primary" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -434,13 +437,13 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#F1F5F9" />
+                        android:background="@color/divider" />
 
                     <!-- Tổng Đài -->
                     <LinearLayout
@@ -452,7 +455,7 @@
                         android:orientation="horizontal"
                         android:padding="16dp">
 
-                        <ImageView android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="22dp" android:layout_height="22dp" app:srcCompat="@drawable/ic_phone" app:tint="@color/brand_green" />
 
                         <TextView
                             android:layout_width="0dp"
@@ -464,7 +467,7 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <ImageView android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
+                        <ImageView android:importantForAccessibility="no" android:layout_width="16dp" android:layout_height="16dp" app:srcCompat="@drawable/ic_chevron_right" app:tint="@color/text_muted" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -473,15 +476,15 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLogout"
                 app:icon="@drawable/ic_log_out"
-                app:iconTint="#EF4444"
+                app:iconTint="@color/danger"
                 app:iconGravity="textStart"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:text="Đăng Xuất Tài Khoản"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                app:backgroundTint="#FEE2E2"
+                app:backgroundTint="@color/danger_bg"
                 app:cornerRadius="12dp"
                 app:elevation="0dp" />
 

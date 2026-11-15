@@ -69,6 +69,7 @@
                 </LinearLayout>
 
                 <ImageButton
+                    android:importantForAccessibility="no"
                     android:id="@+id/btnCloseUserDialog"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
@@ -143,6 +144,7 @@
                             app:strokeWidth="1.5dp">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="14dp"
                                 android:layout_height="14dp"
                                 android:layout_gravity="center"
@@ -178,7 +180,7 @@
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
                             android:paddingHorizontal="8dp"
-                            android:backgroundTint="#EFF6FF"
+                            android:backgroundTint="@color/brand_blue_bg"
                             android:text="Chọn ảnh từ máy"
                             android:textColor="@color/brand_blue"
                             android:textSize="12sp"
@@ -191,7 +193,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnResetAvatarDefault"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            style="@style/Widget.Material3.Button.TextButton"
                             android:layout_width="wrap_content"
                             android:layout_height="38dp"
                             android:insetTop="0dp"
@@ -290,6 +292,7 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="16dp"
                             android:layout_height="16dp"
                             android:src="@drawable/ic_shield_alert"
@@ -375,7 +378,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnQuickPlus10"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="36dp"
                             android:layout_weight="1"
@@ -391,7 +394,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnQuickMinus20"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="36dp"
                             android:layout_marginHorizontal="6dp"
@@ -408,7 +411,7 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnQuickReset100"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="0dp"
                             android:layout_height="36dp"
                             android:layout_weight="1"
@@ -537,7 +540,7 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCancelEditUser"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="50dp"
                     android:layout_weight="1"

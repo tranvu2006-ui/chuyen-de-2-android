@@ -67,7 +67,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="32dp"
                 android:layout_marginStart="6dp"
-                android:backgroundTint="#FEE2E2"
+                android:backgroundTint="@color/danger_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="8dp"
@@ -83,7 +83,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="#FFFFFF"
+            app:cardBackgroundColor="@color/white"
             app:cardCornerRadius="16dp"
             app:cardElevation="2dp"
             app:strokeColor="@color/border"
@@ -102,6 +102,7 @@
                     android:background="@drawable/bg_badge_orange">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
                         android:layout_gravity="center"
@@ -141,7 +142,7 @@
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="wrap_content"
                     android:layout_height="38dp"
-                    android:backgroundTint="#ECFDF5"
+                    android:backgroundTint="@color/brand_green_bg"
                     android:paddingHorizontal="10dp"
                     android:text="ĐANG TRỰC"
                     android:textColor="@color/brand_green"
@@ -165,7 +166,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="5dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="1dp"
                 app:strokeColor="@color/border"
@@ -204,7 +205,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="3dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="1dp"
                 app:strokeColor="@color/border"
@@ -243,7 +244,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="5dp"
                 android:layout_weight="1"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="1dp"
                 app:strokeColor="@color/border"
@@ -303,7 +304,7 @@
                 android:paddingVertical="2dp"
                 android:text="0 đơn"
                 tools:text="1 đơn"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />
 
@@ -366,7 +367,7 @@
                 android:paddingVertical="2dp"
                 android:text="0 đơn"
                 tools:text="2 đơn"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="10.5sp"
                 android:textStyle="bold" />
         </LinearLayout>

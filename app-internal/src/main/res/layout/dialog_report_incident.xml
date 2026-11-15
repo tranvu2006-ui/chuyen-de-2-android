@@ -21,10 +21,11 @@
         android:orientation="horizontal">
 
         <ImageView
+            android:importantForAccessibility="no"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
            
-            app:srcCompat="@drawable/ic_alert_triangle" app:tint="#F59E0B" />
+            app:srcCompat="@drawable/ic_alert_triangle" app:tint="@color/brand_orange" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -52,6 +53,7 @@
         </LinearLayout>
 
         <ImageButton
+            android:importantForAccessibility="no"
             android:id="@+id/btnCloseIncidentDialog"
             android:layout_width="28dp"
             android:layout_height="28dp"
@@ -67,7 +69,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        app:cardBackgroundColor="#FFFFFF"
+        app:cardBackgroundColor="@color/white"
         app:cardCornerRadius="16dp"
         app:cardElevation="2dp"
         app:strokeColor="#F97316"
@@ -86,10 +88,11 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="16dp"
                     android:layout_height="16dp"
                     android:src="@drawable/ic_clock"
-                    app:tint="#EF4444" />
+                    app:tint="@color/danger" />
 
                 <TextView
                     android:layout_width="0dp"
@@ -154,11 +157,12 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:background="@drawable/bg_warning_inline"
-                android:backgroundTint="#FEF3C7"
+                android:backgroundTint="@color/brand_orange_bg"
                 android:orientation="horizontal"
                 android:padding="8dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/ivIncidentCountdownNoticeIcon"
                     android:layout_width="16dp"
                     android:layout_height="16dp"
@@ -207,6 +211,7 @@
         android:padding="10dp">
 
         <ImageView
+            android:importantForAccessibility="no"
             android:layout_width="16dp"
             android:layout_height="16dp"
             android:layout_marginTop="2dp"
@@ -284,6 +289,7 @@
                 app:strokeWidth="1dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/ivCallProofPreview"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -291,6 +297,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/ivCallProofIcon"
                 android:layout_width="26dp"
                 android:layout_height="26dp"
@@ -344,6 +351,7 @@
                 app:strokeWidth="1dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/ivMsgProofPreview"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -351,6 +359,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/ivMsgProofIcon"
                 android:layout_width="26dp"
                 android:layout_height="26dp"
@@ -413,8 +422,8 @@
         tools:text="XÁC NHẬN BÁO CÁO CẢNH BÁO MẤT ĐƠN"
         app:icon="@drawable/ic_clock"
         app:iconSize="16dp"
-        app:iconTint="#FFFFFF"
-        android:textColor="#FFFFFF"
+        app:iconTint="@color/white"
+        android:textColor="@color/white"
         android:textSize="12sp"
         android:textStyle="bold"
         app:cornerRadius="10dp" />

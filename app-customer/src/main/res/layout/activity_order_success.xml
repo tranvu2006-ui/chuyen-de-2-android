@@ -296,7 +296,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:text="Tiền cọc đã trả (20%):"
-                                android:textColor="#D97706"
+                                android:textColor="@color/brand_orange"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -305,7 +305,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="21.000 đ"
-                                android:textColor="#D97706"
+                                android:textColor="@color/brand_orange"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
@@ -322,7 +322,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:text="Còn lại thu khi giao hàng:"
-                                android:textColor="#64748B"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="12sp" />
 
                             <TextView
@@ -330,7 +330,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="84.000 đ"
-                                android:textColor="#64748B"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
@@ -369,7 +369,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="Mã đơn: #ORD123456"
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 
                     <TextView
@@ -378,7 +378,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:text="Địa chỉ: 123 Nguyễn Trãi, Quận 1, TP.HCM"
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 
                     <TextView
@@ -386,7 +386,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:text="⏱️ Thời gian dự kiến: 20 - 30 phút"
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -421,7 +421,7 @@
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:layout_marginTop="8dp"
-            android:backgroundTint="#2563EB"
+            android:backgroundTint="@color/brand_blue"
             android:text="Nhắn Tin Cho Quán"
             android:textColor="@color/white"
             android:textSize="12.5sp"
@@ -434,7 +434,7 @@
             android:layout_width="match_parent"
             android:layout_height="38dp"
             android:layout_marginTop="8dp"
-            android:backgroundTint="#F1F5F9"
+            android:backgroundTint="@color/divider"
             android:text="Về Trang Chủ"
             android:textColor="#334155"
             android:textSize="12.5sp"

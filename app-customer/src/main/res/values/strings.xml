@@ -3,9 +3,15 @@
     <string name="app_name">Oishi Food</string>
 
     <!-- Auth -->
+    <string name="logo_desc">Oishi Food Logo</string>
     <string name="login_title">Đăng nhập</string>
+    <string name="login_card_title">Đăng nhập tài khoản</string>
+    <string name="customer_subtitle">Đặt món ngon • Giao nhanh nội thành TP.HCM</string>
     <string name="register_title">Đăng ký</string>
+    <string name="register_subtitle">Tạo tài khoản khách hàng để đặt món ngon</string>
+    <string name="register_card_title">Thông tin đăng ký khách hàng</string>
     <string name="email_hint">Email</string>
+    <string name="phone_hint">Số điện thoại liên hệ</string>
     <string name="password_hint">Mật khẩu</string>
     <string name="confirm_password_hint">Xác nhận mật khẩu</string>
     <string name="name_hint">Họ và tên</string>

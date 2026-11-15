@@ -10,7 +10,7 @@
     app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="14dp"
     app:cardElevation="0dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -63,7 +63,7 @@
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginVertical="10dp"
-            android:background="#F1F5F9" />
+            android:background="@color/divider" />
 
         <!-- 2. Đối tượng bị khiếu nại & Mã đơn hàng -->
         <LinearLayout
@@ -73,6 +73,7 @@
             android:orientation="horizontal">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/ivTargetTypeIcon"
                 android:layout_width="18dp"
                 android:layout_height="18dp"
@@ -96,7 +97,7 @@
                 android:id="@+id/tvOrderId"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#F8FAFC"
+                android:background="@color/background"
                 android:paddingHorizontal="6dp"
                 android:paddingVertical="2dp"
                 android:textColor="@color/text_secondary"
@@ -115,7 +116,7 @@
                 android:id="@+id/tvComplaintCategoryBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#EFF6FF"
+                android:background="@color/brand_blue_bg"
                 android:paddingHorizontal="6dp"
                 android:paddingVertical="2dp"
                 android:textColor="@color/brand_blue"
@@ -191,6 +192,7 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="16dp"
                     android:layout_height="16dp"
                     android:src="@drawable/ic_shield_alert"
@@ -224,7 +226,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:background="#ECFDF5"
+            android:background="@color/brand_green_bg"
             android:orientation="vertical"
             android:padding="10dp"
             android:visibility="gone"
@@ -237,10 +239,11 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="16dp"
                     android:layout_height="16dp"
                     android:src="@drawable/ic_badge_check"
-                    app:tint="#059669" />
+                    app:tint="@color/brand_green" />
 
                 <TextView
                     android:id="@+id/tvResolvedTitle"
@@ -281,6 +284,7 @@
                 android:textSize="11sp" />
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="14dp"
                 android:layout_height="14dp"
                 android:src="@drawable/ic_chevron_right"

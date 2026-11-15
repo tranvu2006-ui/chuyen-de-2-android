@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.core.data.model
 
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.google.firebase.database.Exclude
 import com.google.firebase.database.IgnoreExtraProperties
 import com.google.gson.annotations.SerializedName
@@ -135,13 +136,13 @@ data class Store(
     val deliveryTimeFrameId: Int = 2,
 
     @SerializedName("deliveryTime")
-    val deliveryTime: String = "20-30 phút",
+    val deliveryTime: String = AppConstants.Defaults.DEFAULT_DELIVERY_TIME,
 
     @SerializedName("category")
     val category: String = "",
 
     @SerializedName("bankName")
-    val bankName: String = "MB Bank",
+    val bankName: String = AppConstants.Defaults.DEFAULT_BANK_NAME,
 
     @SerializedName("bankAccountNumber", alternate = ["bankAccount", "bankNo"])
     val bankAccountNumber: String = "",
@@ -150,7 +151,7 @@ data class Store(
     val bankAccountName: String = "",
 
     @SerializedName("bankBin")
-    val bankBin: String = "970422",
+    val bankBin: String = AppConstants.Defaults.DEFAULT_BANK_BIN,
 
     @SerializedName("storeCategories")
     val storeCategories: List<String> = emptyList(),

@@ -56,7 +56,7 @@
                     android:id="@+id/tvHeaderComplaintCode"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp"
                     tools:text="#CMP_8F9A12B4" />
             </LinearLayout>
@@ -119,6 +119,7 @@
                             android:background="@drawable/bg_circle_icon_indigo">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="22dp"
                                 android:layout_height="22dp"
                                 android:layout_gravity="center"
@@ -215,6 +216,7 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_package"
@@ -258,6 +260,7 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="16dp"
                             android:layout_height="16dp"
                             android:src="@drawable/ic_store"
@@ -304,6 +307,7 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="16dp"
                             android:layout_height="16dp"
                             android:src="@drawable/ic_bike"
@@ -518,7 +522,7 @@
                                 android:layout_height="36dp"
                                 android:layout_marginEnd="4dp"
                                 android:layout_weight="1"
-                                android:backgroundTint="#FEE2E2"
+                                android:backgroundTint="@color/danger_bg"
                                 android:padding="0dp"
                                 android:text="Gọi"
                                 android:textColor="@color/danger"
@@ -633,6 +637,7 @@
                             android:padding="10dp">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="16dp"
                                 android:layout_height="16dp"
                                 android:src="@drawable/ic_search"
@@ -660,6 +665,7 @@
                         android:visibility="gone">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="48dp"
                             android:layout_height="48dp"
                             android:src="@drawable/ic_image"
@@ -703,6 +709,7 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_check_circle_green"
@@ -893,7 +900,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:background="#FFFBEB"
+                        android:background="@color/brand_orange_bg"
                         android:lineSpacingExtra="3dp"
                         android:padding="12dp"
                         android:textColor="#92400E"
@@ -974,7 +981,7 @@
                     </HorizontalScrollView>
 
                     <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"

@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.chuyen_de_2.foodorder.core.util.CccdOcrHelper
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
@@ -185,7 +186,7 @@ class StoreVerificationActivity : AppCompatActivity() {
         binding.rootVerification.setPadding(0, statusBarHeight, 0, 0)
         InsetUtils.setLightStatusBar(this, true)
 
-        currentStoreId = intent.getStringExtra("STORE_ID").orEmpty()
+        currentStoreId = intent.getStringExtra(AppConstants.Extras.STORE_ID).orEmpty()
 
         setupSpinners()
         setupListeners()
@@ -505,11 +506,11 @@ class StoreVerificationActivity : AppCompatActivity() {
                 .setTitle("🚪 Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
-                    getSharedPreferences("boss_session", MODE_PRIVATE).edit().clear().apply()
+                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, MODE_PRIVATE).edit().clear().apply()
                     authRepository.logout()
                     startActivity(Intent(this, LoginActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
+                        putExtra(AppConstants.Extras.LOGOUT, true)
                     })
                     finish()
                 }

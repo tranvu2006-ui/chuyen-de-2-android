@@ -9,7 +9,7 @@
     app:cardBackgroundColor="@color/surface"
     app:cardCornerRadius="16dp"
     app:cardElevation="1dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -25,14 +25,14 @@
             android:layout_height="74dp"
             app:cardCornerRadius="12dp"
             app:cardElevation="0dp"
-            app:strokeColor="#F1F5F9"
+            app:strokeColor="@color/divider"
             app:strokeWidth="1dp">
 
             <ImageView
                 android:id="@+id/ivDishThumb"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#F1F5F9"
+                android:background="@color/divider"
                 android:contentDescription="Ảnh món ăn"
                 android:scaleType="centerCrop"
                 tools:src="@drawable/bg_badge_orange" />
@@ -52,7 +52,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="14.5sp"
                 android:textStyle="bold"
                 tools:text="Trà Xí Muội Ô Long" />
@@ -71,7 +71,7 @@
                     android:background="@drawable/bg_badge_blue"
                     android:paddingHorizontal="7dp"
                     android:paddingVertical="2dp"
-                    android:textColor="#2563EB"
+                    android:textColor="@color/brand_blue"
                     android:textSize="10.5sp"
                     android:textStyle="bold"
                     tools:text="Trà Trái Cây" />
@@ -99,7 +99,7 @@
                 android:layout_marginTop="3dp"
                 android:ellipsize="end"
                 android:maxLines="2"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 android:visibility="gone"
                 tools:text="Ghi chú món ăn" />
@@ -125,7 +125,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp"
                     android:visibility="gone"
                     tools:text="35.000 đ"
@@ -145,18 +145,18 @@
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="34dp"
-                android:backgroundTint="#EFF6FF"
+                android:backgroundTint="@color/brand_blue_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
                 android:text="Sửa"
-                android:textColor="#2563EB"
+                android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp"
                 app:icon="@drawable/ic_pencil"
                 app:iconSize="13dp"
-                app:iconTint="#2563EB"
+                app:iconTint="@color/brand_blue"
                 app:strokeColor="#BFDBFE"
                 app:strokeWidth="1dp" />
 

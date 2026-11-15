@@ -9,7 +9,7 @@
     app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="12dp"
     app:cardElevation="1dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -56,13 +56,14 @@
 
             <!-- Nút Xóa địa chỉ -->
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/btnDeleteAddress"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:padding="4dp"
                
-                app:srcCompat="@drawable/ic_trash" app:tint="#EF4444" />
+                app:srcCompat="@drawable/ic_trash" app:tint="@color/danger" />
         </LinearLayout>
 
         <TextView

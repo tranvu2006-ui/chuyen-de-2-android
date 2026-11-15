@@ -3,6 +3,7 @@ package com.chuyen_de_2.foodorder.customer.ui.tracking
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
@@ -22,6 +23,7 @@ import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.core.data.model.DishReview
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import java.io.ByteArrayOutputStream
+import java.util.Locale
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
@@ -43,6 +45,7 @@ import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -95,6 +98,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var currentShipperPhone: String = ""
     private var currentOrder: Order? = null
 
+    // Quản lý đếm ngược cảnh báo gia hạn Lần 2 (realtime)
+    private var round2Minutes: Int = 15
+    private var warningCountdownTimer: CountDownTimer? = null
+    private var lastWarningStartTime: Long = 0L
+
     // Quản lý trạng thái đánh giá riêng cho từng món trong đơn (Cách 2)
     private data class DishRatingState(
         val dishId: String,
@@ -141,6 +149,14 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         viewModel.startTracking(currentOrderId)
         observeViewModel()
+
+        lifecycleScope.launch {
+            try {
+                firebaseRepository.observeCountdownConfig().collectLatest { cfg ->
+                    round2Minutes = cfg.round2Minutes
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private fun setupUI() {
@@ -188,11 +204,15 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Nút Cảnh Báo khẩn cấp trên Header hoặc trong Banner
         val openIncidentAction = View.OnClickListener {
+            val ord = currentOrder
+            val reasonText = ord?.incidentWarningText?.ifBlank { null }
+                ?: ord?.riskReason?.ifBlank { null }
+                ?: "Tài xế đã có mặt tại địa chỉ và đang đếm ngược thời gian gia hạn Lần 2."
             val modal = IncidentProofBottomSheetDialogFragment.newInstance(
                 orderId = currentOrderId,
                 driverName = currentShipperName,
-                reason = "Khách không nghe máy sau 15 phút đếm ngược (Mô phỏng sự cố)",
-                notes = "Tài xế đã có mặt tại địa chỉ giao hàng và liên hệ 3 cuộc gọi nhưng không có phản hồi."
+                reason = reasonText,
+                notes = "Tài xế đã có mặt tại điểm giao nhưng chưa liên lạc được với khách hàng."
             )
             modal.show(supportFragmentManager, "IncidentProofModal")
         }
@@ -784,6 +804,9 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             binding.btnScrollToQr.setOnClickListener {
                 binding.scrollViewContent.smoothScrollTo(0, binding.qrCodeWrapper.top)
             }
+            startWarningCountdown(order)
+        } else {
+            stopWarningCountdown()
         }
 
         // Cập nhật chi tiết các món ăn & thanh toán (chỉ render lần đầu để chuyển trạng thái mượt 0ms)
@@ -1297,5 +1320,56 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             .setView(container)
             .setPositiveButton("Đóng", null)
             .show()
+    }
+
+    /**
+     * Đếm ngược thời gian thực cho Hộp Cảnh Báo Gia Hạn Lần 2 phía Khách hàng
+     */
+    private fun startWarningCountdown(order: Order) {
+        val startTime = if (order.incidentWarningTime > 0L) order.incidentWarningTime else System.currentTimeMillis()
+        if (warningCountdownTimer != null && lastWarningStartTime == startTime) {
+            return
+        }
+        warningCountdownTimer?.cancel()
+        lastWarningStartTime = startTime
+
+        val parsedMinutes = Regex("""Bạn có (\d+)\s*phút""").find(order.incidentWarningText)?.groupValues?.get(1)?.toIntOrNull()
+        val minutesToUse = parsedMinutes ?: round2Minutes
+        val totalDurationMs = minutesToUse * 60 * 1000L
+        val elapsedMs = System.currentTimeMillis() - startTime
+        val remainingMs = maxOf(0L, totalDurationMs - elapsedMs)
+
+        if (remainingMs <= 0L) {
+            binding.lblOrderWarningTimerInline.text = "00:00"
+            return
+        }
+
+        val mInit = (remainingMs / 1000) / 60
+        val sInit = (remainingMs / 1000) % 60
+        binding.lblOrderWarningTimerInline.text = String.format(Locale.getDefault(), "%02d:%02d", mInit, sInit)
+
+        warningCountdownTimer = object : CountDownTimer(remainingMs, 1000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val totalSec = millisUntilFinished / 1000
+                val m = totalSec / 60
+                val s = totalSec % 60
+                binding.lblOrderWarningTimerInline.text = String.format(Locale.getDefault(), "%02d:%02d", m, s)
+            }
+
+            override fun onFinish() {
+                binding.lblOrderWarningTimerInline.text = "00:00"
+            }
+        }.start()
+    }
+
+    private fun stopWarningCountdown() {
+        warningCountdownTimer?.cancel()
+        warningCountdownTimer = null
+        lastWarningStartTime = 0L
+    }
+
+    override fun onDestroy() {
+        stopWarningCountdown()
+        super.onDestroy()
     }
 }

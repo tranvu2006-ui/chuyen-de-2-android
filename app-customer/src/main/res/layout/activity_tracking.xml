@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F8FAFC"
@@ -619,7 +620,8 @@
                                 android:fontFamily="monospace"
                                 android:paddingHorizontal="6dp"
                                 android:paddingVertical="2dp"
-                                android:text="14:33"
+                                tools:text="14:33"
+                                android:text="--:--"
                                 android:textColor="#DC2626"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />

@@ -1762,44 +1762,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                 isRiskReported = (countdownRound >= 2)
                 binding.cardCountdownWarning.visibility = View.GONE
                 if (elapsedSec >= totalSec) {
-                    if (countdownRound == 1) {
-                        // Lần 1 đã trôi qua trong lúc app đóng: tính phần thời gian tràn sang Lần 2
-                        val overtimeSec = elapsedSec - totalSec
-                        val round2TotalSec = round2Minutes * 60
-                        if (overtimeSec < round2TotalSec) {
-                            // Đang ở Lần 2, tiếp tục đếm phần còn lại của Lần 2
-                            countdownRound = 2
-                            isRiskReported = true
-                            val newStart = startTime + (totalSec * 1000L)
-                            prefs.edit()
-                                .putLong("start_time_${targetOrder.orderId}", newStart)
-                                .putInt("round_${targetOrder.orderId}", 2)
-                                .apply()
-                            countdownSecondsRemaining = maxOf(1, round2TotalSec - overtimeSec)
-                            isCountdownActive = true
-                            binding.layoutCountdownActiveButtons.visibility = View.VISIBLE
-                            binding.btnCountdownExpiredAction.visibility = View.GONE
-                            binding.tvCountdownBadge.text = "Gia hạn ${round2Minutes} phút"
-                            binding.tvCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
-                            binding.tvCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-                            binding.tvCountdownStatusMsg.text = "Đang tiếp tục đếm ngược ${round2Minutes} phút LẦN 2 (Cảnh báo gia hạn đơn rủi ro)..."
-                            binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
-                            binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
-                            binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#DC2626"))
-                            runCountdownTimer()
-                        } else {
-                            // Cả Lần 1 và Lần 2 đều đã hết giờ
-                            countdownRound = 2
-                            countdownSecondsRemaining = 0
-                            isCountdownActive = false
-                            onCountdownExpired()
-                        }
-                    } else {
-                        // Lần 2 đã hết giờ
-                        countdownSecondsRemaining = 0
-                        isCountdownActive = false
-                        onCountdownExpired()
-                    }
+                    countdownSecondsRemaining = 0
+                    isCountdownActive = false
+                    onCountdownExpired()
                 } else {
                     isCountdownActive = true
                     countdownSecondsRemaining = maxOf(1, totalSec - elapsedSec)
@@ -1833,26 +1798,28 @@ class DeliveryTripActivity : AppCompatActivity() {
         val targetOrder = if (isBundleMode) bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder else currentOrder
 
         if (countdownRound == 1) {
-            // HẾT LẦN 1: TỰ ĐỘNG CHUYỂN SANG VÀ KÍCH HOẠT ĐẾM NGƯỢC LẦN 2 NGAY LẬP TỨC
-            val autoReason = "Đơn rủi ro: Hết ${round1Minutes} phút chờ Lần 1 (Tự động gia hạn ${round2Minutes} phút Lần 2)"
-            targetOrder?.let { order ->
-                lifecycleScope.launch {
-                    try {
-                        val updates = mapOf<String, Any>(
-                            "isRiskOrder" to true,
-                            "riskStatus" to "RISK_REPORTED",
-                            "riskReason" to autoReason,
-                            "riskReportedAt" to System.currentTimeMillis()
-                        )
-                        com.google.firebase.database.FirebaseDatabase.getInstance().getReference("orders").child(order.orderId).updateChildren(updates)
-                    } catch (_: Exception) {}
+            // HẾT LẦN 1: DỪNG ĐẾM NGƯỢC VÀ CHỜ TÀI XẾ XÁC NHẬN CHUYỂN SANG LẦN 2 (KHÔNG TỰ ĐỘNG CHUYỂN)
+            isCountdownActive = false
+            countdownSecondsRemaining = 0
+            binding.tvCountdownDigits.text = "00:00"
+            binding.layoutCountdownActiveButtons.visibility = View.GONE
+            binding.btnCountdownExpiredAction.visibility = View.VISIBLE
+
+            binding.tvCountdownSubtext.text = "HẾT ${round1Minutes}P LẦN 1"
+            binding.tvCountdownSubtext.setTextColor(Color.parseColor("#EA580C"))
+            binding.tvCountdownStatusMsg.text = "ĐÃ HẾT ${round1Minutes} PHÚT LẦN 1! Khách hàng chưa nhận món.\nBạn được quyền Báo Cáo Sự Cố để chuyển trạng thái sang ĐƠN RỦI RO và kích hoạt ${round2Minutes} phút gia hạn Lần 2 trước khi hủy đơn trả hàng!"
+            binding.layoutCountdownNotice.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FFF7ED"))
+            binding.ivCountdownNoticeIcon.setColorFilter(Color.parseColor("#EA580C"))
+            binding.tvCountdownStatusMsg.setTextColor(Color.parseColor("#C2410C"))
+
+            binding.btnCountdownExpiredAction.text = "BÁO CÁO ĐƠN RỦI RO & BẮT ĐẦU ${round2Minutes}P LẦN 2 ➔"
+            binding.btnCountdownExpiredAction.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#EA580C"))
+
+            targetOrder?.let {
+                if (!hasShownRound1ExpirationDialog && activeIncidentDialog?.isShowing != true) {
+                    hasShownRound1ExpirationDialog = true
+                    showIncidentReportDialog(it, isExpiredRoundOne = true)
                 }
-                start15MinCountdown(order, autoReason, round = 2, forceReset = true)
-                Toast.makeText(
-                    this@DeliveryTripActivity,
-                    "⚠️ Đã hết ${round1Minutes} phút Lần 1! Hệ thống tự động chuyển sang Lần 2 và đang đếm ngược ${round2Minutes} phút gia hạn.",
-                    Toast.LENGTH_LONG
-                ).show()
             }
         } else {
             // HẾT LẦN 2: Hiển thị thông báo hết giờ & chờ Shipper chọn quay về Quán trả hàng
@@ -2113,9 +2080,11 @@ class DeliveryTripActivity : AppCompatActivity() {
     private fun showIncidentReportDialog(order: Order, isExpiredRoundOne: Boolean = false) {
         activeIncidentDialog?.dismiss()
         val prefs = getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
-        if (!isExpiredRoundOne) {
+        val hasStarted = prefs.getLong("start_time_${order.orderId}", 0L) > 0L || order.incidentWarningTime > 0L
+        val isRound1Finished = isExpiredRoundOne || (hasStarted && countdownRound == 1 && countdownSecondsRemaining <= 0)
+        if (!isRound1Finished) {
             checkAndRestoreActiveCountdown()
-            if (!isCountdownActive && countdownSecondsRemaining <= 0 && countdownRound < 2) {
+            if (!isCountdownActive && countdownSecondsRemaining <= 0 && countdownRound < 2 && !hasStarted) {
                 start15MinCountdown(order, "Đang đếm ngược ${round1Minutes} phút thời gian chờ nhận hàng")
             }
         }
@@ -2123,7 +2092,7 @@ class DeliveryTripActivity : AppCompatActivity() {
         val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
 
         var dialogCountdownTimer: android.os.CountDownTimer? = null
-        var isTimerFinished = isExpiredRoundOne || countdownSecondsRemaining <= 0
+        var isTimerFinished = isRound1Finished || countdownSecondsRemaining <= 0
 
         val reasons = arrayOf(
             "📵 Khách không nghe máy (Đã gọi 3 cuộc)",
@@ -2170,7 +2139,7 @@ class DeliveryTripActivity : AppCompatActivity() {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
         }
 
-        if (isExpiredRoundOne) {
+        if (isRound1Finished) {
             repBinding.tvIncidentOrderSub.text = "Đơn #${shortCode} • ĐÃ HẾT ${round1Minutes}P LẦN 1 • Báo cáo đơn rủi ro"
             repBinding.tvIncidentCountdownBadge.text = "Chờ ${round1Minutes} phút"
             repBinding.tvIncidentCountdownDigits.text = "00:00"
@@ -2236,39 +2205,14 @@ class DeliveryTripActivity : AppCompatActivity() {
                     }
 
                     override fun onFinish() {
+                        isTimerFinished = true
+                        countdownSecondsRemaining = 0
+                        repBinding.tvIncidentCountdownDigits.text = "00:00"
                         if (countdownRound == 1) {
-                            // Tự động chuyển sang Lần 2 ngay trong dialog
-                            val autoReason = "Đơn rủi ro: Đã chờ hết ${round1Minutes} phút Lần 1 - Tự động gia hạn Lần 2"
-                            start15MinCountdown(order, autoReason, round = 2, forceReset = true)
-                            repBinding.tvIncidentOrderSub.text = "Đơn #${shortCode} • ĐANG ĐẾM NGƯỢC LẦN 2 (Đơn rủi ro)"
-                            repBinding.tvIncidentCountdownBadge.text = "Gia hạn ${round2Minutes} phút"
-                            repBinding.tvIncidentCountdownSubtext.text = "LẦN 2/2 (Gia hạn) • còn lại"
-                            repBinding.tvIncidentCountdownSubtext.setTextColor(Color.parseColor("#DC2626"))
-                            repBinding.tvIncidentCountdownDesc.text = "LẦN 2/2 (CẢNH BÁO GIA HẠN): Đã hết Lần 1! Hệ thống đang tự động đếm ngược ${round2Minutes} phút Lần 2..."
-                            repBinding.layoutIncidentCountdownNotice.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
-                            repBinding.ivIncidentCountdownNoticeIcon.setColorFilter(Color.parseColor("#DC2626"))
-                            repBinding.tvIncidentCountdownDesc.setTextColor(Color.parseColor("#DC2626"))
-
-                            dialogCountdownTimer?.cancel()
-                            val round2Sec = round2Minutes * 60
-                            dialogCountdownTimer = object : android.os.CountDownTimer((round2Sec * 1000).toLong(), 1000) {
-                                override fun onTick(millisUntilFinished: Long) {
-                                    val sec = (millisUntilFinished / 1000).toInt()
-                                    repBinding.tvIncidentCountdownDigits.text = String.format(java.util.Locale.getDefault(), "%02d:%02d", sec / 60, sec % 60)
-                                    updateConfirmButtonLockState(sec)
-                                }
-                                override fun onFinish() {
-                                    isTimerFinished = true
-                                    repBinding.tvIncidentCountdownDigits.text = "00:00"
-                                    repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round2Minutes}P LẦN 2"
-                                    repBinding.tvIncidentCountdownDesc.text = "ĐÃ HẾT ${round2Minutes} PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng). Bạn có thể xác nhận hủy đơn bom ngay."
-                                    updateConfirmButtonLockState(0)
-                                }
-                            }.start()
+                            repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round1Minutes}P LẦN 1"
+                            repBinding.tvIncidentCountdownDesc.text = "ĐÃ HẾT ${round1Minutes} PHÚT LẦN 1! Khách hàng chưa nhận món. Bạn hãy chọn lý do, tải ảnh minh chứng và bấm nút bên dưới để xác nhận báo cáo & bắt đầu đếm ngược ${round2Minutes} phút Lần 2."
+                            updateConfirmButtonLockState(0)
                         } else {
-                            isTimerFinished = true
-                            countdownSecondsRemaining = 0
-                            repBinding.tvIncidentCountdownDigits.text = "00:00"
                             repBinding.tvIncidentCountdownSubtext.text = "HẾT ${round2Minutes}P LẦN 2"
                             repBinding.tvIncidentCountdownDesc.text = "ĐÃ HẾT ${round2Minutes} PHÚT LẦN 2! Khách hàng không nhận món (Bom hàng). Bạn có thể xác nhận hủy đơn bom ngay."
                             updateConfirmButtonLockState(0)
@@ -2470,9 +2414,9 @@ class DeliveryTripActivity : AppCompatActivity() {
             dialogCountdownTimer?.cancel()
             dialog.dismiss()
 
-            val isDirectBom = reason.contains("Bom hàng", ignoreCase = true) || (!isExpiredRoundOne && countdownRound >= 2)
+            val isDirectBom = reason.contains("Bom hàng", ignoreCase = true) || (!isRound1Finished && countdownRound >= 2)
 
-            if (!isDirectBom && (isExpiredRoundOne || countdownRound == 1)) {
+            if (!isDirectBom && (isRound1Finished || countdownRound == 1)) {
                 // Báo cáo sự cố lần 1: Đánh dấu ĐƠN RỦI RO trên Firebase & Kích hoạt đếm ngược Lần 2
                 lifecycleScope.launch {
                     try {

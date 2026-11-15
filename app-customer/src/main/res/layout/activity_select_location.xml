@@ -51,10 +51,11 @@
                 android:paddingHorizontal="14dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     app:srcCompat="@drawable/ic_search"
-                    app:tint="#64748B" />
+                    app:tint="@color/text_secondary" />
 
                 <EditText
                     android:id="@+id/etSearchLocation"
@@ -66,8 +67,8 @@
                     android:hint="Tìm số nhà, tên đường, địa điểm..."
                     android:imeOptions="actionSearch"
                     android:inputType="text"
-                    android:textColor="#0F172A"
-                    android:textColorHint="#94A3B8"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted"
                     android:textSize="14sp" />
 
                 <ProgressBar
@@ -79,6 +80,7 @@
                     android:visibility="gone" />
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/btnClearSearch"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
@@ -88,14 +90,14 @@
                     android:padding="3dp"
                     android:visibility="gone"
                     app:srcCompat="@drawable/ic_close"
-                    app:tint="#64748B" />
+                    app:tint="@color/text_secondary" />
             </LinearLayout>
 
             <View
                 android:id="@+id/dividerSearch"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="#F1F5F9"
+                android:background="@color/divider"
                 android:visibility="gone" />
 
             <!-- Danh sách gợi ý địa chỉ xổ xuống (Dropdown Suggestions) -->
@@ -118,7 +120,7 @@
         android:layout_height="wrap_content"
         app:cardCornerRadius="20dp"
         app:cardElevation="10dp"
-        app:strokeColor="#E2E8F0"
+        app:strokeColor="@color/border"
         app:strokeWidth="1dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
@@ -138,7 +140,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Vị trí đã chọn:"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -159,7 +161,7 @@
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:text="Đang định vị địa chỉ..."
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -175,7 +177,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnConfirmLocation"
-                style="@style/Widget.MaterialComponents.Button"
+                style="@style/Widget.Material3.Button"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="14dp"

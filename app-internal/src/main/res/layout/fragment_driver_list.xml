@@ -4,14 +4,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F4F6F8"
+    android:background="@color/background"
     android:orientation="vertical">
 
     <!-- Top Navbar Quán/1.html -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="#FFFFFF"
+        android:background="@color/white"
         android:elevation="2dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -22,7 +22,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Đội Tài Xế Của Quán"
-            android:textColor="#1E293B"
+            android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -31,12 +31,12 @@
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
-            android:backgroundTint="#EFF6FF"
+            android:backgroundTint="@color/brand_blue_bg"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:paddingHorizontal="12dp"
             android:text="+ Thêm TX"
-            android:textColor="#2563EB"
+            android:textColor="@color/brand_blue"
             android:textSize="12sp"
             android:textStyle="bold"
             app:cornerRadius="8dp"
@@ -61,10 +61,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="14dp"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -90,7 +90,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textColor="#2563EB"
+                            android:textColor="@color/brand_blue"
                             android:textSize="18sp"
                             android:textStyle="bold" />
 
@@ -99,14 +99,14 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="Tổng tài xế"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
                     </LinearLayout>
 
                     <View
                         android:layout_width="1dp"
                         android:layout_height="match_parent"
-                        android:background="#F1F5F9" />
+                        android:background="@color/divider" />
 
                     <!-- Stat 2: Đang rảnh -->
                     <LinearLayout
@@ -125,7 +125,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textColor="#10B981"
+                            android:textColor="@color/brand_green"
                             android:textSize="18sp"
                             android:textStyle="bold" />
 
@@ -134,14 +134,14 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="Đang rảnh"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
                     </LinearLayout>
 
                     <View
                         android:layout_width="1dp"
                         android:layout_height="match_parent"
-                        android:background="#F1F5F9" />
+                        android:background="@color/divider" />
 
                     <!-- Stat 3: Đang giao -->
                     <LinearLayout
@@ -160,7 +160,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textColor="#EE4D2D"
+                            android:textColor="@color/primary"
                             android:textSize="18sp"
                             android:textStyle="bold" />
 
@@ -169,14 +169,14 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="Đang giao"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
                     </LinearLayout>
 
                     <View
                         android:layout_width="1dp"
                         android:layout_height="match_parent"
-                        android:background="#F1F5F9" />
+                        android:background="@color/divider" />
 
                     <!-- Stat 4: Nghỉ ca -->
                     <LinearLayout
@@ -195,7 +195,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="18sp"
                             android:textStyle="bold" />
 
@@ -204,7 +204,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:text="⏸️ Nghỉ ca"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
                     </LinearLayout>
 
@@ -241,7 +241,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:text="Chưa có tài xế nào trong đội xe"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
@@ -250,7 +250,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="Bấm &#x27;+ Thêm TX&#x27; ở góc phải để thêm tài xế nội bộ"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 

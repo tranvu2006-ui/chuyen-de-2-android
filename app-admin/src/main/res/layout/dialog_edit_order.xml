@@ -30,6 +30,7 @@
                     android:background="@drawable/bg_circle_icon_orange">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:layout_gravity="center"
@@ -64,6 +65,7 @@
                 </LinearLayout>
 
                 <ImageButton
+                    android:importantForAccessibility="no"
                     android:id="@+id/btnCloseOrderDialog"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
@@ -362,7 +364,7 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCancelEditOrder"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="50dp"
                     android:layout_weight="1"

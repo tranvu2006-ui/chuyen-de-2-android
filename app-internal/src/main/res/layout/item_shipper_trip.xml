@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
-    app:cardBackgroundColor="#FFFFFF"
+    app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="14dp"
     app:cardElevation="2dp"
     app:strokeColor="@color/border"
@@ -79,7 +79,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Đánh giá khách: ⭐ 5.0"
-                android:textColor="#F59E0B"
+                android:textColor="@color/brand_orange"
                 android:textSize="11sp"
                 android:textStyle="bold" />
 

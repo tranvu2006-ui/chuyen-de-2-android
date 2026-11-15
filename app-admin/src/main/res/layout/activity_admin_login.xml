@@ -256,7 +256,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipAdmin1"
-                            style="@style/Widget.MaterialComponents.Chip.Action"
+                            style="@style/Widget.Material3.Chip.Assist"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="🔑 admin@gmail.com"

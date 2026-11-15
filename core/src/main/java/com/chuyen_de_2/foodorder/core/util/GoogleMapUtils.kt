@@ -158,10 +158,12 @@ object GoogleMapUtils {
      * - Mỗi km tiếp theo: +5.000 đ/km
      */
     fun calculateShippingFeeByDistance(distanceKm: Float): Long {
-        if (distanceKm <= 3f) return 15000L
-        val extraKm = (distanceKm - 3f).coerceAtLeast(0f)
-        val extraFee = Math.ceil(extraKm.toDouble()).toLong() * 5000L
-        return 15000L + extraFee
+        if (distanceKm <= AppConstants.ShippingRules.BASE_DISTANCE_KM) {
+            return AppConstants.ShippingRules.BASE_SHIPPING_FEE
+        }
+        val extraKm = (distanceKm - AppConstants.ShippingRules.BASE_DISTANCE_KM).coerceAtLeast(0f)
+        val extraFee = Math.ceil(extraKm.toDouble()).toLong() * AppConstants.ShippingRules.EXTRA_FEE_PER_KM
+        return AppConstants.ShippingRules.BASE_SHIPPING_FEE + extraFee
     }
 
     /**

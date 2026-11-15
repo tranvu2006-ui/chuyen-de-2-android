@@ -1,10 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Oshi Merchant</string>
+    <string name="app_name">Oishi Partner</string>
+
+    <!-- Auth -->
+    <string name="logo_desc">Oishi Food Partner Logo</string>
+    <string name="partner_title">Oishi Partner</string>
+    <string name="partner_subtitle">Cổng quản trị dành cho Chủ quán &amp; Tài xế</string>
     <string name="login_title">Đăng nhập nội bộ</string>
+    <string name="login_card_title">Đăng nhập đối tác</string>
+    <string name="register_partner_title">Đăng Ký Đối Tác</string>
+    <string name="register_partner_subtitle">Mở gian hàng kinh doanh ẩm thực trên Oishi Food</string>
+    <string name="register_partner_card_title">Thông tin đăng ký gian hàng</string>
+    <string name="name_hint">Họ và tên</string>
+    <string name="phone_hint">Số điện thoại liên hệ</string>
     <string name="email_hint">Email nhân viên</string>
     <string name="password_hint">Mật khẩu</string>
+    <string name="confirm_password_hint">Xác nhận lại mật khẩu</string>
     <string name="btn_login">Đăng nhập</string>
+    <string name="btn_register_partner">Đăng Ký Đối Tác</string>
+    <string name="no_partner_account">Chưa có tài khoản đối tác? </string>
+    <string name="has_partner_account">Đã có tài khoản đối tác? </string>
+    <string name="action_login_now">Đăng nhập ngay</string>
+    <string name="action_register_now">Đăng ký ngay</string>
+
+    <!-- Orders & Branch -->
     <string name="empty_orders">Chưa có đơn hàng nào</string>
     <string name="empty_assigned">Chưa có đơn được gán</string>
+    <string name="branch_create_title">Tạo Chi Nhánh Mới</string>
+    <string name="branch_create_subtitle">Điền thông tin chi nhánh mới để mở rộng chuỗi cửa hàng của bạn.</string>
+    <string name="verification_title">Xác Minh Thông Tin Quán</string>
 </resources>

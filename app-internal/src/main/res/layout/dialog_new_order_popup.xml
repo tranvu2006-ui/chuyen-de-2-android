@@ -13,6 +13,7 @@
         android:orientation="horizontal">
 
         <ImageView
+            android:importantForAccessibility="no"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
            
@@ -47,7 +48,7 @@
             android:id="@+id/tvPopupFee"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="#ECFDF5"
+            android:background="@color/brand_green_bg"
             android:paddingHorizontal="10dp"
             android:paddingVertical="5dp"
             android:text="+25.000 đ"
@@ -118,9 +119,9 @@
             android:layout_width="0dp"
             android:layout_height="46dp"
             android:layout_weight="1.6"
-            android:backgroundTint="#059669"
+            android:backgroundTint="@color/brand_green"
             android:text="CHẤP NHẬN ĐƠN"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textStyle="bold" />
     </LinearLayout>
 

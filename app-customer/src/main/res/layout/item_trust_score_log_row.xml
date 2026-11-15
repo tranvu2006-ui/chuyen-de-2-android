@@ -15,7 +15,7 @@
         android:layout_height="48dp"
         android:background="@drawable/bg_circle_icon_indigo"
         android:gravity="center"
-        android:textColor="#059669"
+        android:textColor="@color/brand_green"
         android:textSize="13sp"
         android:textStyle="bold"
         tools:text="+2đ" />
@@ -31,7 +31,7 @@
             android:id="@+id/tvLogRowReason"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#1E293B"
+            android:textColor="@color/text_primary"
             android:textSize="12.5sp"
             android:textStyle="bold"
             tools:text="Hoàn thành nhận hàng đơn #ORD-88219" />
@@ -47,7 +47,7 @@
                 android:id="@+id/tvLogRowTime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 tools:text="28/10/2026 14:30" />
 
@@ -56,7 +56,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 tools:text="(98 ➔ 100đ)" />
         </LinearLayout>

@@ -71,7 +71,7 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:srcCompat="@drawable/ic_trash"
-                app:tint="#EF4444" />
+                app:tint="@color/danger" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 

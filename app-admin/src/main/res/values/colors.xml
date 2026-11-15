@@ -31,6 +31,7 @@
     <color name="text_secondary">#475569</color>
     <color name="text_muted">#94A3B8</color>
     <color name="border">#E2E8F0</color>
+    <color name="border_light">#F1F5F9</color>
     <color name="divider">#F1F5F9</color>
 
     <!-- Semantic Status Tokens -->
@@ -40,6 +41,8 @@
     <color name="brand_blue_bg">#DBEAFE</color>
     <color name="brand_orange">#D97706</color>
     <color name="brand_orange_bg">#FEF3C7</color>
+    <color name="brand_teal">#14B8A6</color>
+    <color name="brand_teal_bg">#F0FDFA</color>
     <color name="danger">#E11D48</color>
     <color name="danger_bg">#FFE4E6</color>
     <color name="purple">#7C3AED</color>
@@ -53,4 +56,6 @@
 
     <color name="error">#E11D48</color>
     <color name="on_error">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
 </resources>

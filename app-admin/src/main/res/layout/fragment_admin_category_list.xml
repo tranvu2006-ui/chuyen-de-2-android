@@ -43,6 +43,7 @@
                         android:background="@drawable/bg_circle_icon_purple">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:layout_gravity="center"
@@ -104,7 +105,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnRestoreCategoryDefaults"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="48dp"
                         android:layout_marginStart="6dp"

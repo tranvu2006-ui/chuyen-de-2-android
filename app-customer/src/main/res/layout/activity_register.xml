@@ -9,15 +9,15 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="24dp">
+        android:padding="@dimen/spacing_xxl">
 
         <!-- Logo Container -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/logoContainer"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:layout_marginTop="24dp"
-            app:cardCornerRadius="20dp"
+            android:layout_width="@dimen/logo_size_sm"
+            android:layout_height="@dimen/logo_size_sm"
+            android:layout_marginTop="@dimen/spacing_xxl"
+            app:cardCornerRadius="@dimen/radius_xl"
             app:cardElevation="4dp"
             app:strokeWidth="0dp"
             app:layout_constraintEnd_toEndOf="parent"
@@ -30,18 +30,18 @@
                 android:layout_height="match_parent"
                 android:scaleType="centerCrop"
                 android:src="@drawable/ic_app_logo"
-                android:contentDescription="Oishi Food Logo" />
+                android:contentDescription="@string/logo_desc" />
         </com.google.android.material.card.MaterialCardView>
 
         <TextView
             android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="@dimen/spacing_md"
             android:letterSpacing="-0.02"
-            android:text="Oishi Food"
+            android:text="@string/app_name"
             android:textColor="@color/primary"
-            android:textSize="26sp"
+            android:textSize="@dimen/text_hero"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -51,10 +51,10 @@
             android:id="@+id/tvSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Tạo tài khoản khách hàng để đặt món ngon"
+            android:layout_marginTop="@dimen/spacing_xs"
+            android:text="@string/register_subtitle"
             android:textColor="@color/text_secondary"
-            android:textSize="14sp"
+            android:textSize="@dimen/text_md"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tvTitle" />
@@ -65,22 +65,22 @@
             style="@style/Widget.FoodOrder.Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="@dimen/spacing_xxl"
             app:layout_constraintTop_toBottomOf="@id/tvSubtitle">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="@dimen/spacing_xl">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:text="Thông tin đăng ký khách hàng"
+                    android:layout_marginBottom="@dimen/spacing_lg"
+                    android:text="@string/register_card_title"
                     android:textColor="@color/text_primary"
-                    android:textSize="18sp"
+                    android:textSize="@dimen/text_xl"
                     android:textStyle="bold" />
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -104,8 +104,8 @@
                     style="@style/Widget.FoodOrder.TextInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:hint="Số điện thoại liên hệ"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/phone_hint"
                     app:startIconDrawable="@drawable/ic_phone">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -121,7 +121,7 @@
                     style="@style/Widget.FoodOrder.TextInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/spacing_md"
                     android:hint="@string/email_hint"
                     app:startIconDrawable="@drawable/ic_mail">
 
@@ -138,7 +138,7 @@
                     style="@style/Widget.FoodOrder.TextInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/spacing_md"
                     android:hint="@string/password_hint"
                     app:passwordToggleEnabled="true"
                     app:startIconDrawable="@drawable/ic_lock">
@@ -156,7 +156,7 @@
                     style="@style/Widget.FoodOrder.TextInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/spacing_md"
                     android:hint="@string/confirm_password_hint"
                     app:passwordToggleEnabled="true"
                     app:startIconDrawable="@drawable/ic_lock">
@@ -173,8 +173,8 @@
                     android:id="@+id/btnRegister"
                     style="@style/Widget.FoodOrder.Button.Primary"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="20dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/spacing_xl"
                     android:text="@string/btn_register" />
 
                 <ProgressBar
@@ -182,7 +182,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="@dimen/spacing_md"
                     android:visibility="gone" />
 
             </LinearLayout>
@@ -192,11 +192,12 @@
             android:id="@+id/tvLogin"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:padding="8dp"
+            android:layout_marginTop="@dimen/spacing_xl"
+            android:background="?attr/selectableItemBackground"
+            android:padding="@dimen/spacing_sm"
             android:text="@string/has_account"
             android:textColor="@color/primary"
-            android:textSize="14sp"
+            android:textSize="@dimen/text_md"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"

@@ -61,10 +61,11 @@
                         android:orientation="horizontal">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_shield"
-                            app:tint="#D97706" />
+                            app:tint="@color/brand_orange" />
 
                         <TextView
                             android:id="@+id/tvTrustScoreTitle"
@@ -127,7 +128,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="Địa Chỉ Nhận Hàng (TP.HCM)"
-                            android:textColor="#0F172A"
+                            android:textColor="@color/text_primary"
                             android:textSize="15sp"
                             android:textStyle="bold" />
 
@@ -160,7 +161,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Địa chỉ lưu sẵn:"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11.5sp"
                             android:textStyle="bold" />
 
@@ -205,6 +206,7 @@
                         android:paddingHorizontal="14dp">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                            
@@ -226,7 +228,7 @@
                         android:layout_marginTop="12dp"
                         android:layout_marginBottom="6dp"
                         android:text="Chọn Quận / Huyện (Tính cước tự động):"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
@@ -241,7 +243,7 @@
                     <!-- Input số nhà, tên đường -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilAddress"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -249,7 +251,7 @@
                         app:boxCornerRadiusBottomStart="12dp"
                         app:boxCornerRadiusTopEnd="12dp"
                         app:boxCornerRadiusTopStart="12dp"
-                        app:boxStrokeColor="#475569"
+                        app:boxStrokeColor="@color/text_secondary"
                         app:boxStrokeWidth="1.5dp"
                         app:hintEnabled="false">
 
@@ -261,15 +263,15 @@
                             android:inputType="textPostalAddress"
                             android:paddingHorizontal="14dp"
                             android:paddingVertical="0dp"
-                            android:textColor="#0F172A"
-                            android:textColorHint="#64748B"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_secondary"
                             android:textSize="13.5sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- SĐT nhận hàng -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilPhone"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
@@ -277,7 +279,7 @@
                         app:boxCornerRadiusBottomStart="12dp"
                         app:boxCornerRadiusTopEnd="12dp"
                         app:boxCornerRadiusTopStart="12dp"
-                        app:boxStrokeColor="#475569"
+                        app:boxStrokeColor="@color/text_secondary"
                         app:boxStrokeWidth="1.5dp"
                         app:hintEnabled="false">
 
@@ -289,8 +291,8 @@
                             android:inputType="phone"
                             android:paddingHorizontal="14dp"
                             android:paddingVertical="0dp"
-                            android:textColor="#0F172A"
-                            android:textColorHint="#64748B"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_secondary"
                             android:textSize="13.5sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -332,7 +334,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Hình Thức Thanh Toán"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
@@ -370,7 +372,7 @@
                                 android:layout_marginStart="8dp"
                                 android:layout_weight="1"
                                 android:text="Trả Thẳng (100% Đơn Hàng)"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
@@ -381,7 +383,7 @@
                             android:layout_marginStart="28dp"
                             android:layout_marginTop="4dp"
                             android:text="Thanh toán toàn bộ 100% đơn hàng. Khi shipper giao tới, bạn chỉ cần quét mã QR nhận hàng, không cần chuẩn bị tiền mặt."
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
                         <TextView
@@ -430,7 +432,7 @@
                                 android:layout_marginStart="8dp"
                                 android:layout_weight="1"
                                 android:text="Đặt Cọc 20% Giữ Đơn"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
 
@@ -439,7 +441,7 @@
                                 android:layout_height="wrap_content"
                                 android:background="@drawable/bg_badge_deposit"
                                 android:text="Cọc 20%"
-                                android:textColor="#D97706"
+                                android:textColor="@color/brand_orange"
                                 android:textSize="11sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
@@ -450,7 +452,7 @@
                             android:layout_marginStart="28dp"
                             android:layout_marginTop="4dp"
                             android:text="Chỉ cần thanh toán cọc 20% ngay bây giờ để quán bắt đầu làm món. Số tiền còn lại (80% + phí ship) bạn thanh toán trực tiếp cho shipper khi nhận món."
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
                         <LinearLayout
@@ -465,7 +467,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Cọc ngay (20%): 0 đ"
-                                android:textColor="#D97706"
+                                android:textColor="@color/brand_orange"
                                 android:textSize="12.5sp"
                                 android:textStyle="bold" />
 
@@ -475,7 +477,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginStart="14dp"
                                 android:text="Thu khi nhận: 0 đ"
-                                android:textColor="#64748B"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="12.5sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
@@ -515,7 +517,7 @@
                                 android:layout_marginStart="8dp"
                                 android:layout_weight="1"
                                 android:text="Thanh Toán Khi Nhận Hàng (COD)"
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="14sp"
                                 android:textStyle="bold" />
 
@@ -528,6 +530,7 @@
                                 android:paddingVertical="3dp">
 
                                 <ImageView
+                                    android:importantForAccessibility="no"
                                     android:layout_width="12dp"
                                     android:layout_height="12dp"
                                     android:src="@drawable/ic_badge_check"
@@ -550,7 +553,7 @@
                             android:layout_marginStart="28dp"
                             android:layout_marginTop="4dp"
                             android:text="Nhận hàng, kiểm tra đồ ăn rồi mới thanh toán tiền cho tài xế. Không cần thanh toán trước hay đặt cọc."
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
                         <TextView
@@ -562,7 +565,7 @@
                             android:background="@drawable/bg_badge_trust_pill"
                             android:drawablePadding="6dp"
                             android:text="Điểm uy tín của bạn đủ điều kiện nhận hàng trả sau"
-                            android:textColor="#059669"
+                            android:textColor="@color/brand_green"
                             android:textSize="11.5sp"
                             android:textStyle="bold" />
 
@@ -573,7 +576,7 @@
                             android:layout_marginStart="28dp"
                             android:layout_marginTop="6dp"
                             android:text="Thanh toán khi nhận: 0 đ (Trả trước: 0 đ)"
-                            android:textColor="#059669"
+                            android:textColor="@color/brand_green"
                             android:textSize="12.5sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -592,7 +595,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Kênh quét mã thanh toán trực tuyến:"
-                            android:textColor="#475569"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12.5sp"
                             android:textStyle="bold" />
 
@@ -620,11 +623,12 @@
                                 android:minHeight="0dp" />
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="22dp"
                                 android:layout_height="22dp"
                                 android:layout_marginStart="8dp"
                                 android:src="@drawable/ic_credit_card"
-                                app:tint="#2563EB" />
+                                app:tint="@color/brand_blue" />
 
                             <LinearLayout
                                 android:layout_width="0dp"
@@ -638,7 +642,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="VietQR Ngân Hàng (24/7)"
-                                    android:textColor="#0F172A"
+                                    android:textColor="@color/text_primary"
                                     android:textSize="13.5sp"
                                     android:textStyle="bold" />
 
@@ -647,11 +651,12 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Quét mã QR tự động điền STK &amp; số tiền chuẩn xác"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="11.5sp" />
                             </LinearLayout>
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:id="@+id/ivCheckBank"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
@@ -684,6 +689,7 @@
                                 android:minHeight="0dp" />
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="22dp"
                                 android:layout_height="22dp"
                                 android:layout_marginStart="8dp"
@@ -702,7 +708,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Ví điện tử MoMo"
-                                    android:textColor="#0F172A"
+                                    android:textColor="@color/text_primary"
                                     android:textSize="13.5sp"
                                     android:textStyle="bold" />
 
@@ -711,11 +717,12 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="Quán xác nhận giao dịch thủ công"
-                                    android:textColor="#64748B"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="11.5sp" />
                             </LinearLayout>
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:id="@+id/ivCheckMomo"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
@@ -760,7 +767,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:text="Quán sẽ xác nhận và chế biến ngay sau khi nhận được giao dịch chuyển khoản."
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="italic" />
                     </LinearLayout>
@@ -845,7 +852,7 @@
                             android:id="@+id/tvItemCount"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
 
@@ -1045,7 +1052,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="Thu khi nhận món:"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
                         <TextView
@@ -1053,7 +1060,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0 đ (Thu tiền mặt)"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -1084,7 +1091,7 @@
             android:paddingHorizontal="16dp"
             android:paddingVertical="7dp"
             android:text="Còn lại 0đ thu khi nhận"
-            android:textColor="#D97706"
+            android:textColor="@color/brand_orange"
             android:textSize="11.5sp"
             android:textStyle="bold"
             android:visibility="gone" />
@@ -1111,7 +1118,7 @@
                     android:ellipsize="end"
                     android:singleLine="true"
                     android:text="Thanh toán ngay (100%):"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
                 <TextView

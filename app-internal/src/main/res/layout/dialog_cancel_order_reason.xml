@@ -63,7 +63,7 @@
             android:layout_marginStart="8dp"
             android:backgroundTint="@color/danger"
             android:text="Xác Nhận Hủy Đơn"
-            android:textColor="#FFFFFF" />
+            android:textColor="@color/white" />
     </LinearLayout>
 
 </LinearLayout>

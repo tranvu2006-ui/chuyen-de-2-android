@@ -101,7 +101,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Quản trị viên • Trực tuyến"
-                android:textColor="#94A3B8"
+                android:textColor="@color/text_muted"
                 android:textSize="11.5sp" />
         </LinearLayout>
 
@@ -116,6 +116,7 @@
             android:focusable="true">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_gravity="center"
@@ -150,6 +151,7 @@
             android:focusable="true">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_gravity="center"

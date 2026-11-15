@@ -9,7 +9,7 @@
     app:cardBackgroundColor="@color/white"
     app:cardCornerRadius="14dp"
     app:cardElevation="1dp"
-    app:strokeColor="#F1F5F9"
+    app:strokeColor="@color/divider"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -27,6 +27,7 @@
             android:background="@drawable/bg_badge_orange">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:id="@+id/ivNotifIcon"
                 android:layout_width="22dp"
                 android:layout_height="22dp"
@@ -79,7 +80,7 @@
                 android:lineSpacingExtra="2dp"
                 android:maxLines="2"
                 android:text="Tài xế đang giao đơn hàng đến bạn. Vui lòng chú ý điện thoại."
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="12.5sp" />
 
             <TextView
@@ -88,12 +89,13 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="5dp"
                 android:text="Vừa xong"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp" />
         </LinearLayout>
 
         <!-- Chevron right icon -->
         <ImageView
+            android:importantForAccessibility="no"
             android:layout_width="16dp"
             android:layout_height="16dp"
             android:layout_marginStart="8dp"

@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8FAFC">
+    android:background="@color/background">
 
     <!-- ===================================================
          1. TOP NAV HEADER (b5.html: app-top-nav)
@@ -26,7 +26,7 @@
             android:background="@drawable/bg_btn_circle_nav"
             android:contentDescription="Quay lại"
             android:src="@drawable/ic_arrow_left"
-            app:tint="#1E293B" />
+            app:tint="@color/text_primary" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -52,7 +52,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text=""
-                android:textColor="#1E293B"
+                android:textColor="@color/text_primary"
                 android:textSize="14.5sp"
                 android:textStyle="bold" />
 
@@ -74,7 +74,7 @@
             android:background="@drawable/bg_btn_circle_nav"
             android:contentDescription="Chia sẻ"
             android:src="@drawable/ic_share"
-            app:tint="#475569" />
+            app:tint="@color/text_secondary" />
 
         <ImageButton
             android:id="@+id/btnFavorite"
@@ -134,7 +134,7 @@
                                 android:id="@+id/ivDetailFood"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:background="#F1F5F9"
+                                android:background="@color/divider"
                                 android:contentDescription="Ảnh món chi tiết"
                                 android:scaleType="centerCrop" />
 
@@ -168,7 +168,7 @@
                                 android:ellipsize="end"
                                 android:maxLines="2"
                                 android:text=""
-                                android:textColor="#0F172A"
+                                android:textColor="@color/text_primary"
                                 android:textSize="15sp"
                                 android:textStyle="bold" />
 
@@ -178,7 +178,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
                                 android:text=""
-                                android:textColor="#64748B"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="11.5sp" />
 
                             <!-- Hàng giá tiền: Giá bán + Giá gốc gạch ngang -->
@@ -204,7 +204,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginStart="8dp"
                                     android:text="38.000đ"
-                                    android:textColor="#94A3B8"
+                                    android:textColor="@color/text_muted"
                                     android:textSize="11.5sp" />
                             </LinearLayout>
 
@@ -254,7 +254,7 @@
                         android:lineSpacingExtra="2dp"
                         android:padding="8dp"
                         android:text="Trà Ô Long đặc sản ủ lạnh kết hợp vị xí muội mặn ngọt thanh mát, giúp giải nhiệt hiệu quả."
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11.5sp" />
 
 
@@ -266,7 +266,7 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="6dp"
-                android:background="#F1F5F9" />
+                android:background="@color/divider" />
 
             <!-- ===================================================
                  3. NỬA DƯỚI: LIST VIEW MÓN ĂN CỦA QUÁN (b5.html: bottom-list-section)
@@ -290,7 +290,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="THỰC ĐƠN QUÁN"
-                        android:textColor="#0F172A"
+                        android:textColor="@color/text_primary"
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
@@ -389,7 +389,7 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:background="#E2E8F0" />
+                    android:background="@color/border" />
             </LinearLayout>
 
             <!-- Danh sách RecyclerView thực đơn các món ăn -->
@@ -486,7 +486,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text=""
-                        android:textColor="#FFF0ED"
+                        android:textColor="@color/primary_light"
                         android:textSize="10.5sp" />
                 </LinearLayout>
             </LinearLayout>

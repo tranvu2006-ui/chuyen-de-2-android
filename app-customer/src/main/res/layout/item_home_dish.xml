@@ -37,6 +37,7 @@
                 android:layout_height="match_parent">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/ivDishThumb"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"

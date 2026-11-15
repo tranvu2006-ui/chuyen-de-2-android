@@ -26,7 +26,7 @@
         <item name="textInputStyle">@style/Widget.FoodOrder.Admin.TextInputLayout</item>
     </style>
 
-    <style name="Widget.FoodOrder.Admin.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+    <style name="Widget.FoodOrder.Admin.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
         <item name="boxBackgroundColor">@color/white</item>
         <item name="boxStrokeColor">@color/primary</item>
         <item name="hintTextColor">@color/primary</item>

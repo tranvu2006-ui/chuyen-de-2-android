@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
-    app:cardBackgroundColor="#F8FAFC"
+    app:cardBackgroundColor="@color/background"
     app:cardCornerRadius="12dp"
     app:cardElevation="0dp"
     app:strokeColor="@color/border_light"
@@ -32,6 +32,7 @@
                 app:strokeWidth="1dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/ivDishThumb"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -53,7 +54,7 @@
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:text="Tên món ăn"
-                    android:textColor="#0F172A"
+                    android:textColor="@color/text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold" />
 
@@ -63,7 +64,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:text="1x phần"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
         </LinearLayout>
@@ -88,7 +89,7 @@
                     android:layout_height="30dp"
                     android:gravity="center"
                     android:text="★"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/brand_orange"
                     android:textSize="22sp" />
 
                 <TextView
@@ -97,7 +98,7 @@
                     android:layout_height="30dp"
                     android:gravity="center"
                     android:text="★"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/brand_orange"
                     android:textSize="22sp" />
 
                 <TextView
@@ -106,7 +107,7 @@
                     android:layout_height="30dp"
                     android:gravity="center"
                     android:text="★"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/brand_orange"
                     android:textSize="22sp" />
 
                 <TextView
@@ -115,7 +116,7 @@
                     android:layout_height="30dp"
                     android:gravity="center"
                     android:text="★"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/brand_orange"
                     android:textSize="22sp" />
 
                 <TextView
@@ -124,7 +125,7 @@
                     android:layout_height="30dp"
                     android:gravity="center"
                     android:text="★"
-                    android:textColor="#F59E0B"
+                    android:textColor="@color/brand_orange"
                     android:textSize="22sp" />
             </LinearLayout>
 
@@ -135,7 +136,7 @@
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
                 android:text="5★ Tuyệt vời"
-                android:textColor="#F59E0B"
+                android:textColor="@color/brand_orange"
                 android:textSize="11.5sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -153,8 +154,8 @@
             android:inputType="textMultiLine"
             android:maxLines="2"
             android:padding="8dp"
-            android:textColor="#0F172A"
-            android:textColorHint="#94A3B8"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_muted"
             android:textSize="11.5sp" />
 
         <!-- Nút thêm ảnh & xem trước ảnh riêng cho món này -->
@@ -174,7 +175,7 @@
                 android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
                 android:text="📷 Thêm ảnh món"
-                android:textColor="#64748B"
+                android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 app:cornerRadius="8dp"
                 app:strokeColor="@color/border_light" />
@@ -197,6 +198,7 @@
                     app:strokeWidth="1dp">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:id="@+id/ivDishReviewPreview"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -211,7 +213,7 @@
                     android:background="@drawable/bg_btn_circle_nav"
                     android:gravity="center"
                     android:text="✕"
-                    android:textColor="#EF4444"
+                    android:textColor="@color/danger"
                     android:textSize="10sp"
                     android:textStyle="bold" />
             </LinearLayout>

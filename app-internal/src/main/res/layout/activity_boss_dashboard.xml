@@ -31,14 +31,15 @@
                 android:layout_height="40dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="0dp"
-                app:cardBackgroundColor="#FFF0ED">
+                app:cardBackgroundColor="@color/primary_light">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_store"
-                    app:tint="#EE4D2D" />
+                    app:tint="@color/primary" />
             </com.google.android.material.card.MaterialCardView>
 
             <LinearLayout
@@ -53,7 +54,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Quản Lý Chuỗi Cửa Hàng"
-                    android:textColor="#0F172A"
+                    android:textColor="@color/text_primary"
                     android:textSize="17sp"
                     android:textStyle="bold" />
 
@@ -62,7 +63,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Chủ sở hữu • BOSSMERCHANT"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
             </LinearLayout>
 
@@ -72,18 +73,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
                 android:layout_marginEnd="6dp"
-                android:backgroundTint="#EFF6FF"
+                android:backgroundTint="@color/brand_blue_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
                 android:text="STK &amp; Pháp lý"
-                android:textColor="#2563EB"
+                android:textColor="@color/brand_blue"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp"
                 app:icon="@drawable/ic_credit_card"
                 app:iconSize="14dp"
-                app:iconTint="#2563EB" />
+                app:iconTint="@color/brand_blue" />
 
             <ImageButton
                 android:id="@+id/btnBossLogout"
@@ -92,7 +93,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Đăng xuất"
                 android:src="@drawable/ic_log_out"
-                app:tint="#EF4444" />
+                app:tint="@color/danger" />
         </LinearLayout>
     </LinearLayout>
 
@@ -130,6 +131,7 @@
                     android:padding="12dp">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="22dp"
                         android:layout_height="22dp"
                         android:src="@drawable/ic_alert_triangle"
@@ -159,6 +161,7 @@
                     </LinearLayout>
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:src="@drawable/ic_chevron_right"
@@ -174,7 +177,7 @@
                 android:layout_marginTop="16dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp"
-                app:cardBackgroundColor="#1E293B">
+                app:cardBackgroundColor="@color/text_primary">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -187,7 +190,7 @@
                         android:layout_height="wrap_content"
                         android:text="TỔNG QUAN CHUỖI"
                         android:letterSpacing="0.05"
-                        android:textColor="#F59E0B"
+                        android:textColor="@color/brand_orange"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
@@ -197,7 +200,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="0 chi nhánh đang vận hành"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/white"
                         android:textSize="18sp"
                         android:textStyle="bold" />
 
@@ -206,7 +209,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="Bạn có thể tạo thêm chi nhánh mới, chỉ định Merchant phụ trách từng quán hoặc trực tiếp vào làm việc thay thế bất cứ lúc nào."
-                        android:textColor="#94A3B8"
+                        android:textColor="@color/text_muted"
                         android:textSize="12sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -226,15 +229,15 @@
                     android:layout_height="48dp"
                     android:layout_marginEnd="6dp"
                     android:layout_weight="1"
-                    android:backgroundTint="#EE4D2D"
+                    android:backgroundTint="@color/primary"
                     android:text="Tạo Chi Nhánh"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     app:icon="@drawable/ic_plus"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
-                    app:iconTint="#FFFFFF"
+                    app:iconTint="@color/white"
                     app:cornerRadius="12dp" />
 
                 <com.google.android.material.button.MaterialButton
@@ -244,15 +247,15 @@
                     android:layout_height="48dp"
                     android:layout_marginStart="6dp"
                     android:layout_weight="1"
-                    android:backgroundTint="#2563EB"
+                    android:backgroundTint="@color/brand_blue"
                     android:text="Tạo Merchant"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     app:icon="@drawable/ic_user"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
-                    app:iconTint="#FFFFFF"
+                    app:iconTint="@color/white"
                     app:cornerRadius="12dp" />
             </LinearLayout>
 
@@ -274,13 +277,13 @@
                     android:layout_height="44dp"
                     android:layout_weight="1"
                     android:text="Chi Nhánh"
-                    android:textColor="#0F172A"
+                    android:textColor="@color/text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     app:icon="@drawable/ic_store"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
-                    app:iconTint="#0F172A" />
+                    app:iconTint="@color/text_primary" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnTabMerchants"
@@ -289,13 +292,13 @@
                     android:layout_height="44dp"
                     android:layout_weight="1"
                     android:text="Quản Lý (Merchant)"
-                    android:textColor="#0F172A"
+                    android:textColor="@color/text_primary"
                     android:textSize="13sp"
                     android:textStyle="bold"
                     app:icon="@drawable/ic_users"
                     app:iconGravity="textStart"
                     app:iconSize="16dp"
-                    app:iconTint="#0F172A" />
+                    app:iconTint="@color/text_primary" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <ProgressBar
@@ -320,7 +323,7 @@
                     android:layout_marginStart="16dp"
                     android:layout_marginTop="16dp"
                     android:text="DANH SÁCH CHI NHÁNH"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12.5sp"
                     android:textStyle="bold" />
 
@@ -336,6 +339,7 @@
                     android:visibility="gone">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="64dp"
                         android:layout_height="64dp"
                         android:src="@drawable/ic_store"
@@ -356,7 +360,7 @@
                         android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="Hãy bấm 'Tạo Chi Nhánh' ở trên để khởi tạo chi nhánh của bạn!"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="13sp" />
                 </LinearLayout>
 
@@ -385,7 +389,7 @@
                     android:layout_marginStart="16dp"
                     android:layout_marginTop="16dp"
                     android:text="DANH SÁCH QUẢN LÝ (MERCHANT)"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="12.5sp"
                     android:textStyle="bold" />
 
@@ -401,6 +405,7 @@
                     android:visibility="gone">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="64dp"
                         android:layout_height="64dp"
                         android:src="@drawable/ic_user"
@@ -421,7 +426,7 @@
                         android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="Hãy bấm 'Tạo Merchant' ở trên để cấp tài khoản quản lý phụ trách chi nhánh."
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="13sp" />
                 </LinearLayout>
 

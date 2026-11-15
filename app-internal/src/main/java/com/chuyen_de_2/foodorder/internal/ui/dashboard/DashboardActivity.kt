@@ -11,6 +11,7 @@ import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
 import com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityDashboardBinding
 import com.chuyen_de_2.foodorder.internal.R
@@ -128,7 +129,7 @@ class DashboardActivity : AppCompatActivity() {
                     authRepository.logout()
                     startActivity(Intent(this, LoginActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
+                        putExtra(AppConstants.Extras.LOGOUT, true)
                     })
                 }
                 .setNegativeButton("Hủy", null)
@@ -145,13 +146,13 @@ class DashboardActivity : AppCompatActivity() {
     private fun handleBossRoleAndProceed() {
         lifecycleScope.launch {
             val uid = authRepository.currentUser?.uid.orEmpty()
-            val prefs = getSharedPreferences("boss_session", android.content.Context.MODE_PRIVATE)
-            val intentStoreId = intent.getStringExtra("STORE_ID")
+            val prefs = getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, android.content.Context.MODE_PRIVATE)
+            val intentStoreId = intent.getStringExtra(AppConstants.Extras.STORE_ID)
             val selectedBranchId = if (!intentStoreId.isNullOrBlank()) {
-                prefs.edit().putString("selected_branch_store_id", intentStoreId).apply()
+                prefs.edit().putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, intentStoreId).apply()
                 intentStoreId
             } else {
-                prefs.getString("selected_branch_store_id", null)
+                prefs.getString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, null)
             }
 
             if (selectedBranchId.isNullOrBlank()) {
@@ -168,7 +169,7 @@ class DashboardActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG
                         ).show()
                         val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                            putExtra("STORE_ID", newStoreId)
+                            putExtra(AppConstants.Extras.STORE_ID, newStoreId)
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         }
                         startActivity(intent)
@@ -184,7 +185,7 @@ class DashboardActivity : AppCompatActivity() {
                             .setMessage("Hồ sơ đăng ký Chủ chuỗi của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
                             .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
                                 val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                                    putExtra("STORE_ID", candidateStore.id.ifBlank { "store_$uid" })
+                                    putExtra(AppConstants.Extras.STORE_ID, candidateStore.id.ifBlank { "store_$uid" })
                                 }
                                 startActivity(intent)
                             }
@@ -192,7 +193,7 @@ class DashboardActivity : AppCompatActivity() {
                                 authRepository.logout()
                                 startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra("LOGOUT", true)
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
                                 })
                                 finish()
                             }
@@ -213,7 +214,7 @@ class DashboardActivity : AppCompatActivity() {
                                 authRepository.logout()
                                 startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra("LOGOUT", true)
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
                                 })
                                 finish()
                             }
@@ -229,7 +230,7 @@ class DashboardActivity : AppCompatActivity() {
 
             val store = firebaseRepository.getStoreOnce(selectedBranchId)
             if (store == null || (store.bossId.isNotBlank() && store.bossId != uid)) {
-                prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
+                prefs.edit().remove(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID).remove(AppConstants.Prefs.KEY_SELECTED_BRANCH_NAME).apply()
                 if (uid.isNotBlank()) {
                     firebaseRepository.clearActiveStoreForBoss(uid)
                 }
@@ -294,7 +295,7 @@ class DashboardActivity : AppCompatActivity() {
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                putExtra("LOGOUT", true)
+                                putExtra(AppConstants.Extras.LOGOUT, true)
                             })
                         }
                         .setCancelable(false)
@@ -323,7 +324,7 @@ class DashboardActivity : AppCompatActivity() {
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                putExtra("LOGOUT", true)
+                                putExtra(AppConstants.Extras.LOGOUT, true)
                             })
                         }
                         .setCancelable(false)
@@ -339,7 +340,7 @@ class DashboardActivity : AppCompatActivity() {
      * Luồng hướng tới: Chưa hoàn tất -> [StoreVerificationActivity]; Đã hoàn tất -> [setupMerchantNavigation].
      */
     private fun checkMerchantVerificationAndProceed() {
-        getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+        getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
         lifecycleScope.launch {
             val uid = authRepository.currentUser?.uid.orEmpty()
             if (uid.isNotBlank()) {
@@ -359,7 +360,7 @@ class DashboardActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG
                         ).show()
                         val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                            putExtra("STORE_ID", storeId)
+                            putExtra(AppConstants.Extras.STORE_ID, storeId)
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         }
                         startActivity(intent)
@@ -376,7 +377,7 @@ class DashboardActivity : AppCompatActivity() {
                                 .setMessage("Hồ sơ quán ăn của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
                                 .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
                                     val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                                        putExtra("STORE_ID", storeId)
+                                        putExtra(AppConstants.Extras.STORE_ID, storeId)
                                     }
                                     startActivity(intent)
                                 }
@@ -384,7 +385,7 @@ class DashboardActivity : AppCompatActivity() {
                                     authRepository.logout()
                                     startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                        putExtra("LOGOUT", true)
+                                        putExtra(AppConstants.Extras.LOGOUT, true)
                                     })
                                     finish()
                                 }
@@ -405,7 +406,7 @@ class DashboardActivity : AppCompatActivity() {
                                 authRepository.logout()
                                 startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra("LOGOUT", true)
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
                                 })
                                 finish()
                             }
@@ -426,7 +427,7 @@ class DashboardActivity : AppCompatActivity() {
                                 authRepository.logout()
                                 startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra("LOGOUT", true)
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
                                 })
                                 finish()
                             }
@@ -442,7 +443,7 @@ class DashboardActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG
                     ).show()
                     val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                        putExtra("STORE_ID", newStoreId)
+                        putExtra(AppConstants.Extras.STORE_ID, newStoreId)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                     }
                     startActivity(intent)

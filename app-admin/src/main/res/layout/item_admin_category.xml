@@ -103,6 +103,7 @@
             android:focusable="true">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="17dp"
                 android:layout_height="17dp"
                 android:layout_gravity="center"
@@ -121,6 +122,7 @@
             android:focusable="true">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="17dp"
                 android:layout_height="17dp"
                 android:layout_gravity="center"

@@ -11,7 +11,7 @@
         android:id="@+id/toolbarTrip"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="#FFFFFF"
+        android:background="@color/white"
         android:elevation="1dp"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -23,6 +23,7 @@
             android:paddingEnd="12dp">
 
             <ImageButton
+                android:importantForAccessibility="no"
                 android:id="@+id/btnTripBack"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
@@ -98,7 +99,7 @@
         android:id="@+id/layoutTripStepper"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
+        android:background="@color/white"
         android:elevation="2dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -114,7 +115,7 @@
             android:background="@drawable/bg_badge_orange"
             android:gravity="center"
             android:text="1"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -163,7 +164,7 @@
         android:id="@+id/layoutTripStepperBundle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
+        android:background="@color/white"
         android:elevation="2dp"
         android:orientation="vertical"
         android:visibility="gone"
@@ -186,13 +187,14 @@
                 android:orientation="horizontal">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:id="@+id/stepBundleShopBadge"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
                     android:background="@drawable/bg_badge_green"
                     android:gravity="center"
                    
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                    
                     android:textStyle="bold" app:srcCompat="@drawable/ic_check" app:tint="@color/primary" />
 
@@ -213,7 +215,7 @@
                 android:layout_height="1.5dp"
                 android:layout_marginHorizontal="6dp"
                 android:layout_weight="1"
-                android:background="#10B981" />
+                android:background="@color/brand_green" />
 
             <!-- Chặng 2: Khách 1 -->
             <LinearLayout
@@ -234,7 +236,7 @@
                     android:background="@drawable/bg_badge_orange"
                     android:gravity="center"
                     android:text="1"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="10sp"
                     android:textStyle="bold" />
 
@@ -363,7 +365,7 @@
                 android:paddingHorizontal="6dp"
                 android:paddingVertical="1dp"
                 android:text="Tự do đổi thứ tự"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textSize="9.5sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -403,7 +405,7 @@
                     android:id="@+id/layoutMapFallbackStep1"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="#F8FAFC"
+                    android:background="@color/background"
                     android:visibility="gone">
 
                     <!-- Đường nối xanh dương lộ trình -->
@@ -485,7 +487,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:text="↱"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="22sp"
                                 android:textStyle="bold" />
                         </FrameLayout>
@@ -502,7 +504,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Rẽ phải vào Tô Vĩnh Diện"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="13.5sp"
                                 android:textStyle="bold" />
 
@@ -521,7 +523,7 @@
                             style="@style/Widget.Material3.Button.ElevatedButton"
                             android:layout_width="wrap_content"
                             android:layout_height="34dp"
-                            android:backgroundTint="#FFFFFF"
+                            android:backgroundTint="@color/white"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
                             android:paddingHorizontal="10dp"
@@ -541,7 +543,7 @@
                 style="@style/Widget.Material3.CardView.Elevated"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="10dp"
                 app:layout_constraintBottom_toBottomOf="parent">
@@ -589,7 +591,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
                                 android:text="● Quán đã làm xong • Chờ bạn tới nhận"
-                                android:textColor="#059669"
+                                android:textColor="@color/brand_green"
                                 android:textSize="11.5sp"
                                 android:textStyle="bold" />
 
@@ -617,12 +619,13 @@
                             android:focusable="true">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                
-                                android:textColor="#059669"
-                                app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
+                                android:textColor="@color/brand_green"
+                                app:srcCompat="@drawable/ic_phone" app:tint="@color/brand_green" />
                         </FrameLayout>
                     </LinearLayout>
 
@@ -747,7 +750,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:text="➔"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="18sp"
                                 android:textStyle="bold" />
                         </FrameLayout>
@@ -760,14 +763,14 @@
                         android:layout_height="52dp"
                         android:backgroundTint="@color/brand_green"
                         android:text="🏪 TÔI ĐÃ VỀ TỚI QUÁN &amp; TRẢ MÓN XONG"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/white"
                         android:textSize="13sp"
                         android:textStyle="bold"
                         android:visibility="gone"
                         app:cornerRadius="12dp"
                         app:icon="@drawable/ic_check_circle"
                         app:iconGravity="textStart"
-                        app:iconTint="#FFFFFF" />
+                        app:iconTint="@color/white" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -801,7 +804,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="12dp"
-                    app:cardBackgroundColor="#ECFDF5"
+                    app:cardBackgroundColor="@color/brand_green_bg"
                     app:cardCornerRadius="14dp"
                     app:cardElevation="1dp"
                     app:strokeColor="#A7F3D0"
@@ -854,7 +857,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="12dp"
-                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardBackgroundColor="@color/white"
                     app:cardCornerRadius="14dp"
                     app:cardElevation="2dp"
                     app:strokeColor="@color/border"
@@ -907,12 +910,13 @@
                                 android:focusable="true">
 
                                 <ImageView
+                                    android:importantForAccessibility="no"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:layout_gravity="center"
                                    
-                                    android:textColor="#059669"
-                                    app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
+                                    android:textColor="@color/brand_green"
+                                    app:srcCompat="@drawable/ic_phone" app:tint="@color/brand_green" />
                             </FrameLayout>
                         </LinearLayout>
 
@@ -921,7 +925,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
-                            android:background="#F8FAFC"
+                            android:background="@color/background"
                             android:orientation="horizontal"
                             android:paddingHorizontal="10dp"
                             android:paddingVertical="8dp">
@@ -945,7 +949,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginTop="2dp"
                                     android:text="+42.000 đ"
-                                    android:textColor="#059669"
+                                    android:textColor="@color/brand_green"
                                     android:textSize="12sp"
                                     android:textStyle="bold" />
                             </LinearLayout>
@@ -954,7 +958,7 @@
                                 android:layout_width="1dp"
                                 android:layout_height="match_parent"
                                 android:layout_marginHorizontal="6dp"
-                                android:background="#E2E8F0" />
+                                android:background="@color/border" />
 
                             <LinearLayout
                                 android:layout_width="0dp"
@@ -984,7 +988,7 @@
                                 android:layout_width="1dp"
                                 android:layout_height="match_parent"
                                 android:layout_marginHorizontal="6dp"
-                                android:background="#E2E8F0" />
+                                android:background="@color/border" />
 
                             <LinearLayout
                                 android:layout_width="0dp"
@@ -1057,7 +1061,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardBackgroundColor="@color/white"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="2dp"
                     app:strokeColor="@color/border"
@@ -1096,7 +1100,7 @@
                             android:layout_marginTop="4dp"
                             android:checked="false"
                             android:text="Túi niêm phong đã dán tem nguyên vẹn"
-                            android:textColor="#059669"
+                            android:textColor="@color/brand_green"
                             android:textSize="12.5sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -1110,7 +1114,7 @@
                 style="@style/Widget.Material3.CardView.Elevated"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="10dp">
 
@@ -1143,7 +1147,7 @@
                             android:layout_height="wrap_content"
                             android:layout_gravity="center"
                             android:text="Tích đủ các món để mở khóa quẹt"
-                            android:textColor="#94A3B8"
+                            android:textColor="@color/text_muted"
                             android:textSize="12.5sp"
                             android:textStyle="bold" />
 
@@ -1162,7 +1166,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:text="➔"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="18sp"
                                 android:textStyle="bold" />
                         </FrameLayout>
@@ -1207,7 +1211,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Đã chọn giao cho An Nguyễn trước!"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="12sp"
                     android:textStyle="bold" />
             </FrameLayout>
@@ -1233,7 +1237,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="12dp"
                     android:layout_marginTop="12dp"
-                    app:cardBackgroundColor="#059669"
+                    app:cardBackgroundColor="@color/brand_green"
                     app:cardCornerRadius="14dp"
                     app:cardElevation="6dp">
 
@@ -1248,7 +1252,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="➔"
-                            android:textColor="#FFFFFF"
+                            android:textColor="@color/white"
                             android:textSize="22sp"
                             android:textStyle="bold" />
 
@@ -1264,7 +1268,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Cách khách 1.2km • Rẽ trái vào Hai Bà Trưng"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="13.5sp"
                                 android:textStyle="bold" />
 
@@ -1283,12 +1287,12 @@
                             style="@style/Widget.Material3.Button.ElevatedButton"
                             android:layout_width="wrap_content"
                             android:layout_height="34dp"
-                            android:backgroundTint="#FFFFFF"
+                            android:backgroundTint="@color/white"
                             android:insetTop="0dp"
                             android:insetBottom="0dp"
                             android:paddingHorizontal="10dp"
                             android:text="Maps "
-                            android:textColor="#059669"
+                            android:textColor="@color/brand_green"
                             android:textSize="11sp"
                             android:textStyle="bold"
                             app:cornerRadius="6dp" />
@@ -1302,7 +1306,7 @@
                 style="@style/Widget.Material3.CardView.Elevated"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardBackgroundColor="#FFFFFF"
+                app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="10dp"
                 app:layout_constraintBottom_toBottomOf="parent">
@@ -1328,7 +1332,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:background="#F8FAFC"
+                        android:background="@color/background"
                         android:orientation="vertical"
                         android:padding="8dp"
                         android:visibility="gone">
@@ -1344,7 +1348,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
                                 android:text="TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC:"
-                                android:textColor="#475569"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="10.5sp"
                                 android:textStyle="bold" />
 
@@ -1394,7 +1398,7 @@
                                         android:paddingHorizontal="4dp"
                                         android:paddingVertical="1dp"
                                         android:text="Giao trước"
-                                        android:textColor="#FFFFFF"
+                                        android:textColor="@color/white"
                                         android:textSize="9sp"
                                         android:textStyle="bold" />
 
@@ -1408,7 +1412,7 @@
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
                                         android:text="0 đ (VietQR)"
-                                        android:textColor="#059669"
+                                        android:textColor="@color/brand_green"
                                         android:textSize="9.5sp"
                                         android:textStyle="bold" />
                                 </LinearLayout>
@@ -1626,12 +1630,13 @@
                             android:focusable="true">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                
-                                android:textColor="#059669"
-                                app:srcCompat="@drawable/ic_phone" app:tint="#10B981" />
+                                android:textColor="@color/brand_green"
+                                app:srcCompat="@drawable/ic_phone" app:tint="@color/brand_green" />
                         </FrameLayout>
 
                         <!-- Nút Nhắn tin 💬 -->
@@ -1645,6 +1650,7 @@
                             android:focusable="true">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
@@ -1664,12 +1670,13 @@
                             android:focusable="true">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                
                                 android:textColor="@color/danger"
-                                app:srcCompat="@drawable/ic_alert_triangle" app:tint="#F59E0B" />
+                                app:srcCompat="@drawable/ic_alert_triangle" app:tint="@color/brand_orange" />
                         </FrameLayout>
                     </LinearLayout>
 
@@ -1682,7 +1689,7 @@
                         android:background="@drawable/bg_badge_duty_off"
                         android:padding="8dp"
                         android:text="Địa chỉ: 104 Hai Bà Trưng, P. Đa Kao, Q.1"
-                        android:textColor="#1E293B"
+                        android:textColor="@color/text_primary"
                         android:textSize="11.5sp" />
 
                     <!-- Ghi chú khách (6.html) -->
@@ -1691,7 +1698,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:background="#FFFBEB"
+                        android:background="@color/brand_orange_bg"
                         android:padding="6dp"
                         android:text="Ghi chú: Xin thêm 2 ống hút to nha quán"
                         android:textColor="#92400E"
@@ -1745,7 +1752,7 @@
                                 android:layout_height="wrap_content"
                                 android:layout_gravity="center"
                                 android:text="➔"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="18sp"
                                 android:textStyle="bold" />
                         </FrameLayout>
@@ -1782,7 +1789,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="12dp"
-                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardBackgroundColor="@color/white"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="2dp"
                     app:strokeColor="@color/border"
@@ -1849,6 +1856,7 @@
                     android:visibility="gone">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="20dp"
                         android:layout_height="20dp"
                         android:src="@drawable/ic_package"
@@ -1880,7 +1888,7 @@
                         android:layout_marginEnd="4dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_badge_shop_tag"
-                        android:backgroundTint="#ECFDF5"
+                        android:backgroundTint="@color/brand_green_bg"
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
@@ -1889,6 +1897,7 @@
                         android:paddingHorizontal="4dp">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_phone"
@@ -1908,7 +1917,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="09xx xxx xxx"
-                            android:textColor="#059669"
+                            android:textColor="@color/brand_green"
                             android:textSize="9.5sp" />
                     </LinearLayout>
 
@@ -1920,7 +1929,7 @@
                         android:layout_marginHorizontal="4dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_badge_shop_tag"
-                        android:backgroundTint="#EFF6FF"
+                        android:backgroundTint="@color/brand_blue_bg"
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
@@ -1929,6 +1938,7 @@
                         android:paddingHorizontal="4dp">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_message_circle"
@@ -1947,7 +1957,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Chat trực tiếp"
-                            android:textColor="#2563EB"
+                            android:textColor="@color/brand_blue"
                             android:textSize="9.5sp" />
                     </LinearLayout>
 
@@ -1968,6 +1978,7 @@
                         android:paddingHorizontal="4dp">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_alert_triangle"
@@ -1986,7 +1997,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Hủy hàng sự cố"
-                            android:textColor="#EF4444"
+                            android:textColor="@color/danger"
                             android:textSize="9.5sp" />
                     </LinearLayout>
 
@@ -2000,7 +2011,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="14dp"
                     android:visibility="gone"
-                    app:cardBackgroundColor="#FFFFFF"
+                    app:cardBackgroundColor="@color/white"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="3dp"
                     app:strokeColor="#F97316"
@@ -2019,10 +2030,11 @@
                             android:orientation="horizontal">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="16dp"
                                 android:layout_height="16dp"
                                 android:src="@drawable/ic_clock"
-                                app:tint="#EF4444" />
+                                app:tint="@color/danger" />
 
                             <TextView
                                 android:layout_width="0dp"
@@ -2087,11 +2099,12 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:background="@drawable/bg_warning_inline"
-                            android:backgroundTint="#FEF3C7"
+                            android:backgroundTint="@color/brand_orange_bg"
                             android:orientation="horizontal"
                             android:padding="8dp">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:id="@+id/ivCountdownNoticeIcon"
                                 android:layout_width="16dp"
                                 android:layout_height="16dp"
@@ -2146,8 +2159,8 @@
                             tools:text="HẾT GIỜ • HỦY ĐƠN BOM &amp; TIẾP TỤC ĐƠN GHÉP"
                             app:icon="@drawable/ic_alert_triangle"
                             app:iconSize="16dp"
-                            app:iconTint="#FFFFFF"
-                            android:textColor="#FFFFFF"
+                            app:iconTint="@color/white"
+                            android:textColor="@color/white"
                             android:textSize="11.5sp"
                             android:textStyle="bold"
                             android:visibility="gone"
@@ -2162,7 +2175,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    app:cardBackgroundColor="#0F172A"
+                    app:cardBackgroundColor="@color/text_primary"
                     app:cardCornerRadius="18dp"
                     app:cardElevation="3dp">
 
@@ -2185,7 +2198,7 @@
                             android:id="@+id/tvStep4QrIcon"
                             android:text="\nQR SCAN"
                                 android:textAlignment="center"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="16sp"
                                 android:textStyle="bold" />
                         </FrameLayout>
@@ -2196,7 +2209,7 @@
                             android:layout_marginTop="14dp"
                             android:id="@+id/tvStep4QrStatus"
                             android:text="🔒 Chưa xác minh — Mở camera quét mã QR trên app Khách hàng"
-                            android:textColor="#94A3B8"
+                            android:textColor="@color/text_muted"
                             android:textSize="12sp" />
 
                         <LinearLayout
@@ -2215,7 +2228,7 @@
                                 android:layout_weight="1"
                                 android:backgroundTint="@color/primary"
                                 android:text="Mở Camera"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -2228,7 +2241,7 @@
                                 android:layout_weight="1"
                                 android:backgroundTint="#334155"
                                 android:text="Tải Ảnh QR"
-                                android:textColor="#FFFFFF"
+                                android:textColor="@color/white"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
@@ -2239,9 +2252,9 @@
                     android:id="@+id/btnCompleteTripFinal"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
-                    android:backgroundTint="#059669"
+                    android:backgroundTint="@color/brand_green"
                     android:text="XÁC NHẬN THU TIỀN &amp; HOÀN TẤT ĐƠN HÀNG"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/white"
                     android:textSize="13.5sp"
                     android:textStyle="bold"
                     app:cornerRadius="12dp" />
@@ -2257,7 +2270,7 @@
                     android:text="⬅ VỀ MÀN HÌNH CHÍNH"
                     app:icon="@drawable/ic_arrow_left"
                     app:iconSize="16dp"
-                    app:iconTint="#475569"
+                    app:iconTint="@color/text_secondary"
                     app:strokeColor="#CBD5E1"
                     app:strokeWidth="1.5dp"
                     android:textColor="#334155"

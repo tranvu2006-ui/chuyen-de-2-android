@@ -15,17 +15,18 @@
         android:orientation="horizontal">
 
         <ImageView
+            android:importantForAccessibility="no"
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:src="@drawable/ic_store"
-            app:tint="#EE4D2D" />
+            app:tint="@color/primary" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:text="Tạo Chi Nhánh Mới"
-            android:textColor="#0F172A"
+            android:textColor="@color/text_primary"
             android:textSize="18sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -35,13 +36,13 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="Điền thông tin chi nhánh mới để mở rộng chuỗi cửa hàng của bạn."
-        android:textColor="#64748B"
+        android:textColor="@color/text_secondary"
         android:textSize="13sp" />
 
     <!-- Tên chi nhánh -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilBranchName"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
@@ -56,13 +57,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="textCapWords"
-            android:textColor="#0F172A" />
+            android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <!-- Địa chỉ chi nhánh -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilBranchAddress"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -73,7 +74,7 @@
         app:boxCornerRadiusTopStart="10dp"
         app:endIconDrawable="@drawable/ic_map_pin"
         app:endIconMode="custom"
-        app:endIconTint="#EE4D2D">
+        app:endIconTint="@color/primary">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etBranchAddress"
@@ -83,33 +84,33 @@
             android:cursorVisible="false"
             android:focusable="false"
             android:inputType="none"
-            android:textColor="#0F172A" />
+            android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <!-- Nút chọn / ghim vị trí quán trên bản đồ -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnPickBranchLocationMap"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="match_parent"
         android:layout_height="46dp"
         android:layout_marginTop="8dp"
         android:text="Chọn / Ghim vị trí chi nhánh trên bản đồ"
         android:textAllCaps="false"
-        android:textColor="#EE4D2D"
+        android:textColor="@color/primary"
         android:textSize="13sp"
         android:textStyle="bold"
         app:icon="@drawable/ic_map_pin"
         app:iconGravity="textStart"
         app:iconSize="16dp"
-        app:iconTint="#EE4D2D"
+        app:iconTint="@color/primary"
         app:cornerRadius="10dp"
-        app:strokeColor="#EE4D2D"
+        app:strokeColor="@color/primary"
         app:strokeWidth="1.2dp" />
 
     <!-- Quận / Huyện -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilBranchDistrict"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -124,13 +125,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="text"
-            android:textColor="#0F172A" />
+            android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <!-- Số điện thoại chi nhánh -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/tilBranchPhone"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -145,7 +146,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="phone"
-            android:textColor="#0F172A" />
+            android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <LinearLayout
@@ -161,7 +162,7 @@
             android:layout_width="wrap_content"
             android:layout_height="44dp"
             android:text="Hủy"
-            android:textColor="#64748B" />
+            android:textColor="@color/text_secondary" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSubmitCreateBranch"
@@ -169,9 +170,9 @@
             android:layout_width="wrap_content"
             android:layout_height="44dp"
             android:layout_marginStart="8dp"
-            android:backgroundTint="#EE4D2D"
+            android:backgroundTint="@color/primary"
             android:text="Tạo Chi Nhánh"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textStyle="bold"
             app:cornerRadius="10dp" />
     </LinearLayout>

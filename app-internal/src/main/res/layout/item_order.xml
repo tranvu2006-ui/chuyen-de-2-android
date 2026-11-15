@@ -10,7 +10,7 @@
     app:cardBackgroundColor="@color/surface"
     app:cardCornerRadius="16dp"
     app:cardElevation="1dp"
-    app:strokeColor="#E2E8F0"
+    app:strokeColor="@color/border"
     app:strokeWidth="1dp">
 
     <LinearLayout
@@ -27,10 +27,11 @@
             android:orientation="horizontal">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 app:srcCompat="@drawable/ic_file_text"
-                app:tint="#64748B" />
+                app:tint="@color/text_secondary" />
 
             <TextView
                 android:id="@+id/tvOrderCode"
@@ -41,7 +42,7 @@
                 android:singleLine="true"
                 android:maxLines="1"
                 tools:text="#OISHI_88291"
-                android:textColor="#0F172A"
+                android:textColor="@color/text_primary"
                 android:textSize="13.5sp"
                 android:textStyle="bold" />
 
@@ -72,10 +73,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            app:cardBackgroundColor="#F8FAFC"
+            app:cardBackgroundColor="@color/background"
             app:cardCornerRadius="12dp"
             app:cardElevation="0dp"
-            app:strokeColor="#F1F5F9"
+            app:strokeColor="@color/divider"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -91,10 +92,11 @@
                     android:orientation="horizontal">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="14dp"
                         android:layout_height="14dp"
                         app:srcCompat="@drawable/ic_receipt"
-                        app:tint="#475569" />
+                        app:tint="@color/text_secondary" />
 
                     <TextView
                         android:layout_width="0dp"
@@ -102,7 +104,7 @@
                         android:layout_marginStart="6dp"
                         android:layout_weight="1"
                         android:text="Chi tiết món &amp; thanh toán"
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11.5sp"
                         android:textStyle="bold" />
 
@@ -114,7 +116,7 @@
                         android:paddingHorizontal="8dp"
                         android:paddingVertical="3dp"
                         tools:text="💵 Tiền mặt (COD)"
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="10.5sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -126,7 +128,7 @@
                     android:layout_marginTop="6dp"
                     android:lineSpacingExtra="4dp"
                     android:text=""
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="12.5sp"
                     tools:text="• 1x Trà Xí Muội\nTổng bill: 78.000 đ (Đã thanh toán VietQR)" />
             </LinearLayout>
@@ -141,10 +143,11 @@
             android:orientation="horizontal">
 
             <ImageView
+                android:importantForAccessibility="no"
                 android:layout_width="15dp"
                 android:layout_height="15dp"
                 app:srcCompat="@drawable/ic_map_pin"
-                app:tint="#64748B" />
+                app:tint="@color/text_secondary" />
 
             <TextView
                 android:id="@+id/tvOrderAddress"
@@ -155,7 +158,7 @@
                 android:ellipsize="end"
                 android:maxLines="2"
                 tools:text="Giao đến: An Nguyễn (⭐ 98/100) - 104 Hai Bà Trưng"
-                android:textColor="#475569"
+                android:textColor="@color/text_secondary"
                 android:textSize="11.5sp" />
 
             <com.google.android.material.button.MaterialButton
@@ -164,18 +167,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="32dp"
                 android:layout_marginStart="8dp"
-                android:backgroundTint="#EFF6FF"
+                android:backgroundTint="@color/brand_blue_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:paddingHorizontal="10dp"
                 android:text="Nhắn Khách"
-                android:textColor="#2563EB"
+                android:textColor="@color/brand_blue"
                 android:textSize="11sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp"
                 app:icon="@drawable/ic_message_circle"
                 app:iconSize="13dp"
-                app:iconTint="#2563EB"
+                app:iconTint="@color/brand_blue"
                 app:strokeColor="#BFDBFE"
                 app:strokeWidth="1dp" />
         </LinearLayout>
@@ -187,7 +190,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:visibility="gone"
-            app:cardBackgroundColor="#FFFBEB"
+            app:cardBackgroundColor="@color/brand_orange_bg"
             app:cardCornerRadius="10dp"
             app:cardElevation="0dp"
             app:strokeColor="#FDE68A"
@@ -202,6 +205,7 @@
                 android:paddingVertical="8dp">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="16dp"
                     android:layout_height="16dp"
                     app:srcCompat="@drawable/ic_bike"
@@ -224,7 +228,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="28dp"
                     android:layout_marginStart="6dp"
-                    android:backgroundTint="#ECFDF5"
+                    android:backgroundTint="@color/brand_green_bg"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:paddingHorizontal="8dp"
@@ -268,6 +272,7 @@
                     android:orientation="horizontal">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         app:srcCompat="@drawable/ic_alert_triangle"
@@ -387,7 +392,7 @@
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
                         android:text="Từ Chối Hủy"
-                        android:textColor="#475569"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         app:cornerRadius="8dp"
@@ -436,7 +441,7 @@
                 app:cornerRadius="10dp"
                 app:icon="@drawable/ic_eye"
                 app:iconSize="14dp"
-                app:iconTint="#475569"
+                app:iconTint="@color/text_secondary"
                 app:strokeColor="#CBD5E1"
                 app:strokeWidth="1dp" />
 

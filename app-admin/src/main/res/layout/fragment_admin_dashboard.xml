@@ -77,7 +77,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:visibility="gone"
-                app:cardBackgroundColor="#FFFBEB"
+                app:cardBackgroundColor="@color/brand_orange_bg"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
                 app:strokeColor="@color/brand_orange"
@@ -97,6 +97,7 @@
                         android:background="@drawable/bg_circle_icon_orange">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="22dp"
                             android:layout_height="22dp"
                             android:layout_gravity="center"
@@ -178,6 +179,7 @@
                             android:background="@drawable/bg_glass_pill">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
                                 android:layout_gravity="center"
@@ -205,7 +207,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Doanh thu lũy kế từ các đơn hoàn tất"
-                                android:textColor="#94A3B8"
+                                android:textColor="@color/text_muted"
                                 android:textSize="11sp" />
                         </LinearLayout>
 
@@ -215,6 +217,7 @@
                             android:background="@drawable/bg_glass_pill">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="16dp"
                                 android:layout_height="16dp"
                                 android:layout_gravity="center"
@@ -335,6 +338,7 @@
                                     android:background="@drawable/bg_circle_icon_orange">
 
                                     <ImageView
+                                        android:importantForAccessibility="no"
                                         android:layout_width="18dp"
                                         android:layout_height="18dp"
                                         android:layout_gravity="center"
@@ -353,6 +357,7 @@
                                     android:textStyle="bold" />
 
                                 <ImageView
+                                    android:importantForAccessibility="no"
                                     android:layout_width="14dp"
                                     android:layout_height="14dp"
                                     android:src="@drawable/ic_chevron_right"
@@ -429,6 +434,7 @@
                                     android:background="@drawable/bg_circle_icon_red">
 
                                     <ImageView
+                                        android:importantForAccessibility="no"
                                         android:layout_width="18dp"
                                         android:layout_height="18dp"
                                         android:layout_gravity="center"
@@ -447,6 +453,7 @@
                                     android:textStyle="bold" />
 
                                 <ImageView
+                                    android:importantForAccessibility="no"
                                     android:layout_width="14dp"
                                     android:layout_height="14dp"
                                     android:src="@drawable/ic_chevron_right"
@@ -532,6 +539,7 @@
                                     android:background="@drawable/bg_circle_icon_green">
 
                                     <ImageView
+                                        android:importantForAccessibility="no"
                                         android:layout_width="18dp"
                                         android:layout_height="18dp"
                                         android:layout_gravity="center"
@@ -550,6 +558,7 @@
                                     android:textStyle="bold" />
 
                                 <ImageView
+                                    android:importantForAccessibility="no"
                                     android:layout_width="14dp"
                                     android:layout_height="14dp"
                                     android:src="@drawable/ic_chevron_right"
@@ -628,6 +637,7 @@
                                     android:background="@drawable/bg_circle_icon_blue">
 
                                     <ImageView
+                                        android:importantForAccessibility="no"
                                         android:layout_width="18dp"
                                         android:layout_height="18dp"
                                         android:layout_gravity="center"
@@ -646,6 +656,7 @@
                                     android:textStyle="bold" />
 
                                 <ImageView
+                                    android:importantForAccessibility="no"
                                     android:layout_width="14dp"
                                     android:layout_height="14dp"
                                     android:src="@drawable/ic_chevron_right"
@@ -726,6 +737,7 @@
                             android:background="@drawable/bg_circle_icon_green">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
                                 android:layout_gravity="center"
@@ -772,6 +784,7 @@
                             android:background="@drawable/bg_circle_icon_red">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
                                 android:layout_gravity="center"
@@ -818,6 +831,7 @@
                             android:background="@drawable/bg_circle_icon_purple">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
                                 android:layout_gravity="center"
@@ -864,6 +878,7 @@
                             android:background="@drawable/bg_circle_icon_blue">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
                                 android:layout_gravity="center"
@@ -912,6 +927,7 @@
                             android:background="@drawable/bg_circle_icon_indigo">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:layout_width="20dp"
                                 android:layout_height="20dp"
                                 android:layout_gravity="center"
@@ -955,7 +971,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnRestoreCategories"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:text="ĐỒNG BỘ 5 DANH MỤC CHUẨN NGAY"
@@ -980,7 +996,7 @@
                 app:cardBackgroundColor="@color/white"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:strokeColor="#FEE2E2"
+                app:strokeColor="@color/danger_bg"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -1045,7 +1061,7 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnConfigureCountdown"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:text="⏱️ CHỈNH SỬA THỜI GIAN ĐẾM NGƯỢC"

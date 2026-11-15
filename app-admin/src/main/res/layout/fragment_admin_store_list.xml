@@ -44,6 +44,7 @@
                         android:background="@drawable/bg_circle_icon_orange">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:layout_gravity="center"
@@ -88,6 +89,7 @@
                     android:paddingHorizontal="14dp">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="18dp"
                         android:layout_height="18dp"
                         android:src="@drawable/ic_search"
@@ -124,7 +126,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipAllStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:checked="true"
@@ -134,7 +136,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipPendingStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Chờ duyệt (0)"
@@ -143,7 +145,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipOpenStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Đang mở (0)"
@@ -152,7 +154,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipLockedStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Bị khóa (0)"
@@ -161,7 +163,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipChainStores"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Chuỗi chi nhánh (0)"

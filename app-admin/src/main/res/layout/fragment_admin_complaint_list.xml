@@ -44,6 +44,7 @@
                         android:background="@drawable/bg_circle_icon_red">
 
                         <ImageView
+                            android:importantForAccessibility="no"
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:layout_gravity="center"
@@ -143,7 +144,7 @@
                         android:layout_weight="1"
                         android:clickable="true"
                         android:focusable="true"
-                        app:cardBackgroundColor="#FFFBEB"
+                        app:cardBackgroundColor="@color/brand_orange_bg"
                         app:cardCornerRadius="10dp"
                         app:cardElevation="0dp"
                         app:rippleColor="@color/brand_orange_bg"
@@ -296,6 +297,7 @@
                     android:paddingHorizontal="10dp">
 
                     <ImageView
+                        android:importantForAccessibility="no"
                         android:layout_width="16dp"
                         android:layout_height="16dp"
                         android:src="@drawable/ic_search"
@@ -332,7 +334,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipAllComplaints"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:checked="true"
@@ -342,7 +344,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipPendingComplaints"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Chờ xử lý (0)"
@@ -351,7 +353,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipResolvedComplaints"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Đã giải quyết (0)"
@@ -360,7 +362,7 @@
 
                         <com.google.android.material.chip.Chip
                             android:id="@+id/chipRejectedComplaints"
-                            style="@style/Widget.MaterialComponents.Chip.Choice"
+                            style="@style/Widget.Material3.Chip.Filter"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Đã bác bỏ (0)"

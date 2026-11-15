@@ -39,12 +39,13 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Khách đang trực tuyến"
-                android:textColor="#059669"
+                android:textColor="@color/brand_green"
                 android:textSize="10sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
         <ImageButton
+            android:importantForAccessibility="no"
             android:id="@+id/btnCloseChatDialog"
             android:layout_width="28dp"
             android:layout_height="28dp"
@@ -57,14 +58,14 @@
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginVertical="10dp"
-        android:background="#F1F5F9" />
+        android:background="@color/divider" />
 
     <!-- Khu vực tin nhắn -->
     <ScrollView
         android:id="@+id/scrollChatMessages"
         android:layout_width="match_parent"
         android:layout_height="180dp"
-        android:background="#F8FAFC"
+        android:background="@color/background"
         android:padding="10dp">
 
         <LinearLayout
@@ -79,7 +80,7 @@
                 android:layout_gravity="center_horizontal"
                 android:layout_marginBottom="8dp"
                 android:text="🔒 Cuộc trò chuyện được mã hóa bảo mật"
-                android:textColor="#94A3B8"
+                android:textColor="@color/text_muted"
                 android:textSize="10sp" />
 
             <!-- Bubble Driver -->
@@ -198,7 +199,7 @@
             android:insetBottom="0dp"
             android:padding="0dp"
             android:text="➤"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:textSize="14sp"
             app:cornerRadius="8dp" />
     </LinearLayout>

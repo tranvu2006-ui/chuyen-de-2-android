@@ -36,16 +36,17 @@
             android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:text="Bộ Lọc Nâng Cao Oishi Food"
-            android:textColor="#0F172A"
+            android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <ImageView
+            android:importantForAccessibility="no"
             android:id="@+id/btnCloseSheet"
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="@drawable/bg_circle_success_green"
-            android:backgroundTint="#F1F5F9"
+            android:backgroundTint="@color/divider"
             android:clickable="true"
             android:focusable="true"
             android:padding="7dp"
@@ -56,7 +57,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#F1F5F9" />
+        android:background="@color/divider" />
 
     <!-- Thân cuộn Bottom Sheet -->
     <androidx.core.widget.NestedScrollView
@@ -85,7 +86,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="💰 KHOẢNG GIÁ MÓN ĂN (NHẬP SỐ TIỀN VNĐ)"
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -121,7 +122,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="4dp"
                         android:text="Từ giá (Tối thiểu):"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11sp"
                         android:textStyle="bold" />
 
@@ -141,8 +142,8 @@
                             android:background="@null"
                             android:hint="VD: 25000"
                             android:inputType="number"
-                            android:textColor="#1E293B"
-                            android:textColorHint="#94A3B8"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
                             android:textSize="13.5sp"
                             android:textStyle="bold" />
 
@@ -163,7 +164,7 @@
                     android:layout_marginTop="16dp"
                     android:paddingHorizontal="8dp"
                     android:text="—"
-                    android:textColor="#94A3B8"
+                    android:textColor="@color/text_muted"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
@@ -179,7 +180,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="4dp"
                         android:text="Đến giá (Tối đa):"
-                        android:textColor="#64748B"
+                        android:textColor="@color/text_secondary"
                         android:textSize="11sp"
                         android:textStyle="bold" />
 
@@ -199,8 +200,8 @@
                             android:background="@null"
                             android:hint="VD: 75000"
                             android:inputType="number"
-                            android:textColor="#1E293B"
-                            android:textColorHint="#94A3B8"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_muted"
                             android:textSize="13.5sp"
                             android:textStyle="bold" />
 
@@ -235,7 +236,7 @@
                     android:layout_marginStart="4dp"
                     android:layout_weight="1"
                     android:text="Nhập 2 ô giá (VNĐ) để lọc quán có thực đơn trong tầm giá"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_secondary"
                     android:textSize="10.5sp" />
             </LinearLayout>
 
@@ -252,7 +253,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="⭐ ĐÁNH GIÁ CỦA QUÁN (KHOẢNG SAO)"
-                    android:textColor="#1E293B"
+                    android:textColor="@color/text_primary"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -271,10 +272,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                app:cardBackgroundColor="#F8FAFC"
+                app:cardBackgroundColor="@color/background"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:strokeColor="#E2E8F0"
+                app:strokeColor="@color/border"
                 app:strokeWidth="1.5dp">
 
                 <LinearLayout
@@ -296,7 +297,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:background="@drawable/bg_price_input_box"
-                            android:backgroundTint="#FFFFFF"
+                            android:backgroundTint="@color/white"
                             android:gravity="center"
                             android:orientation="vertical"
                             android:paddingVertical="6dp">
@@ -305,7 +306,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="TỐI THIỂU"
-                                android:textColor="#64748B"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="10sp"
                                 android:textStyle="bold" />
 
@@ -320,7 +321,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="1.0"
-                                    android:textColor="#1E293B"
+                                    android:textColor="@color/text_primary"
                                     android:textSize="16sp"
                                     android:textStyle="bold" />
 
@@ -329,7 +330,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginStart="2dp"
                                     android:text="★"
-                                    android:textColor="#F59E0B"
+                                    android:textColor="@color/brand_orange"
                                     android:textSize="14sp" />
                             </LinearLayout>
                         </LinearLayout>
@@ -340,7 +341,7 @@
                             android:layout_height="wrap_content"
                             android:paddingHorizontal="10dp"
                             android:text="➜"
-                            android:textColor="#94A3B8"
+                            android:textColor="@color/text_muted"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -350,7 +351,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:background="@drawable/bg_price_input_box"
-                            android:backgroundTint="#FFFFFF"
+                            android:backgroundTint="@color/white"
                             android:gravity="center"
                             android:orientation="vertical"
                             android:paddingVertical="6dp">
@@ -359,7 +360,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="TỐI ĐA"
-                                android:textColor="#64748B"
+                                android:textColor="@color/text_secondary"
                                 android:textSize="10sp"
                                 android:textStyle="bold" />
 
@@ -374,7 +375,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:text="5.0"
-                                    android:textColor="#1E293B"
+                                    android:textColor="@color/text_primary"
                                     android:textSize="16sp"
                                     android:textStyle="bold" />
 
@@ -383,7 +384,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_marginStart="2dp"
                                     android:text="★"
-                                    android:textColor="#F59E0B"
+                                    android:textColor="@color/brand_orange"
                                     android:textSize="14sp" />
                             </LinearLayout>
                         </LinearLayout>
@@ -421,7 +422,7 @@
                             android:focusable="true"
                             android:gravity="start"
                             android:text="1.0★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
@@ -434,7 +435,7 @@
                             android:focusable="true"
                             android:gravity="center"
                             android:text="2.0★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
@@ -447,7 +448,7 @@
                             android:focusable="true"
                             android:gravity="center"
                             android:text="3.0★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
@@ -460,7 +461,7 @@
                             android:focusable="true"
                             android:gravity="center"
                             android:text="4.0★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
@@ -473,7 +474,7 @@
                             android:focusable="true"
                             android:gravity="end"
                             android:text="5.0★"
-                            android:textColor="#64748B"
+                            android:textColor="@color/text_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
                     </LinearLayout>
@@ -486,7 +487,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#F1F5F9" />
+        android:background="@color/divider" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -501,7 +502,7 @@
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="44dp"
-            android:backgroundTint="#F1F5F9"
+            android:backgroundTint="@color/divider"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:insetLeft="0dp"
@@ -511,7 +512,7 @@
             android:paddingVertical="0dp"
             android:singleLine="true"
             android:text="🔄 Đặt lại"
-            android:textColor="#475569"
+            android:textColor="@color/text_secondary"
             android:textSize="12sp"
             android:textStyle="bold"
             app:cornerRadius="10dp"

@@ -292,6 +292,7 @@
                             app:strokeWidth="1dp">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:id="@+id/ivCccdFront"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
@@ -327,6 +328,7 @@
                             app:strokeWidth="1dp">
 
                             <ImageView
+                                android:importantForAccessibility="no"
                                 android:id="@+id/ivCccdBack"
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
@@ -376,7 +378,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRejectStore"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:layout_marginTop="10dp"
@@ -393,7 +395,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnApplyPenalty"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:layout_marginTop="10dp"
@@ -410,7 +412,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnLockStore"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
+                style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="match_parent"
                 android:layout_height="46dp"
                 android:layout_marginTop="4dp"

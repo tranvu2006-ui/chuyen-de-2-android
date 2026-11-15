@@ -25,6 +25,7 @@
                 android:background="@drawable/bg_circle_icon_red">
 
                 <ImageView
+                    android:importantForAccessibility="no"
                     android:layout_width="22dp"
                     android:layout_height="22dp"
                     android:layout_gravity="center"
@@ -324,7 +325,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:background="#FFFBEB"
+            android:background="@color/brand_orange_bg"
             android:padding="10dp"
             android:textColor="#92400E"
             android:textSize="11.5sp"
@@ -367,7 +368,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCancelResolve"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
+                style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:text="Đóng"
@@ -375,7 +376,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnQuickReject"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"

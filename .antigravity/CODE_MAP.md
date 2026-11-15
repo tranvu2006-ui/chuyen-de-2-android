@@ -1072,7 +1072,6 @@ ship/
   8.html
 .firebaserc
 .gitignore
-~$UC_NANG_4_ACTORS.docx
 admin.html
 BANG_PHAN_CONG_CONG_VIEC_TRELLO.md
 Bao_Cao_Chuc_Nang_4_Actors_Oishi_Food.docx
@@ -10172,8 +10171,9 @@ class FoodOrderCustomerApp : Application() {
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <corners android:radius="6dp" />
-    <solid android:color="@color/primary_light" />
+    <corners android:radius="10dp" />
+    <solid android:color="#FFF7ED" />
+    <stroke android:width="1dp" android:color="#FFEDD5" />
 </shape>
 ````
 
@@ -83850,18 +83850,21 @@ class OrderHistoryActivity : AppCompatActivity() {
                 android:layout_marginEnd="6dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingHorizontal="10dp"
+                android:paddingHorizontal="8dp"
                 android:text="💬 Nhắn Quán"
                 android:textColor="#0284C7"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
+                android:singleLine="true"
+                android:maxLines="1"
+                android:ellipsize="end"
                 app:backgroundTint="#F0F9FF"
                 app:cornerRadius="8dp"
                 app:strokeColor="#BAE6FD"
                 android:minHeight="0dp"
                 android:minWidth="0dp"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp" />
 
@@ -83870,18 +83873,22 @@ class OrderHistoryActivity : AppCompatActivity() {
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
+                android:layout_marginEnd="6dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingHorizontal="12dp"
+                android:paddingHorizontal="8dp"
                 android:text="Gọi Shipper"
                 android:textColor="@color/text_primary"
                 android:textSize="11.5sp"
+                android:singleLine="true"
+                android:maxLines="1"
+                android:ellipsize="end"
                 app:cornerRadius="8dp"
                 app:strokeColor="#CBD5E1"
                 android:minHeight="0dp"
                 android:minWidth="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp" />
 
@@ -83889,20 +83896,22 @@ class OrderHistoryActivity : AppCompatActivity() {
                 android:id="@+id/btnActionPrimary"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"
-                android:layout_marginStart="8dp"
                 android:backgroundTint="@color/primary"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingHorizontal="14dp"
-                android:text="Theo Dõi Trực Tiếp "
+                android:paddingHorizontal="10dp"
+                android:text="Theo Dõi ➔"
                 android:textColor="@color/white"
                 android:textSize="11.5sp"
                 android:textStyle="bold"
+                android:singleLine="true"
+                android:maxLines="1"
+                android:ellipsize="end"
                 app:cornerRadius="8dp"
                 android:minHeight="0dp"
                 android:minWidth="0dp"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp" />
         </LinearLayout>
@@ -118435,7 +118444,7 @@ class OrderHistoryAdapter(
 
                         binding.tvOrderStatusBadge.text = "⏳ Chờ thanh toán"
                         binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
 
                         binding.tvShipperInfo.visibility = View.GONE
 
@@ -118500,7 +118509,7 @@ class OrderHistoryAdapter(
                     if (isCancelPending) {
                         binding.tvOrderStatusBadge.text = "⏳ Chờ duyệt hủy"
                         binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
 
                         binding.tvShipperInfo.visibility = View.VISIBLE
                         binding.tvShipperInfo.text = "👨‍🍳 Đã gửi yêu cầu hủy đến quán"
@@ -118564,7 +118573,7 @@ class OrderHistoryAdapter(
                         Order.Status.ARRIVED_AT_CUSTOMER -> {
                             badgeText = "📍 Tài xế đã đến nơi"
                             badgeColor = Color.parseColor("#EA580C")
-                            badgeBg = R.drawable.bg_voucher_chip
+                            badgeBg = R.drawable.bg_badge_orange
                             shipperDesc = "🔔 Shipper: $shipper đang chờ trước cửa"
                         }
                         Order.Status.DELIVERING -> {
@@ -118596,7 +118605,7 @@ class OrderHistoryAdapter(
                     val phone = order.shipperPhone.ifBlank { "19001234" }
                     binding.btnActionSecondary.setOnClickListener { onCallClick(phone) }
 
-                    binding.btnActionPrimary.text = "Theo Dõi Trực Tiếp ➔"
+                    binding.btnActionPrimary.text = "Theo Dõi ➔"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
                     binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
                 }

@@ -283,7 +283,7 @@ class OrderHistoryAdapter(
 
                         binding.tvOrderStatusBadge.text = "⏳ Chờ thanh toán"
                         binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
 
                         binding.tvShipperInfo.visibility = View.GONE
 
@@ -348,7 +348,7 @@ class OrderHistoryAdapter(
                     if (isCancelPending) {
                         binding.tvOrderStatusBadge.text = "⏳ Chờ duyệt hủy"
                         binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_voucher_chip)
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
 
                         binding.tvShipperInfo.visibility = View.VISIBLE
                         binding.tvShipperInfo.text = "👨‍🍳 Đã gửi yêu cầu hủy đến quán"
@@ -412,7 +412,7 @@ class OrderHistoryAdapter(
                         Order.Status.ARRIVED_AT_CUSTOMER -> {
                             badgeText = "📍 Tài xế đã đến nơi"
                             badgeColor = Color.parseColor("#EA580C")
-                            badgeBg = R.drawable.bg_voucher_chip
+                            badgeBg = R.drawable.bg_badge_orange
                             shipperDesc = "🔔 Shipper: $shipper đang chờ trước cửa"
                         }
                         Order.Status.DELIVERING -> {
@@ -444,7 +444,7 @@ class OrderHistoryAdapter(
                     val phone = order.shipperPhone.ifBlank { "19001234" }
                     binding.btnActionSecondary.setOnClickListener { onCallClick(phone) }
 
-                    binding.btnActionPrimary.text = "Theo Dõi Trực Tiếp ➔"
+                    binding.btnActionPrimary.text = "Theo Dõi ➔"
                     binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
                     binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
                 }

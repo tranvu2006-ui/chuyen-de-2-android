@@ -70,10 +70,7 @@ class OrderListFragment : Fragment() {
     private lateinit var adapter: OrderAdapter
     private var currentStoreId = ""
     private var isBossUser: Boolean = false
-
-    companion object {
-        private var cachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
-    }
+    private var cachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -163,6 +160,11 @@ class OrderListFragment : Fragment() {
                 .setTitle("Đăng Xuất")
                 .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
                 .setPositiveButton("Đăng xuất") { _, _ ->
+                    try {
+                        requireContext().getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                    } catch (_: Exception) {}
+                    cachedStore = null
+                    currentStoreId = ""
                     authRepository.logout()
                     val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
                         flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK

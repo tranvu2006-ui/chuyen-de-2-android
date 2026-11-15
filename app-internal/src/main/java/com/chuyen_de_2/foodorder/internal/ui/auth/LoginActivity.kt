@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.internal.ui.auth
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.MotionEvent
@@ -44,6 +45,9 @@ class LoginActivity : AppCompatActivity() {
 
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
         if (isLogout) {
+            try {
+                getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+            } catch (_: Exception) {}
             authRepository.logout()
         } else if (authRepository.isLoggedIn) {
             checkActiveStatusAndNavigate()
@@ -70,6 +74,9 @@ class LoginActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra("LOGOUT", false)) {
+            try {
+                getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+            } catch (_: Exception) {}
             authRepository.logout()
         }
     }
@@ -163,6 +170,9 @@ class LoginActivity : AppCompatActivity() {
 
         viewModel.loginResult.observe(this) { result ->
             result.onSuccess {
+                try {
+                    getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                } catch (_: Exception) {}
                 val email = binding.etEmail.text.toString().trim()
                 OtpSessionManager.markEmailVerified(this, email)
                 Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()

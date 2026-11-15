@@ -869,8 +869,11 @@ class FirebaseRepository @Inject constructor(
                     val mId = sSnap.child("merchantId").getValue(String::class.java)
                         ?: sSnap.child("ownerId").getValue(String::class.java)
                     val bId = sSnap.child("bossId").getValue(String::class.java).orEmpty()
-                    if (mId == uid || bId == uid || userRole == User.Role.BOSSMERCHANT) {
+                    if (mId == uid || (bId.isNotBlank() && bId == uid)) {
                         return userStoreId
+                    } else {
+                        // storeId trên user này không thuộc quyền sở hữu của uid -> gỡ bỏ để tránh lẫn lộn
+                        try { database.getReference("users").child(uid).child("storeId").setValue("") } catch (_: Exception) {}
                     }
                 }
             }

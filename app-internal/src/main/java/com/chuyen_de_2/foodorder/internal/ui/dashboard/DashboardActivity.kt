@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.internal.ui.dashboard
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -226,16 +227,19 @@ class DashboardActivity : AppCompatActivity() {
                 return@launch
             }
 
-            if (uid.isNotBlank()) {
-                firebaseRepository.setActiveStoreForBoss(uid, selectedBranchId)
-            }
-
             val store = firebaseRepository.getStoreOnce(selectedBranchId)
-            if (store == null) {
+            if (store == null || (store.bossId.isNotBlank() && store.bossId != uid)) {
                 prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
+                if (uid.isNotBlank()) {
+                    firebaseRepository.clearActiveStoreForBoss(uid)
+                }
                 startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
                 finish()
                 return@launch
+            }
+
+            if (uid.isNotBlank()) {
+                firebaseRepository.setActiveStoreForBoss(uid, selectedBranchId)
             }
 
             val branchName = store.name.ifBlank { "Chi nhánh #$selectedBranchId" }
@@ -335,6 +339,7 @@ class DashboardActivity : AppCompatActivity() {
      * Luồng hướng tới: Chưa hoàn tất -> [StoreVerificationActivity]; Đã hoàn tất -> [setupMerchantNavigation].
      */
     private fun checkMerchantVerificationAndProceed() {
+        getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
         lifecycleScope.launch {
             val uid = authRepository.currentUser?.uid.orEmpty()
             if (uid.isNotBlank()) {

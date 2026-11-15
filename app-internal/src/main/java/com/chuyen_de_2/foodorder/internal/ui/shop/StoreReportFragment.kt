@@ -112,7 +112,19 @@ class StoreReportFragment : Fragment() {
                     firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
                         if (store != null) {
                             val rating = store.ratingAvg
-                            binding.tvRatingScore.text = if (rating > 0) String.format("%.1f", rating) else "—"
+                            val reviewCount = store.reviewCount
+                            if (reviewCount > 0 && rating > 0f) {
+                                binding.tvRatingScore.text = String.format(java.util.Locale.US, "%.1f", rating)
+                                binding.tvRatingCount.text = "$reviewCount đánh giá"
+                                val pct = (rating / 5.0f * 100).toInt().coerceIn(0, 100)
+                                binding.tvSatisfactionRate.text = "Tỷ lệ hài lòng: $pct%"
+                                binding.tvSatisfactionDesc.text = "• Dựa trên $reviewCount lượt đánh giá thực tế từ khách hàng\n• Điểm chất lượng dịch vụ: ${String.format(java.util.Locale.US, "%.1f", rating)}/5.0 ⭐"
+                            } else {
+                                binding.tvRatingScore.text = "—"
+                                binding.tvRatingCount.text = "0 đánh giá"
+                                binding.tvSatisfactionRate.text = "Chưa có đánh giá"
+                                binding.tvSatisfactionDesc.text = "• Quán chưa có lượt đánh giá nào từ khách hàng\n• Điểm uy tín sẽ cập nhật sau khi khách hàng đánh giá món"
+                            }
                         }
                     }
                 }

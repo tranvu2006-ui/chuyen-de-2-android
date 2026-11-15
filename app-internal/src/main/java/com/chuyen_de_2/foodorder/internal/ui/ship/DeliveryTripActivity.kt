@@ -2812,22 +2812,9 @@ class DeliveryTripActivity : AppCompatActivity() {
             flowBinding.tvBomStatusIcon.text = "⏳"
             flowBinding.tvBomStoreStatus.text = "Tài xế đang quay lại quán. Vui lòng bàn giao món và nhận tiền hoàn từ Quán."
 
-            // Nếu vẫn còn đơn ghép chưa giao -> shipper có thể đổi ý đi giao tiếp
+            // Ẩn nút "Đổi ý: Tiếp tục giao đơn" khi đang trong luồng trả món về quán
             val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) && it.orderId != bomOrder.orderId }
-            if (isBundleMode && remainingOrders.isNotEmpty()) {
-                val nextRemaining = remainingOrders.first()
-                val nextSc = QRCodeUtils.getShortOrderCode(nextRemaining.orderId)
-                val nextIdx = bundleOrders.indexOf(nextRemaining)
-                flowBinding.btnBomReturnToStoreNow.visibility = View.VISIBLE
-                flowBinding.btnBomReturnToStoreNow.text = "🛵 Đổi ý: Tiếp tục giao đơn #${nextSc}"
-                flowBinding.btnBomReturnToStoreNow.setTextColor(Color.parseColor("#2563EB"))
-                flowBinding.btnBomReturnToStoreNow.setOnClickListener {
-                    dialog.dismiss()
-                    switchActiveBundleCustomer(nextIdx)
-                }
-            } else {
-                flowBinding.btnBomReturnToStoreNow.visibility = View.GONE
-            }
+            flowBinding.btnBomReturnToStoreNow.visibility = View.GONE
 
             flowBinding.btnConfirmBomAction.text = "🏪 ĐÃ TỚI QUÁN • TRẢ MÓN & NHẬN ${totalRefund.toVndCurrency()} TỪ QUÁN"
             flowBinding.btnConfirmBomAction.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.brand_green))

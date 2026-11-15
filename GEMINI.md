@@ -40,7 +40,7 @@
 ---
 
 ## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
-- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và `git push origin vu-15/11`.
+- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và CHỈ push lên nhánh `giau1.0` (`git push origin giau1.0`).
 
 ---
 

@@ -248,9 +248,6 @@ class CheckoutActivity : AppCompatActivity() {
             selectPaymentMode(Order.PaymentMode.COD)
         }
 
-        binding.cardChannelBank.setOnClickListener { selectOnlineChannel("bank") }
-        binding.cardChannelMomo.visibility = View.GONE
-
         selectOnlineChannel("bank")
         selectPaymentMode(Order.PaymentMode.FULL)
 
@@ -384,16 +381,9 @@ class CheckoutActivity : AppCompatActivity() {
         )
 
         if (mode == Order.PaymentMode.COD) {
-            binding.layoutChannelWrap.visibility = View.GONE
             binding.layoutBankingInfo.visibility = View.GONE
         } else {
-            binding.layoutChannelWrap.visibility = View.VISIBLE
             binding.layoutBankingInfo.visibility = View.VISIBLE
-            binding.tvChannelTitle.text = if (mode == Order.PaymentMode.FULL) {
-                "Kênh quét mã thanh toán 100%:"
-            } else {
-                "Kênh quét mã thanh toán cọc 20%:"
-            }
         }
 
         recalculateTotal()
@@ -844,13 +834,6 @@ class CheckoutActivity : AppCompatActivity() {
 
     private fun selectOnlineChannel(channel: String = "bank") {
         selectedChannel = "bank"
-        binding.rbBanking.isChecked = true
-        binding.rbMomo.isChecked = false
-        binding.cardChannelBank.setBackgroundResource(R.drawable.bg_payment_card_selected)
-        binding.cardChannelMomo.setBackgroundResource(R.drawable.bg_payment_card_normal)
-        binding.cardChannelMomo.visibility = View.GONE
-        binding.ivCheckBank.visibility = View.VISIBLE
-        binding.ivCheckMomo.visibility = View.GONE
         updatePaymentPreviewBox(false)
     }
 

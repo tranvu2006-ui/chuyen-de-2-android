@@ -553,6 +553,70 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     private var hasShownReturningDialog = false
+    private var hasShownCancelledDialog = false
+
+    private fun handleOrderCancelledRealtime(order: Order) {
+        if (hasShownCancelledDialog || isFinishing || isDestroyed) return
+        hasShownCancelledDialog = true
+
+        countdownTimer?.cancel()
+        isCountdownActive = false
+        binding.cardCountdownWarning.visibility = View.GONE
+
+        // Xóa trạng thái step đã lưu của đơn này
+        val sp = getSharedPreferences("delivery_trip_state", Context.MODE_PRIVATE)
+        sp.edit().remove("step_${order.orderId}").apply()
+        getSharedPreferences("delivery_countdown", Context.MODE_PRIVATE)
+            .edit()
+            .remove("start_time_${order.orderId}")
+            .remove("reason_${order.orderId}")
+            .remove("round_${order.orderId}")
+            .remove("call_proof_${order.orderId}")
+            .remove("msg_proof_${order.orderId}")
+            .apply()
+
+        completedBundleOrderIds.add(order.orderId)
+        val shortCode = QRCodeUtils.getShortOrderCode(order.orderId)
+        val cancelMsg = if (order.cancelReason.isNotBlank()) order.cancelReason else "Khách hàng đã hủy đơn hàng"
+
+        val remainingOrders = bundleOrders.filter { !completedBundleOrderIds.contains(it.orderId) && it.orderId != order.orderId }
+        if (isBundleMode && remainingOrders.isNotEmpty()) {
+            val nextOrder = remainingOrders.first()
+            val nextIdx = bundleOrders.indexOf(nextOrder)
+            AlertDialog.Builder(this@DeliveryTripActivity)
+                .setTitle("⚠️ ĐƠN HÀNG #${shortCode} ĐÃ BỊ HỦY")
+                .setMessage("Khách hàng đã hủy đơn #${shortCode}.\n\nLý do: $cancelMsg\n\nQuán ăn đã dừng làm món cho đơn này. Tiếp tục chuyến giao các đơn còn lại.")
+                .setPositiveButton("Tiếp Tục Giao Đơn Còn Lại") { _, _ ->
+                    hasShownCancelledDialog = false
+                    switchActiveBundleCustomer(nextIdx)
+                }
+                .setCancelable(false)
+                .show()
+        } else {
+            AlertDialog.Builder(this@DeliveryTripActivity)
+                .setTitle("⚠️ ĐƠN HÀNG #${shortCode} ĐÃ BỊ HỦY")
+                .setMessage("Khách hàng đã hủy đơn #${shortCode}.\n\nLý do: $cancelMsg\n\nQuán ăn đã nhận được thông báo và dừng làm món. Chuyến giao này đã kết thúc.")
+                .setPositiveButton("Đã Hiểu") { _, _ ->
+                    finish()
+                }
+                .setCancelable(false)
+                .show()
+        }
+    }
+
+    private fun showReturningOrderAlertDialog(order: Order) {
+        if (isFinishing || isDestroyed) return
+        val shortCode = QRCodeUtils.getShortOrderCode(order.orderId)
+        val reasonMsg = if (order.cancelReason.isNotBlank()) order.cancelReason else "Khách từ chối nhận món"
+        AlertDialog.Builder(this)
+            .setTitle("🚨 KHÁCH HỦY ĐƠN - MANG MÓN VỀ QUÁN")
+            .setMessage("Khách hàng đã hủy đơn #${shortCode} khi đang giao.\n\nLý do: $reasonMsg\n\nVui lòng mang món ăn quay trở lại quán ăn để hoàn tất thủ tục trả món.")
+            .setCancelable(false)
+            .setPositiveButton("Bắt Đầu Quay Về Quán") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
+    }
 
     private fun observeOrderDetails() {
         lifecycleScope.launch {
@@ -581,12 +645,15 @@ class DeliveryTripActivity : AppCompatActivity() {
                     if (!isBundleMode) {
                         bindOrderData(order)
                     }
-                    if (order.status == Order.Status.RETURNING_TO_STORE) {
+                    if (order.status == Order.Status.CANCELLED || order.status == Order.Status.BOOM) {
+                        handleOrderCancelledRealtime(order)
+                    } else if (order.status == Order.Status.RETURNING_TO_STORE) {
                         if (!hasShownReturningDialog) {
                             hasShownReturningDialog = true
                             if (!bomReturnOrders.any { it.orderId == order.orderId }) {
                                 bomReturnOrders.add(order)
                             }
+                            showReturningOrderAlertDialog(order)
                             switchToReturningToStoreScreen(order)
                         }
                     } else {

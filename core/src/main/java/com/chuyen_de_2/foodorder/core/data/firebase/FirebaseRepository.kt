@@ -394,6 +394,8 @@ class FirebaseRepository @Inject constructor(
             "cancelReason" to finalReason,
             "cancelRequested" to false,
             "cancelRequestStatus" to "",
+            "cancelledBy" to "CUSTOMER",
+            "cancelledAt" to System.currentTimeMillis(),
             "updatedAt" to System.currentTimeMillis()
         )
         database.getReference("orders").child(orderId).updateChildren(updates)

@@ -244,12 +244,22 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun handleCancelOrderClick() {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
-        if (status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
-            showInstantCancelDialog(order)
-        } else if (status == Order.Status.PREPARING || status == Order.Status.READY) {
-            showRequestCancelDialog(order)
-        } else if (status == Order.Status.DELIVERING || status == Order.Status.ARRIVED_AT_CUSTOMER) {
-            showDeliveringCancelDialog(order)
+        when (status) {
+            Order.Status.PENDING, Order.Status.PAID, Order.Status.AWAITING_PAYMENT -> {
+                showInstantCancelDialog(order)
+            }
+            Order.Status.PREPARING, Order.Status.READY -> {
+                showKitchenCancelDialog(order)
+            }
+            Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
+                showAssignedDriverCancelDialog(order)
+            }
+            Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
+                showDeliveringCancelDialog(order)
+            }
+            else -> {
+                showInstantCancelDialog(order)
+            }
         }
     }
 
@@ -287,24 +297,25 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 } else {
                     reasons[selectedIndex]
                 }
-                viewModel.cancelOrderImmediately(order.orderId, reasonText)
+                viewModel.cancelOrderImmediately(order.orderId, "Khách hủy (Quán chưa làm): $reasonText")
                 Toast.makeText(this, "✓ Đã hủy đơn hàng thành công!", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Giữ Lại Đơn", null)
             .show()
     }
 
-    private fun showRequestCancelDialog(order: Order) {
+    private fun showKitchenCancelDialog(order: Order) {
         val reasons = arrayOf(
-            "Đặt nhầm món, cần đặt lại",
-            "Đặt nhầm địa chỉ nhận hàng",
+            "Đổi ý, không muốn mua nữa",
+            "Đặt nhầm món / trùng đơn",
             "Chờ quán chuẩn bị quá lâu",
+            "Đặt nhầm địa chỉ giao hàng",
             "Có việc bận đột xuất",
             "Lý do khác..."
         )
         var selectedIndex = 0
         val input = EditText(this).apply {
-            hint = "Nhập lý do cụ thể gửi quán..."
+            hint = "Nhập lý do cụ thể..."
             visibility = View.GONE
             setPadding(40, 20, 40, 20)
         }
@@ -315,23 +326,67 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("⚠️ Yêu Cầu Hủy Đơn")
-            .setMessage("Quán đã tiếp nhận và đang chế biến món ăn. Để hủy đơn, yêu cầu của bạn sẽ được gửi tới quán để quán xác nhận hủy.\n\nVui lòng chọn lý do:")
+            .setTitle("✕ HỦY ĐƠN HÀNG (QUÁN ĐANG LÀM)")
+            .setMessage("Quán đang chuẩn bị món ăn. Nếu bạn hủy đơn ngay bây giờ, hệ thống sẽ gửi thông báo dừng làm món tới quán ngay lập tức.\n\nVui lòng chọn lý do hủy:")
             .setSingleChoiceItems(reasons, 0) { _, which ->
                 selectedIndex = which
                 input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
             }
             .setView(container)
-            .setPositiveButton("Gửi Yêu Cầu Hủy") { _, _ ->
+            .setPositiveButton("Xác Nhận Hủy") { _, _ ->
                 val reasonText = if (selectedIndex == reasons.size - 1) {
-                    input.text.toString().trim().ifBlank { "Khách yêu cầu hủy do đặt nhầm" }
+                    input.text.toString().trim().ifBlank { "Khách hủy khi quán đang làm" }
                 } else {
                     reasons[selectedIndex]
                 }
-                viewModel.requestCancelOrder(order.orderId, reasonText)
-                Toast.makeText(this, "✓ Đã gửi yêu cầu hủy đơn đến quán! Vui lòng chờ phản hồi.", Toast.LENGTH_SHORT).show()
+                val fullReason = "Khách hủy khi quán đang làm (Quán dừng làm món): $reasonText"
+                viewModel.cancelOrderImmediately(order.orderId, fullReason)
+                Toast.makeText(this, "✓ Đã hủy đơn hàng! Quán đã nhận thông báo dừng làm món.", Toast.LENGTH_LONG).show()
             }
-            .setNegativeButton("Quay Lại", null)
+            .setNegativeButton("Giữ Lại Đơn", null)
+            .show()
+    }
+
+    private fun showAssignedDriverCancelDialog(order: Order) {
+        val reasons = arrayOf(
+            "Đổi ý, không muốn mua nữa",
+            "Đặt nhầm món / trùng đơn",
+            "Chờ tài xế / quán quá lâu",
+            "Đặt nhầm địa chỉ giao hàng",
+            "Có việc bận đột xuất",
+            "Lý do khác..."
+        )
+        var selectedIndex = 0
+        val input = EditText(this).apply {
+            hint = "Nhập lý do cụ thể..."
+            visibility = View.GONE
+            setPadding(40, 20, 40, 20)
+        }
+
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(input)
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("✕ HỦY ĐƠN HÀNG (TÀI XẾ Ở QUÁN)")
+            .setMessage("Tài xế đang có mặt tại quán để nhận món. Nếu bạn hủy đơn, hệ thống sẽ thông báo quán dừng làm món và tài xế hủy chuyến giao này.\n\nVui lòng chọn lý do hủy:")
+            .setSingleChoiceItems(reasons, 0) { _, which ->
+                selectedIndex = which
+                input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
+            }
+            .setView(container)
+            .setPositiveButton("Xác Nhận Hủy") { _, _ ->
+                val reasonText = if (selectedIndex == reasons.size - 1) {
+                    input.text.toString().trim().ifBlank { "Khách hủy khi tài xế ở quán" }
+                } else {
+                    reasons[selectedIndex]
+                }
+                val fullReason = "Khách hủy khi tài xế ở quán (Quán dừng làm & Hủy giao): $reasonText"
+                viewModel.cancelOrderImmediately(order.orderId, fullReason)
+                Toast.makeText(this, "✓ Đã hủy đơn hàng! Quán và tài xế đã nhận thông báo.", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Giữ Lại Đơn", null)
             .show()
     }
 
@@ -700,37 +755,18 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         when {
             statusUpper == Order.Status.CANCELLED || statusUpper == Order.Status.BOOM ||
             statusUpper == Order.Status.COMPLETED || statusUpper == Order.Status.RETURNING_TO_STORE ||
-            statusUpper == Order.Status.RETURNED_TO_STORE || statusUpper == Order.Status.ARRIVED_AT_SHOP ||
-            statusUpper == Order.Status.ASSIGNED -> {
+            statusUpper == Order.Status.RETURNED_TO_STORE -> {
                 binding.btnCancelOrder.isVisible = false
                 binding.boxCancelRequestStatus.isVisible = false
             }
             order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING -> {
-                binding.btnCancelOrder.isVisible = false
+                binding.btnCancelOrder.isVisible = true
+                binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng Ngay"
                 binding.boxCancelRequestStatus.isVisible = true
                 binding.tvCancelRequestIcon.text = "⏳"
                 binding.tvCancelRequestTitle.text = "Đang chờ quán duyệt yêu cầu hủy đơn"
-                binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu hủy của bạn."
+                binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu hủy của bạn. Bạn cũng có thể bấm Hủy ngay bên dưới."
                 binding.btnWithdrawCancelRequest.isVisible = true
-            }
-            !order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.REJECTED &&
-            (statusUpper == Order.Status.PREPARING || statusUpper == Order.Status.READY) -> {
-                binding.btnCancelOrder.isVisible = false
-                binding.boxCancelRequestStatus.isVisible = true
-                binding.tvCancelRequestIcon.text = "❌"
-                binding.tvCancelRequestTitle.text = "Quán không thể hủy đơn"
-                binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRejectReason.ifBlank { "Quán đã nấu xong món ăn, không thể hủy đơn." }}\nĐơn hàng vẫn tiếp tục được thực hiện."
-                binding.btnWithdrawCancelRequest.isVisible = false
-            }
-            statusUpper == Order.Status.PENDING || statusUpper == Order.Status.PAID || statusUpper == Order.Status.AWAITING_PAYMENT -> {
-                binding.boxCancelRequestStatus.isVisible = false
-                binding.btnCancelOrder.isVisible = true
-                binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng (Đặt Nhầm)"
-            }
-            statusUpper == Order.Status.PREPARING || statusUpper == Order.Status.READY -> {
-                binding.boxCancelRequestStatus.isVisible = false
-                binding.btnCancelOrder.isVisible = true
-                binding.btnCancelOrder.text = "✕ Gửi Yêu Cầu Hủy Đơn"
             }
             statusUpper == Order.Status.DELIVERING || statusUpper == Order.Status.ARRIVED_AT_CUSTOMER -> {
                 binding.boxCancelRequestStatus.isVisible = false
@@ -738,8 +774,9 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.btnCancelOrder.text = "✕ Không Nhận Món (Hủy Giao Hàng)"
             }
             else -> {
-                binding.btnCancelOrder.isVisible = false
                 binding.boxCancelRequestStatus.isVisible = false
+                binding.btnCancelOrder.isVisible = true
+                binding.btnCancelOrder.text = "✕ Hủy Đơn Hàng"
             }
         }
 

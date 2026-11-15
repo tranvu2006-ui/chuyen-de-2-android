@@ -244,18 +244,24 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun handleCancelOrderClick() {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
+        val isShipperAssigned = !order.shipperId.isNullOrBlank() ||
+                status == Order.Status.ASSIGNED ||
+                status == Order.Status.ARRIVED_AT_SHOP ||
+                status == Order.Status.DELIVERING ||
+                status == Order.Status.ARRIVED_AT_CUSTOMER
+
+        if (isShipperAssigned) {
+            Toast.makeText(this, "Tài xế đã nhận đơn hàng, không thể hủy đơn!", Toast.LENGTH_SHORT).show()
+            binding.btnCancelOrder.isVisible = false
+            return
+        }
+
         when (status) {
             Order.Status.PENDING, Order.Status.PAID, Order.Status.AWAITING_PAYMENT -> {
                 showInstantCancelDialog(order)
             }
             Order.Status.PREPARING, Order.Status.READY -> {
                 showKitchenCancelDialog(order)
-            }
-            Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
-                showAssignedDriverCancelDialog(order)
-            }
-            Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
-                showDeliveringCancelDialog(order)
             }
             else -> {
                 showInstantCancelDialog(order)
@@ -752,10 +758,17 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Cập nhật trạng thái nút hủy đơn và banner yêu cầu hủy đơn
         val statusUpper = order.effectiveStatus.uppercase()
+        val isShipperAssigned = !order.shipperId.isNullOrBlank() ||
+                statusUpper == Order.Status.ASSIGNED ||
+                statusUpper == Order.Status.ARRIVED_AT_SHOP ||
+                statusUpper == Order.Status.DELIVERING ||
+                statusUpper == Order.Status.ARRIVED_AT_CUSTOMER
+
         when {
+            // Đã hoàn tất, đã hủy, hoặc tài xế ĐÃ NHẬN ĐƠN -> Khách KHÔNG được hủy đơn nữa
             statusUpper == Order.Status.CANCELLED || statusUpper == Order.Status.BOOM ||
             statusUpper == Order.Status.COMPLETED || statusUpper == Order.Status.RETURNING_TO_STORE ||
-            statusUpper == Order.Status.RETURNED_TO_STORE -> {
+            statusUpper == Order.Status.RETURNED_TO_STORE || isShipperAssigned -> {
                 binding.btnCancelOrder.isVisible = false
                 binding.boxCancelRequestStatus.isVisible = false
             }
@@ -768,11 +781,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu hủy của bạn. Bạn cũng có thể bấm Hủy ngay bên dưới."
                 binding.btnWithdrawCancelRequest.isVisible = true
             }
-            statusUpper == Order.Status.DELIVERING || statusUpper == Order.Status.ARRIVED_AT_CUSTOMER -> {
-                binding.boxCancelRequestStatus.isVisible = false
-                binding.btnCancelOrder.isVisible = true
-                binding.btnCancelOrder.text = "✕ Không Nhận Món (Hủy Giao Hàng)"
-            }
+            // Khi ship CHƯA nhận đơn (PENDING, PAID, AWAITING_PAYMENT, PREPARING, READY): Cho phép khách hủy đơn
             else -> {
                 binding.boxCancelRequestStatus.isVisible = false
                 binding.btnCancelOrder.isVisible = true

@@ -2039,7 +2039,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                 binding.step2Text.setTextColor(colorMuted)
                 binding.stepDivider.setBackgroundColor(ContextCompat.getColor(this, R.color.border))
 
-                binding.btnTripCancel.visibility = View.VISIBLE
+                binding.btnTripCancel.visibility = View.GONE
             } else {
                 binding.layoutTripStepper.visibility = View.GONE
                 binding.layoutTripStepperBundle.visibility = View.VISIBLE
@@ -2061,7 +2061,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                 binding.step2Text.setTextColor(colorMuted)
                 binding.stepDivider.setBackgroundColor(ContextCompat.getColor(this, R.color.border))
 
-                binding.btnTripCancel.visibility = View.VISIBLE
+                binding.btnTripCancel.visibility = View.GONE
             } else {
                 binding.step1Badge.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.step1Badge.text = "✓"

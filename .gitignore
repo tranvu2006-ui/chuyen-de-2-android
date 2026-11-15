@@ -30,3 +30,6 @@ graphify-out/
 
 # Antigravity Repomix Code Map
 .antigravity/
+
+# Database backups
+backup_*.json

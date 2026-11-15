@@ -621,6 +621,11 @@ app-internal/
                     BossBranchAdapter.kt
                     BossDashboardActivity.kt
                     BossMerchantAdapter.kt
+                  chef/
+                    ChefActiveOrdersAdapter.kt
+                    ChefFragment.kt
+                    ChefPendingOrdersAdapter.kt
+                    ChefViewModel.kt
                   dashboard/
                     DashboardActivity.kt
                   driver/
@@ -816,6 +821,7 @@ app-internal/
           dialog_report_incident.xml
           dialog_store_chat_customer.xml
           dialog_store_warning_detail.xml
+          fragment_chef.xml
           fragment_driver_list.xml
           fragment_menu_manage.xml
           fragment_order_list.xml
@@ -828,6 +834,8 @@ app-internal/
           item_boss_branch.xml
           item_boss_merchant.xml
           item_bundle_order_card.xml
+          item_chef_active_order.xml
+          item_chef_pending_order.xml
           item_driver_active_order.xml
           item_driver_pending_order.xml
           item_driver.xml
@@ -1072,7 +1080,6 @@ ship/
   8.html
 .firebaserc
 .gitignore
-~$UC_NANG_4_ACTORS.docx
 admin.html
 BANG_PHAN_CONG_CONG_VIEC_TRELLO.md
 Bao_Cao_Chuc_Nang_4_Actors_Oishi_Food.docx
@@ -14995,6 +15002,484 @@ class SelectLocationActivity : AppCompatActivity() {
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/chef/ChefActiveOrdersAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.chef
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
+import com.chuyen_de_2.foodorder.internal.databinding.ItemChefActiveOrderBinding
+
+class ChefActiveOrdersAdapter(
+    private val onMarkDone: (Order) -> Unit,
+    private val onCancelOrder: (Order) -> Unit
+) : RecyclerView.Adapter<ChefActiveOrdersAdapter.ActiveChefViewHolder>() {
+
+    private val orders = mutableListOf<Order>()
+
+    fun submitList(list: List<Order>) {
+        orders.clear()
+        orders.addAll(list)
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ActiveChefViewHolder {
+        val binding = ItemChefActiveOrderBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return ActiveChefViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: ActiveChefViewHolder, position: Int) {
+        holder.bind(orders[position])
+    }
+
+    override fun getItemCount(): Int = orders.size
+
+    inner class ActiveChefViewHolder(
+        private val binding: ItemChefActiveOrderBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(order: Order) {
+            binding.tvChefActiveCode.text = QRCodeUtils.formatOrderCode(order.orderId)
+            binding.tvChefActiveStatus.text = "🔥 Đang Nấu"
+
+            val dishSummary = if (order.items.isNotEmpty()) {
+                order.items.values.joinToString("\n") { "• ${it.quantity}x ${it.name}" }
+            } else {
+                "• Món ăn theo đơn"
+            }
+            binding.tvChefActiveDishes.text = dishSummary
+
+            if (order.note.isNotBlank()) {
+                binding.tvChefActiveNote.visibility = View.VISIBLE
+                binding.tvChefActiveNote.text = "📝 Ghi chú: ${order.note}"
+            } else {
+                binding.tvChefActiveNote.visibility = View.GONE
+            }
+
+            binding.btnChefDone.setOnClickListener {
+                onMarkDone(order)
+            }
+
+            binding.btnChefCancel.setOnClickListener {
+                onCancelOrder(order)
+            }
+        }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/chef/ChefFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.chef
+
+import android.content.Intent
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentChefBinding
+import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+
+/**
+ * Màn hình Bếp (Kitchen / Chef Dashboard):
+ * - Xem danh sách đơn đang chờ đầu bếp nhận nấu (PREPARING, chefId rỗng).
+ * - Bấm "Nhận nấu" tương tự như shipper nhận đơn (atomic lock chống nhận trùng).
+ * - Xem danh sách các đơn mà chính đầu bếp này đang nấu.
+ * - Thao tác duy nhất sau khi nấu xong: Bấm "Đã nấu xong" -> chuyển sang READY để tài xế nhận giao.
+ * - Quản lý (Merchant) không thể xác nhận nấu xong thay cho đầu bếp.
+ */
+@AndroidEntryPoint
+class ChefFragment : Fragment() {
+
+    private var _binding: FragmentChefBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    private val viewModel: ChefViewModel by activityViewModels()
+
+    private lateinit var activeAdapter: ChefActiveOrdersAdapter
+    private lateinit var pendingAdapter: ChefPendingOrdersAdapter
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentChefBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupAdapters()
+        setupLogout()
+        observeData()
+    }
+
+    private fun setupLogout() {
+        binding.btnChefLogoutHeader.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi ca làm việc bếp không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    authRepository.logout()
+                    val intent = Intent(requireContext(), LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    private fun setupAdapters() {
+        activeAdapter = ChefActiveOrdersAdapter(
+            onMarkDone = { order ->
+                confirmMarkDone(order)
+            },
+            onCancelOrder = { order ->
+                confirmCancelOrder(order)
+            }
+        )
+
+        pendingAdapter = ChefPendingOrdersAdapter(
+            onAcceptOrder = { order ->
+                viewModel.acceptOrder(order.orderId) { success, msg ->
+                    if (success) {
+                        Toast.makeText(
+                            requireContext(),
+                            "👨‍🍳 Đã nhận nấu đơn #${QRCodeUtils.getShortOrderCode(order.orderId)}!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        )
+
+        binding.rvChefActiveOrders.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = activeAdapter
+        }
+
+        binding.rvChefPendingOrders.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = pendingAdapter
+        }
+    }
+
+    private fun confirmMarkDone(order: Order) {
+        val shortCode = QRCodeUtils.getShortOrderCode(order.orderId)
+        AlertDialog.Builder(requireContext())
+            .setTitle("🍳 Xác nhận nấu xong")
+            .setMessage("Bạn đã nấu xong các món cho đơn #$shortCode chưa?\nĐơn sẽ được chuyển sang 'Sẵn sàng giao' cho tài xế.")
+            .setPositiveButton("Đã nấu xong") { _, _ ->
+                viewModel.markCookingDone(order.orderId) { success, msg ->
+                    if (success) {
+                        Toast.makeText(
+                            requireContext(),
+                            "✓ Đơn #$shortCode đã nấu xong! Chờ tài xế lấy món.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Chưa xong", null)
+            .show()
+    }
+
+    private fun confirmCancelOrder(order: Order) {
+        val shortCode = QRCodeUtils.getShortOrderCode(order.orderId)
+        AlertDialog.Builder(requireContext())
+            .setTitle("Hủy nhận nấu")
+            .setMessage("Bạn có chắc muốn hủy nhận đơn #$shortCode?\nĐơn sẽ được hoàn về danh sách chờ cho đầu bếp khác nhận.")
+            .setPositiveButton("Hủy nhận") { _, _ ->
+                viewModel.cancelOrder(order.orderId) { success, msg ->
+                    if (success) {
+                        Toast.makeText(
+                            requireContext(),
+                            "Đã hủy nhận đơn #$shortCode",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Giữ lại", null)
+            .show()
+    }
+
+    private fun observeData() {
+        viewModel.chefStore.observe(viewLifecycleOwner) { storeInfo ->
+            val storeName = storeInfo.second
+            if (storeName.isNotBlank()) {
+                binding.tvChefStoreBadge.text = "Bếp • $storeName"
+            } else {
+                binding.tvChefStoreBadge.text = "Bếp nội bộ quán"
+            }
+        }
+
+        viewModel.chefName.observe(viewLifecycleOwner) { name ->
+            binding.tvChefName.text = name.ifBlank { "Đầu Bếp" }
+        }
+
+        viewModel.activeOrders.observe(viewLifecycleOwner) { orders ->
+            activeAdapter.submitList(orders)
+            binding.lblChefActiveBadge.text = "${orders.size} đơn"
+            binding.tvStatActiveChef.text = "${orders.size} đơn"
+            binding.tvEmptyChefActive.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
+        }
+
+        viewModel.pendingOrders.observe(viewLifecycleOwner) { orders ->
+            pendingAdapter.submitList(orders)
+            binding.lblChefPendingBadge.text = "${orders.size} đơn"
+            binding.tvStatPendingChef.text = "${orders.size} đơn"
+            binding.tvEmptyChefPending.visibility = if (orders.isEmpty()) View.VISIBLE else View.GONE
+        }
+
+        viewModel.todayDoneCount.observe(viewLifecycleOwner) { count ->
+            binding.tvStatDoneChef.text = "$count đơn"
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/chef/ChefPendingOrdersAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.chef
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
+import com.chuyen_de_2.foodorder.internal.databinding.ItemChefPendingOrderBinding
+
+class ChefPendingOrdersAdapter(
+    private val onAcceptOrder: (Order) -> Unit
+) : RecyclerView.Adapter<ChefPendingOrdersAdapter.PendingChefViewHolder>() {
+
+    private val orders = mutableListOf<Order>()
+
+    fun submitList(list: List<Order>) {
+        orders.clear()
+        orders.addAll(list)
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PendingChefViewHolder {
+        val binding = ItemChefPendingOrderBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return PendingChefViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: PendingChefViewHolder, position: Int) {
+        holder.bind(orders[position])
+    }
+
+    override fun getItemCount(): Int = orders.size
+
+    inner class PendingChefViewHolder(
+        private val binding: ItemChefPendingOrderBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(order: Order) {
+            binding.tvChefPendingCode.text = QRCodeUtils.formatOrderCode(order.orderId)
+            binding.tvChefPendingTime.text = "Chờ Bếp Nhận"
+
+            val dishSummary = if (order.items.isNotEmpty()) {
+                order.items.values.joinToString("\n") { "• ${it.quantity}x ${it.name}" }
+            } else {
+                "• Món ăn theo đơn"
+            }
+            binding.tvChefPendingDishes.text = dishSummary
+
+            if (order.note.isNotBlank()) {
+                binding.tvChefPendingNote.visibility = View.VISIBLE
+                binding.tvChefPendingNote.text = "📝 Ghi chú: ${order.note}"
+            } else {
+                binding.tvChefPendingNote.visibility = View.GONE
+            }
+
+            binding.btnChefAcceptOrder.setOnClickListener {
+                onAcceptOrder(order)
+            }
+        }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/chef/ChefViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.chef
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+@HiltViewModel
+class ChefViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository,
+    private val auth: FirebaseAuth
+) : ViewModel() {
+
+    private val _chefStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
+    val chefStore: LiveData<Pair<String, String>> = _chefStore
+
+    private val _pendingOrders = MutableLiveData<List<Order>>()
+    val pendingOrders: LiveData<List<Order>> = _pendingOrders
+
+    private val _activeOrders = MutableLiveData<List<Order>>()
+    val activeOrders: LiveData<List<Order>> = _activeOrders
+
+    private val _todayDoneCount = MutableLiveData<Int>(0)
+    val todayDoneCount: LiveData<Int> = _todayDoneCount
+
+    private val _chefName = MutableLiveData<String>()
+    val chefName: LiveData<String> = _chefName
+
+    private var cachedChefPhone: String = ""
+
+    init {
+        loadChefStoreAndOrders()
+    }
+
+    fun refresh() {
+        loadChefStoreAndOrders()
+    }
+
+    private fun loadChefStoreAndOrders() {
+        val chefId = auth.currentUser?.uid.orEmpty()
+        viewModelScope.launch {
+            if (chefId.isNotBlank()) {
+                try {
+                    val userSnap = firebaseRepository.readCacheFirst(
+                        firebaseRepository.database.getReference("users").child(chefId)
+                    )
+                    val name = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
+                    cachedChefPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
+                    _chefName.value = if (name.isNotBlank()) name else (auth.currentUser?.displayName ?: "Đầu Bếp")
+                } catch (_: Exception) {
+                    _chefName.value = auth.currentUser?.displayName ?: "Đầu Bếp"
+                }
+            }
+
+            val storeInfo = firebaseRepository.resolveStoreForChef(chefId)
+            _chefStore.value = storeInfo
+            observeChefOrders(storeInfo.first, chefId)
+        }
+    }
+
+    private fun observeChefOrders(storeId: String, chefId: String) {
+        viewModelScope.launch {
+            firebaseRepository.observeAllOrders().collectLatest { allOrders ->
+                // Lọc đơn theo storeId của đầu bếp
+                val storeOrders = if (storeId.isNotBlank()) {
+                    allOrders.filter { it.storeId == storeId }
+                } else {
+                    allOrders
+                }
+
+                // 1. Đơn chờ bếp nhận: Trạng thái PREPARING và chưa có chefId
+                val pending = storeOrders.filter { order ->
+                    order.status == Order.Status.PREPARING &&
+                            (order.chefId.isNullOrBlank() || order.chefId == "null")
+                }
+                _pendingOrders.value = pending
+
+                // 2. Đơn tôi đang nấu: Trạng thái PREPARING và chefId là của tôi
+                val active = storeOrders.filter { order ->
+                    order.status == Order.Status.PREPARING && order.chefId == chefId
+                }
+                _activeOrders.value = active
+
+                // 3. Đơn tôi đã nấu xong hôm nay
+                val doneToday = storeOrders.count { order ->
+                    order.chefId == chefId &&
+                            order.status != Order.Status.PENDING &&
+                            order.status != Order.Status.PREPARING &&
+                            order.status != Order.Status.CANCELLED
+                }
+                _todayDoneCount.value = doneToday
+            }
+        }
+    }
+
+    /** Đầu bếp bấm nhận nấu đơn */
+    fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
+        val chefId = auth.currentUser?.uid.orEmpty()
+        if (chefId.isBlank()) {
+            onResult(false, "Vui lòng đăng nhập lại tài khoản đầu bếp!")
+            return
+        }
+
+        val name = _chefName.value ?: "Đầu Bếp"
+        firebaseRepository.assignChef(orderId, chefId, name, cachedChefPhone) { success, msg ->
+            onResult(success, msg)
+        }
+    }
+
+    /** Đầu bếp bấm hủy nhận nấu đơn */
+    fun cancelOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
+        firebaseRepository.unassignChef(orderId) { success, msg ->
+            onResult(success, msg)
+        }
+    }
+
+    /** Đầu bếp xác nhận đã nấu xong món */
+    fun markCookingDone(orderId: String, onResult: (Boolean, String) -> Unit) {
+        val chefId = auth.currentUser?.uid.orEmpty()
+        if (chefId.isBlank()) {
+            onResult(false, "Vui lòng đăng nhập lại tài khoản đầu bếp!")
+            return
+        }
+
+        firebaseRepository.markCookingDoneByChef(orderId, chefId) { success, msg ->
+            onResult(success, msg)
+        }
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.driver
@@ -19240,6 +19725,680 @@ class FoodOrderInternalApp : Application() {
         android:strokeLineJoin="round"
         android:pathData="M4,14 a1,1 0 0,1 -0.78,-1.63 l9.9,-10.2 a0.5,0.5 0 0,1 0.86,0.46 l-1.92,6.02 A1,1 0 0,0 13,10 h7 a1,1 0 0,1 0.78,1.63 l-9.9,10.2 a0.5,0.5 0 0,1 -0.86,-0.46 l1.92,-6.02 A1,1 0 0,0 11,14 z" />
 </vector>
+````
+
+## File: app-internal/src/main/res/layout/fragment_chef.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:clipToPadding="false"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="14dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="96dp">
+
+        <!-- Brand Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="Oishi Chef Logo"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_app_logo" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Oishi Food Bếp"
+                android:textColor="@color/primary"
+                android:textSize="16.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvChefStoreBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_shop_tag"
+                android:ellipsize="end"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:singleLine="true"
+                android:text="Bếp trưởng quán"
+                android:textColor="@color/brand_blue"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnChefLogoutHeader"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="@color/danger_bg"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="8dp"
+                android:paddingStart="8dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="0dp"
+                android:text="Đăng xuất"
+                android:textColor="#DC2626"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Chef Profile Card -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Elevated"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="14dp">
+
+                <FrameLayout
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_badge_orange">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_utensils_crossed"
+                        app:tint="@color/brand_orange" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvChefName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        tools:text="Đầu Bếp" />
+
+                    <TextView
+                        android:id="@+id/tvChefSub"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Bếp chuyên trách nấu &amp; chế biến"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Quick Stats -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chờ Bếp Nhận"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvStatPendingChef"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="0 đơn"
+                        android:textColor="@color/brand_orange"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        tools:text="3 đơn" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="3dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tôi Đang Nấu"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvStatActiveChef"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="0 đơn"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        tools:text="2 đơn" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Đã Xong Hôm Nay"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvStatDoneChef"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="0 đơn"
+                        android:textColor="@color/brand_green"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        tools:text="15 đơn" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+
+        <!-- 1. CÁC ĐƠN TÔI ĐANG NẤU -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔥 Đơn Bạn Đang Nhận Nấu"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lblChefActiveBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_blue"
+                android:ellipsize="end"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="2dp"
+                android:singleLine="true"
+                android:text="0 đơn"
+                android:textColor="@color/white"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:text="1 đơn" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvChefActiveOrders"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:nestedScrollingEnabled="false"
+            tools:listitem="@layout/item_chef_active_order" />
+
+        <TextView
+            android:id="@+id/tvEmptyChefActive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="8dp"
+            android:gravity="center"
+            android:padding="16dp"
+            android:text="Bạn chưa nhận nấu đơn nào.\nHãy chọn đơn bên dưới để nhận nấu nhé!"
+            android:textColor="@color/text_secondary"
+            android:textSize="12.5sp"
+            android:visibility="gone" />
+
+        <!-- 2. CÁC ĐƠN CHỜ BẾP NHẬN -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📋 Đơn Chờ Bếp Nhận Nấu"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lblChefPendingBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_orange"
+                android:ellipsize="end"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="2dp"
+                android:singleLine="true"
+                android:text="0 đơn"
+                android:textColor="@color/brand_orange"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:text="2 đơn" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvChefPendingOrders"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:nestedScrollingEnabled="false"
+            tools:listitem="@layout/item_chef_pending_order" />
+
+        <TextView
+            android:id="@+id/tvEmptyChefPending"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="8dp"
+            android:gravity="center"
+            android:padding="16dp"
+            android:text="Không có đơn nào đang chờ nhận nấu."
+            android:textColor="@color/text_secondary"
+            android:textSize="12.5sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
+````
+
+## File: app-internal/src/main/res/layout/item_chef_active_order.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/Widget.Material3.CardView.Elevated"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    app:cardBackgroundColor="@color/white"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="2dp"
+    app:strokeColor="@color/border"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:importantForAccessibility="no"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                app:srcCompat="@drawable/ic_receipt"
+                app:tint="@color/text_secondary" />
+
+            <TextView
+                android:id="@+id/tvChefActiveCode"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:fontFamily="monospace"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                tools:text="#OISHI_88291" />
+
+            <TextView
+                android:id="@+id/tvChefActiveStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_orange"
+                android:ellipsize="end"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:singleLine="true"
+                android:text="🔥 Đang Nấu"
+                android:textColor="@color/brand_orange"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Danh sách món cần chế biến -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="@color/background"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/divider"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="10dp">
+
+                <TextView
+                    android:id="@+id/tvChefActiveDishes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:lineSpacingExtra="3dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="• 2x Cơm Tấm Sườn Bì\n• 1x Canh Khổ Qua Nhồi Thịt" />
+
+                <TextView
+                    android:id="@+id/tvChefActiveNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:padding="6dp"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:text="📝 Ghi chú: Không hành, nước mắm ngọt"
+                    tools:visibility="visible" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnChefCancel"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginEnd="8dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="0dp"
+                android:text="Hủy"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                app:cornerRadius="10dp"
+                app:strokeColor="@color/border" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnChefDone"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/status_ready"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="0dp"
+                android:text="🍳 ĐÃ NẤU XONG ➔"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                app:cornerRadius="10dp" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+````
+
+## File: app-internal/src/main/res/layout/item_chef_pending_order.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/Widget.Material3.CardView.Elevated"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    app:cardBackgroundColor="@color/white"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="2dp"
+    app:strokeColor="@color/border"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:importantForAccessibility="no"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                app:srcCompat="@drawable/ic_receipt"
+                app:tint="@color/text_secondary" />
+
+            <TextView
+                android:id="@+id/tvChefPendingCode"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:fontFamily="monospace"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                tools:text="#OISHI_88291" />
+
+            <TextView
+                android:id="@+id/tvChefPendingTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_orange"
+                android:ellipsize="end"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:singleLine="true"
+                android:textColor="@color/brand_orange"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="Chờ Bếp Nhận" />
+        </LinearLayout>
+
+        <!-- Danh sách món cần chế biến -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="@color/background"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/divider"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="10dp">
+
+                <TextView
+                    android:id="@+id/tvChefPendingDishes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:lineSpacingExtra="3dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="• 2x Cơm Tấm Sườn Bì\n• 1x Canh Khổ Qua Nhồi Thịt" />
+
+                <TextView
+                    android:id="@+id/tvChefPendingNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:padding="6dp"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:text="📝 Ghi chú: Không hành, nước mắm ngọt"
+                    tools:visibility="visible" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnChefAcceptOrder"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="10dp"
+            android:backgroundTint="@color/primary"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingTop="0dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="0dp"
+            android:text="👨‍🍳 NHẬN NẤU ĐƠN NÀY"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            app:cornerRadius="10dp"
+            app:icon="@drawable/ic_plus"
+            app:iconGravity="textStart"
+            app:iconSize="16dp"
+            app:iconTint="@color/white" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
 ````
 
 ## File: app-internal/src/main/res/layout/item_store_category_chip.xml
@@ -56917,6 +58076,138 @@ class TrackingViewModel @Inject constructor(
 </resources>
 ````
 
+## File: app-customer/src/main/AndroidManifest.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Cho phép kiểm tra và mở ứng dụng Quán & Shipper (Oishi Internal) -->
+    <queries>
+        <package android:name="com.chuyen_de_2.foodorder.internal" />
+    </queries>
+
+    <application
+        android:name=".FoodOrderCustomerApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FoodOrder.Customer">
+
+        <!-- Google Maps API Key — lấy từ local.properties -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
+        <!-- Auth -->
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.auth.RegisterActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
+
+        <activity
+            android:name=".ui.auth.OtpVerificationActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
+
+        <!-- Main -->
+        <activity
+            android:name=".ui.home.HomeActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Menu -->
+        <activity
+            android:name=".ui.menu.MenuActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Cart -->
+        <activity
+            android:name=".ui.cart.CartActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Checkout (b8.html) -->
+        <activity
+            android:name=".ui.checkout.CheckoutActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Chọn địa chỉ Google Maps -->
+        <activity
+            android:name=".ui.checkout.SelectLocationActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
+
+        <!-- Payment (b8_payment.html) -->
+        <activity
+            android:name=".ui.payment.PaymentActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Order Success (b8_success.html) -->
+        <activity
+            android:name=".ui.order.OrderSuccessActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Tracking (Google Maps) -->
+        <activity
+            android:name=".ui.tracking.TrackingActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Profile & TrustScore (b11.html) -->
+        <activity
+            android:name=".ui.profile.ProfileActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Order History (b3.html) -->
+        <activity
+            android:name=".ui.order.OrderHistoryActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Complaint (b12.html) -->
+        <activity
+            android:name=".ui.complaint.ComplaintActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <activity
+            android:name=".ui.complaint.CustomerComplaintTrackingActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- Notifications -->
+        <activity
+            android:name=".ui.notification.NotificationActivity"
+            android:theme="@style/Theme.FoodOrder.Customer" />
+
+        <!-- FCM Service -->
+        <service
+            android:name=".service.CustomerFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>
+````
+
 ## File: app-customer/build.gradle.kts
 ````kotlin
 plugins {
@@ -84676,138 +85967,6 @@ class OrderHistoryActivity : AppCompatActivity() {
 </resources>
 ````
 
-## File: app-customer/src/main/AndroidManifest.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Cho phép kiểm tra và mở ứng dụng Quán & Shipper (Oishi Internal) -->
-    <queries>
-        <package android:name="com.chuyen_de_2.foodorder.internal" />
-    </queries>
-
-    <application
-        android:name=".FoodOrderCustomerApp"
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.FoodOrder.Customer">
-
-        <!-- Google Maps API Key — lấy từ local.properties -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
-
-        <!-- Auth -->
-        <activity
-            android:name=".ui.auth.LoginActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".ui.auth.RegisterActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
-
-        <activity
-            android:name=".ui.auth.OtpVerificationActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
-
-        <!-- Main -->
-        <activity
-            android:name=".ui.home.HomeActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Menu -->
-        <activity
-            android:name=".ui.menu.MenuActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Cart -->
-        <activity
-            android:name=".ui.cart.CartActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Checkout (b8.html) -->
-        <activity
-            android:name=".ui.checkout.CheckoutActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Chọn địa chỉ Google Maps -->
-        <activity
-            android:name=".ui.checkout.SelectLocationActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Customer.NoActionBar" />
-
-        <!-- Payment (b8_payment.html) -->
-        <activity
-            android:name=".ui.payment.PaymentActivity"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Order Success (b8_success.html) -->
-        <activity
-            android:name=".ui.order.OrderSuccessActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Tracking (Google Maps) -->
-        <activity
-            android:name=".ui.tracking.TrackingActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Profile & TrustScore (b11.html) -->
-        <activity
-            android:name=".ui.profile.ProfileActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Order History (b3.html) -->
-        <activity
-            android:name=".ui.order.OrderHistoryActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Complaint (b12.html) -->
-        <activity
-            android:name=".ui.complaint.ComplaintActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <activity
-            android:name=".ui.complaint.CustomerComplaintTrackingActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- Notifications -->
-        <activity
-            android:name=".ui.notification.NotificationActivity"
-            android:theme="@style/Theme.FoodOrder.Customer" />
-
-        <!-- FCM Service -->
-        <service
-            android:name=".service.CustomerFCMService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
-    </application>
-</manifest>
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/MenuManageFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.shop
@@ -93379,6 +94538,7 @@ data class User(
         const val MANAGER = "MANAGER"
         const val DRIVER = "DRIVER"
         const val SHIPPER = "SHIPPER"
+        const val CHEF = "CHEF"
     }
 
     /** Trạng thái tài khoản */
@@ -97535,6 +98695,401 @@ class OrderHistoryFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
+## File: app-customer/src/main/res/layout/activity_otp_verification.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp">
+
+        <!-- Back Button -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardBtnBack"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="21dp"
+            app:cardElevation="1dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Quay lại"
+                android:src="@drawable/ic_arrow_back_curved"
+                app:tint="@color/text_primary" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Header Card / Logo (Double Circle) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardOuterIcon"
+            android:layout_width="92dp"
+            android:layout_height="92dp"
+            android:layout_marginTop="20dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="46dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
+            app:strokeWidth="0dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInnerIcon"
+                android:layout_width="66dp"
+                android:layout_height="66dp"
+                android:layout_gravity="center"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="33dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="0.5dp">
+
+                <ImageView
+                    android:id="@+id/ivHeaderIcon"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="Xác thực OTP"
+                    android:src="@drawable/ic_shield"
+                    app:tint="@color/primary" />
+            </com.google.android.material.card.MaterialCardView>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:letterSpacing="-0.02"
+            android:text="Xác Thực Mã OTP"
+            android:textColor="@color/text_primary"
+            android:textSize="23sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
+
+        <!-- Subtitle -->
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            android:textColor="@color/text_secondary"
+            android:textSize="13.5sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
+
+        <!-- Target Email Highlight Badge -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardEmailBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+            app:strokeColor="#33FF5722"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="7dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="Email"
+                    android:src="@drawable/ic_mail"
+                    app:tint="@color/primary" />
+
+                <TextView
+                    android:id="@+id/tvTargetEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="email@example.com"
+                    android:textColor="@color/primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Input Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="2dp"
+            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="Nhập 6 số mã OTP"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="14dp"
+                    android:text="Chạm vào các ô bên dưới để nhập mã"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp" />
+
+                <!-- 6-Digit OTP Container -->
+                <FrameLayout
+                    android:id="@+id/layoutOtpContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal">
+
+                    <!-- 6 Display Boxes -->
+                    <LinearLayout
+                        android:id="@+id/layoutOtpBoxes"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvOtp1"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp2"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp3"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp4"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp5"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp6"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Hidden Transparent Native EditText -->
+                    <EditText
+                        android:id="@+id/etOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:autofillHints="smsOTPCode"
+                        android:background="@null"
+                        android:cursorVisible="false"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:importantForAutofill="yes"
+                        android:inputType="number"
+                        android:maxLength="6"
+                        android:textColor="@android:color/transparent" />
+                </FrameLayout>
+
+                <!-- Error Message Display -->
+                <TextView
+                    android:id="@+id/tvOtpError"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="@color/error"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <!-- Resend Layout -->
+                <LinearLayout
+                    android:id="@+id/layoutResendOtp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="18dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/ivResendIcon"
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:layout_marginEnd="6dp"
+                        android:contentDescription="Đếm ngược"
+                        android:src="@drawable/ic_clock"
+                        app:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tvResendNotice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chưa nhận được mã? "
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13.5sp" />
+
+                    <TextView
+                        android:id="@+id/btnResendOtp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="4dp"
+                        android:text="Gửi lại (60s)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Submit Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnConfirmRegister"
+                    style="@style/Widget.FoodOrder.Button.Primary"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="20dp"
+                    android:letterSpacing="0.01"
+                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
+                    android:textSize="15.5sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="14dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone" />
+
+                <!-- Security Note -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="13dp"
+                        android:layout_height="13dp"
+                        android:layout_marginEnd="5dp"
+                        android:contentDescription="Bảo mật"
+                        android:src="@drawable/ic_lock"
+                        app:tint="@color/text_muted" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
+````
+
 ## File: app-customer/src/main/res/layout/bottom_sheet_nearby_stores.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -98420,6 +99975,647 @@ class BossBranchAdapter(
         }
     }
 }
+````
+
+## File: app-internal/src/main/res/layout/activity_otp_verification_internal.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp">
+
+        <!-- Back Button -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardBtnBack"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="21dp"
+            app:cardElevation="1dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Quay lại"
+                android:src="@drawable/ic_arrow_back_curved"
+                app:tint="@color/text_primary" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Header Card / Logo (Double Circle) -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardOuterIcon"
+            android:layout_width="92dp"
+            android:layout_height="92dp"
+            android:layout_marginTop="20dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="46dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
+            app:strokeWidth="0dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInnerIcon"
+                android:layout_width="66dp"
+                android:layout_height="66dp"
+                android:layout_gravity="center"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="33dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="0.5dp">
+
+                <ImageView
+                    android:id="@+id/ivHeaderIcon"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="Xác thực OTP đối tác"
+                    android:src="@drawable/ic_shield"
+                    app:tint="@color/primary" />
+            </com.google.android.material.card.MaterialCardView>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:letterSpacing="-0.02"
+            android:text="Xác Thực OTP Đối Tác"
+            android:textColor="@color/text_primary"
+            android:textSize="23sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
+
+        <!-- Subtitle -->
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            android:textColor="@color/text_secondary"
+            android:textSize="13.5sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
+
+        <!-- Target Email Highlight Badge -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardEmailBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/primary_light"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+            app:strokeColor="#33EE4D2D"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="7dp">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="Email"
+                    android:src="@drawable/ic_mail"
+                    app:tint="@color/primary" />
+
+                <TextView
+                    android:id="@+id/tvTargetEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="email@example.com"
+                    android:textColor="@color/primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Input Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            app:cardBackgroundColor="@color/surface"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="2dp"
+            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="Nhập 6 số mã OTP"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="14dp"
+                    android:text="Chạm vào các ô bên dưới để nhập mã"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp" />
+
+                <!-- 6-Digit OTP Container -->
+                <FrameLayout
+                    android:id="@+id/layoutOtpContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal">
+
+                    <!-- 6 Display Boxes -->
+                    <LinearLayout
+                        android:id="@+id/layoutOtpBoxes"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tvOtp1"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp2"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp3"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp4"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp5"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvOtp6"
+                            android:layout_width="44dp"
+                            android:layout_height="56dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:background="@drawable/bg_otp_box_empty"
+                            android:gravity="center"
+                            android:textColor="@color/text_primary"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Hidden Transparent Native EditText -->
+                    <EditText
+                        android:id="@+id/etOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:autofillHints="smsOTPCode"
+                        android:background="@null"
+                        android:cursorVisible="false"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:importantForAutofill="yes"
+                        android:inputType="number"
+                        android:maxLength="6"
+                        android:textColor="@android:color/transparent" />
+                </FrameLayout>
+
+                <!-- Error Message Display -->
+                <TextView
+                    android:id="@+id/tvOtpError"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="@color/error"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <!-- Resend Layout -->
+                <LinearLayout
+                    android:id="@+id/layoutResendOtp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="18dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/ivResendIcon"
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:layout_marginEnd="6dp"
+                        android:contentDescription="Đếm ngược"
+                        android:src="@drawable/ic_clock"
+                        app:tint="@color/text_secondary" />
+
+                    <TextView
+                        android:id="@+id/tvResendNotice"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Chưa nhận được mã? "
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13.5sp" />
+
+                    <TextView
+                        android:id="@+id/btnResendOtp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:paddingHorizontal="4dp"
+                        android:paddingVertical="4dp"
+                        android:text="Gửi lại (60s)"
+                        android:textColor="@color/text_muted"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Submit Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnConfirmRegister"
+                    style="@style/Widget.Internal.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="20dp"
+                    android:backgroundTint="@color/primary"
+                    android:letterSpacing="0.01"
+                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
+                    android:textColor="@color/on_primary"
+                    android:textSize="15.5sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="14dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone" />
+
+                <!-- Security Note -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="13dp"
+                        android:layout_height="13dp"
+                        android:layout_marginEnd="5dp"
+                        android:contentDescription="Bảo mật"
+                        android:src="@drawable/ic_lock"
+                        app:tint="@color/text_muted" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
+````
+
+## File: app-internal/src/main/res/layout/activity_register_internal.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+
+    android:fillViewport="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="@dimen/spacing_xxl">
+
+        <!-- Logo Icon Container -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/logoBoxRegister"
+            android:layout_width="@dimen/logo_size_sm"
+            android:layout_height="@dimen/logo_size_sm"
+            android:layout_marginTop="@dimen/spacing_section"
+            app:cardCornerRadius="@dimen/radius_xl"
+            app:cardElevation="4dp"
+            app:strokeWidth="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_app_logo"
+                android:contentDescription="@string/logo_desc" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:id="@+id/tvRegisterTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md"
+            android:letterSpacing="-0.02"
+            android:text="@string/register_partner_title"
+            android:textColor="@color/primary"
+            android:textSize="@dimen/text_title"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/logoBoxRegister" />
+
+        <TextView
+            android:id="@+id/tvRegisterSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xs"
+            android:text="@string/register_partner_subtitle"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_sm"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvRegisterTitle" />
+
+        <!-- Register Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardRegisterInternal"
+            style="@style/Widget.Internal.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xl"
+            app:cardCornerRadius="@dimen/radius_lg"
+            app:cardElevation="2dp"
+            app:layout_constraintTop_toBottomOf="@id/tvRegisterSubtitle">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_xl">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/spacing_md"
+                    android:text="@string/register_partner_card_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_lg"
+                    android:textStyle="bold" />
+
+                <!-- Họ tên -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilRegisterName"
+                    style="@style/Widget.Internal.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/name_hint"
+                    app:startIconDrawable="@drawable/ic_user">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etRegisterName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPersonName"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Số điện thoại -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilRegisterPhone"
+                    style="@style/Widget.Internal.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/phone_hint"
+                    app:startIconDrawable="@drawable/ic_phone">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etRegisterPhone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="phone"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Email -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilRegisterEmail"
+                    style="@style/Widget.Internal.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/email_hint"
+                    app:startIconDrawable="@drawable/ic_mail">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etRegisterEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textEmailAddress"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Mật khẩu -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilRegisterPassword"
+                    style="@style/Widget.Internal.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/password_hint"
+                    app:passwordToggleEnabled="true"
+                    app:startIconDrawable="@drawable/ic_lock">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etRegisterPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Nhập lại mật khẩu -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilRegisterConfirmPassword"
+                    style="@style/Widget.Internal.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/confirm_password_hint"
+                    app:passwordToggleEnabled="true"
+                    app:startIconDrawable="@drawable/ic_lock">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etRegisterConfirmPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Nút Đăng Ký -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSubmitRegister"
+                    style="@style/Widget.Internal.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/spacing_xl"
+                    android:backgroundTint="@color/primary"
+                    android:text="@string/btn_register_partner"
+                    android:textColor="@color/on_primary"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
+
+                <ProgressBar
+                    android:id="@+id/progressBarRegister"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Đã có tài khoản? Đăng nhập -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_lg"
+            android:layout_marginBottom="@dimen/spacing_xxl"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardRegisterInternal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/has_partner_account"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/text_md" />
+
+            <TextView
+                android:id="@+id/tvBackToLogin"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:paddingVertical="@dimen/spacing_xs"
+                android:text="@string/action_login_now"
+                android:textColor="@color/primary"
+                android:textSize="@dimen/text_md"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
 ````
 
 ## File: app-internal/src/main/res/layout/dialog_assign_merchant.xml
@@ -101268,6 +103464,188 @@ data class Store(
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 ````
 
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/RegisterActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.auth
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import com.chuyen_de_2.foodorder.core.data.model.User
+import android.view.MotionEvent
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityRegisterBinding
+import dagger.hilt.android.AndroidEntryPoint
+
+/**
+ * Màn hình nhập thông tin đăng ký tài khoản khách hàng.
+ * Form đăng ký dành riêng cho Khách Hàng (User.Role.CUSTOMER).
+ * Sau khi bấm "Đăng ký", hệ thống sẽ chuyển sang màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
+ */
+@AndroidEntryPoint
+class RegisterActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityRegisterBinding
+    private val viewModel: AuthViewModel by viewModels()
+
+    private var pendingName = ""
+    private var pendingPhone = ""
+    private var pendingEmail = ""
+    private var pendingPassword = ""
+    private var pendingConfirmPassword = ""
+    private val pendingRole = User.Role.CUSTOMER
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    private val otpVerificationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            finish()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityRegisterBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
+        checkNotificationPermission()
+        setupUI()
+        observeViewModel()
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    private fun setupUI() {
+        binding.etName.doAfterTextChanged { binding.tilName.error = null }
+        binding.etPhone.doAfterTextChanged { binding.tilPhone.error = null }
+        binding.etEmail.doAfterTextChanged { binding.tilEmail.error = null }
+        binding.etPassword.doAfterTextChanged { binding.tilPassword.error = null }
+        binding.etConfirmPassword.doAfterTextChanged { binding.tilConfirmPassword.error = null }
+
+        // Nút "Đăng ký"
+        binding.btnRegister.setOnClickListener {
+            val name = binding.etName.text.toString().trim()
+            val phone = binding.etPhone.text.toString().trim()
+            val email = binding.etEmail.text.toString().trim()
+            val password = binding.etPassword.text.toString()
+            val confirmPassword = binding.etConfirmPassword.text.toString()
+
+            if (name.isBlank()) {
+                binding.tilName.error = "Vui lòng nhập họ tên"
+                binding.etName.requestFocus()
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.error = "Vui lòng nhập email hợp lệ"
+                binding.etEmail.requestFocus()
+                return@setOnClickListener
+            }
+            if (password.length < 6) {
+                binding.tilPassword.error = "Mật khẩu phải từ 6 ký tự trở lên"
+                binding.etPassword.requestFocus()
+                return@setOnClickListener
+            }
+            if (password != confirmPassword) {
+                binding.tilConfirmPassword.error = "Mật khẩu xác nhận không khớp"
+                binding.etConfirmPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            pendingName = name
+            pendingPhone = phone
+            pendingEmail = email.lowercase()
+            pendingPassword = password
+            pendingConfirmPassword = confirmPassword
+
+            // Nếu mã OTP đã gửi cho email này trước đó và vẫn còn hiệu lực (trong vòng 10 phút),
+            // chuyển thẳng sang màn hình xác minh mà không cần gọi gửi lại (tránh lỗi cooldown).
+            if (RegistrationOtpManager.hasValidPendingOtp(this, pendingEmail)) {
+                Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                openOtpVerificationActivity()
+                return@setOnClickListener
+            }
+
+            binding.progressBar.visibility = View.VISIBLE
+            binding.btnRegister.isEnabled = false
+            binding.btnRegister.text = "Đang gửi mã xác thực..."
+
+            // Gửi OTP qua email và kiểm tra tài khoản đã tồn tại hay chưa
+            viewModel.requestEmailOtp(pendingEmail)
+        }
+
+        binding.tvLogin.setOnClickListener { finish() }
+    }
+
+    private fun openOtpVerificationActivity() {
+        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
+            putExtra(OtpVerificationActivity.EXTRA_NAME, pendingName)
+            putExtra(OtpVerificationActivity.EXTRA_EMAIL, pendingEmail)
+            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, pendingPassword)
+            putExtra(OtpVerificationActivity.EXTRA_CONFIRM_PASSWORD, pendingConfirmPassword)
+            putExtra(OtpVerificationActivity.EXTRA_PHONE, pendingPhone)
+            putExtra(OtpVerificationActivity.EXTRA_ROLE, pendingRole)
+        }
+        otpVerificationLauncher.launch(intent)
+    }
+
+    private fun observeViewModel() {
+        viewModel.otpRequestResult.observe(this) { result ->
+            binding.progressBar.visibility = View.GONE
+            binding.btnRegister.isEnabled = true
+            binding.btnRegister.text = getString(R.string.btn_register)
+
+            result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                openOtpVerificationActivity()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    // Supabase báo rate limit / cooldown nghĩa là mã OTP đã gửi trong vòng 60s trước vẫn còn hiệu lực
+                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                    openOtpVerificationActivity()
+                } else {
+                    val msg = error.message ?: "Không gửi được mã OTP"
+                    binding.tilEmail.error = msg
+                    binding.etEmail.requestFocus()
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
+    }
+}
+````
+
 ## File: app-customer/src/main/res/layout/activity_home.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -101837,401 +104215,6 @@ data class Store(
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
-## File: app-customer/src/main/res/layout/activity_otp_verification.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="24dp">
-
-        <!-- Back Button -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardBtnBack"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="21dp"
-            app:cardElevation="1dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <ImageButton
-                android:id="@+id/btnBack"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Quay lại"
-                android:src="@drawable/ic_arrow_back_curved"
-                app:tint="@color/text_primary" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Header Card / Logo (Double Circle) -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardOuterIcon"
-            android:layout_width="92dp"
-            android:layout_height="92dp"
-            android:layout_marginTop="20dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="46dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
-            app:strokeWidth="0dp">
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardInnerIcon"
-                android:layout_width="66dp"
-                android:layout_height="66dp"
-                android:layout_gravity="center"
-                app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="33dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="0.5dp">
-
-                <ImageView
-                    android:id="@+id/ivHeaderIcon"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="Xác thực OTP"
-                    android:src="@drawable/ic_shield"
-                    app:tint="@color/primary" />
-            </com.google.android.material.card.MaterialCardView>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Title -->
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:letterSpacing="-0.02"
-            android:text="Xác Thực Mã OTP"
-            android:textColor="@color/text_primary"
-            android:textSize="23sp"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
-
-        <!-- Subtitle -->
-        <TextView
-            android:id="@+id/tvSubtitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            android:textColor="@color/text_secondary"
-            android:textSize="13.5sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
-
-        <!-- Target Email Highlight Badge -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardEmailBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-            app:strokeColor="#33FF5722"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="7dp">
-
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:contentDescription="Email"
-                    android:src="@drawable/ic_mail"
-                    app:tint="@color/primary" />
-
-                <TextView
-                    android:id="@+id/tvTargetEmail"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="email@example.com"
-                    android:textColor="@color/primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Input Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="22dp"
-            app:cardElevation="2dp"
-            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingHorizontal="18dp"
-                android:paddingVertical="20dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:text="Nhập 6 số mã OTP"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginBottom="14dp"
-                    android:text="Chạm vào các ô bên dưới để nhập mã"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12.5sp" />
-
-                <!-- 6-Digit OTP Container -->
-                <FrameLayout
-                    android:id="@+id/layoutOtpContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal">
-
-                    <!-- 6 Display Boxes -->
-                    <LinearLayout
-                        android:id="@+id/layoutOtpBoxes"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:id="@+id/tvOtp1"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp2"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp3"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp4"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp5"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp6"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Hidden Transparent Native EditText -->
-                    <EditText
-                        android:id="@+id/etOtp"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:autofillHints="smsOTPCode"
-                        android:background="@null"
-                        android:cursorVisible="false"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:importantForAutofill="yes"
-                        android:inputType="number"
-                        android:maxLength="6"
-                        android:textColor="@android:color/transparent" />
-                </FrameLayout>
-
-                <!-- Error Message Display -->
-                <TextView
-                    android:id="@+id/tvOtpError"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:textColor="@color/error"
-                    android:textSize="13sp"
-                    android:visibility="gone" />
-
-                <!-- Resend Layout -->
-                <LinearLayout
-                    android:id="@+id/layoutResendOtp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="18dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:id="@+id/ivResendIcon"
-                        android:layout_width="15dp"
-                        android:layout_height="15dp"
-                        android:layout_marginEnd="6dp"
-                        android:contentDescription="Đếm ngược"
-                        android:src="@drawable/ic_clock"
-                        app:tint="@color/text_secondary" />
-
-                    <TextView
-                        android:id="@+id/tvResendNotice"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chưa nhận được mã? "
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13.5sp" />
-
-                    <TextView
-                        android:id="@+id/btnResendOtp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:paddingHorizontal="4dp"
-                        android:paddingVertical="4dp"
-                        android:text="Gửi lại (60s)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- Submit Button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnConfirmRegister"
-                    style="@style/Widget.FoodOrder.Button.Primary"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="20dp"
-                    android:letterSpacing="0.01"
-                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
-                    android:textSize="15.5sp"
-                    android:textStyle="bold"
-                    app:cornerRadius="14dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp" />
-
-                <ProgressBar
-                    android:id="@+id/progressBar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="12dp"
-                    android:visibility="gone" />
-
-                <!-- Security Note -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="16dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="13dp"
-                        android:layout_height="13dp"
-                        android:layout_marginEnd="5dp"
-                        android:contentDescription="Bảo mật"
-                        android:src="@drawable/ic_lock"
-                        app:tint="@color/text_muted" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
-                        android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
-````
-
 ## File: app-customer/src/main/res/layout/activity_payment.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -102733,6 +104716,404 @@ data class Store(
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+````
+
+## File: app-customer/src/main/res/layout/activity_register.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="@dimen/spacing_xxl">
+
+        <!-- Logo Container -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/logoContainer"
+            android:layout_width="@dimen/logo_size_sm"
+            android:layout_height="@dimen/logo_size_sm"
+            android:layout_marginTop="@dimen/spacing_xxl"
+            app:cardCornerRadius="@dimen/radius_xl"
+            app:cardElevation="4dp"
+            app:strokeWidth="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/ivLogo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_app_logo"
+                android:contentDescription="@string/logo_desc" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md"
+            android:letterSpacing="-0.02"
+            android:text="@string/app_name"
+            android:textColor="@color/primary"
+            android:textSize="@dimen/text_hero"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/logoContainer" />
+
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xs"
+            android:text="@string/register_subtitle"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_md"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
+
+        <!-- Register Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardRegister"
+            style="@style/Widget.FoodOrder.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xxl"
+            app:layout_constraintTop_toBottomOf="@id/tvSubtitle">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_xl">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="@dimen/spacing_lg"
+                    android:text="@string/register_card_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_xl"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilName"
+                    style="@style/Widget.FoodOrder.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/name_hint"
+                    app:startIconDrawable="@drawable/ic_user">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPersonName"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilPhone"
+                    style="@style/Widget.FoodOrder.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/phone_hint"
+                    app:startIconDrawable="@drawable/ic_phone">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etPhone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="phone"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilEmail"
+                    style="@style/Widget.FoodOrder.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/email_hint"
+                    app:startIconDrawable="@drawable/ic_mail">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textEmailAddress"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilPassword"
+                    style="@style/Widget.FoodOrder.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/password_hint"
+                    app:passwordToggleEnabled="true"
+                    app:startIconDrawable="@drawable/ic_lock">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilConfirmPassword"
+                    style="@style/Widget.FoodOrder.TextInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:hint="@string/confirm_password_hint"
+                    app:passwordToggleEnabled="true"
+                    app:startIconDrawable="@drawable/ic_lock">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etConfirmPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRegister"
+                    style="@style/Widget.FoodOrder.Button.Primary"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginTop="@dimen/spacing_xl"
+                    android:text="@string/btn_register"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp" />
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="@dimen/spacing_md"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:id="@+id/tvLogin"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xl"
+            android:background="?attr/selectableItemBackground"
+            android:padding="@dimen/spacing_sm"
+            android:text="@string/has_account"
+            android:textColor="@color/primary"
+            android:textSize="@dimen/text_md"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardRegister" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/RegisterActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.auth
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import com.chuyen_de_2.foodorder.core.data.model.User
+import android.view.MotionEvent
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityRegisterInternalBinding
+import dagger.hilt.android.AndroidEntryPoint
+
+/**
+ * Màn hình nhập thông tin đăng ký đối tác (Chủ quán/Tài xế).
+ * Không còn ô nhập OTP trên form. Sau khi bấm "Đăng Ký Đối Tác", hệ thống sẽ chuyển sang
+ * màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
+ */
+@AndroidEntryPoint
+class RegisterActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityRegisterInternalBinding
+    private val viewModel: AuthViewModel by viewModels()
+
+    private var pendingName = ""
+    private var pendingPhone = ""
+    private var pendingEmail = ""
+    private var pendingPassword = ""
+    private var pendingConfirmPassword = ""
+    private val pendingRole = User.Role.BOSSMERCHANT
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    private val otpVerificationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            finish()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityRegisterInternalBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
+        checkNotificationPermission()
+        setupUI()
+        observeViewModel()
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    private fun setupUI() {
+        binding.etRegisterName.doAfterTextChanged { binding.tilRegisterName.error = null }
+        binding.etRegisterPhone.doAfterTextChanged { binding.tilRegisterPhone.error = null }
+        binding.etRegisterEmail.doAfterTextChanged { binding.tilRegisterEmail.error = null }
+        binding.etRegisterPassword.doAfterTextChanged { binding.tilRegisterPassword.error = null }
+        binding.etRegisterConfirmPassword.doAfterTextChanged { binding.tilRegisterConfirmPassword.error = null }
+
+        // Nút "Đăng ký đối tác"
+        binding.btnSubmitRegister.setOnClickListener {
+            val name = binding.etRegisterName.text.toString().trim()
+            val phone = binding.etRegisterPhone.text.toString().trim()
+            val email = binding.etRegisterEmail.text.toString().trim()
+            val password = binding.etRegisterPassword.text.toString()
+            val confirmPassword = binding.etRegisterConfirmPassword.text.toString()
+
+            if (name.isBlank()) {
+                binding.tilRegisterName.error = "Vui lòng nhập họ tên"
+                binding.etRegisterName.requestFocus()
+                return@setOnClickListener
+            }
+            if (phone.isBlank()) {
+                binding.tilRegisterPhone.error = "Vui lòng nhập số điện thoại"
+                binding.etRegisterPhone.requestFocus()
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilRegisterEmail.error = "Vui lòng nhập email hợp lệ"
+                binding.etRegisterEmail.requestFocus()
+                return@setOnClickListener
+            }
+            if (password.length < 6) {
+                binding.tilRegisterPassword.error = "Mật khẩu phải từ 6 ký tự trở lên"
+                binding.etRegisterPassword.requestFocus()
+                return@setOnClickListener
+            }
+            if (password != confirmPassword) {
+                binding.tilRegisterConfirmPassword.error = "Mật khẩu xác nhận không khớp"
+                binding.etRegisterConfirmPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            pendingName = name
+            pendingPhone = phone
+            pendingEmail = email.lowercase()
+            pendingPassword = password
+            pendingConfirmPassword = confirmPassword
+
+            // Nếu mã OTP đã gửi cho email này trước đó và vẫn còn hiệu lực (trong vòng 10 phút),
+            // chuyển thẳng sang màn hình xác minh mà không cần gọi gửi lại (tránh lỗi cooldown).
+            if (RegistrationOtpManager.hasValidPendingOtp(this, pendingEmail)) {
+                Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                openOtpVerificationActivity()
+                return@setOnClickListener
+            }
+
+            binding.progressBarRegister.visibility = View.VISIBLE
+            binding.btnSubmitRegister.isEnabled = false
+            binding.btnSubmitRegister.text = "Đang gửi mã xác thực..."
+
+            // Gửi OTP qua email và kiểm tra tài khoản đã tồn tại hay chưa
+            viewModel.requestEmailOtp(pendingEmail)
+        }
+
+        binding.tvBackToLogin.setOnClickListener { finish() }
+    }
+
+    private fun openOtpVerificationActivity() {
+        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
+            putExtra(OtpVerificationActivity.EXTRA_NAME, pendingName)
+            putExtra(OtpVerificationActivity.EXTRA_EMAIL, pendingEmail)
+            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, pendingPassword)
+            putExtra(OtpVerificationActivity.EXTRA_CONFIRM_PASSWORD, pendingConfirmPassword)
+            putExtra(OtpVerificationActivity.EXTRA_PHONE, pendingPhone)
+            putExtra(OtpVerificationActivity.EXTRA_ROLE, pendingRole)
+        }
+        otpVerificationLauncher.launch(intent)
+    }
+
+    private fun observeViewModel() {
+        viewModel.otpRequestResult.observe(this) { result ->
+            binding.progressBarRegister.visibility = View.GONE
+            binding.btnSubmitRegister.isEnabled = true
+            binding.btnSubmitRegister.text = "Đăng Ký Đối Tác"
+
+            result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                openOtpVerificationActivity()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    // Supabase báo rate limit / cooldown nghĩa là mã OTP đã gửi trong vòng 60s trước vẫn còn hiệu lực
+                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                    openOtpVerificationActivity()
+                } else {
+                    val msg = error.message ?: "Không gửi được mã OTP"
+                    binding.tilRegisterEmail.error = msg
+                    binding.etRegisterEmail.requestFocus()
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossMerchantAdapter.kt
@@ -106320,647 +108701,6 @@ class StoreProfileFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
-## File: app-internal/src/main/res/layout/activity_otp_verification_internal.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="24dp">
-
-        <!-- Back Button -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardBtnBack"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="21dp"
-            app:cardElevation="1dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <ImageButton
-                android:id="@+id/btnBack"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Quay lại"
-                android:src="@drawable/ic_arrow_back_curved"
-                app:tint="@color/text_primary" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Header Card / Logo (Double Circle) -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardOuterIcon"
-            android:layout_width="92dp"
-            android:layout_height="92dp"
-            android:layout_marginTop="20dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="46dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardBtnBack"
-            app:strokeWidth="0dp">
-
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardInnerIcon"
-                android:layout_width="66dp"
-                android:layout_height="66dp"
-                android:layout_gravity="center"
-                app:cardBackgroundColor="@color/surface"
-                app:cardCornerRadius="33dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="0.5dp">
-
-                <ImageView
-                    android:id="@+id/ivHeaderIcon"
-                    android:layout_width="34dp"
-                    android:layout_height="34dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="Xác thực OTP đối tác"
-                    android:src="@drawable/ic_shield"
-                    app:tint="@color/primary" />
-            </com.google.android.material.card.MaterialCardView>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Title -->
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:letterSpacing="-0.02"
-            android:text="Xác Thực OTP Đối Tác"
-            android:textColor="@color/text_primary"
-            android:textSize="23sp"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardOuterIcon" />
-
-        <!-- Subtitle -->
-        <TextView
-            android:id="@+id/tvSubtitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:text="Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            android:textColor="@color/text_secondary"
-            android:textSize="13.5sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
-
-        <!-- Target Email Highlight Badge -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardEmailBadge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/primary_light"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-            app:strokeColor="#33EE4D2D"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="7dp">
-
-                <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:contentDescription="Email"
-                    android:src="@drawable/ic_mail"
-                    app:tint="@color/primary" />
-
-                <TextView
-                    android:id="@+id/tvTargetEmail"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="email@example.com"
-                    android:textColor="@color/primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Input Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            app:cardBackgroundColor="@color/surface"
-            app:cardCornerRadius="22dp"
-            app:cardElevation="2dp"
-            app:layout_constraintTop_toBottomOf="@id/cardEmailBadge"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingHorizontal="18dp"
-                android:paddingVertical="20dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:text="Nhập 6 số mã OTP"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="2dp"
-                    android:layout_marginBottom="14dp"
-                    android:text="Chạm vào các ô bên dưới để nhập mã"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12.5sp" />
-
-                <!-- 6-Digit OTP Container -->
-                <FrameLayout
-                    android:id="@+id/layoutOtpContainer"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal">
-
-                    <!-- 6 Display Boxes -->
-                    <LinearLayout
-                        android:id="@+id/layoutOtpBoxes"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:id="@+id/tvOtp1"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp2"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp3"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp4"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp5"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvOtp6"
-                            android:layout_width="44dp"
-                            android:layout_height="56dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:background="@drawable/bg_otp_box_empty"
-                            android:gravity="center"
-                            android:textColor="@color/text_primary"
-                            android:textSize="22sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Hidden Transparent Native EditText -->
-                    <EditText
-                        android:id="@+id/etOtp"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:autofillHints="smsOTPCode"
-                        android:background="@null"
-                        android:cursorVisible="false"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:importantForAutofill="yes"
-                        android:inputType="number"
-                        android:maxLength="6"
-                        android:textColor="@android:color/transparent" />
-                </FrameLayout>
-
-                <!-- Error Message Display -->
-                <TextView
-                    android:id="@+id/tvOtpError"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="8dp"
-                    android:gravity="center"
-                    android:textColor="@color/error"
-                    android:textSize="13sp"
-                    android:visibility="gone" />
-
-                <!-- Resend Layout -->
-                <LinearLayout
-                    android:id="@+id/layoutResendOtp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="18dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:id="@+id/ivResendIcon"
-                        android:layout_width="15dp"
-                        android:layout_height="15dp"
-                        android:layout_marginEnd="6dp"
-                        android:contentDescription="Đếm ngược"
-                        android:src="@drawable/ic_clock"
-                        app:tint="@color/text_secondary" />
-
-                    <TextView
-                        android:id="@+id/tvResendNotice"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chưa nhận được mã? "
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13.5sp" />
-
-                    <TextView
-                        android:id="@+id/btnResendOtp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:paddingHorizontal="4dp"
-                        android:paddingVertical="4dp"
-                        android:text="Gửi lại (60s)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- Submit Button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnConfirmRegister"
-                    style="@style/Widget.Internal.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="20dp"
-                    android:backgroundTint="@color/primary"
-                    android:letterSpacing="0.01"
-                    android:text="Xác Nhận &amp; Tạo Tài Khoản"
-                    android:textColor="@color/on_primary"
-                    android:textSize="15.5sp"
-                    android:textStyle="bold"
-                    app:cornerRadius="14dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp" />
-
-                <ProgressBar
-                    android:id="@+id/progressBar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="12dp"
-                    android:visibility="gone" />
-
-                <!-- Security Note -->
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="16dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="13dp"
-                        android:layout_height="13dp"
-                        android:layout_marginEnd="5dp"
-                        android:contentDescription="Bảo mật"
-                        android:src="@drawable/ic_lock"
-                        app:tint="@color/text_muted" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Mã bảo mật OTP có hiệu lực trong 10 phút"
-                        android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
-````
-
-## File: app-internal/src/main/res/layout/activity_register_internal.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-
-    android:fillViewport="true">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="@dimen/spacing_xxl">
-
-        <!-- Logo Icon Container -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/logoBoxRegister"
-            android:layout_width="@dimen/logo_size_sm"
-            android:layout_height="@dimen/logo_size_sm"
-            android:layout_marginTop="@dimen/spacing_section"
-            app:cardCornerRadius="@dimen/radius_xl"
-            app:cardElevation="4dp"
-            app:strokeWidth="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:src="@drawable/ic_app_logo"
-                android:contentDescription="@string/logo_desc" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <TextView
-            android:id="@+id/tvRegisterTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_md"
-            android:letterSpacing="-0.02"
-            android:text="@string/register_partner_title"
-            android:textColor="@color/primary"
-            android:textSize="@dimen/text_title"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/logoBoxRegister" />
-
-        <TextView
-            android:id="@+id/tvRegisterSubtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xs"
-            android:text="@string/register_partner_subtitle"
-            android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_sm"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvRegisterTitle" />
-
-        <!-- Register Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardRegisterInternal"
-            style="@style/Widget.Internal.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xl"
-            app:cardCornerRadius="@dimen/radius_lg"
-            app:cardElevation="2dp"
-            app:layout_constraintTop_toBottomOf="@id/tvRegisterSubtitle">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="@dimen/spacing_xl">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="@dimen/spacing_md"
-                    android:text="@string/register_partner_card_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/text_lg"
-                    android:textStyle="bold" />
-
-                <!-- Họ tên -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilRegisterName"
-                    style="@style/Widget.Internal.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/name_hint"
-                    app:startIconDrawable="@drawable/ic_user">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etRegisterName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPersonName"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- Số điện thoại -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilRegisterPhone"
-                    style="@style/Widget.Internal.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/phone_hint"
-                    app:startIconDrawable="@drawable/ic_phone">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etRegisterPhone"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="phone"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- Email -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilRegisterEmail"
-                    style="@style/Widget.Internal.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/email_hint"
-                    app:startIconDrawable="@drawable/ic_mail">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etRegisterEmail"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textEmailAddress"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- Mật khẩu -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilRegisterPassword"
-                    style="@style/Widget.Internal.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/password_hint"
-                    app:passwordToggleEnabled="true"
-                    app:startIconDrawable="@drawable/ic_lock">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etRegisterPassword"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPassword"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- Nhập lại mật khẩu -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilRegisterConfirmPassword"
-                    style="@style/Widget.Internal.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/confirm_password_hint"
-                    app:passwordToggleEnabled="true"
-                    app:startIconDrawable="@drawable/ic_lock">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etRegisterConfirmPassword"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPassword"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- Nút Đăng Ký -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSubmitRegister"
-                    style="@style/Widget.Internal.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginTop="@dimen/spacing_xl"
-                    android:backgroundTint="@color/primary"
-                    android:text="@string/btn_register_partner"
-                    android:textColor="@color/on_primary"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp" />
-
-                <ProgressBar
-                    android:id="@+id/progressBarRegister"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:visibility="gone" />
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Đã có tài khoản? Đăng nhập -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_lg"
-            android:layout_marginBottom="@dimen/spacing_xxl"
-            android:orientation="horizontal"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardRegisterInternal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/has_partner_account"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/text_md" />
-
-            <TextView
-                android:id="@+id/tvBackToLogin"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
-                android:paddingVertical="@dimen/spacing_xs"
-                android:text="@string/action_login_now"
-                android:textColor="@color/primary"
-                android:textSize="@dimen/text_md"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
-````
-
 ## File: app-internal/src/main/res/layout/dialog_assign_branch_to_merchant.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -109114,184 +110854,389 @@ class LoginActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/RegisterActivity.kt
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/OtpVerificationActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.auth
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
+import android.content.res.ColorStateList
 import android.os.Bundle
+import android.os.CountDownTimer
+import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.model.User
-import android.view.MotionEvent
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ActivityRegisterBinding
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityOtpVerificationBinding
+import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
 /**
- * Màn hình nhập thông tin đăng ký tài khoản khách hàng.
- * Form đăng ký dành riêng cho Khách Hàng (User.Role.CUSTOMER).
- * Sau khi bấm "Đăng ký", hệ thống sẽ chuyển sang màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
+ * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập.
+ * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
+ * bộ đếm ngược thời gian và nút gửi lại trực quan.
  */
 @AndroidEntryPoint
-class RegisterActivity : AppCompatActivity() {
+class OtpVerificationActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityRegisterBinding
+    companion object {
+        const val EXTRA_FLOW = "extra_flow"
+        const val FLOW_REGISTER = "flow_register"
+        const val FLOW_LOGIN = "flow_login"
+
+        const val EXTRA_NAME = "extra_name"
+        const val EXTRA_EMAIL = "extra_email"
+        const val EXTRA_PASSWORD = "extra_password"
+        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
+        const val EXTRA_PHONE = "extra_phone"
+        const val EXTRA_ROLE = "extra_role"
+    }
+
+    private lateinit var binding: ActivityOtpVerificationBinding
     private val viewModel: AuthViewModel by viewModels()
 
-    private var pendingName = ""
-    private var pendingPhone = ""
-    private var pendingEmail = ""
-    private var pendingPassword = ""
-    private var pendingConfirmPassword = ""
-    private val pendingRole = User.Role.CUSTOMER
+    private var flow: String = FLOW_REGISTER
+    private var name: String = ""
+    private var email: String = ""
+    private var password: String = ""
+    private var confirmPassword: String = ""
+    private var phone: String = ""
+    private var role: String = User.Role.CUSTOMER
 
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> }
+    private var countDownTimer: CountDownTimer? = null
+    private var isResendEnabled = false
 
-    private val otpVerificationLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            finish()
-        }
+    private val otpBoxes: List<TextView> by lazy {
+        listOf(
+            binding.tvOtp1,
+            binding.tvOtp2,
+            binding.tvOtp3,
+            binding.tvOtp4,
+            binding.tvOtp5,
+            binding.tvOtp6
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityRegisterBinding.inflate(layoutInflater)
+        binding = ActivityOtpVerificationBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         InsetUtils.initEdgeToEdge(this, true)
         InsetUtils.applyImeAndSystemInsets(binding.root)
-        checkNotificationPermission()
-        setupUI()
-        observeViewModel()
-    }
 
-    private fun checkNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
+        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
+        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
+
+        if (flow == FLOW_LOGIN) {
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        } else {
+            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
+            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
+            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
+            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.CUSTOMER
+
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
             }
         }
+
+        setupUI()
+        observeViewModel()
+        startCountdown()
     }
 
     private fun setupUI() {
-        binding.etName.doAfterTextChanged { binding.tilName.error = null }
-        binding.etPhone.doAfterTextChanged { binding.tilPhone.error = null }
-        binding.etEmail.doAfterTextChanged { binding.tilEmail.error = null }
-        binding.etPassword.doAfterTextChanged { binding.tilPassword.error = null }
-        binding.etConfirmPassword.doAfterTextChanged { binding.tilConfirmPassword.error = null }
+        binding.tvTargetEmail.text = email
 
-        // Nút "Đăng ký"
-        binding.btnRegister.setOnClickListener {
-            val name = binding.etName.text.toString().trim()
-            val phone = binding.etPhone.text.toString().trim()
-            val email = binding.etEmail.text.toString().trim()
-            val password = binding.etPassword.text.toString()
-            val confirmPassword = binding.etConfirmPassword.text.toString()
-
-            if (name.isBlank()) {
-                binding.tilName.error = "Vui lòng nhập họ tên"
-                binding.etName.requestFocus()
-                return@setOnClickListener
-            }
-            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                binding.tilEmail.error = "Vui lòng nhập email hợp lệ"
-                binding.etEmail.requestFocus()
-                return@setOnClickListener
-            }
-            if (password.length < 6) {
-                binding.tilPassword.error = "Mật khẩu phải từ 6 ký tự trở lên"
-                binding.etPassword.requestFocus()
-                return@setOnClickListener
-            }
-            if (password != confirmPassword) {
-                binding.tilConfirmPassword.error = "Mật khẩu xác nhận không khớp"
-                binding.etConfirmPassword.requestFocus()
-                return@setOnClickListener
-            }
-
-            pendingName = name
-            pendingPhone = phone
-            pendingEmail = email.lowercase()
-            pendingPassword = password
-            pendingConfirmPassword = confirmPassword
-
-            // Nếu mã OTP đã gửi cho email này trước đó và vẫn còn hiệu lực (trong vòng 10 phút),
-            // chuyển thẳng sang màn hình xác minh mà không cần gọi gửi lại (tránh lỗi cooldown).
-            if (RegistrationOtpManager.hasValidPendingOtp(this, pendingEmail)) {
-                Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                openOtpVerificationActivity()
-                return@setOnClickListener
-            }
-
-            binding.progressBar.visibility = View.VISIBLE
-            binding.btnRegister.isEnabled = false
-            binding.btnRegister.text = "Đang gửi mã xác thực..."
-
-            // Gửi OTP qua email và kiểm tra tài khoản đã tồn tại hay chưa
-            viewModel.requestEmailOtp(pendingEmail)
+        if (flow == FLOW_LOGIN) {
+            binding.tvTitle.text = "Xác Thực Đăng Nhập"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
+        } else {
+            binding.tvTitle.text = "Xác Thực Mã OTP"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
         }
 
-        binding.tvLogin.setOnClickListener { finish() }
+        binding.btnBack.setOnClickListener {
+            finish()
+        }
+
+        // Khởi tạo trạng thái 6 ô số OTP
+        updateOtpBoxes("")
+
+        // Nhấn vào khung OTP để kích hoạt bàn phím số
+        binding.layoutOtpContainer.setOnClickListener {
+            binding.etOtp.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        // Tự động focus và mở bàn phím số khi vào màn hình
+        binding.etOtp.requestFocus()
+        binding.etOtp.postDelayed({
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }, 250)
+
+        binding.etOtp.doAfterTextChanged { s ->
+            showOtpError(null)
+            val code = s?.toString()?.trim().orEmpty()
+            updateOtpBoxes(code)
+
+            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
+                submitOtpVerification(code)
+            }
+        }
+
+        binding.btnResendOtp.setOnClickListener {
+            if (!isResendEnabled) return@setOnClickListener
+            showOtpError(null)
+            isResendEnabled = false
+            binding.btnResendOtp.isEnabled = false
+            if (flow == FLOW_LOGIN) {
+                viewModel.requestLoginOtp(email)
+            } else {
+                viewModel.requestEmailOtp(email)
+            }
+        }
+
+        binding.btnConfirmRegister.setOnClickListener {
+            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
+            if (code.length != 6 || !code.all { it.isDigit() }) {
+                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
+                binding.etOtp.requestFocus()
+                return@setOnClickListener
+            }
+            submitOtpVerification(code)
+        }
     }
 
-    private fun openOtpVerificationActivity() {
-        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
-            putExtra(OtpVerificationActivity.EXTRA_NAME, pendingName)
-            putExtra(OtpVerificationActivity.EXTRA_EMAIL, pendingEmail)
-            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, pendingPassword)
-            putExtra(OtpVerificationActivity.EXTRA_CONFIRM_PASSWORD, pendingConfirmPassword)
-            putExtra(OtpVerificationActivity.EXTRA_PHONE, pendingPhone)
-            putExtra(OtpVerificationActivity.EXTRA_ROLE, pendingRole)
+    /**
+     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
+     */
+    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
+        val cleanCode = code.filter { it.isDigit() }
+        for (i in otpBoxes.indices) {
+            val box = otpBoxes[i]
+            if (i < cleanCode.length) {
+                box.text = cleanCode[i].toString()
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
+                )
+            } else if (i == cleanCode.length) {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
+                )
+            } else {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
+                )
+            }
         }
-        otpVerificationLauncher.launch(intent)
+    }
+
+    private fun showOtpError(errorMsg: String?) {
+        if (errorMsg.isNullOrBlank()) {
+            binding.tvOtpError.visibility = View.GONE
+            binding.tvOtpError.text = ""
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
+        } else {
+            binding.tvOtpError.visibility = View.VISIBLE
+            binding.tvOtpError.text = errorMsg
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
+        }
+    }
+
+    private fun submitOtpVerification(code: String) {
+        if (flow == FLOW_LOGIN) {
+            viewModel.verifyLoginOtp(email, password, code)
+        } else {
+            viewModel.registerWithOtp(
+                name = name,
+                email = email,
+                password = password,
+                confirmPassword = confirmPassword,
+                role = role,
+                phone = phone,
+                otpCode = code
+            )
+        }
     }
 
     private fun observeViewModel() {
-        viewModel.otpRequestResult.observe(this) { result ->
-            binding.progressBar.visibility = View.GONE
-            binding.btnRegister.isEnabled = true
-            binding.btnRegister.text = getString(R.string.btn_register)
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            binding.btnConfirmRegister.isEnabled = !isLoading
+            binding.etOtp.isEnabled = !isLoading
+        }
 
+        viewModel.otpRequestResult.observe(this) { result ->
             result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                openOtpVerificationActivity()
+                RegistrationOtpManager.recordOtpSent(this, email)
+                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
+                startCountdown(60_000L)
+                binding.etOtp.requestFocus()
             }.onFailure { error ->
                 val rawMsg = error.message.orEmpty()
                 if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    // Supabase báo rate limit / cooldown nghĩa là mã OTP đã gửi trong vòng 60s trước vẫn còn hiệu lực
-                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                    openOtpVerificationActivity()
+                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
+                    startCountdown(if (remaining > 0L) remaining else 30_000L)
                 } else {
-                    val msg = error.message ?: "Không gửi được mã OTP"
-                    binding.tilEmail.error = msg
-                    binding.etEmail.requestFocus()
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                    setResendAvailableState()
+                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
                 }
             }
         }
+
+        viewModel.registerResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(
+                    this,
+                    "Đăng ký tài khoản thành công! Bạn có thể đăng nhập ngay.",
+                    Toast.LENGTH_LONG
+                ).show()
+                setResult(RESULT_OK)
+                finish()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+
+        viewModel.loginOtpResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun checkRoleAndRoute() {
+        lifecycleScope.launch {
+            try {
+                val role = viewModel.getUserRole()
+                if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
+                    val intent = Intent(this@OtpVerificationActivity, HomeActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                } else {
+                    Toast.makeText(this@OtpVerificationActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
+                    viewModel.logout()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun startCountdown(durationMs: Long = -1L) {
+        countDownTimer?.cancel()
+        val remainingMs = if (durationMs >= 0L) {
+            durationMs
+        } else {
+            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+            if (cooldown > 0L) cooldown else 0L
+        }
+
+        if (remainingMs <= 0L) {
+            setResendAvailableState()
+            return
+        }
+
+        isResendEnabled = false
+        binding.btnResendOtp.isEnabled = false
+        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+
+        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val sec = (millisUntilFinished + 999) / 1000
+                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
+            }
+
+            override fun onFinish() {
+                setResendAvailableState()
+            }
+        }.start()
+    }
+
+    private fun setResendAvailableState() {
+        isResendEnabled = true
+        binding.btnResendOtp.isEnabled = true
+        binding.btnResendOtp.text = "Gửi lại ngay"
+        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
         return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        countDownTimer?.cancel()
     }
 }
 ````
@@ -109614,404 +111559,6 @@ class OrderSuccessActivity : AppCompatActivity() {
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>
-````
-
-## File: app-customer/src/main/res/layout/activity_register.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="@dimen/spacing_xxl">
-
-        <!-- Logo Container -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/logoContainer"
-            android:layout_width="@dimen/logo_size_sm"
-            android:layout_height="@dimen/logo_size_sm"
-            android:layout_marginTop="@dimen/spacing_xxl"
-            app:cardCornerRadius="@dimen/radius_xl"
-            app:cardElevation="4dp"
-            app:strokeWidth="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/ivLogo"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:src="@drawable/ic_app_logo"
-                android:contentDescription="@string/logo_desc" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_md"
-            android:letterSpacing="-0.02"
-            android:text="@string/app_name"
-            android:textColor="@color/primary"
-            android:textSize="@dimen/text_hero"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/logoContainer" />
-
-        <TextView
-            android:id="@+id/tvSubtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xs"
-            android:text="@string/register_subtitle"
-            android:textColor="@color/text_secondary"
-            android:textSize="@dimen/text_md"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tvTitle" />
-
-        <!-- Register Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardRegister"
-            style="@style/Widget.FoodOrder.Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xxl"
-            app:layout_constraintTop_toBottomOf="@id/tvSubtitle">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="@dimen/spacing_xl">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="@dimen/spacing_lg"
-                    android:text="@string/register_card_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/text_xl"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilName"
-                    style="@style/Widget.FoodOrder.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/name_hint"
-                    app:startIconDrawable="@drawable/ic_user">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPersonName"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilPhone"
-                    style="@style/Widget.FoodOrder.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/phone_hint"
-                    app:startIconDrawable="@drawable/ic_phone">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etPhone"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="phone"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilEmail"
-                    style="@style/Widget.FoodOrder.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/email_hint"
-                    app:startIconDrawable="@drawable/ic_mail">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etEmail"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textEmailAddress"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilPassword"
-                    style="@style/Widget.FoodOrder.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/password_hint"
-                    app:passwordToggleEnabled="true"
-                    app:startIconDrawable="@drawable/ic_lock">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etPassword"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPassword"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/tilConfirmPassword"
-                    style="@style/Widget.FoodOrder.TextInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:hint="@string/confirm_password_hint"
-                    app:passwordToggleEnabled="true"
-                    app:startIconDrawable="@drawable/ic_lock">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etConfirmPassword"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textPassword"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnRegister"
-                    style="@style/Widget.FoodOrder.Button.Primary"
-                    android:layout_width="match_parent"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginTop="@dimen/spacing_xl"
-                    android:text="@string/btn_register"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp" />
-
-                <ProgressBar
-                    android:id="@+id/progressBar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="@dimen/spacing_md"
-                    android:visibility="gone" />
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <TextView
-            android:id="@+id/tvLogin"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xl"
-            android:background="?attr/selectableItemBackground"
-            android:padding="@dimen/spacing_sm"
-            android:text="@string/has_account"
-            android:textColor="@color/primary"
-            android:textSize="@dimen/text_md"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/cardRegister" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/RegisterActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.auth
-
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.view.View
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.widget.doAfterTextChanged
-import com.chuyen_de_2.foodorder.core.data.model.User
-import android.view.MotionEvent
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityRegisterInternalBinding
-import dagger.hilt.android.AndroidEntryPoint
-
-/**
- * Màn hình nhập thông tin đăng ký đối tác (Chủ quán/Tài xế).
- * Không còn ô nhập OTP trên form. Sau khi bấm "Đăng Ký Đối Tác", hệ thống sẽ chuyển sang
- * màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
- */
-@AndroidEntryPoint
-class RegisterActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityRegisterInternalBinding
-    private val viewModel: AuthViewModel by viewModels()
-
-    private var pendingName = ""
-    private var pendingPhone = ""
-    private var pendingEmail = ""
-    private var pendingPassword = ""
-    private var pendingConfirmPassword = ""
-    private val pendingRole = User.Role.BOSSMERCHANT
-
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> }
-
-    private val otpVerificationLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            finish()
-        }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityRegisterInternalBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyImeAndSystemInsets(binding.root)
-        checkNotificationPermission()
-        setupUI()
-        observeViewModel()
-    }
-
-    private fun checkNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-    }
-
-    private fun setupUI() {
-        binding.etRegisterName.doAfterTextChanged { binding.tilRegisterName.error = null }
-        binding.etRegisterPhone.doAfterTextChanged { binding.tilRegisterPhone.error = null }
-        binding.etRegisterEmail.doAfterTextChanged { binding.tilRegisterEmail.error = null }
-        binding.etRegisterPassword.doAfterTextChanged { binding.tilRegisterPassword.error = null }
-        binding.etRegisterConfirmPassword.doAfterTextChanged { binding.tilRegisterConfirmPassword.error = null }
-
-        // Nút "Đăng ký đối tác"
-        binding.btnSubmitRegister.setOnClickListener {
-            val name = binding.etRegisterName.text.toString().trim()
-            val phone = binding.etRegisterPhone.text.toString().trim()
-            val email = binding.etRegisterEmail.text.toString().trim()
-            val password = binding.etRegisterPassword.text.toString()
-            val confirmPassword = binding.etRegisterConfirmPassword.text.toString()
-
-            if (name.isBlank()) {
-                binding.tilRegisterName.error = "Vui lòng nhập họ tên"
-                binding.etRegisterName.requestFocus()
-                return@setOnClickListener
-            }
-            if (phone.isBlank()) {
-                binding.tilRegisterPhone.error = "Vui lòng nhập số điện thoại"
-                binding.etRegisterPhone.requestFocus()
-                return@setOnClickListener
-            }
-            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                binding.tilRegisterEmail.error = "Vui lòng nhập email hợp lệ"
-                binding.etRegisterEmail.requestFocus()
-                return@setOnClickListener
-            }
-            if (password.length < 6) {
-                binding.tilRegisterPassword.error = "Mật khẩu phải từ 6 ký tự trở lên"
-                binding.etRegisterPassword.requestFocus()
-                return@setOnClickListener
-            }
-            if (password != confirmPassword) {
-                binding.tilRegisterConfirmPassword.error = "Mật khẩu xác nhận không khớp"
-                binding.etRegisterConfirmPassword.requestFocus()
-                return@setOnClickListener
-            }
-
-            pendingName = name
-            pendingPhone = phone
-            pendingEmail = email.lowercase()
-            pendingPassword = password
-            pendingConfirmPassword = confirmPassword
-
-            // Nếu mã OTP đã gửi cho email này trước đó và vẫn còn hiệu lực (trong vòng 10 phút),
-            // chuyển thẳng sang màn hình xác minh mà không cần gọi gửi lại (tránh lỗi cooldown).
-            if (RegistrationOtpManager.hasValidPendingOtp(this, pendingEmail)) {
-                Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                openOtpVerificationActivity()
-                return@setOnClickListener
-            }
-
-            binding.progressBarRegister.visibility = View.VISIBLE
-            binding.btnSubmitRegister.isEnabled = false
-            binding.btnSubmitRegister.text = "Đang gửi mã xác thực..."
-
-            // Gửi OTP qua email và kiểm tra tài khoản đã tồn tại hay chưa
-            viewModel.requestEmailOtp(pendingEmail)
-        }
-
-        binding.tvBackToLogin.setOnClickListener { finish() }
-    }
-
-    private fun openOtpVerificationActivity() {
-        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
-            putExtra(OtpVerificationActivity.EXTRA_NAME, pendingName)
-            putExtra(OtpVerificationActivity.EXTRA_EMAIL, pendingEmail)
-            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, pendingPassword)
-            putExtra(OtpVerificationActivity.EXTRA_CONFIRM_PASSWORD, pendingConfirmPassword)
-            putExtra(OtpVerificationActivity.EXTRA_PHONE, pendingPhone)
-            putExtra(OtpVerificationActivity.EXTRA_ROLE, pendingRole)
-        }
-        otpVerificationLauncher.launch(intent)
-    }
-
-    private fun observeViewModel() {
-        viewModel.otpRequestResult.observe(this) { result ->
-            binding.progressBarRegister.visibility = View.GONE
-            binding.btnSubmitRegister.isEnabled = true
-            binding.btnSubmitRegister.text = "Đăng Ký Đối Tác"
-
-            result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                openOtpVerificationActivity()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    // Supabase báo rate limit / cooldown nghĩa là mã OTP đã gửi trong vòng 60s trước vẫn còn hiệu lực
-                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                    openOtpVerificationActivity()
-                } else {
-                    val msg = error.message ?: "Không gửi được mã OTP"
-                    binding.tilRegisterEmail.error = msg
-                    binding.etRegisterEmail.requestFocus()
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-}
 ````
 
 ## File: app-internal/src/main/res/layout/activity_login_internal.xml
@@ -111760,6 +113307,149 @@ class RegisterActivity : AppCompatActivity() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-internal/src/main/AndroidManifest.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Foreground Service cho GPS Shipper & Giám sát đơn Quán ăn (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Cho phép kiểm tra và mở ứng dụng Khách hàng (Oishi Customer) -->
+    <queries>
+        <package android:name="com.chuyen_de_2.foodorder.customer" />
+    </queries>
+
+    <application
+        android:name=".FoodOrderInternalApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FoodOrder.Internal">
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
+        <!-- Auth -->
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.auth.RegisterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <activity
+            android:name=".ui.auth.OtpVerificationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Phiếu địa chỉ bắt buộc & Xác minh thông tin Quán -->
+        <activity
+            android:name=".ui.auth.StoreVerificationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Màn hình ghim vị trí quán trên bản đồ -->
+        <activity
+            android:name=".ui.auth.SelectLocationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Dashboard (RBAC routing) -->
+        <activity
+            android:name=".ui.dashboard.DashboardActivity"
+            android:theme="@style/Theme.FoodOrder.Internal" />
+
+        <!-- Màn hình Quản lý Chuỗi Chi Nhánh dành riêng cho BOSSMERCHANT -->
+        <activity
+            android:name=".ui.boss.BossDashboardActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
+        <activity
+            android:name=".ui.ship.DeliveryTripActivity"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
+        <service
+            android:name=".service.LocationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- FCM Service -->
+        <service
+            android:name=".service.InternalFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Dịch vụ tiền cảnh giữ kết nối Quán ăn & VietQR 24/7 không bị hệ điều hành diệt -->
+        <service
+            android:name=".service.MerchantKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
+        <service
+            android:name=".service.BankNotificationListenerService"
+            android:label="Tự Động Duyệt Thanh Toán Oishi"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- FileProvider cho phép Camera chụp ảnh thẻ CCCD & ảnh quán -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+</manifest>
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/firebase/AuthRepository.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.firebase
@@ -111831,7 +113521,7 @@ class AuthRepository @Inject constructor(
                     ?.child("role")
                     ?.getValue(String::class.java)
                     .orEmpty()
-                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER) &&
+                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER, User.Role.CHEF) &&
                     (!verificationState
                         ?.child("storeId")
                         ?.getValue(String::class.java)
@@ -112668,6 +114358,7 @@ class AuthRepository @Inject constructor(
                 "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
                 "MERCHANT", "MANAGER" -> User.Role.MERCHANT
                 "DRIVER", "SHIPPER" -> User.Role.DRIVER
+                "CHEF", "COOK" -> User.Role.CHEF
                 "ADMIN" -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
@@ -112676,6 +114367,7 @@ class AuthRepository @Inject constructor(
                 User.Role.BOSSMERCHANT -> 5
                 User.Role.MERCHANT -> 3
                 User.Role.DRIVER -> 4
+                User.Role.CHEF -> 6
                 else -> 2
             }
 
@@ -112934,7 +114626,7 @@ class AuthRepository @Inject constructor(
                 return Pair(User.Role.DRIVER, driverStoreId)
             }
 
-            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN || normRole == User.Role.BOSSMERCHANT) {
+            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN || normRole == User.Role.BOSSMERCHANT || normRole == User.Role.CHEF) {
                 return Pair(currentRole, currentStoreId)
             }
             if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {
@@ -113256,393 +114948,6 @@ object QRCodeUtils {
                 eraseColor(Color.WHITE)
             }
         }
-    }
-}
-````
-
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/auth/OtpVerificationActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.auth
-
-import android.content.Intent
-import android.content.res.ColorStateList
-import android.os.Bundle
-import android.os.CountDownTimer
-import android.view.MotionEvent
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
-import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ActivityOtpVerificationBinding
-import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-
-/**
- * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập.
- * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
- * bộ đếm ngược thời gian và nút gửi lại trực quan.
- */
-@AndroidEntryPoint
-class OtpVerificationActivity : AppCompatActivity() {
-
-    companion object {
-        const val EXTRA_FLOW = "extra_flow"
-        const val FLOW_REGISTER = "flow_register"
-        const val FLOW_LOGIN = "flow_login"
-
-        const val EXTRA_NAME = "extra_name"
-        const val EXTRA_EMAIL = "extra_email"
-        const val EXTRA_PASSWORD = "extra_password"
-        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
-        const val EXTRA_PHONE = "extra_phone"
-        const val EXTRA_ROLE = "extra_role"
-    }
-
-    private lateinit var binding: ActivityOtpVerificationBinding
-    private val viewModel: AuthViewModel by viewModels()
-
-    private var flow: String = FLOW_REGISTER
-    private var name: String = ""
-    private var email: String = ""
-    private var password: String = ""
-    private var confirmPassword: String = ""
-    private var phone: String = ""
-    private var role: String = User.Role.CUSTOMER
-
-    private var countDownTimer: CountDownTimer? = null
-    private var isResendEnabled = false
-
-    private val otpBoxes: List<TextView> by lazy {
-        listOf(
-            binding.tvOtp1,
-            binding.tvOtp2,
-            binding.tvOtp3,
-            binding.tvOtp4,
-            binding.tvOtp5,
-            binding.tvOtp6
-        )
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityOtpVerificationBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyImeAndSystemInsets(binding.root)
-
-        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
-        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
-        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
-
-        if (flow == FLOW_LOGIN) {
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        } else {
-            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
-            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
-            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
-            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.CUSTOMER
-
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        }
-
-        setupUI()
-        observeViewModel()
-        startCountdown()
-    }
-
-    private fun setupUI() {
-        binding.tvTargetEmail.text = email
-
-        if (flow == FLOW_LOGIN) {
-            binding.tvTitle.text = "Xác Thực Đăng Nhập"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
-        } else {
-            binding.tvTitle.text = "Xác Thực Mã OTP"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
-        }
-
-        binding.btnBack.setOnClickListener {
-            finish()
-        }
-
-        // Khởi tạo trạng thái 6 ô số OTP
-        updateOtpBoxes("")
-
-        // Nhấn vào khung OTP để kích hoạt bàn phím số
-        binding.layoutOtpContainer.setOnClickListener {
-            binding.etOtp.requestFocus()
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }
-
-        // Tự động focus và mở bàn phím số khi vào màn hình
-        binding.etOtp.requestFocus()
-        binding.etOtp.postDelayed({
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }, 250)
-
-        binding.etOtp.doAfterTextChanged { s ->
-            showOtpError(null)
-            val code = s?.toString()?.trim().orEmpty()
-            updateOtpBoxes(code)
-
-            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
-                submitOtpVerification(code)
-            }
-        }
-
-        binding.btnResendOtp.setOnClickListener {
-            if (!isResendEnabled) return@setOnClickListener
-            showOtpError(null)
-            isResendEnabled = false
-            binding.btnResendOtp.isEnabled = false
-            if (flow == FLOW_LOGIN) {
-                viewModel.requestLoginOtp(email)
-            } else {
-                viewModel.requestEmailOtp(email)
-            }
-        }
-
-        binding.btnConfirmRegister.setOnClickListener {
-            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
-            if (code.length != 6 || !code.all { it.isDigit() }) {
-                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
-                binding.etOtp.requestFocus()
-                return@setOnClickListener
-            }
-            submitOtpVerification(code)
-        }
-    }
-
-    /**
-     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
-     */
-    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
-        val cleanCode = code.filter { it.isDigit() }
-        for (i in otpBoxes.indices) {
-            val box = otpBoxes[i]
-            if (i < cleanCode.length) {
-                box.text = cleanCode[i].toString()
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
-                )
-            } else if (i == cleanCode.length) {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
-                )
-            } else {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
-                )
-            }
-        }
-    }
-
-    private fun showOtpError(errorMsg: String?) {
-        if (errorMsg.isNullOrBlank()) {
-            binding.tvOtpError.visibility = View.GONE
-            binding.tvOtpError.text = ""
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
-        } else {
-            binding.tvOtpError.visibility = View.VISIBLE
-            binding.tvOtpError.text = errorMsg
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
-        }
-    }
-
-    private fun submitOtpVerification(code: String) {
-        if (flow == FLOW_LOGIN) {
-            viewModel.verifyLoginOtp(email, password, code)
-        } else {
-            viewModel.registerWithOtp(
-                name = name,
-                email = email,
-                password = password,
-                confirmPassword = confirmPassword,
-                role = role,
-                phone = phone,
-                otpCode = code
-            )
-        }
-    }
-
-    private fun observeViewModel() {
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.btnConfirmRegister.isEnabled = !isLoading
-            binding.etOtp.isEnabled = !isLoading
-        }
-
-        viewModel.otpRequestResult.observe(this) { result ->
-            result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, email)
-                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
-                startCountdown(60_000L)
-                binding.etOtp.requestFocus()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
-                    startCountdown(if (remaining > 0L) remaining else 30_000L)
-                } else {
-                    setResendAvailableState()
-                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        viewModel.registerResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(
-                    this,
-                    "Đăng ký tài khoản thành công! Bạn có thể đăng nhập ngay.",
-                    Toast.LENGTH_LONG
-                ).show()
-                setResult(RESULT_OK)
-                finish()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-
-        viewModel.loginOtpResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                checkRoleAndRoute()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun checkRoleAndRoute() {
-        lifecycleScope.launch {
-            try {
-                val role = viewModel.getUserRole()
-                if (role == User.Role.CUSTOMER || role.isNullOrBlank()) {
-                    val intent = Intent(this@OtpVerificationActivity, HomeActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                } else {
-                    Toast.makeText(this@OtpVerificationActivity, "Tài khoản đối tác vui lòng dùng App Quán/Tài xế.", Toast.LENGTH_LONG).show()
-                    viewModel.logout()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun startCountdown(durationMs: Long = -1L) {
-        countDownTimer?.cancel()
-        val remainingMs = if (durationMs >= 0L) {
-            durationMs
-        } else {
-            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-            if (cooldown > 0L) cooldown else 0L
-        }
-
-        if (remainingMs <= 0L) {
-            setResendAvailableState()
-            return
-        }
-
-        isResendEnabled = false
-        binding.btnResendOtp.isEnabled = false
-        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-
-        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
-            override fun onTick(millisUntilFinished: Long) {
-                val sec = (millisUntilFinished + 999) / 1000
-                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
-            }
-
-            override fun onFinish() {
-                setResendAvailableState()
-            }
-        }.start()
-    }
-
-    private fun setResendAvailableState() {
-        isResendEnabled = true
-        binding.btnResendOtp.isEnabled = true
-        binding.btnResendOtp.text = "Gửi lại ngay"
-        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        countDownTimer?.cancel()
     }
 }
 ````
@@ -114494,6 +115799,403 @@ class BankNotificationListenerService : NotificationListenerService() {
         } catch (e: Exception) {
             Log.e(TAG, "Lỗi hiển thị notification: ${e.message}")
         }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/OtpVerificationActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.auth
+
+import android.content.Intent
+import android.content.res.ColorStateList
+import android.os.Bundle
+import android.os.CountDownTimer
+import android.view.MotionEvent
+import android.view.View
+import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityOtpVerificationInternalBinding
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập đối tác.
+ * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
+ * bộ đếm ngược thời gian và nút gửi lại trực quan.
+ */
+@AndroidEntryPoint
+class OtpVerificationActivity : AppCompatActivity() {
+
+    companion object {
+        const val EXTRA_FLOW = "extra_flow"
+        const val FLOW_REGISTER = "flow_register"
+        const val FLOW_LOGIN = "flow_login"
+
+        const val EXTRA_NAME = "extra_name"
+        const val EXTRA_EMAIL = "extra_email"
+        const val EXTRA_PASSWORD = "extra_password"
+        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
+        const val EXTRA_PHONE = "extra_phone"
+        const val EXTRA_ROLE = "extra_role"
+    }
+
+    private lateinit var binding: ActivityOtpVerificationInternalBinding
+    private val viewModel: AuthViewModel by viewModels()
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    private var flow: String = FLOW_REGISTER
+    private var name: String = ""
+    private var email: String = ""
+    private var password: String = ""
+    private var confirmPassword: String = ""
+    private var phone: String = ""
+    private var role: String = User.Role.BOSSMERCHANT
+
+    private var countDownTimer: CountDownTimer? = null
+    private var isResendEnabled = false
+
+    private val otpBoxes: List<TextView> by lazy {
+        listOf(
+            binding.tvOtp1,
+            binding.tvOtp2,
+            binding.tvOtp3,
+            binding.tvOtp4,
+            binding.tvOtp5,
+            binding.tvOtp6
+        )
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityOtpVerificationInternalBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
+
+        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
+        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
+        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
+
+        if (flow == FLOW_LOGIN) {
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        } else {
+            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
+            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
+            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
+            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.BOSSMERCHANT
+
+            if (email.isBlank() || password.isBlank()) {
+                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+        }
+
+        setupUI()
+        observeViewModel()
+        startCountdown()
+    }
+
+    private fun setupUI() {
+        binding.tvTargetEmail.text = email
+
+        if (flow == FLOW_LOGIN) {
+            binding.tvTitle.text = "Xác Thực Đăng Nhập"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
+        } else {
+            binding.tvTitle.text = "Xác Thực Mã OTP"
+            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
+            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
+        }
+
+        binding.btnBack.setOnClickListener {
+            finish()
+        }
+
+        // Khởi tạo trạng thái 6 ô số OTP
+        updateOtpBoxes("")
+
+        // Nhấn vào khung OTP để kích hoạt bàn phím số
+        binding.layoutOtpContainer.setOnClickListener {
+            binding.etOtp.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        // Tự động focus và mở bàn phím số khi vào màn hình
+        binding.etOtp.requestFocus()
+        binding.etOtp.postDelayed({
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }, 250)
+
+        binding.etOtp.doAfterTextChanged { s ->
+            showOtpError(null)
+            val code = s?.toString()?.trim().orEmpty()
+            updateOtpBoxes(code)
+
+            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
+                submitOtpVerification(code)
+            }
+        }
+
+        binding.btnResendOtp.setOnClickListener {
+            if (!isResendEnabled) return@setOnClickListener
+            showOtpError(null)
+            isResendEnabled = false
+            binding.btnResendOtp.isEnabled = false
+            if (flow == FLOW_LOGIN) {
+                viewModel.requestLoginOtp(email)
+            } else {
+                viewModel.requestEmailOtp(email)
+            }
+        }
+
+        binding.btnConfirmRegister.setOnClickListener {
+            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
+            if (code.length != 6 || !code.all { it.isDigit() }) {
+                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
+                binding.etOtp.requestFocus()
+                return@setOnClickListener
+            }
+            submitOtpVerification(code)
+        }
+    }
+
+    /**
+     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
+     */
+    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
+        val cleanCode = code.filter { it.isDigit() }
+        for (i in otpBoxes.indices) {
+            val box = otpBoxes[i]
+            if (i < cleanCode.length) {
+                box.text = cleanCode[i].toString()
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
+                )
+            } else if (i == cleanCode.length) {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
+                )
+            } else {
+                box.text = ""
+                box.setBackgroundResource(
+                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
+                )
+            }
+        }
+    }
+
+    private fun showOtpError(errorMsg: String?) {
+        if (errorMsg.isNullOrBlank()) {
+            binding.tvOtpError.visibility = View.GONE
+            binding.tvOtpError.text = ""
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
+        } else {
+            binding.tvOtpError.visibility = View.VISIBLE
+            binding.tvOtpError.text = errorMsg
+            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
+        }
+    }
+
+    private fun submitOtpVerification(code: String) {
+        if (flow == FLOW_LOGIN) {
+            viewModel.verifyLoginOtp(email, password, code)
+        } else {
+            viewModel.registerWithOtp(
+                name = name,
+                email = email,
+                pass = password,
+                confirmPass = confirmPassword,
+                role = role,
+                phone = phone,
+                otpCode = code
+            )
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            binding.btnConfirmRegister.isEnabled = !isLoading
+            binding.etOtp.isEnabled = !isLoading
+        }
+
+        viewModel.otpRequestResult.observe(this) { result ->
+            result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, email)
+                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
+                startCountdown(60_000L)
+                binding.etOtp.requestFocus()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
+                    startCountdown(if (remaining > 0L) remaining else 30_000L)
+                } else {
+                    setResendAvailableState()
+                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        viewModel.registerResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(
+                    this,
+                    "Đăng ký đối tác thành công! Bạn có thể đăng nhập ngay.",
+                    Toast.LENGTH_LONG
+                ).show()
+                setResult(RESULT_OK)
+                finish()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+
+        viewModel.loginOtpResult.observe(this) { result ->
+            result.onSuccess {
+                countDownTimer?.cancel()
+                RegistrationOtpManager.clearPendingOtp(this, email)
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                checkRoleAndRoute()
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
+                }
+                showOtpError(userMsg)
+                binding.etOtp.requestFocus()
+                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun checkRoleAndRoute() {
+        lifecycleScope.launch {
+            try {
+                val statusCheck = authRepository.checkAccountActiveStatus()
+                if (statusCheck.isFailure) {
+                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                    AlertDialog.Builder(this@OtpVerificationActivity)
+                        .setTitle("Tài khoản bị khóa")
+                        .setMessage(reason)
+                        .setPositiveButton("Đóng") { _, _ -> finish() }
+                        .show()
+                } else {
+                    val intent = Intent(this@OtpVerificationActivity, DashboardActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun startCountdown(durationMs: Long = -1L) {
+        countDownTimer?.cancel()
+        val remainingMs = if (durationMs >= 0L) {
+            durationMs
+        } else {
+            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+            if (cooldown > 0L) cooldown else 0L
+        }
+
+        if (remainingMs <= 0L) {
+            setResendAvailableState()
+            return
+        }
+
+        isResendEnabled = false
+        binding.btnResendOtp.isEnabled = false
+        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+
+        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val sec = (millisUntilFinished + 999) / 1000
+                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
+            }
+
+            override fun onFinish() {
+                setResendAvailableState()
+            }
+        }.start()
+    }
+
+    private fun setResendAvailableState() {
+        isResendEnabled = true
+        binding.btnResendOtp.isEnabled = true
+        binding.btnResendOtp.text = "Gửi lại ngay"
+        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
+        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
+        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        countDownTimer?.cancel()
     }
 }
 ````
@@ -115438,149 +117140,6 @@ class ShopViewModel @Inject constructor(
         _newOrderAlert.value = false
     }
 }
-````
-
-## File: app-internal/src/main/AndroidManifest.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Foreground Service cho GPS Shipper & Giám sát đơn Quán ăn (Section 12 - doc-adr) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-
-    <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-
-    <!-- Cho phép kiểm tra và mở ứng dụng Khách hàng (Oishi Customer) -->
-    <queries>
-        <package android:name="com.chuyen_de_2.foodorder.customer" />
-    </queries>
-
-    <application
-        android:name=".FoodOrderInternalApp"
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.FoodOrder.Internal">
-
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
-
-        <!-- Auth -->
-        <activity
-            android:name=".ui.auth.LoginActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
-            android:name=".ui.auth.RegisterActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <activity
-            android:name=".ui.auth.OtpVerificationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Phiếu địa chỉ bắt buộc & Xác minh thông tin Quán -->
-        <activity
-            android:name=".ui.auth.StoreVerificationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Màn hình ghim vị trí quán trên bản đồ -->
-        <activity
-            android:name=".ui.auth.SelectLocationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Dashboard (RBAC routing) -->
-        <activity
-            android:name=".ui.dashboard.DashboardActivity"
-            android:theme="@style/Theme.FoodOrder.Internal" />
-
-        <!-- Màn hình Quản lý Chuỗi Chi Nhánh dành riêng cho BOSSMERCHANT -->
-        <activity
-            android:name=".ui.boss.BossDashboardActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
-        <activity
-            android:name=".ui.ship.DeliveryTripActivity"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
-        <service
-            android:name=".service.LocationForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-
-        <!-- FCM Service -->
-        <service
-            android:name=".service.InternalFCMService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
-        <!-- Dịch vụ tiền cảnh giữ kết nối Quán ăn & VietQR 24/7 không bị hệ điều hành diệt -->
-        <service
-            android:name=".service.MerchantKeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
-        <service
-            android:name=".service.BankNotificationListenerService"
-            android:label="Tự Động Duyệt Thanh Toán Oishi"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- FileProvider cho phép Camera chụp ảnh thẻ CCCD & ảnh quán -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-
-    </application>
-</manifest>
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/payment/PaymentActivity.kt
@@ -117322,403 +118881,6 @@ class LoginActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/OtpVerificationActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.auth
-
-import android.content.Intent
-import android.content.res.ColorStateList
-import android.os.Bundle
-import android.os.CountDownTimer
-import android.view.MotionEvent
-import android.view.View
-import android.view.inputmethod.InputMethodManager
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
-import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityOtpVerificationInternalBinding
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập đối tác.
- * Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật,
- * bộ đếm ngược thời gian và nút gửi lại trực quan.
- */
-@AndroidEntryPoint
-class OtpVerificationActivity : AppCompatActivity() {
-
-    companion object {
-        const val EXTRA_FLOW = "extra_flow"
-        const val FLOW_REGISTER = "flow_register"
-        const val FLOW_LOGIN = "flow_login"
-
-        const val EXTRA_NAME = "extra_name"
-        const val EXTRA_EMAIL = "extra_email"
-        const val EXTRA_PASSWORD = "extra_password"
-        const val EXTRA_CONFIRM_PASSWORD = "extra_confirm_password"
-        const val EXTRA_PHONE = "extra_phone"
-        const val EXTRA_ROLE = "extra_role"
-    }
-
-    private lateinit var binding: ActivityOtpVerificationInternalBinding
-    private val viewModel: AuthViewModel by viewModels()
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    private var flow: String = FLOW_REGISTER
-    private var name: String = ""
-    private var email: String = ""
-    private var password: String = ""
-    private var confirmPassword: String = ""
-    private var phone: String = ""
-    private var role: String = User.Role.BOSSMERCHANT
-
-    private var countDownTimer: CountDownTimer? = null
-    private var isResendEnabled = false
-
-    private val otpBoxes: List<TextView> by lazy {
-        listOf(
-            binding.tvOtp1,
-            binding.tvOtp2,
-            binding.tvOtp3,
-            binding.tvOtp4,
-            binding.tvOtp5,
-            binding.tvOtp6
-        )
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityOtpVerificationInternalBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyImeAndSystemInsets(binding.root)
-
-        flow = intent.getStringExtra(EXTRA_FLOW) ?: FLOW_REGISTER
-        email = intent.getStringExtra(EXTRA_EMAIL).orEmpty().trim().lowercase()
-        password = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
-
-        if (flow == FLOW_LOGIN) {
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng nhập không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        } else {
-            name = intent.getStringExtra(EXTRA_NAME).orEmpty()
-            confirmPassword = intent.getStringExtra(EXTRA_CONFIRM_PASSWORD).orEmpty()
-            phone = intent.getStringExtra(EXTRA_PHONE).orEmpty()
-            role = intent.getStringExtra(EXTRA_ROLE)?.takeIf { it.isNotBlank() } ?: User.Role.BOSSMERCHANT
-
-            if (email.isBlank() || password.isBlank()) {
-                Toast.makeText(this, "Thông tin đăng ký không hợp lệ", Toast.LENGTH_SHORT).show()
-                finish()
-                return
-            }
-        }
-
-        setupUI()
-        observeViewModel()
-        startCountdown()
-    }
-
-    private fun setupUI() {
-        binding.tvTargetEmail.text = email
-
-        if (flow == FLOW_LOGIN) {
-            binding.tvTitle.text = "Xác Thực Đăng Nhập"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Đăng Nhập"
-        } else {
-            binding.tvTitle.text = "Xác Thực Mã OTP"
-            binding.tvSubtitle.text = "Mã xác thực gồm 6 chữ số đã được gửi đến:"
-            binding.btnConfirmRegister.text = "Xác Nhận & Tạo Tài Khoản"
-        }
-
-        binding.btnBack.setOnClickListener {
-            finish()
-        }
-
-        // Khởi tạo trạng thái 6 ô số OTP
-        updateOtpBoxes("")
-
-        // Nhấn vào khung OTP để kích hoạt bàn phím số
-        binding.layoutOtpContainer.setOnClickListener {
-            binding.etOtp.requestFocus()
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }
-
-        // Tự động focus và mở bàn phím số khi vào màn hình
-        binding.etOtp.requestFocus()
-        binding.etOtp.postDelayed({
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(binding.etOtp, InputMethodManager.SHOW_IMPLICIT)
-        }, 250)
-
-        binding.etOtp.doAfterTextChanged { s ->
-            showOtpError(null)
-            val code = s?.toString()?.trim().orEmpty()
-            updateOtpBoxes(code)
-
-            if (code.length == 6 && code.all { it.isDigit() } && viewModel.isLoading.value != true) {
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(binding.etOtp.windowToken, 0)
-                submitOtpVerification(code)
-            }
-        }
-
-        binding.btnResendOtp.setOnClickListener {
-            if (!isResendEnabled) return@setOnClickListener
-            showOtpError(null)
-            isResendEnabled = false
-            binding.btnResendOtp.isEnabled = false
-            if (flow == FLOW_LOGIN) {
-                viewModel.requestLoginOtp(email)
-            } else {
-                viewModel.requestEmailOtp(email)
-            }
-        }
-
-        binding.btnConfirmRegister.setOnClickListener {
-            val code = binding.etOtp.text?.toString()?.trim().orEmpty()
-            if (code.length != 6 || !code.all { it.isDigit() }) {
-                showOtpError("Vui lòng nhập đúng 6 chữ số mã OTP")
-                binding.etOtp.requestFocus()
-                return@setOnClickListener
-            }
-            submitOtpVerification(code)
-        }
-    }
-
-    /**
-     * Cập nhật giao diện 6 ô số tương ứng với chuỗi ký tự đã nhập.
-     */
-    private fun updateOtpBoxes(code: String, hasError: Boolean = false) {
-        val cleanCode = code.filter { it.isDigit() }
-        for (i in otpBoxes.indices) {
-            val box = otpBoxes[i]
-            if (i < cleanCode.length) {
-                box.text = cleanCode[i].toString()
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_filled
-                )
-            } else if (i == cleanCode.length) {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_active
-                )
-            } else {
-                box.text = ""
-                box.setBackgroundResource(
-                    if (hasError) R.drawable.bg_otp_box_error else R.drawable.bg_otp_box_empty
-                )
-            }
-        }
-    }
-
-    private fun showOtpError(errorMsg: String?) {
-        if (errorMsg.isNullOrBlank()) {
-            binding.tvOtpError.visibility = View.GONE
-            binding.tvOtpError.text = ""
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = false)
-        } else {
-            binding.tvOtpError.visibility = View.VISIBLE
-            binding.tvOtpError.text = errorMsg
-            updateOtpBoxes(binding.etOtp.text?.toString().orEmpty(), hasError = true)
-        }
-    }
-
-    private fun submitOtpVerification(code: String) {
-        if (flow == FLOW_LOGIN) {
-            viewModel.verifyLoginOtp(email, password, code)
-        } else {
-            viewModel.registerWithOtp(
-                name = name,
-                email = email,
-                pass = password,
-                confirmPass = confirmPassword,
-                role = role,
-                phone = phone,
-                otpCode = code
-            )
-        }
-    }
-
-    private fun observeViewModel() {
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.btnConfirmRegister.isEnabled = !isLoading
-            binding.etOtp.isEnabled = !isLoading
-        }
-
-        viewModel.otpRequestResult.observe(this) { result ->
-            result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, email)
-                Toast.makeText(this, "Đã gửi lại mã OTP đến $email. Vui lòng kiểm tra email!", Toast.LENGTH_LONG).show()
-                startCountdown(60_000L)
-                binding.etOtp.requestFocus()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    val remaining = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-                    Toast.makeText(this, "Mã OTP đã được gửi trước đó vẫn còn hiệu lực. Vui lòng kiểm tra email!", Toast.LENGTH_SHORT).show()
-                    startCountdown(if (remaining > 0L) remaining else 30_000L)
-                } else {
-                    setResendAvailableState()
-                    Toast.makeText(this, error.message ?: "Không gửi được mã OTP", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        viewModel.registerResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(
-                    this,
-                    "Đăng ký đối tác thành công! Bạn có thể đăng nhập ngay.",
-                    Toast.LENGTH_LONG
-                ).show()
-                setResult(RESULT_OK)
-                finish()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Xác thực đăng ký thất bại." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-
-        viewModel.loginOtpResult.observe(this) { result ->
-            result.onSuccess {
-                countDownTimer?.cancel()
-                RegistrationOtpManager.clearPendingOtp(this, email)
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                checkRoleAndRoute()
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Gửi lại' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin." }
-                }
-                showOtpError(userMsg)
-                binding.etOtp.requestFocus()
-                Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun checkRoleAndRoute() {
-        lifecycleScope.launch {
-            try {
-                val statusCheck = authRepository.checkAccountActiveStatus()
-                if (statusCheck.isFailure) {
-                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                    AlertDialog.Builder(this@OtpVerificationActivity)
-                        .setTitle("Tài khoản bị khóa")
-                        .setMessage(reason)
-                        .setPositiveButton("Đóng") { _, _ -> finish() }
-                        .show()
-                } else {
-                    val intent = Intent(this@OtpVerificationActivity, DashboardActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun startCountdown(durationMs: Long = -1L) {
-        countDownTimer?.cancel()
-        val remainingMs = if (durationMs >= 0L) {
-            durationMs
-        } else {
-            val cooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-            if (cooldown > 0L) cooldown else 0L
-        }
-
-        if (remainingMs <= 0L) {
-            setResendAvailableState()
-            return
-        }
-
-        isResendEnabled = false
-        binding.btnResendOtp.isEnabled = false
-        binding.ivResendIcon.setImageResource(R.drawable.ic_clock)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.text_secondary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-
-        countDownTimer = object : CountDownTimer(remainingMs, 1_000L) {
-            override fun onTick(millisUntilFinished: Long) {
-                val sec = (millisUntilFinished + 999) / 1000
-                binding.btnResendOtp.text = "Gửi lại (${sec}s)"
-            }
-
-            override fun onFinish() {
-                setResendAvailableState()
-            }
-        }.start()
-    }
-
-    private fun setResendAvailableState() {
-        isResendEnabled = true
-        binding.btnResendOtp.isEnabled = true
-        binding.btnResendOtp.text = "Gửi lại ngay"
-        binding.ivResendIcon.setImageResource(R.drawable.ic_refresh)
-        binding.ivResendIcon.imageTintList = ContextCompat.getColorStateList(this, R.color.primary)
-        binding.btnResendOtp.setTextColor(ContextCompat.getColor(this, R.color.primary))
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        countDownTimer?.cancel()
-    }
-}
-````
-
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Order.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.model
@@ -117774,6 +118936,15 @@ data class Order(
 
     @SerializedName("shipperPhone")
     var shipperPhone: String = "",
+
+    @SerializedName("chefId")
+    var chefId: String? = null,
+
+    @SerializedName("chefName")
+    var chefName: String = "",
+
+    @SerializedName("chefPhone")
+    var chefPhone: String = "",
 
     @SerializedName("address")
     val address: String = "",
@@ -118927,24 +120098,40 @@ class DashboardActivity : AppCompatActivity() {
                 User.Role.SHIPPER, User.Role.DRIVER -> {
                     setupShipperNavigation()
                 }
+                User.Role.CHEF -> {
+                    setupChefNavigation()
+                }
                 User.Role.CUSTOMER -> {
+                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                        .setTitle("🛵 Kích Hoạt Vai Trò Quán / Tài Xế")
+                        .setTitle("Kích Hoạt Vai Trò Đối Tác")
                         .setMessage("Tài khoản (${authRepository.currentUser?.email}) hiện đang ở vai trò Khách hàng.\n\nBạn muốn sử dụng tài khoản này trên Oishi Internal với vai trò nào?")
-                        .setPositiveButton("🛵 Tôi là Tài Xế (Shipper)") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.DRIVER)
-                                Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Tài Xế!", Toast.LENGTH_SHORT).show()
-                                setupShipperNavigation()
+                        .setItems(partnerRoles) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.MERCHANT)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn!", Toast.LENGTH_SHORT).show()
+                                        checkMerchantVerificationAndProceed()
+                                    }
+                                }
+                                1 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.DRIVER)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Tài Xế!", Toast.LENGTH_SHORT).show()
+                                        setupShipperNavigation()
+                                    }
+                                }
+                                2 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.CHEF)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Đầu Bếp!", Toast.LENGTH_SHORT).show()
+                                        setupChefNavigation()
+                                    }
+                                }
                             }
                         }
-                        .setNegativeButton("🏪 Tôi là Quán Ăn") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.MERCHANT)
-                                checkMerchantVerificationAndProceed()
-                            }
-                        }
-                        .setNeutralButton("🚪 Đăng xuất") { _, _ ->
+                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -118955,25 +120142,36 @@ class DashboardActivity : AppCompatActivity() {
                         .show()
                 }
                 else -> {
-                    // Nếu tài khoản chưa có vai trò đối tác, cho phép người dùng chọn Quán ăn hoặc Tài xế để kích hoạt ngay
+                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
                     androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
                         .setTitle("🏪 Kích Hoạt Vai Trò Đối Tác")
                         .setMessage("Tài khoản của bạn hiện tại chưa được kích hoạt vai trò Đối Tác trên ứng dụng Oishi Internal.\n\nBạn muốn sử dụng tài khoản này với vai trò gì?")
-                        .setPositiveButton("🏪 Tôi là Quán Ăn") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.MERCHANT)
-                                Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
-                                checkMerchantVerificationAndProceed()
+                        .setItems(partnerRoles) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.MERCHANT)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
+                                        checkMerchantVerificationAndProceed()
+                                    }
+                                }
+                                1 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.DRIVER)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Tài Xế thành công!", Toast.LENGTH_SHORT).show()
+                                        setupShipperNavigation()
+                                    }
+                                }
+                                2 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.CHEF)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Đầu Bếp thành công!", Toast.LENGTH_SHORT).show()
+                                        setupChefNavigation()
+                                    }
+                                }
                             }
                         }
-                        .setNegativeButton("🛵 Tôi là Tài Xế") { _, _ ->
-                            lifecycleScope.launch {
-                                authRepository.setUserRole(User.Role.DRIVER)
-                                Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Tài Xế thành công!", Toast.LENGTH_SHORT).show()
-                                setupShipperNavigation()
-                            }
-                        }
-                        .setNeutralButton("🚪 Đăng xuất") { _, _ ->
+                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
                             authRepository.logout()
                             startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -119140,6 +120338,19 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         binding.bottomNavShipper.selectedItemId = R.id.nav_shipper_orders
+    }
+
+    /**
+     * Thiết lập giao diện điều phối cho Đầu Bếp (Kitchen / Chef Navigation)
+     */
+    private fun setupChefNavigation() {
+        isMerchantMode = false
+        binding.toolbar.visibility = android.view.View.GONE
+        binding.bottomNavMerchant.visibility = android.view.View.GONE
+        binding.bottomNavShipper.visibility = android.view.View.GONE
+        applyWindowPadding()
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
+        loadFragment(com.chuyen_de_2.foodorder.internal.ui.chef.ChefFragment())
     }
 
     /**
@@ -119476,25 +120687,49 @@ class OrderAdapter(
                 }
 
                 Order.Status.PREPARING -> {
-                    // Bước 2: Đã xác nhận -> Bếp đang nấu
-                    binding.tvOrderBadge.text = "✓ Đã nhận • Bếp đang nấu"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_blue)
-                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-
+                    // Bước 2: Đã xác nhận -> Chuyển giao cho Đầu Bếp (Merchant không thể xác nhận nấu xong)
                     binding.boxDriverStatus.visibility = View.VISIBLE
                     binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_searching)
-                    binding.tvDriverStatusTxt.apply {
-                        text = "⏳ Bếp đang chế biến món • Nấu xong mới phát đơn cho tài xế nhận"
-                        setTextColor(Color.parseColor("#B45309"))
-                    }
                     binding.btnCallDriver.visibility = View.GONE
 
-                    binding.btnMainAction.visibility = View.VISIBLE
-                    binding.btnMainAction.apply {
-                        isEnabled = true
-                        text = "🍳 XÁC NHẬN ĐÃ NẤU XONG ➔"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
-                        setTextColor(Color.WHITE)
+                    val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+                    if (!hasChef) {
+                        binding.tvOrderBadge.text = "⏳ Chờ Đầu Bếp Nhận Nấu"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+
+                        binding.tvDriverStatusTxt.apply {
+                            text = "👨‍🍳 Đơn đã duyệt. Đang chờ Đầu bếp bấm nhận nấu..."
+                            setTextColor(Color.parseColor("#B45309"))
+                        }
+
+                        binding.btnMainAction.visibility = View.VISIBLE
+                        binding.btnMainAction.apply {
+                            isEnabled = false
+                            alpha = 0.65f
+                            text = "CHỜ ĐẦU BẾP NHẬN NẤU"
+                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.text_secondary)
+                            setTextColor(Color.WHITE)
+                        }
+                    } else {
+                        val chefDisplayName = if (order.chefName.isNotBlank()) order.chefName else "Đầu Bếp"
+                        binding.tvOrderBadge.text = "🔥 Bếp đang nấu ($chefDisplayName)"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_blue)
+                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+
+                        binding.tvDriverStatusTxt.apply {
+                            text = "👨‍🍳 $chefDisplayName đang nấu món • Chờ đầu bếp xác nhận xong"
+                            setTextColor(Color.parseColor("#1D4ED8"))
+                        }
+
+                        binding.btnMainAction.visibility = View.VISIBLE
+                        binding.btnMainAction.apply {
+                            isEnabled = false
+                            alpha = 0.65f
+                            text = "BẾP ĐANG NẤU ($chefDisplayName)"
+                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_orange)
+                            setTextColor(Color.WHITE)
+                        }
                     }
                 }
 
@@ -121545,13 +122780,19 @@ class OrderListFragment : Fragment() {
                 ).show()
             }
             Order.Status.PREPARING -> {
-                // BƯỚC 2: XÁC NHẬN ĐÃ NẤU XONG -> CHUYỂN SANG READY (TÀI XẾ NHẬN ĐƠN)
-                viewModel.markCookingDone(order.orderId)
-                Toast.makeText(
-                    requireContext(),
-                    "✓ Quán đã XÁC NHẬN ĐÃ NẤU XONG!\nMón ăn đã sẵn sàng. Khi tài xế đến quầy nhận túi món, bấm nút 'XÁC NHẬN GIAO CHO TÀI XẾ' để hoàn tất.",
-                    Toast.LENGTH_LONG
-                ).show()
+                // QUYỀN HẠN ĐẦU BẾP: Quản lý không thể xác nhận nấu xong thay cho đầu bếp
+                val chefName = if (order.chefName.isNotBlank()) order.chefName else "Đầu bếp"
+                val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+                val message = if (hasChef) {
+                    "Đơn hàng đang được đầu bếp ($chefName) chế biến.\n\nTheo quy trình phân quyền, chỉ Đầu Bếp nhận đơn mới có quyền bấm 'Xác nhận đã nấu xong'!"
+                } else {
+                    "Đơn hàng đang chờ Đầu Bếp bấm nhận nấu trên ứng dụng Bếp.\n\nQuản lý không thể xác nhận nấu xong thay cho đầu bếp!"
+                }
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("👨‍🍳 Phân quyền Bếp chế biến")
+                    .setMessage(message)
+                    .setPositiveButton("Đã hiểu", null)
+                    .show()
             }
             Order.Status.READY -> {
                 if (!order.shipperId.isNullOrBlank()) {
@@ -126045,6 +127286,131 @@ class FirebaseRepository @Inject constructor(
             } else {
                 onResult(false, task.exception?.message ?: "Lỗi hủy nhận đơn")
             }
+        }
+    }
+
+    /**
+     * Đầu bếp nhận nấu đơn hàng — Firebase Transaction
+     * Lock: Đơn phải ở trạng thái PREPARING và CHƯA có chefId.
+     */
+    fun assignChef(
+        orderId: String,
+        chefId: String,
+        chefName: String,
+        chefPhone: String = "",
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val dbRef = database.getReference("orders").child(orderId)
+
+        dbRef.runTransaction(object : Transaction.Handler {
+            override fun doTransaction(currentData: MutableData): Transaction.Result {
+                if (currentData.value == null) {
+                    return Transaction.success(currentData)
+                }
+
+                val currentChefId = currentData.child("chefId").getValue(String::class.java)
+
+                // Kiểm tra xem đơn đã có đầu bếp khác nhận nấu chưa
+                if (!currentChefId.isNullOrBlank() && currentChefId != "null") {
+                    return Transaction.abort() // Xung đột, đầu bếp khác đã nhận
+                }
+
+                val now = System.currentTimeMillis()
+                currentData.child("chefId").value = chefId
+                currentData.child("chefName").value = chefName
+                if (chefPhone.isNotBlank()) {
+                    currentData.child("chefPhone").value = chefPhone
+                }
+                currentData.child("updatedAt").value = now
+
+                return Transaction.success(currentData)
+            }
+
+            override fun onComplete(
+                error: DatabaseError?,
+                committed: Boolean,
+                snapshot: DataSnapshot?
+            ) {
+                if (committed) {
+                    onResult(true, "Nhận nấu đơn thành công!")
+                } else {
+                    onResult(false, error?.message ?: "Đơn đã có đầu bếp khác nhận nấu!")
+                }
+            }
+        })
+    }
+
+    /**
+     * Đầu bếp hủy nhận nấu đơn (trả về danh sách chờ bếp của quán)
+     */
+    fun unassignChef(
+        orderId: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val dbRef = database.getReference("orders").child(orderId)
+        val updates = mapOf<String, Any?>(
+            "chefId" to null,
+            "chefName" to "",
+            "chefPhone" to "",
+            "updatedAt" to System.currentTimeMillis()
+        )
+        dbRef.updateChildren(updates).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                onResult(true, "Đã hoàn trả đơn về danh sách chờ bếp nhận!")
+            } else {
+                onResult(false, task.exception?.message ?: "Lỗi hủy nhận nấu")
+            }
+        }
+    }
+
+    /**
+     * Đầu bếp xác nhận đã nấu xong đơn -> chuyển sang READY để phát cho tài xế
+     */
+    fun markCookingDoneByChef(
+        orderId: String,
+        chefId: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        val dbRef = database.getReference("orders").child(orderId)
+        val now = System.currentTimeMillis()
+        val updates = mapOf<String, Any?>(
+            "status" to Order.Status.READY,
+            "orderStatus" to Order.Status.READY,
+            "isCooked" to true,
+            "cookedAt" to now,
+            "updatedAt" to now
+        )
+        dbRef.updateChildren(updates).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                onResult(true, "Xác nhận đã nấu xong thành công! Đã chuyển đơn sang sẵn sàng giao.")
+            } else {
+                onResult(false, task.exception?.message ?: "Lỗi cập nhật trạng thái đơn")
+            }
+        }
+    }
+
+    /**
+     * Tìm thông tin Quán của Đầu bếp (storeId, storeName)
+     */
+    suspend fun resolveStoreForChef(chefUid: String): Pair<String, String> {
+        if (chefUid.isBlank()) return Pair("", "")
+        return try {
+            val userSnap = database.getReference("users").child(chefUid).get().await()
+            var storeId = userSnap.child("storeId").getValue(String::class.java).orEmpty()
+            if (storeId.isBlank()) {
+                val chefSnap = database.getReference("chefs").child(chefUid).get().await()
+                storeId = chefSnap.child("storeId").getValue(String::class.java).orEmpty()
+            }
+            if (storeId.isNotBlank()) {
+                val storeSnap = database.getReference("stores").child(storeId).get().await()
+                val storeName = storeSnap.child("name").getValue(String::class.java)
+                    ?: storeSnap.child("storeName").getValue(String::class.java).orEmpty()
+                Pair(storeId, storeName)
+            } else {
+                Pair("", "")
+            }
+        } catch (_: Exception) {
+            Pair("", "")
         }
     }
 

@@ -52,6 +52,15 @@ data class Order(
     @SerializedName("shipperPhone")
     var shipperPhone: String = "",
 
+    @SerializedName("chefId")
+    var chefId: String? = null,
+
+    @SerializedName("chefName")
+    var chefName: String = "",
+
+    @SerializedName("chefPhone")
+    var chefPhone: String = "",
+
     @SerializedName("address")
     val address: String = "",
 

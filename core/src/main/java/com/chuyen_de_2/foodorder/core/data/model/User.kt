@@ -79,6 +79,7 @@ data class User(
         const val MANAGER = "MANAGER"
         const val DRIVER = "DRIVER"
         const val SHIPPER = "SHIPPER"
+        const val CHEF = "CHEF"
     }
 
     /** Trạng thái tài khoản */

@@ -67,7 +67,7 @@ class AuthRepository @Inject constructor(
                     ?.child("role")
                     ?.getValue(String::class.java)
                     .orEmpty()
-                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER) &&
+                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER, User.Role.CHEF) &&
                     (!verificationState
                         ?.child("storeId")
                         ?.getValue(String::class.java)
@@ -904,6 +904,7 @@ class AuthRepository @Inject constructor(
                 "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
                 "MERCHANT", "MANAGER" -> User.Role.MERCHANT
                 "DRIVER", "SHIPPER" -> User.Role.DRIVER
+                "CHEF", "COOK" -> User.Role.CHEF
                 "ADMIN" -> User.Role.ADMIN
                 else -> User.Role.CUSTOMER
             }
@@ -912,6 +913,7 @@ class AuthRepository @Inject constructor(
                 User.Role.BOSSMERCHANT -> 5
                 User.Role.MERCHANT -> 3
                 User.Role.DRIVER -> 4
+                User.Role.CHEF -> 6
                 else -> 2
             }
 
@@ -1170,7 +1172,7 @@ class AuthRepository @Inject constructor(
                 return Pair(User.Role.DRIVER, driverStoreId)
             }
 
-            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN || normRole == User.Role.BOSSMERCHANT) {
+            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN || normRole == User.Role.BOSSMERCHANT || normRole == User.Role.CHEF) {
                 return Pair(currentRole, currentStoreId)
             }
             if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {

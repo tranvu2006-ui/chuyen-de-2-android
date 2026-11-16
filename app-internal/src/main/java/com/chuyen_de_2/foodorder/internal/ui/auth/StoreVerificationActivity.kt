@@ -283,6 +283,7 @@ class StoreVerificationActivity : AppCompatActivity() {
             }
 
             if (currentStoreId.isNotBlank()) {
+                firebaseRepository.removeStoreHoursAndPrepTime(currentStoreId)
                 val store = firebaseRepository.getStoreOnce(currentStoreId)
                 store?.let {
                     if (it.name.isNotBlank() && it.name != "Quán Ăn Mới") {
@@ -541,8 +542,6 @@ class StoreVerificationActivity : AppCompatActivity() {
         val phone = binding.etStorePhone.text.toString().trim()
         val address = binding.etStoreAddress.text.toString().trim()
         val district = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
-        val openHours = "08:00 - 22:30"
-        val prepTime = "15 phút"
 
         val ownerName = binding.etOwnerName.text.toString().trim()
         val cccd = binding.etCccdNumber.text.toString().trim()
@@ -646,9 +645,7 @@ class StoreVerificationActivity : AppCompatActivity() {
                 bankAccountName = bankAccountName,
                 bankBin = selectedBank.bin,
                 latitude = resolvedLat,
-                longitude = resolvedLng,
-                openHours = openHours,
-                prepTime = prepTime
+                longitude = resolvedLng
             )
 
             binding.progressBarVerification.visibility = View.GONE

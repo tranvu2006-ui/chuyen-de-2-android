@@ -55,7 +55,12 @@ class AdminStoreDetailBottomSheetDialogFragment(
         binding.tvDetailStoreId.text = "Mã quán: ${store.id}"
         binding.tvDetailAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật" }} (${store.district.ifBlank { "Quận chưa rõ" }})"
         binding.tvDetailPhone.text = "Số điện thoại: ${store.phone.ifBlank { "Chưa cập nhật" }}"
-        binding.tvDetailHours.text = "Giờ mở cửa: ${store.openHours.ifBlank { "08:00 - 22:00" }} (Thời gian làm món: ${store.prepTime.ifBlank { "15 phút" }})"
+        if (store.openHours.isNotBlank() || store.prepTime.isNotBlank()) {
+            binding.tvDetailHours.visibility = View.VISIBLE
+            binding.tvDetailHours.text = "Giờ mở cửa: ${store.openHours} (Thời gian làm món: ${store.prepTime})"
+        } else {
+            binding.tvDetailHours.visibility = View.GONE
+        }
 
         // Chain & Manager info
         if (store.bossId.isNotBlank()) {

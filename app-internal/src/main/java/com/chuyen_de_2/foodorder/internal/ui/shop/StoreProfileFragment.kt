@@ -280,8 +280,12 @@ class StoreProfileFragment : Fragment() {
         binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
         binding.tvProfileCccd.text = store.cccdNumber.ifBlank { "Chưa cập nhật" }
         binding.tvProfilePhone.text = store.phone.ifBlank { "Chưa cập nhật" }
-        binding.tvProfileOpenHours.text = store.openHours.ifBlank { "08:00 - 22:00" }
-        binding.tvProfilePrepTime.text = store.prepTime.ifBlank { "15 phút" }
+
+        if (store.openHours.isNotBlank() || store.prepTime.isNotBlank()) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                firebaseRepository.removeStoreHoursAndPrepTime(store.id)
+            }
+        }
 
         // Tài khoản ngân hàng VietQR
         binding.tvProfileBankName.text = store.bankName.ifBlank { "Chưa cập nhật" }
@@ -330,8 +334,8 @@ class StoreProfileFragment : Fragment() {
             address = "",
             district = "",
             ownerName = user?.displayName ?: "",
-            openHours = "08:00 - 22:00",
-            prepTime = "15 phút",
+            openHours = "",
+            prepTime = "",
             isVerified = false,
             cccdNumber = "",
             storeStatus = Store.StoreStatus.OPEN
@@ -404,8 +408,6 @@ class StoreProfileFragment : Fragment() {
         val etAddress = dialog.findViewById<EditText>(R.id.etStoreAddress)
         val etDistrict = dialog.findViewById<EditText>(R.id.etStoreDistrict)
         val etOwner = dialog.findViewById<EditText>(R.id.etOwnerName)
-        val etOpenHours = dialog.findViewById<EditText>(R.id.etOpenHours)
-        val etPrepTime = dialog.findViewById<EditText>(R.id.etPrepTime)
 
         currentDialogEtAddress = etAddress
         currentDialogEtDistrict = etDistrict
@@ -458,8 +460,6 @@ class StoreProfileFragment : Fragment() {
         etAddress.setText(store.address)
         etDistrict.setText(store.district)
         etOwner.setText(store.ownerName)
-        etOpenHours.setText(store.openHours.ifBlank { "08:00 - 22:30" })
-        etPrepTime.setText(store.prepTime.ifBlank { "15 phút" })
         etBankNo.setText(store.bankAccountNumber)
         etBankOwner.setText(store.bankAccountName)
 
@@ -472,8 +472,6 @@ class StoreProfileFragment : Fragment() {
             val newAddress = etAddress.text.toString().trim()
             val newDistrict = etDistrict.text.toString().trim()
             val newOwner = etOwner.text.toString().trim()
-            val newOpenHours = etOpenHours.text.toString().trim().ifBlank { "08:00 - 22:30" }
-            val newPrepTime = etPrepTime.text.toString().trim().ifBlank { "15 phút" }
 
             val selectedBank = supportedBanks.getOrNull(spBank.selectedItemPosition) ?: supportedBanks[0]
             val newBankName = selectedBank.name
@@ -516,8 +514,6 @@ class StoreProfileFragment : Fragment() {
                     address = newAddress,
                     district = newDistrict,
                     ownerName = newOwner,
-                    openHours = newOpenHours,
-                    prepTime = newPrepTime,
                     imageUrl = avatarToSave,
                     bankName = newBankName,
                     bankAccountNumber = newBankNo,

@@ -1115,6 +1115,15 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
+    /** Xóa hoàn toàn các trường giờ mở cửa và thời gian làm món khỏi node quán trên Firebase */
+    suspend fun removeStoreHoursAndPrepTime(storeId: String) {
+        if (storeId.isBlank()) return
+        try {
+            database.getReference("stores").child(storeId).child("openHours").removeValue().await()
+            database.getReference("stores").child(storeId).child("prepTime").removeValue().await()
+        } catch (_: Exception) {}
+    }
+
     /** Cập nhật thông tin hồ sơ quán ăn lên Firebase (bao gồm tài khoản ngân hàng) */
     suspend fun updateStoreProfile(
         storeId: String,
@@ -1123,8 +1132,8 @@ class FirebaseRepository @Inject constructor(
         address: String,
         district: String,
         ownerName: String,
-        openHours: String,
-        prepTime: String,
+        openHours: String = "",
+        prepTime: String = "",
         bankName: String = "",
         bankAccountNumber: String = "",
         bankAccountName: String = "",
@@ -1139,10 +1148,9 @@ class FirebaseRepository @Inject constructor(
                 "phone" to phone,
                 "address" to address,
                 "district" to district,
-                "ownerName" to ownerName,
-                "openHours" to openHours,
-                "prepTime" to prepTime
+                "ownerName" to ownerName
             )
+            removeStoreHoursAndPrepTime(storeId)
             if (bankName.isNotBlank()) updates["bankName"] = bankName
             if (bankAccountNumber.isNotBlank()) updates["bankAccountNumber"] = bankAccountNumber
             if (bankAccountName.isNotBlank()) updates["bankAccountName"] = bankAccountName
@@ -1246,8 +1254,8 @@ class FirebaseRepository @Inject constructor(
         bankBin: String = "",
         latitude: Double = 0.0,
         longitude: Double = 0.0,
-        openHours: String = "08:00 - 22:30",
-        prepTime: String = "15 phút"
+        openHours: String = "",
+        prepTime: String = ""
     ): Result<Unit> {
         return try {
             val updates = mutableMapOf<String, Any>(
@@ -1261,14 +1269,14 @@ class FirebaseRepository @Inject constructor(
                 "bankName" to bankName.trim(),
                 "bankAccountNumber" to bankAccountNumber.trim(),
                 "bankAccountName" to bankAccountName.trim().uppercase(),
-                "openHours" to openHours.trim(),
-                "prepTime" to prepTime.trim(),
                 "isVerified" to false,
                 "verified" to false,
                 "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
                 "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
                 "open" to false
             )
+            // Xóa triệt để các trường openHours và prepTime khỏi Firebase
+            removeStoreHoursAndPrepTime(storeId)
             if (merchantUid.isNotBlank()) {
                 val userSnap = try { database.getReference("users").child(merchantUid).get().await() } catch (_: Exception) { null }
                 val userRole = userSnap?.child("role")?.getValue(String::class.java).orEmpty().uppercase()
@@ -1344,8 +1352,11 @@ class FirebaseRepository @Inject constructor(
                     for (child in allStoresSnap.children) {
                         val bId = child.child("bossId").getValue(String::class.java).orEmpty()
                         val cKey = child.key.orEmpty()
-                        if (bId == bossUid && cKey.isNotBlank() && cKey != storeId) {
-                            database.getReference("stores").child(cKey).updateChildren(legalUpdates).await()
+                        if (bId == bossUid && cKey.isNotBlank()) {
+                            removeStoreHoursAndPrepTime(cKey)
+                            if (cKey != storeId) {
+                                database.getReference("stores").child(cKey).updateChildren(legalUpdates).await()
+                            }
                         }
                     }
                 } catch (_: Exception) {}
@@ -2922,8 +2933,6 @@ class FirebaseRepository @Inject constructor(
                 "open" to (finalStore.storeStatus == com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN),
                 "statusId" to finalStore.statusId,
                 "ownerName" to finalStore.ownerName,
-                "openHours" to finalStore.openHours,
-                "prepTime" to finalStore.prepTime,
                 "isVerified" to finalStore.isVerified,
                 "verified" to finalStore.isVerified,
                 "cccdNumber" to finalStore.cccdNumber,

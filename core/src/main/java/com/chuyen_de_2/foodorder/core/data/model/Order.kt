@@ -40,9 +40,6 @@ data class Order(
     @SerializedName("shopImageUrl", alternate = ["shopImage", "storeImageUrl", "storeImage"])
     val shopImageUrl: String = "",
 
-    @SerializedName("driverId")
-    var driverId: String? = null,
-
     @SerializedName("shipperId")
     var shipperId: String? = null,
 
@@ -197,7 +194,11 @@ data class Order(
 
     @get:Exclude
     val effectiveDriverId: String
-        get() = driverId ?: shipperId ?: ""
+        get() = shipperId ?: ""
+
+    @get:Exclude
+    val effectiveShipperId: String
+        get() = shipperId ?: ""
 
     @get:Exclude
     val effectiveDriverName: String

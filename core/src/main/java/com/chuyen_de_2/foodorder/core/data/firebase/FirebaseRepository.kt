@@ -334,7 +334,6 @@ class FirebaseRepository @Inject constructor(
 
                 val now = System.currentTimeMillis()
                 currentData.child("shipperId").value = shipperId
-                currentData.child("driverId").value = shipperId
                 currentData.child("shipperName").value = shipperName
                 if (shipperPhone.isNotBlank()) {
                     currentData.child("shipperPhone").value = shipperPhone
@@ -373,7 +372,6 @@ class FirebaseRepository @Inject constructor(
             "shipperId" to null,
             "shipperName" to "",
             "shipperPhone" to "",
-            "driverId" to null,
             "status" to Order.Status.READY,
             "orderStatus" to Order.Status.READY,
             "updatedAt" to System.currentTimeMillis()

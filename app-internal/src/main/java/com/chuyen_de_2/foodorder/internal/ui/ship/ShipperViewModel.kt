@@ -197,7 +197,6 @@ class ShipperViewModel @Inject constructor(
             _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
             val updatedOrder = acceptedOrder.copy(
                 shipperId = shipperId,
-                driverId = shipperId,
                 shipperName = resolvedShipperName,
                 shipperPhone = resolvedShipperPhone,
                 status = Order.Status.ASSIGNED,

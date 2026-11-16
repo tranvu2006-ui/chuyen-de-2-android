@@ -291,14 +291,6 @@ class DriverListFragment : Fragment() {
                     chef.copy(activeOrdersCount = activeCount)
                 }
             }.collectLatest { syncedChefs ->
-                val totalChefs = syncedChefs.size
-                val cookingChefs = syncedChefs.count { it.activeOrdersCount > 0 }
-                val availableChefs = syncedChefs.count { it.activeOrdersCount == 0 }
-
-                binding.tvTotalChefs.text = totalChefs.toString()
-                binding.tvChefsCooking.text = cookingChefs.toString()
-                binding.tvChefsAvailable.text = availableChefs.toString()
-
                 if (syncedChefs.isEmpty()) {
                     binding.layoutEmptyChefs.visibility = View.VISIBLE
                     binding.rvChefs.visibility = View.GONE

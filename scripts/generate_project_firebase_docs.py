@@ -282,7 +282,7 @@ CODE_MODULES_DETAIL = [
     (":app-customer", "ui/cart/* & ui/checkout/* & ui/payment/*", "Quản lý giỏ hàng theo quán (Debounce sync), chọn/ghim địa chỉ bản đồ (SelectLocationActivity), kiểm tra điều kiện COD (trustScore >= 90), thanh toán VietQR/MoMo/Cọc 20%."),
     (":app-customer", "ui/tracking/* & ui/order/* & ui/complaint/*", "Theo dõi trạng thái đơn realtime, bản đồ GPS vị trí xe tài xế live từ tracking/{orderId}, chat trực tiếp với quán, hiện QR deliveryToken, đánh giá món & gửi khiếu nại."),
 
-    (":app-internal", "ui/auth/* & StoreVerificationActivity", "Đăng nhập chung 4 vai trò nội bộ (Boss/Quản lý/Bếp/Tài xế), đăng ký đối tác kèm chụp 4 ảnh CCCD & quét OCR tự động, chọn tọa độ quán trên bản đồ Leaflet (select_map.html)."),
+    (":app-internal", "ui/auth/* & StoreVerificationActivity", "Đăng nhập chung 4 vai trò nội bộ (Boss/Quản lý/Bếp/Tài xế), đăng ký & xác minh đối tác kèm chụp/tải ảnh CCCD mặt trước + mặt sau, chọn tọa độ quán trên bản đồ Leaflet (select_map.html)."),
     (":app-internal", "ui/boss/* (BossDashboardActivity)", "Bảng điều khiển Chủ chuỗi: Quản lý danh sách chi nhánh quán, tạo chi nhánh mới, tạo/gán/khóa tài khoản Quản lý chi nhánh (MERCHANT), xem tổng quan."),
     (":app-internal", "ui/shop/* (OrderListFragment, MenuManageFragment, StoreProfileFragment, StoreReportFragment)", "Bảng điều khiển Quản lý quán: Kanban tiếp nhận & duyệt đơn, công tắc Mở/Đóng bán (switchShopStatus), quản lý món & danh mục quán, chat khách, báo cáo doanh thu, điều phối Bếp/Shipper."),
     (":app-internal", "ui/chef/* (ChefFragment, ChefViewModel)", "Giao diện Đầu bếp nội bộ: Nhận đơn mới (PENDING -> PREPARING), đánh dấu nấu xong (READY) để tài xế giao."),
@@ -305,11 +305,11 @@ CORE_FLOWS = [
      "2) Sau khi xác thực OTP thành công (lưu cache 10 phút), app tạo/đăng nhập Firebase Auth và đồng bộ bản ghi lên node users/{uid}.\n"
      "3) Tài khoản admin@gmail.com được miễn OTP và tự động đồng bộ role=ADMIN.\n"
      "4) Khi người dùng đang mở app, AccountLockWatcher gắn listener WebSocket tại users/{uid}: nếu Admin bấm Khóa (status=LOCKED / isActive=false), app bật cảnh báo không thể tắt trong <500ms và buộc đăng xuất."),
-    ("2. Quy trình Chủ chuỗi (BOSS) & Kiểm duyệt KYC Quán (CCCD 4 ảnh)",
-     "BossDashboardActivity.kt, StoreVerificationActivity.kt, CccdOcrHelper.kt, AdminStoreListFragment.kt",
-     "1) Chủ quán/Boss đăng ký -> chụp 4 ảnh KYC (CCCD mặt trước, mặt sau, ảnh cầm CCCD, ảnh chân dung). ML Kit OCR tự động bóc tách số CCCD, họ tên, địa chỉ.\n"
-     "2) Hồ sơ lưu vào stores/{storeId} với storeStatus=PENDING và merchants/{uid}.\n"
-     "3) Admin mở :app-admin hoặc admin.html đối chiếu 4 ảnh -> Duyệt (storeStatus=OPEN, isVerified=true) hoặc Từ chối kèm lý do.\n"
+    ("2. Quy trình Chủ chuỗi (BOSS) & Kiểm duyệt KYC Quán (CCCD)",
+     "BossDashboardActivity.kt, StoreVerificationActivity.kt, AdminStoreListFragment.kt",
+     "1) Chủ quán/Boss gửi hồ sơ xác minh: nhập thông tin quán, chọn vị trí GPS trên bản đồ, chụp/tải lên ảnh CCCD mặt trước (cccdFrontUrl) và mặt sau (cccdBackUrl), nhập STK ngân hàng đối soát.\n"
+     "2) Hồ sơ lưu vào stores/{storeId} với storeStatus=PENDING và merchants/{uid} (hỗ trợ lưu đủ tới 4 loại ảnh CCCD trong model).\n"
+     "3) Admin mở :app-admin hoặc admin.html đối chiếu ảnh CCCD -> Duyệt (storeStatus=OPEN, isVerified=true) hoặc Từ chối kèm lý do.\n"
      "4) BOSSMERCHANT có thể tạo nhiều chi nhánh quán (lưu trong boss_stores/{bossUid}), tạo tài khoản MERCHANT bằng Firebase Auth phụ (không văng phiên Boss) và gán quản lý vào từng chi nhánh."),
     ("3. Quy trình Đặt hàng, Kiểm tra Điểm Uy Tín & Thanh toán Tự động",
      "CheckoutViewModel.kt, MomoPaymentGatewayClient.kt, BankNotificationListenerService.kt",

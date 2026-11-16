@@ -477,7 +477,8 @@ class OrderListFragment : Fragment() {
             },
             onWarningDetailClick = { order -> showWarningDetailModal(order) },
             onApproveCancelClick = { order -> showApproveCancelDialog(order) },
-            onRejectCancelClick = { order -> showRejectCancelDialog(order) }
+            onRejectCancelClick = { order -> showRejectCancelDialog(order) },
+            onShopCancelClick = { order -> showShopCancelOrderDialog(order) }
         )
 
         binding.rvOrders.apply {
@@ -522,6 +523,86 @@ class OrderListFragment : Fragment() {
                 val reason = input.text.toString().trim().ifBlank { "Quán đã nấu xong món ăn, không thể hủy" }
                 viewModel.rejectCancelOrder(order.orderId, reason)
                 Toast.makeText(requireContext(), "✓ Đã từ chối yêu cầu hủy đơn", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Quay Lại", null)
+            .show()
+    }
+
+    private fun showShopCancelOrderDialog(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
+        val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+        val canCancel = order.status == Order.Status.AWAITING_PAYMENT ||
+            order.status == Order.Status.PAID ||
+            order.status == Order.Status.PENDING ||
+            (order.status == Order.Status.PREPARING && !hasChef)
+        if (!canCancel) {
+            Toast.makeText(
+                requireContext(),
+                "Đầu bếp đã nhận nấu hoặc đơn đang giao, không thể hủy đơn này!",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val ctx = requireContext()
+        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
+        val quickReasons = listOf(
+            "Quán hết nguyên liệu món này",
+            "Quán đang quá tải đơn",
+            "Quán chuẩn bị đóng cửa / tạm ngưng nhận đơn",
+            "Lý do khác..."
+        )
+
+        val container = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 20, 48, 8)
+        }
+        val noticeTv = TextView(ctx).apply {
+            text = "Đơn $shortCode sẽ được hủy và gửi thông báo tới Khách hàng (không trừ điểm uy tín của khách)."
+            textSize = 13f
+            setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
+        }
+        container.addView(noticeTv)
+
+        val radioGroup = android.widget.RadioGroup(ctx).apply {
+            setPadding(0, 16, 0, 8)
+        }
+        val customInput = android.widget.EditText(ctx).apply {
+            hint = "Nhập lý do hủy đơn..."
+            visibility = View.GONE
+        }
+
+        quickReasons.forEachIndexed { index, label ->
+            val rb = android.widget.RadioButton(ctx).apply {
+                id = View.generateViewId()
+                text = label
+                textSize = 14f
+                isChecked = (index == 0)
+            }
+            radioGroup.addView(rb)
+        }
+        radioGroup.setOnCheckedChangeListener { group, checkedId ->
+            val selectedIdx = (0 until group.childCount).firstOrNull { group.getChildAt(it).id == checkedId } ?: 0
+            customInput.visibility = if (selectedIdx == quickReasons.lastIndex) View.VISIBLE else View.GONE
+        }
+        container.addView(radioGroup)
+        container.addView(customInput)
+
+        AlertDialog.Builder(ctx)
+            .setTitle("Hủy đơn hàng $shortCode?")
+            .setView(container)
+            .setPositiveButton("Xác Nhận Hủy Đơn") { _, _ ->
+                val selectedIdx = (0 until radioGroup.childCount).firstOrNull { radioGroup.getChildAt(it).id == radioGroup.checkedRadioButtonId } ?: 0
+                val reason = if (selectedIdx == quickReasons.lastIndex) {
+                    customInput.text.toString().trim().ifBlank { "Quán tạm ngưng nhận đơn" }
+                } else {
+                    quickReasons[selectedIdx]
+                }
+                viewModel.cancelOrderByShop(order.orderId, reason)
+                Toast.makeText(ctx, "✓ Đã hủy đơn $shortCode", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Quay Lại", null)
             .show()

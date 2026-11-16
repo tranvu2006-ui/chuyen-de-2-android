@@ -510,21 +510,41 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
-    /** Khách hàng hủy đơn trực tiếp khi đơn chưa được quán xác nhận (PENDING, PAID, AWAITING_PAYMENT) */
-    suspend fun cancelOrderImmediately(orderId: String, reason: String = "") {
-        val finalReason = reason.ifBlank { "Khách hàng hủy do đặt nhầm (trước khi quán xác nhận)" }
+    private suspend fun markOrderCancelledImmediately(
+        orderId: String,
+        finalReason: String,
+        cancelledBy: String
+    ) {
+        val now = System.currentTimeMillis()
         val updates = mapOf<String, Any>(
             "status" to Order.Status.CANCELLED,
             "orderStatus" to Order.Status.CANCELLED,
             "cancelReason" to finalReason,
             "cancelRequested" to false,
             "cancelRequestStatus" to "",
-            "cancelledBy" to "CUSTOMER",
-            "cancelledAt" to System.currentTimeMillis(),
-            "updatedAt" to System.currentTimeMillis()
+            "cancelledBy" to cancelledBy,
+            "cancelledAt" to now,
+            "updatedAt" to now
         )
-        database.getReference("orders").child(orderId).updateChildren(updates)
+        database.getReference("orders").child(orderId).updateChildren(updates).await()
         try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+    }
+
+    /** Khách hàng hủy đơn trực tiếp khi đơn chưa được quán xác nhận (PENDING, PAID, AWAITING_PAYMENT) */
+    suspend fun cancelOrderImmediately(orderId: String, reason: String = "") {
+        val finalReason = reason.ifBlank { "Khách hàng hủy do đặt nhầm (trước khi quán xác nhận)" }
+        markOrderCancelledImmediately(orderId, finalReason, "CUSTOMER")
+    }
+
+    /** Quán chủ động hủy đơn trước khi Đầu bếp nhận nấu món (không trừ điểm uy tín khách hàng) */
+    suspend fun cancelOrderByShop(orderId: String, reason: String = "") {
+        val cleanReason = reason.trim().ifBlank { "Hết nguyên liệu / Quán tạm ngưng nhận đơn" }
+        val finalReason = if (cleanReason.startsWith("Quán hủy đơn:", ignoreCase = true)) {
+            cleanReason
+        } else {
+            "Quán hủy đơn: $cleanReason"
+        }
+        markOrderCancelledImmediately(orderId, finalReason, "STORE")
     }
 
     /** Khách hàng gửi yêu cầu hủy đơn đến quán khi đơn đã được quán xác nhận đang nấu (PREPARING, READY) */

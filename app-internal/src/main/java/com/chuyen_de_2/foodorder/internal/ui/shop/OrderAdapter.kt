@@ -26,7 +26,8 @@ class OrderAdapter(
     private val onCallDriverClick: (String) -> Unit,
     private val onWarningDetailClick: (Order) -> Unit,
     private val onApproveCancelClick: (Order) -> Unit = {},
-    private val onRejectCancelClick: (Order) -> Unit = {}
+    private val onRejectCancelClick: (Order) -> Unit = {},
+    private val onShopCancelClick: (Order) -> Unit = {}
 ) : ListAdapter<Order, OrderAdapter.ViewHolder>(DiffCallback()) {
 
     var canOperate: Boolean = true
@@ -127,16 +128,26 @@ class OrderAdapter(
             // 4. Trạng thái Quy trình 3 bước (Quán/5.html)
             setupStatusAndActions(context, order)
 
+            val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+            val canShopCancel = order.status == Order.Status.AWAITING_PAYMENT ||
+                order.status == Order.Status.PAID ||
+                order.status == Order.Status.PENDING ||
+                (order.status == Order.Status.PREPARING && !hasChef)
+            binding.btnShopCancelOrder.visibility = if (canShopCancel) View.VISIBLE else View.GONE
+
             if (!canOperate) {
                 binding.btnMainAction.alpha = 0.65f
+                binding.btnShopCancelOrder.alpha = 0.65f
                 binding.boxCancelRequest.alpha = 0.65f
             } else {
                 binding.btnMainAction.alpha = 1.0f
+                binding.btnShopCancelOrder.alpha = 1.0f
                 binding.boxCancelRequest.alpha = 1.0f
             }
 
             // Click Listeners
             binding.btnMainAction.setOnClickListener { onActionClick(order) }
+            binding.btnShopCancelOrder.setOnClickListener { onShopCancelClick(order) }
             binding.btnDetail.setOnClickListener { onDetailClick(order) }
             binding.btnChatCustomer.text = "Nhắn Khách"
             binding.btnChatCustomer.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))

@@ -254,6 +254,14 @@ class ShopViewModel @Inject constructor(
         }
     }
 
+    /** Quán chủ động hủy đơn trước khi Đầu bếp bấm nhận nấu món */
+    fun cancelOrderByShop(orderId: String, reason: String) {
+        updateLocalOrderStatus(orderId, Order.Status.CANCELLED)
+        viewModelScope.launch {
+            firebaseRepository.cancelOrderByShop(orderId, reason)
+        }
+    }
+
     fun dismissAlert() {
         _newOrderAlert.value = false
     }

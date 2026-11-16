@@ -227,10 +227,10 @@ add_bullet("Mô hình chuỗi chi nhánh (F&B Chain) chưa tối ưu: Chủ chu�
 
 add_title("1.2 Phát biểu bài toán và Mục tiêu của hệ thống Oishi Food", level=2)
 add_p("Hệ thống Oishi Food được thiết kế với mục tiêu cốt lõi là giải quyết triệt để các tồn tại trên thông qua 5 trụ cột kỹ thuật:")
-add_bullet("Thiết lập hệ thống chấm điểm uy tín khách hàng (trustScore mặc định 100). Nếu khách hàng có lịch sử hủy đơn hoặc không nhận món, hệ thống tự động trừ 20 điểm. Khi điểm uy tín dưới ngưỡng an toàn (dưới 80 điểm), khách hàng bắt buộc phải đặt cọc trước (DEPOSIT) mới được phép đặt món.", bold_prefix="• Cơ chế Điểm uy tín & Đặt cọc chống bùng: ")
+add_bullet("Thiết lập hệ thống chấm điểm uy tín khách hàng với 5 phân hạng (Kim Cương >= 95đ, Vàng >= 90đ, Bạc >= 50đ, Hạn chế >= 20đ, Đình chỉ < 20đ). Khách hàng có điểm dưới 90 điểm bị CẤM thanh toán COD, bắt buộc phải đặt cọc trước 20% qua VietQR Napas247 hoặc thanh toán trước 100%. Mỗi đơn hoàn tất cộng 2 điểm uy tín.", bold_prefix="• Cơ chế Điểm uy tín 5 bậc & Đặt cọc chống bùng: ")
 add_bullet("Tự động sinh mã VietQR Napas247 chứa chính xác số tiền và mã định danh đơn hàng. Tích hợp dịch vụ chạy ngầm BankNotificationListenerService trên máy chủ quán để bắt biến động số dư ngân hàng và tự động duyệt đơn sang trạng thái chế biến (PREPARING) trong vòng 1-2 giây mà không cần con người can thiệp.", bold_prefix="• Tự động hóa thanh toán VietQR: ")
-add_bullet("Tách biệt hoàn toàn vai trò Đầu bếp (Chef) trên app-internal. Đầu bếp có màn hình nhận nấu riêng biệt với khóa nguyên tử (Atomic Lock) chống trùng đơn và nút xác nhận 'Đã nấu xong' để chuyển trạng thái sang READY. Quản lý không được bấm thay, đảm bảo tính trung thực của quy trình chế biến.", bold_prefix="• Chuyên môn hóa phân hệ Bếp: ")
-add_bullet("Khi khách hàng không nhận món sau thời gian chờ 15 phút, tài xế kích hoạt quy trình hoàn trả món về quán (RETURNING_TO_STORE). Quán xác nhận nhận lại món, hệ thống phạt điểm khách hàng và bảo toàn toàn bộ tiền cọc và công vận chuyển cho tài xế.", bold_prefix="• Luồng xử lý sự cố hoàn hàng bảo vệ tài xế: ")
+add_bullet("Tách biệt hoàn toàn vai trò Đầu bếp (Chef) trên app-internal. Đầu bếp có màn hình nhận nấu riêng biệt với khóa nguyên tử (Firebase Database Transaction Lock: assignChef/unassignChef) chống trùng đơn và nút xác nhận 'Đã nấu xong' để chuyển trạng thái sang READY. Quản lý không được bấm thay, đảm bảo tính trung thực của quy trình chế biến.", bold_prefix="• Chuyên môn hóa phân hệ Bếp: ")
+add_bullet("Khi khách hàng không nhận món sau thời gian chờ 15 phút, tài xế chụp ảnh màn hình cuộc gọi làm bằng chứng sự cố (incidentCallProofImage) và kích hoạt quy trình hoàn trả món về quán (RETURNING_TO_STORE). Ứng dụng Shipper khóa chặt giao diện chỉ dẫn đường về quán; Quán nhận lại món và bấm xác nhận; hệ thống trừ nặng điểm uy tín của khách hàng và bảo toàn toàn bộ tiền cọc và công vận chuyển cho tài xế.", bold_prefix="• Luồng xử lý sự cố hoàn hàng bảo vệ tài xế: ")
 add_bullet("Hỗ trợ vai trò Chủ chuỗi (Boss) quản lý nhiều chi nhánh, phân quyền cho Quản lý cửa hàng (Merchant) và xem báo cáo hợp nhất toàn chuỗi.", bold_prefix="• Quản trị chuỗi nhà hàng tập trung: ")
 
 doc.add_page_break()
@@ -296,11 +296,11 @@ add_p("Sơ đồ mô tả chi tiết thông điệp trao đổi giữa các thà
 add_image_box(os.path.join(diag_dir, "so_do_4_sequence_dat_hang.png"), "Hình 2.4: Sơ đồ Tuần tự Luồng Đặt hàng – Chế biến – Giao nhận mã QR/PIN", width_in=5.8)
 
 add_title("2.5.3 Sơ đồ Tuần tự: Khách hủy đơn khi đang giao & Hoàn trả Bếp (RETURNING_TO_STORE)", level=3)
-add_p("Sơ đồ mô tả quy trình bảo vệ tài xế khi gặp sự cố không thể giao hàng sau 15 phút, tài xế hoàn hàng về quán và hệ thống tự động trừ 20 điểm uy tín của khách:")
+add_p("Sơ đồ mô tả quy trình bảo vệ tài xế khi gặp sự cố không thể giao hàng sau 15 phút, tài xế tải ảnh bằng chứng cuộc gọi (incidentCallProofImage), ứng dụng khóa chặt giao diện điều hướng tài xế hoàn hàng về quán, quán nhận lại món và hệ thống tự động trừ điểm uy tín của khách:")
 add_image_box(os.path.join(diag_dir, "so_do_5_sequence_huy_don.png"), "Hình 2.5: Sơ đồ Tuần tự Khách hủy đơn khi đang giao & Hoàn trả Bếp", width_in=5.8)
 
 add_title("2.5.4 Sơ đồ Máy trạng thái Đơn hàng (Order State Machine)", level=3)
-add_p("Sơ đồ thể hiện chu trình chuyển đổi trạng thái của đơn hàng từ PENDING cho đến khi COMPLETED hoặc hoàn trả hủy đơn RETURNED_CANCELLED:")
+add_p("Sơ đồ thể hiện chu trình chuyển đổi trạng thái toàn diện của đơn hàng qua các pha: AWAITING_PAYMENT / PENDING -> PREPARING -> READY -> ASSIGNED -> ARRIVED_AT_SHOP -> DELIVERING -> ARRIVED_AT_CUSTOMER -> COMPLETED hoặc xử lý sự cố bom hàng RETURNING_TO_STORE -> RETURNED_TO_STORE:")
 add_image_box(os.path.join(diag_dir, "so_do_6_state_machine.png"), "Hình 2.6: Sơ đồ Máy trạng thái Đơn hàng trong Hệ thống Oishi Food", width_in=5.8)
 
 doc.add_page_break()
@@ -374,9 +374,12 @@ add_title("3.1 Môi trường phát triển và Các công nghệ tích hợp", 
 add_p("Hệ thống Oishi Food được hiện thực hóa dựa trên các công nghệ và thư viện di động hiện đại nhất hiện nay:")
 add_bullet("Ngôn ngữ lập trình: Kotlin 1.9+ với cơ chế bất đồng bộ Coroutines & StateFlow đảm bảo hiệu năng xử lý luồng cao mà không gây giật lag giao diện (ANR).")
 add_bullet("Kiến trúc phần mềm: Android Multi-Module Clean Architecture kết hợp mô hình MVVM (Model-View-ViewModel) và Hilt Dependency Injection giúp module hóa mã nguồn và dễ bảo trì.")
+add_bullet("Cơ chế Khóa giao dịch Firebase Database Transaction: Hiện thực hóa thành công các hàm nguyên tử assignChef/unassignChef và assignShipper/unassignShipper, giải quyết triệt để vấn đề tranh chấp tài nguyên (Concurrency Race Condition) khi nhiều đầu bếp hoặc nhiều tài xế cùng bấm nhận đơn.")
 add_bullet("Dịch vụ ngầm LocationForegroundService: Lắng nghe GPS liên tục ngay cả khi tắt màn hình, phát Notification cố định và gửi tọa độ tài xế lên Firebase Realtime Database.")
-add_bullet("Dịch vụ BankNotificationListenerService: Kế thừa NotificationListenerService trên Android, tự động lắng nghe biến động số dư ngân hàng và phân tích regex để duyệt đơn VietQR tự động.")
-add_bullet("Thư viện quét mã: ZXing Android Embedded cho camera quét mã QR.")
+add_bullet("Dịch vụ BankNotificationListenerService: Kế thừa NotificationListenerService trên Android, tự động lắng nghe biến động số dư ngân hàng Napas247 và phân tích regex để duyệt đơn VietQR tự động.")
+add_bullet("Dịch vụ MerchantKeepAliveService: Duy trì socket Firebase Realtime Database trên máy quán ăn luôn thức, đảm bảo chuông báo đơn mới reo lập tức ngay cả khi ứng dụng đang chạy nền.")
+add_bullet("Môi trường dữ liệu mẫu kiểm thử toàn sàn (seed_sample_data.py): Tự động khởi tạo hệ sinh thái thực tế hoàn chỉnh liên kết Firebase Auth gồm 1 Quản trị viên, 2 Chủ chuỗi (Boss Vũ, Boss Giàu), 2 Quản lý chi nhánh (Merchant), 2 Đầu bếp (Chef), 2 Tài xế (Shipper) và 2 Khách hàng cùng 4 Cửa hàng có thực đơn món ăn, combo và topping đầy đủ.")
+add_bullet("Thư viện quét mã: ZXing Android Embedded cho camera quét mã QR xác thực nhận hàng 2 chiều.")
 
 add_title("3.2 Kết quả Kiểm thử Thực nghiệm (Bảng Test Cases KT-1 đến KT-6)", level=2)
 add_p("Nhóm đã tiến hành kiểm thử thực nghiệm trên các thiết bị Android vật lý và máy ảo với 6 kịch bản kiểm thử then chốt. Tất cả đều đạt kết quả 100%:")

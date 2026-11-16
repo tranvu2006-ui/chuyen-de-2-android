@@ -42,14 +42,14 @@ Hệ thống giải quyết triệt để các vấn đề nhức nhối trong n
 ## 1.2 Kiến trúc Công nghệ & Multi-Module
 Hệ thống được thiết kế theo mô hình **Multi-Module Gradle** chuẩn Clean Architecture trên nền tảng Android kết hợp Web SPA cho Quản trị viên:
 
-- **Module `:core`:** Thư viện dùng chung chứa toàn bộ Data Models (26 entities), Firebase Repositories (`FirebaseRepository`, `AuthRepository`), Utilities (`OtpSessionManager`, `CccdOcrHelper`, `LocationHelper`), Services nền tảng.
-- **Module `:app-customer`:** Ứng dụng Android dành riêng cho Khách hàng trải nghiệm tìm quán, chọn combo, giỏ hàng, thanh toán VietQR, theo dõi GPS tài xế, xác nhận QR nhận hàng và khiếu nại.
+- **Module `:core`:** Thư viện dùng chung chứa toàn bộ Data Models (26 entities), Firebase Repositories (`FirebaseRepository`, `AuthRepository`), Utilities (`OtpSessionManager`, `GeolocationUtils`, `NotificationHelper`, `StatusUtils`), Services nền tảng (`BankNotificationListenerService`, `LocationForegroundService`, `MerchantKeepAliveService`).
+- **Module `:app-customer`:** Ứng dụng Android dành riêng cho Khách hàng trải nghiệm tìm quán, chọn combo/topping, giỏ hàng, thanh toán VietQR Napas247, theo dõi GPS tài xế, xác nhận QR nhận hàng và khiếu nại.
 - **Module `:app-internal`:** Ứng dụng Android nội bộ phục vụ 4 tác nhân:
   - **Boss (Chủ chuỗi):** `BossDashboardActivity`, quản lý chuỗi, phân nhánh, báo cáo chuỗi.
   - **Merchant (Quản lý quán):** `OrderListFragment` (Kanban 4 tab), `MenuManageFragment`, `StoreProfileFragment` (VietQR), `StoreReportFragment`, `DriverListFragment`.
-  - **Chef (Đầu bếp):** `ChefFragment`, `ChefViewModel`, tiếp nhận món cần nấu, đánh dấu hoàn tất.
-  - **Driver (Tài xế):** `ShipperFragment`, `DeliveryTripActivity`, nhận đơn, ghép chuyến đa điểm (Batching), dẫn đường Google Maps, quét QR/PIN giao hàng.
-- **Phân hệ `:app-admin` (`admin.html`):** Bảng điều khiển Web Quản trị viên thời gian thực kết nối trực tiếp Firebase REST/SDK, quản lý danh mục toàn sàn, kiểm duyệt quán mới, giám sát đơn hàng, xử lý khiếu nại và can thiệp điểm uy tín.
+  - **Chef (Đầu bếp):** `ChefFragment`, `ChefViewModel`, tiếp nhận món cần nấu, đánh dấu hoàn tất (READY).
+  - **Driver (Tài xế/Shipper):** `ShipperFragment`, `DeliveryTripActivity`, nhận đơn, ghép chuyến đa điểm (tối đa 3 đơn), dẫn đường Google Maps, quét QR/PIN giao hàng, báo sự cố 15 phút hoàn trả quán (`RETURNING_TO_STORE`).
+- **Phân hệ `:app-admin`:** Ứng dụng Android Native Quản trị viên (5 tab: Dashboard KPI, Quản lý & duyệt Cửa hàng, Danh mục món toàn sàn, Xử lý Khiếu nại & Can thiệp uy tín, Giám sát Realtime đơn hàng và người dùng).
 
 ---
 
@@ -59,12 +59,12 @@ Hệ thống được thiết kế theo mô hình **Multi-Module Gradle** chuẩ
 
 | STT | Mã Role | Tên Tác nhân | Phân hệ Ứng dụng | Trách nhiệm & Quyền hạn cốt lõi trong hệ thống |
 |:---:|:---|:---|:---|:---|
-| 1 | `CUSTOMER` | **Khách hàng** | `app-customer` | Đăng ký/đăng nhập OTP, duyệt danh mục, đặt món/combo, thanh toán VietQR/COD/MoMo, chat với quán, theo dõi GPS tài xế, cung cấp mã QR/PIN nhận hàng, đánh giá sao, quản lý điểm uy tín và gửi khiếu nại. |
+| 1 | `CUSTOMER` | **Khách hàng** | `app-customer` | Đăng ký/đăng nhập OTP, duyệt danh mục, đặt món/combo, thanh toán VietQR Napas247/COD, theo dõi GPS tài xế, cung cấp mã QR/PIN nhận hàng, đánh giá sao, quản lý điểm uy tín 5 bậc và gửi khiếu nại. |
 | 2 | `BOSSMERCHANT` | **Chủ chuỗi (Boss)** | `app-internal` | Cấp cao nhất của chuỗi F&B: Tạo và quản lý nhiều chi nhánh nhà hàng (`stores`), tạo tài khoản và phân quyền cho Quản lý chi nhánh (`Merchant`), xem tổng quan doanh thu toàn chuỗi. |
-| 3 | `MERCHANT` | **Quản lý quán** | `app-internal` | Quản lý cửa hàng được phân công: Xác minh quán (Xác minh Cửa hàng & VietQR), cấu hình thông tin quán và ngân hàng VietQR, quản lý menu món/combo/topping, tiếp nhận đơn hàng Kanban, quản lý đội tài xế nội bộ của quán. |
-| 4 | `CHEF` | **Đầu bếp** | `app-internal` | Chuyên trách khu vực Bếp: Tiếp nhận tức thời các đơn hàng đang chế biến (`PREPARING`), xem chi tiết số lượng món ăn và ghi chú của khách, cập nhật trạng thái sẵn sàng giao (`READY`). |
-| 5 | `DRIVER` | **Tài xế (Shipper)** | `app-internal` | Giao nhận hàng hóa: Xem danh sách đơn sẵn sàng của quán, nhận đơn lẻ hoặc ghép đơn đa điểm (Batching), dẫn đường Google Maps, nhận món từ Bếp, quét QR/nhập PIN giao cho khách, xử lý sự cố hoàn trả quán (`RETURNING_TO_STORE`). |
-| 6 | `ADMIN` | **Quản trị viên sàn** | `admin.html` / `app-admin` | Toàn quyền kiểm soát hệ thống: Kiểm duyệt và kích hoạt quán ăn mới, quản lý danh mục ẩm thực dùng chung toàn sàn, giám sát realtime toàn bộ đơn hàng, phán quyết khiếu nại, can thiệp điểm uy tín, cấu hình tham số hệ thống (phí ship, bật/tắt bypass OTP). |
+| 3 | `MERCHANT` | **Quản lý quán** | `app-internal` | Quản lý cửa hàng được phân công: Thiết lập thông tin quán, cấu hình ngân hàng VietQR, quản lý menu món/combo/topping, tiếp nhận đơn hàng Kanban 4 tab, quản lý đội tài xế nội bộ của quán. |
+| 4 | `CHEF` | **Đầu bếp** | `app-internal` | Chuyên trách khu vực Bếp: Tiếp nhận tức thời các đơn hàng đang chế biến (`PREPARING`) với Atomic Lock, xem chi tiết món/topping/ghi chú, cập nhật trạng thái hoàn tất (`READY`). |
+| 5 | `DRIVER` | **Tài xế (Shipper)** | `app-internal` | Giao nhận hàng hóa: Xem danh sách đơn sẵn sàng của quán, nhận đơn lẻ hoặc ghép đơn đa điểm (tối đa 3 đơn), dẫn đường Google Maps, nhận món từ Bếp, quét QR/nhập PIN giao cho khách, xử lý sự cố hoàn trả quán (`RETURNING_TO_STORE`). |
+| 6 | `ADMIN` | **Quản trị viên sàn** | `app-admin` | Toàn quyền kiểm soát hệ thống trên Android Native (5 tab: Dashboard KPI, Quản lý Cửa hàng & VietQR, Quản lý Danh mục sàn, Phán quyết Khiếu nại & can thiệp uy tín, Giám sát Realtime đơn hàng và người dùng). |
 
 ---
 
@@ -186,7 +186,7 @@ flowchart TD
         D8 --> D9[Mang Món Trả Lại Quán & Hệ Thống Phạt 20đ Khách]
     end
 
-    subgraph QUAN_TRI [Quản Trị Viên (Admin Web)]
+    subgraph QUAN_TRI [Quản Trị Viên (App Admin Native)]
         E1[Duyệt Quán Mới & Cấu Hình Phí]
         E2[Giám Sát Toàn Sàn Realtime]
         E3[Giải Quyết Tranh Chấp Khiếu Nại]
@@ -218,12 +218,14 @@ Dữ liệu được tổ chức theo cấu trúc JSON phân cấp phi quan hệ
 9. `/dishes/{storeId}/{dishId}`: Thực đơn món ăn của quán, tên món, giá bán, hình ảnh, trạng thái còn/hết hàng, nhóm tùy chọn Topping (`DishOption`).
 10. `/combos/{storeId}/{comboId}`: Các gói Combo ưu đãi do quán thiết lập.
 11. `/orders/{orderId}`: Đơn hàng trung tâm hệ thống:
-    - Mã đơn, `customerId`, `storeId`, `driverId`, `chefId`.
-    - Danh sách món (`items`), tổng tiền món, phí giao hàng, giảm giá, tổng thanh toán.
-    - Phương thức thanh toán: `COD`, `VIETQR`, `MOMO`.
-    - Trạng thái thanh toán: `PENDING`, `PAID`, `REFUNDED`.
-    - Trạng thái vòng đời đơn: `PENDING` -> `PREPARING` -> `READY` -> `ASSIGNED` -> `PICKED_UP` -> `DELIVERING` -> `COMPLETED` / `CANCELLED` / `RETURNING_TO_STORE`.
-    - Mã bảo mật nhận hàng: `deliveryPin` (4 chữ số ngẫu nhiên) và `qrSecretKey`.
+    - Mã đơn, `customerId`, `storeId`, `shipperId`, `chefId`.
+    - Danh sách món (`items`), tổng tiền món, phí giao hàng, giảm giá, tổng thanh toán (`totalPayment`), tiền cọc (`depositAmount`), tiền còn lại (`remainAmount`).
+    - Phương thức thanh toán: `COD`, `BANKING`, `DEPOSIT`.
+    - Chế độ thanh toán (`paymentMode`): `FULL` (trả trước 100%), `DEPOSIT` (cọc 20%), `COD` (tiền mặt khi nhận).
+    - Trạng thái thanh toán: `UNPAID`, `PAID`.
+    - Trạng thái vòng đời đơn: `PENDING` -> `PREPARING` -> `READY` -> `ASSIGNED` -> `ARRIVED_AT_SHOP` -> `DELIVERING` -> `ARRIVED_AT_CUSTOMER` -> `COMPLETED` / `RETURNING_TO_STORE` -> `RETURNED_TO_STORE` / `CANCELLED`.
+    - Bằng chứng sự cố: `incidentCallProofImage` (ảnh chụp màn hình cuộc gọi của Shipper), `cancelRequested`, `cancelRequestReason`.
+    - Mã bảo mật nhận hàng: `deliveryToken` (mã QR/PIN 4 chữ số).
 12. `/tracking/{orderId}`: Tọa độ GPS trực tiếp của tài xế phục vụ vẽ Polyline trên bản đồ của Khách.
 13. `/complaints/{complaintId}`: Đơn khiếu nại của khách hàng (sai món, thái độ, giao trễ) kèm ảnh bằng chứng gửi Admin xử lý.
 14. `/dish_reviews/{dishId}/{reviewId}`: Đánh giá sao (1-5 sao) và bình luận món ăn của khách.
@@ -465,7 +467,7 @@ stateDiagram-v2
 | **Ảnh 11** | Màn hình Lịch sử Đơn hàng & Bộ lọc trạng thái | `activity_order_history.xml` | `app-customer` |
 | **Ảnh 12** | Màn hình Hồ sơ Cá nhân, Sổ địa chỉ & Điểm uy tín | `activity_profile.xml` | `app-customer` |
 | **Ảnh 13** | Màn hình Đăng nhập / Đăng ký Ứng dụng Nội bộ | `activity_login_internal.xml` | `app-internal` |
-| **Ảnh 14** | Màn hình Xác minh Cửa hàng & Quét OCR Căn cước công dân | `activity_store_verification.xml` | `app-internal` (Merchant) |
+| **Ảnh 14** | Màn hình Xác minh Cửa hàng & Cấu hình Ngân hàng VietQR | `activity_store_verification.xml` | `app-internal` (Merchant) |
 | **Ảnh 15** | Màn hình Quản lý Chuỗi & Mở Chi nhánh của Boss | `activity_boss_dashboard.xml` | `app-internal` (Boss) |
 | **Ảnh 16** | Màn hình Quản lý Đơn hàng Quán ăn Kanban 4 Tab | `fragment_order_list.xml` | `app-internal` (Merchant) |
 | **Ảnh 17** | Hộp thoại Popup Báo chuông có Đơn hàng mới | `dialog_new_order_popup.xml` | `app-internal` (Merchant) |
@@ -475,9 +477,9 @@ stateDiagram-v2
 | **Ảnh 21** | Màn hình Sảnh Nhận đơn & Ghép đơn đa điểm của Tài xế | `fragment_shipper.xml` | `app-internal` (Driver) |
 | **Ảnh 22** | Màn hình Hành trình Giao hàng & Điều hướng Google Maps | `activity_delivery_trip.xml` | `app-internal` (Driver) |
 | **Ảnh 23** | Màn hình Quét Camera QR / Nhập PIN giao món thành công | `activity_driver_scan_qr.xml` | `app-internal` (Driver) |
-| **Ảnh 24** | Bảng điều khiển Web Quản trị viên (Duyệt quán & Cấu hình sàn) | `admin.html` (Tab Stores & Settings) | `app-admin` |
-| **Ảnh 25A**| Màn hình Admin Giám sát Đơn hàng Realtime toàn sàn | `admin.html` (Tab Orders) | `app-admin` |
-| **Ảnh 25B**| Màn hình Admin Giải quyết Tranh chấp Khiếu nại & Khóa tài khoản| `admin.html` (Tab Complaints & Customers)| `app-admin` |
+| **Ảnh 24** | Màn hình Admin: Dashboard KPI Doanh số & Duyệt Quán mới | `fragment_admin_dashboard.xml` & `fragment_admin_store_list.xml` | `app-admin` |
+| **Ảnh 25A**| Màn hình Admin: Giám sát Đơn hàng & Người dùng Realtime | `fragment_admin_monitor.xml` | `app-admin` |
+| **Ảnh 25B**| Màn hình Admin: Giải quyết Khiếu nại, Bằng chứng & Phán quyết | `fragment_admin_complaint_list.xml` & `activity_admin_complaint_detail.xml` | `app-admin` |
 
 ---
 

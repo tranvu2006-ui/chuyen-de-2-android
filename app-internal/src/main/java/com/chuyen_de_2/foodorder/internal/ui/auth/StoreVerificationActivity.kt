@@ -56,6 +56,10 @@ class StoreVerificationActivity : AppCompatActivity() {
     private var selectedLng: Double? = null
     private var capturedCccdUri: Uri? = null
     private var cccdFrontBase64: String = ""
+    private var cccdBackBase64: String = ""
+
+    private enum class CccdSide { FRONT, BACK }
+    private var currentTargetSide: CccdSide = CccdSide.FRONT
     private var isSyncingBankName = false
     private var isManualEditingBankName = false
 
@@ -65,7 +69,7 @@ class StoreVerificationActivity : AppCompatActivity() {
         if (success) {
             val uri = capturedCccdUri
             if (uri != null) {
-                processCccdImage(uri)
+                processPickedCccdImage(uri, currentTargetSide)
             }
         }
     }
@@ -74,7 +78,7 @@ class StoreVerificationActivity : AppCompatActivity() {
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            processCccdImage(uri)
+            processPickedCccdImage(uri, currentTargetSide)
         }
     }
 
@@ -216,102 +220,52 @@ class StoreVerificationActivity : AppCompatActivity() {
      * Luồng hướng tới: Giảm thiểu thao tác nhập liệu lại cho chủ quán.
      */
     /**
-     * Tên chức năng: Xử lý ảnh thẻ CCCD & Quét OCR tự động điền
-     * Cách hoạt động:
-     *  - Hiển thị ảnh vừa chụp/chọn lên khung xem trước [layoutCccdPreview].
-     *  - Chạy coroutine nén ảnh Base64 phục vụ lưu trữ lên Firebase.
-     *  - Chạy mô hình AI Text Recognition (ML Kit) qua [CccdOcrHelper] để trích xuất số CCCD (12 số), Họ tên và Nơi cư trú.
-     *  - Tự động điền kết quả vào trường [etCccdNumber], [etOwnerName] và gợi ý [etBankAccountName].
-     * Luồng hướng tới: Tối ưu hóa trải nghiệm xác minh hồ sơ, giảm 90% thao tác nhập liệu thủ công.
+     * Tên chức năng: Xử lý hiển thị và nén ảnh CCCD Mặt trước / Mặt sau
      */
-    private fun processCccdImage(uri: Uri) {
-        binding.layoutCccdPreview.visibility = View.VISIBLE
-        binding.layoutOcrLoading.visibility = View.VISIBLE
-        binding.tvCccdBadge.text = "✓ Mặt trước CCCD"
-        binding.btnCaptureCccd.text = "Chụp lại"
-        binding.btnPickCccdGallery.text = "Đổi ảnh"
+    private fun processPickedCccdImage(uri: Uri, side: CccdSide) {
+        if (side == CccdSide.FRONT) {
+            binding.ivCccdFrontPreview.visibility = View.VISIBLE
+            binding.layoutPlaceholderFront.visibility = View.GONE
+            binding.tvFrontStatusBadge.text = "✓ Đã tải lên"
+            binding.tvFrontStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green_bg)
+            binding.tvFrontStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            binding.btnCaptureCccdFront.text = "Chụp lại"
+            binding.btnPickCccdFront.text = "Đổi ảnh"
 
-        Glide.with(this)
-            .load(uri)
-            .into(binding.ivCccdPreview)
+            Glide.with(this).load(uri).into(binding.ivCccdFrontPreview)
 
-        lifecycleScope.launch {
-            // Nén ảnh sang Base64
-            val base64 = ImagePickerUtils.compressUriToBase64(
-                this@StoreVerificationActivity,
-                uri,
-                maxDimension = 800,
-                quality = 80
-            )
-            if (!base64.isNullOrBlank()) {
-                cccdFrontBase64 = base64
-            }
-
-            // Quét OCR nhận diện CCCD bằng AI
-            val result = CccdOcrHelper.scanCccdFromUri(
-                this@StoreVerificationActivity,
-                uri
-            )
-
-            binding.layoutOcrLoading.visibility = View.GONE
-
-            result.onSuccess { scanResult ->
-                var filledAny = false
-                val filledFields = mutableListOf<String>()
-
-                val cccdNum = scanResult.cccdNumber
-                if (!cccdNum.isNullOrBlank()) {
-                    binding.etCccdNumber.setText(cccdNum)
-                    binding.tilCccdNumber.error = null
-                    filledFields.add("Số CCCD: $cccdNum")
-                    filledAny = true
-                }
-
-                val ocrName = scanResult.fullName
-                if (!ocrName.isNullOrBlank()) {
-                    val formattedName = CccdOcrHelper.toTitleCase(ocrName)
-                    binding.etOwnerName.setText(formattedName)
-                    binding.tilOwnerName.error = null
-                    filledFields.add("Họ tên: $formattedName")
-                    filledAny = true
-
-                    // Tự động liên kết điền sang Tên chủ tài khoản: IN HOA TOÀN BỘ VÀ KHÔNG DẤU
-                    val unaccentedUpper = CccdOcrHelper.removeAccents(ocrName).uppercase()
-                    isSyncingBankName = true
-                    binding.etBankAccountName.setText(unaccentedUpper)
-                    binding.tilBankAccountName.error = null
-                    isSyncingBankName = false
-                    isManualEditingBankName = false
-                }
-
-                // Gợi ý/điền Quận nếu trích xuất được và quán chưa chọn quận cụ thể
-                val ocrDistrict = scanResult.district
-                if (!ocrDistrict.isNullOrBlank()) {
-                    val dIndex = districts.indexOfFirst { d -> d.equals(ocrDistrict, ignoreCase = true) }
-                    if (dIndex >= 0 && (binding.etStoreAddress.text.toString().isBlank() || binding.spStoreDistrict.selectedItemPosition == 0)) {
-                        binding.spStoreDistrict.setSelection(dIndex)
-                    }
-                }
-
-                if (filledAny) {
-                    Toast.makeText(
-                        this@StoreVerificationActivity,
-                        "🎉 Đã nhận diện và tự động điền thông tin CCCD!",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        this@StoreVerificationActivity,
-                        "⚠️ Đã lưu ảnh thẻ nhưng chưa nhận diện rõ chữ. Vui lòng kiểm tra hoặc tự nhập thông tin.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }.onFailure { err ->
-                Toast.makeText(
+            lifecycleScope.launch {
+                val base64 = ImagePickerUtils.compressUriToBase64(
                     this@StoreVerificationActivity,
-                    "⚠️ Lỗi quét CCCD: ${err.message}. Bạn có thể tự nhập thông tin bên dưới.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                    uri,
+                    maxDimension = 800,
+                    quality = 80
+                )
+                if (!base64.isNullOrBlank()) {
+                    cccdFrontBase64 = base64
+                }
+            }
+        } else {
+            binding.ivCccdBackPreview.visibility = View.VISIBLE
+            binding.layoutPlaceholderBack.visibility = View.GONE
+            binding.tvBackStatusBadge.text = "✓ Đã tải lên"
+            binding.tvBackStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green_bg)
+            binding.tvBackStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            binding.btnCaptureCccdBack.text = "Chụp lại"
+            binding.btnPickCccdBack.text = "Đổi ảnh"
+
+            Glide.with(this).load(uri).into(binding.ivCccdBackPreview)
+
+            lifecycleScope.launch {
+                val base64 = ImagePickerUtils.compressUriToBase64(
+                    this@StoreVerificationActivity,
+                    uri,
+                    maxDimension = 800,
+                    quality = 80
+                )
+                if (!base64.isNullOrBlank()) {
+                    cccdBackBase64 = base64
+                }
             }
         }
     }
@@ -353,10 +307,14 @@ class StoreVerificationActivity : AppCompatActivity() {
                     if (it.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(it.cccdNumber)
                     if (it.cccdFrontUrl.isNotBlank()) {
                         cccdFrontBase64 = it.cccdFrontUrl
-                        binding.layoutCccdPreview.visibility = View.VISIBLE
-                        binding.tvCccdBadge.text = "✓ Đã có ảnh thẻ CCCD xác thực"
-                        binding.btnCaptureCccd.text = "Chụp lại"
-                        binding.btnPickCccdGallery.text = "Đổi ảnh"
+                        binding.ivCccdFrontPreview.visibility = View.VISIBLE
+                        binding.layoutPlaceholderFront.visibility = View.GONE
+                        binding.tvFrontStatusBadge.text = "✓ Đã tải lên"
+                        binding.tvFrontStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
+                        binding.tvFrontStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
+                        binding.btnCaptureCccdFront.text = "Chụp lại"
+                        binding.btnPickCccdFront.text = "Đổi ảnh"
+
                         val decoded = if (it.cccdFrontUrl.startsWith("data:image")) {
                             try {
                                 val base64Clean = it.cccdFrontUrl.substringAfter("base64,")
@@ -365,17 +323,35 @@ class StoreVerificationActivity : AppCompatActivity() {
                         } else null
 
                         if (decoded != null) {
-                            Glide.with(this@StoreVerificationActivity)
-                                .load(decoded)
-                                .into(binding.ivCccdPreview)
+                            Glide.with(this@StoreVerificationActivity).load(decoded).into(binding.ivCccdFrontPreview)
                         } else {
-                            Glide.with(this@StoreVerificationActivity)
-                                .load(it.cccdFrontUrl)
-                                .into(binding.ivCccdPreview)
+                            Glide.with(this@StoreVerificationActivity).load(it.cccdFrontUrl).into(binding.ivCccdFrontPreview)
                         }
                     }
-                    if (it.openHours.isNotBlank()) binding.etOpenHours.setText(it.openHours)
-                    if (it.prepTime.isNotBlank()) binding.etPrepTime.setText(it.prepTime)
+
+                    if (it.cccdBackUrl.isNotBlank()) {
+                        cccdBackBase64 = it.cccdBackUrl
+                        binding.ivCccdBackPreview.visibility = View.VISIBLE
+                        binding.layoutPlaceholderBack.visibility = View.GONE
+                        binding.tvBackStatusBadge.text = "✓ Đã tải lên"
+                        binding.tvBackStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
+                        binding.tvBackStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
+                        binding.btnCaptureCccdBack.text = "Chụp lại"
+                        binding.btnPickCccdBack.text = "Đổi ảnh"
+
+                        val decoded = if (it.cccdBackUrl.startsWith("data:image")) {
+                            try {
+                                val base64Clean = it.cccdBackUrl.substringAfter("base64,")
+                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
+                            } catch (_: Exception) { null }
+                        } else null
+
+                        if (decoded != null) {
+                            Glide.with(this@StoreVerificationActivity).load(decoded).into(binding.ivCccdBackPreview)
+                        } else {
+                            Glide.with(this@StoreVerificationActivity).load(it.cccdBackUrl).into(binding.ivCccdBackPreview)
+                        }
+                    }
 
                     if (it.district.isNotBlank()) {
                         val dIndex = districts.indexOfFirst { d -> d.equals(it.district, ignoreCase = true) }
@@ -441,11 +417,33 @@ class StoreVerificationActivity : AppCompatActivity() {
         binding.etStoreAddress.setOnClickListener { openMapAction() }
         binding.tilStoreAddress.setOnClickListener { openMapAction() }
 
-        binding.btnCaptureCccd.setOnClickListener {
+        binding.btnCaptureCccdFront.setOnClickListener {
+            currentTargetSide = CccdSide.FRONT
             checkPermissionAndLaunchCamera()
         }
 
-        binding.btnPickCccdGallery.setOnClickListener {
+        binding.btnPickCccdFront.setOnClickListener {
+            currentTargetSide = CccdSide.FRONT
+            pickGalleryLauncher.launch("image/*")
+        }
+
+        binding.layoutCccdFrontPreview.setOnClickListener {
+            currentTargetSide = CccdSide.FRONT
+            pickGalleryLauncher.launch("image/*")
+        }
+
+        binding.btnCaptureCccdBack.setOnClickListener {
+            currentTargetSide = CccdSide.BACK
+            checkPermissionAndLaunchCamera()
+        }
+
+        binding.btnPickCccdBack.setOnClickListener {
+            currentTargetSide = CccdSide.BACK
+            pickGalleryLauncher.launch("image/*")
+        }
+
+        binding.layoutCccdBackPreview.setOnClickListener {
+            currentTargetSide = CccdSide.BACK
             pickGalleryLauncher.launch("image/*")
         }
 
@@ -543,8 +541,8 @@ class StoreVerificationActivity : AppCompatActivity() {
         val phone = binding.etStorePhone.text.toString().trim()
         val address = binding.etStoreAddress.text.toString().trim()
         val district = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
-        val openHours = binding.etOpenHours.text.toString().trim().ifBlank { "08:00 - 22:30" }
-        val prepTime = binding.etPrepTime.text.toString().trim().ifBlank { "15 phút" }
+        val openHours = "08:00 - 22:30"
+        val prepTime = "15 phút"
 
         val ownerName = binding.etOwnerName.text.toString().trim()
         val cccd = binding.etCccdNumber.text.toString().trim()
@@ -567,6 +565,16 @@ class StoreVerificationActivity : AppCompatActivity() {
 
         if (address.isBlank()) {
             binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
+            hasError = true
+        }
+
+        if (cccdFrontBase64.isBlank()) {
+            Toast.makeText(this, "⚠️ Vui lòng chụp hoặc tải lên ảnh mặt trước CCCD", Toast.LENGTH_SHORT).show()
+            hasError = true
+        }
+
+        if (cccdBackBase64.isBlank()) {
+            Toast.makeText(this, "⚠️ Vui lòng chụp hoặc tải lên ảnh mặt sau CCCD", Toast.LENGTH_SHORT).show()
             hasError = true
         }
 
@@ -632,6 +640,7 @@ class StoreVerificationActivity : AppCompatActivity() {
                 ownerName = ownerName,
                 cccdNumber = cccd,
                 cccdFrontUrl = cccdFrontBase64,
+                cccdBackUrl = cccdBackBase64,
                 bankName = selectedBank.name,
                 bankAccountNumber = bankAccount,
                 bankAccountName = bankAccountName,

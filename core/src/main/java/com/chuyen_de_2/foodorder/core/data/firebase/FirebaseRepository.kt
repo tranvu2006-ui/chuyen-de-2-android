@@ -1243,6 +1243,7 @@ class FirebaseRepository @Inject constructor(
         ownerName: String,
         cccdNumber: String,
         cccdFrontUrl: String = "",
+        cccdBackUrl: String = "",
         bankName: String,
         bankAccountNumber: String,
         bankAccountName: String,
@@ -1302,6 +1303,7 @@ class FirebaseRepository @Inject constructor(
                         "storeId" to storeId,
                         "cccdNumber" to cccdNumber.trim(),
                         "cccdFrontUrl" to cccdFrontUrl,
+                        "cccdBackUrl" to cccdBackUrl,
                         "bankName" to bankName.trim(),
                         "bankAccount" to bankAccountNumber.trim(),
                         "approvalStatus" to com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.PENDING,
@@ -1312,6 +1314,7 @@ class FirebaseRepository @Inject constructor(
             }
             if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
             if (cccdFrontUrl.isNotBlank()) updates["cccdFrontUrl"] = cccdFrontUrl
+            if (cccdBackUrl.isNotBlank()) updates["cccdBackUrl"] = cccdBackUrl
             val finalLat = if (latitude != 0.0) latitude else {
                 val fb = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict("$address, $district")
                 if (fb.latitude != 0.0) fb.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
@@ -1341,6 +1344,7 @@ class FirebaseRepository @Inject constructor(
                     )
                     if (bankBin.isNotBlank()) legalUpdates["bankBin"] = bankBin.trim()
                     if (cccdFrontUrl.isNotBlank()) legalUpdates["cccdFrontUrl"] = cccdFrontUrl
+                    if (cccdBackUrl.isNotBlank()) legalUpdates["cccdBackUrl"] = cccdBackUrl
                     for (child in allStoresSnap.children) {
                         val bId = child.child("bossId").getValue(String::class.java).orEmpty()
                         val cKey = child.key.orEmpty()

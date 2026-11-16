@@ -14121,7 +14121,8 @@ import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverBinding
 
 class DriverAdapter(
-    private val onCallClick: (String) -> Unit
+    private val onCallClick: (String) -> Unit,
+    private val onDeleteClick: (Driver) -> Unit = {}
 ) : ListAdapter<Driver, DriverAdapter.DriverViewHolder>(DriverDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DriverViewHolder {
@@ -14224,6 +14225,11 @@ class DriverAdapter(
                 if (driver.phone.isNotBlank()) {
                     onCallClick(driver.phone)
                 }
+            }
+
+            // Xóa tài xế
+            binding.btnDeleteDriver.setOnClickListener {
+                onDeleteClick(driver)
             }
         }
     }
@@ -38767,168 +38773,6 @@ class StoreReportFragment : Fragment() {
                 android:textSize="13sp"
                 android:textStyle="bold"
                 app:cornerRadius="10dp" />
-        </LinearLayout>
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
-````
-
-## File: app-internal/src/main/res/layout/item_chef_manage.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="12dp"
-    app:cardBackgroundColor="@color/white"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="0dp"
-    app:strokeColor="@color/border"
-    app:strokeWidth="1dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvChefName"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        tools:text="Nguyễn Văn A" />
-
-                    <TextView
-                        android:id="@+id/tvChefTitleBadge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_badge_shop_tag"
-                        android:paddingHorizontal="6dp"
-                        android:paddingVertical="1dp"
-                        android:textColor="@color/brand_blue"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        tools:text="Bếp trưởng" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvChefPhone"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11.5sp"
-                    tools:text="📞 0903.882.910" />
-
-                <TextView
-                    android:id="@+id/tvChefEmail"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="1dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp"
-                    tools:text="✉ chef@oishi.vn" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvChefStatusBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_free"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:text="🟢 Đang trực"
-                android:textColor="@color/brand_green"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginVertical="10dp"
-            android:background="@color/divider" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tvChefCookingSummary"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="@color/brand_orange"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                tools:text="🔥 Đang nấu: 2 đơn" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnCallChef"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:backgroundTint="@color/brand_blue_bg"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingHorizontal="10dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="Gọi điện"
-                android:textColor="@color/brand_blue"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp"
-                app:icon="@drawable/ic_phone"
-                app:iconSize="14dp"
-                app:iconTint="@color/brand_blue" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnDeleteChef"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="6dp"
-                android:backgroundTint="@color/danger_bg"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingHorizontal="10dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="Xóa"
-                android:textColor="#DC2626"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
@@ -65305,532 +65149,6 @@ class BossBranchAdapter(
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverListFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.driver
-
-import android.app.Dialog
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.net.Uri
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.view.Window
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Chef
-import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentDriverListBinding
-import com.chuyen_de_2.foodorder.internal.ui.chef.ChefAdapter
-import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Quản lý Đội ngũ Nhân sự Của Quán (Staff Management):
- * - Tab 1: Đội Tài Xế (Drivers): Thống kê, giám sát tình trạng trực/giao đơn, tạo tài khoản tài xế.
- * - Tab 2: Đội Đầu Bếp (Chefs): Thống kê, giám sát tình trạng nấu món, tạo tài khoản đầu bếp trực thuộc quán.
- */
-@AndroidEntryPoint
-class DriverListFragment : Fragment() {
-
-    private var _binding: FragmentDriverListBinding? = null
-    private val binding get() = _binding!!
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    @Inject
-    lateinit var auth: FirebaseAuth
-
-    private lateinit var driverAdapter: DriverAdapter
-    private lateinit var chefAdapter: ChefAdapter
-
-    private var currentStoreId = ""
-    private var allDriversList: List<Driver> = emptyList()
-    private var currentFilter: String = "ALL"
-    private var isChefTabSelected = false
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentDriverListBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupRecyclerViews()
-        setupTabs()
-        setupListeners()
-        resolveCurrentStoreIdAndObserve()
-    }
-
-    private fun resolveCurrentStoreIdAndObserve() {
-        val uid = auth.currentUser?.uid.orEmpty()
-        viewLifecycleOwner.lifecycleScope.launch {
-            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-            observeDrivers()
-            observeChefs()
-        }
-    }
-
-    private fun setupRecyclerViews() {
-        // 1. Adapter Tài Xế
-        driverAdapter = DriverAdapter(
-            onCallClick = { phone ->
-                try {
-                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                        data = Uri.parse("tel:$phone")
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
-                }
-            }
-        )
-        binding.rvDrivers.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvDrivers.adapter = driverAdapter
-
-        // 2. Adapter Đầu Bếp
-        chefAdapter = ChefAdapter(
-            onCallClick = { phone ->
-                try {
-                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                        data = Uri.parse("tel:$phone")
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
-                }
-            },
-            onDeleteClick = { chef ->
-                showDeleteChefDialog(chef)
-            }
-        )
-        binding.rvChefs.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvChefs.adapter = chefAdapter
-    }
-
-    private fun setupTabs() {
-        binding.btnTabDrivers.setOnClickListener {
-            if (isChefTabSelected) {
-                isChefTabSelected = false
-                updateTabUI()
-            }
-        }
-
-        binding.btnTabChefs.setOnClickListener {
-            if (!isChefTabSelected) {
-                isChefTabSelected = true
-                updateTabUI()
-            }
-        }
-    }
-
-    private fun updateTabUI() {
-        if (!isChefTabSelected) {
-            // Hiển thị Tab Tài Xế
-            binding.tvStaffHeaderTitle.text = "Đội Tài Xế Của Quán"
-            binding.btnAddDriver.visibility = View.VISIBLE
-            binding.btnAddChef.visibility = View.GONE
-            binding.layoutDriverSection.visibility = View.VISIBLE
-            binding.layoutChefSection.visibility = View.GONE
-
-            binding.btnTabDrivers.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_blue)
-                setTextColor(Color.WHITE)
-                strokeWidth = 0
-            }
-            binding.btnTabChefs.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                setStrokeColorResource(R.color.border)
-                strokeWidth = 2
-            }
-        } else {
-            // Hiển thị Tab Đầu Bếp
-            binding.tvStaffHeaderTitle.text = "Đội Đầu Bếp Của Quán"
-            binding.btnAddDriver.visibility = View.GONE
-            binding.btnAddChef.visibility = View.VISIBLE
-            binding.layoutDriverSection.visibility = View.GONE
-            binding.layoutChefSection.visibility = View.VISIBLE
-
-            binding.btnTabChefs.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_orange)
-                setTextColor(Color.WHITE)
-                strokeWidth = 0
-            }
-            binding.btnTabDrivers.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                setStrokeColorResource(R.color.border)
-                strokeWidth = 2
-            }
-        }
-    }
-
-    private fun setupListeners() {
-        binding.btnAddDriver.setOnClickListener {
-            showAddDriverDialog()
-        }
-        binding.btnAddChef.setOnClickListener {
-            showAddChefDialog()
-        }
-
-        binding.layoutStatTotal.setOnClickListener {
-            currentFilter = "ALL"
-            applyFilter()
-            Toast.makeText(requireContext(), "Hiển thị: Tất cả tài xế", Toast.LENGTH_SHORT).show()
-        }
-        binding.layoutStatAvailable.setOnClickListener {
-            currentFilter = Driver.DutyStatus.AVAILABLE
-            applyFilter()
-            Toast.makeText(requireContext(), "Lọc: Tài xế Đang trực (Sẵn sàng)", Toast.LENGTH_SHORT).show()
-        }
-        binding.layoutStatDelivering.setOnClickListener {
-            currentFilter = Driver.DutyStatus.DELIVERING
-            applyFilter()
-            Toast.makeText(requireContext(), "Lọc: Tài xế Đang đi giao đơn", Toast.LENGTH_SHORT).show()
-        }
-        binding.layoutStatOffDuty.setOnClickListener {
-            currentFilter = Driver.DutyStatus.OFF_DUTY
-            applyFilter()
-            Toast.makeText(requireContext(), "Lọc: Tài xế Nghỉ ca (OFF)", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // ==================== OBSERVERS ====================
-
-    private fun observeDrivers() {
-        binding.progressBar.visibility = View.VISIBLE
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            combine(
-                firebaseRepository.observeStoreDrivers(currentStoreId),
-                firebaseRepository.observeAllOrders()
-            ) { drivers, orders ->
-                val activeOrders = orders.filter { order ->
-                    !order.shipperId.isNullOrBlank() && (
-                        order.status == Order.Status.ASSIGNED ||
-                        order.status == Order.Status.ARRIVED_AT_SHOP ||
-                        order.status == Order.Status.DELIVERING ||
-                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                        order.status == Order.Status.RETURNING_TO_STORE
-                    )
-                }
-                val activeOrdersByDriver = activeOrders.groupBy { it.shipperId }
-
-                drivers.map { driver ->
-                    val deliveringOrders = activeOrdersByDriver[driver.driverId].orEmpty()
-                    if (deliveringOrders.isNotEmpty()) {
-                        val primaryOrder = deliveringOrders.first()
-                        val shortCode = QRCodeUtils.getShortOrderCode(primaryOrder.orderId)
-                        val info = if (primaryOrder.status == Order.Status.RETURNING_TO_STORE) {
-                            "#$shortCode • Trả hàng về quán"
-                        } else if (deliveringOrders.size > 1) {
-                            "#$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
-                        } else {
-                            "#$shortCode • ${primaryOrder.customerName}"
-                        }
-                        driver.copy(
-                            dutyStatus = Driver.DutyStatus.DELIVERING,
-                            currentOrderCode = info
-                        )
-                    } else if (driver.dutyStatus == Driver.DutyStatus.OFF_DUTY ||
-                        driver.dutyStatus?.equals("OFFLINE", ignoreCase = true) == true ||
-                        driver.dutyStatus.isNullOrBlank()
-                    ) {
-                        driver.copy(dutyStatus = Driver.DutyStatus.OFF_DUTY)
-                    } else {
-                        driver.copy(dutyStatus = Driver.DutyStatus.AVAILABLE)
-                    }
-                }
-            }.collectLatest { syncedDrivers ->
-                binding.progressBar.visibility = View.GONE
-                allDriversList = syncedDrivers
-
-                val total = syncedDrivers.size
-                val available = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
-                val delivering = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.DELIVERING }
-                val offDuty = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
-
-                binding.tvTotalDrivers.text = total.toString()
-                binding.tvAvailableDrivers.text = available.toString()
-                binding.tvDeliveringDrivers.text = delivering.toString()
-                binding.tvOffDutyDrivers.text = offDuty.toString()
-
-                applyFilter()
-            }
-        }
-    }
-
-    private fun observeChefs() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            combine(
-                firebaseRepository.observeStoreChefs(currentStoreId),
-                firebaseRepository.observeAllOrders()
-            ) { chefs, orders ->
-                // Đếm số đơn PREPARING mà từng đầu bếp đang nấu
-                val preparingOrders = orders.filter { it.status == Order.Status.PREPARING && !it.chefId.isNullOrBlank() }
-                val cookingCounts = preparingOrders.groupBy { it.chefId }.mapValues { it.value.size }
-
-                chefs.map { chef ->
-                    val activeCount = cookingCounts[chef.chefId] ?: 0
-                    chef.copy(activeOrdersCount = activeCount)
-                }
-            }.collectLatest { syncedChefs ->
-                if (syncedChefs.isEmpty()) {
-                    binding.layoutEmptyChefs.visibility = View.VISIBLE
-                    binding.rvChefs.visibility = View.GONE
-                } else {
-                    binding.layoutEmptyChefs.visibility = View.GONE
-                    binding.rvChefs.visibility = View.VISIBLE
-                    chefAdapter.submitList(syncedChefs)
-                }
-            }
-        }
-    }
-
-    private fun applyFilter() {
-        val filtered = when (currentFilter) {
-            Driver.DutyStatus.AVAILABLE -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
-            Driver.DutyStatus.DELIVERING -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.DELIVERING }
-            Driver.DutyStatus.OFF_DUTY -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
-            else -> allDriversList
-        }
-
-        if (filtered.isEmpty()) {
-            binding.layoutEmpty.visibility = View.VISIBLE
-            binding.rvDrivers.visibility = View.GONE
-        } else {
-            binding.layoutEmpty.visibility = View.GONE
-            binding.rvDrivers.visibility = View.VISIBLE
-            driverAdapter.submitList(filtered)
-        }
-    }
-
-    // ==================== DIALOGS ====================
-
-    private fun showAddChefDialog() {
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_add_chef)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etName = dialog.findViewById<EditText>(R.id.etChefName)
-        val etPhone = dialog.findViewById<EditText>(R.id.etChefPhone)
-        val etTitle = dialog.findViewById<EditText>(R.id.etChefTitle)
-        val etEmail = dialog.findViewById<EditText>(R.id.etChefEmail)
-        val etPassword = dialog.findViewById<EditText>(R.id.etChefPassword)
-        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
-        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
-        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitChef)
-
-        btnClose.setOnClickListener { dialog.dismiss() }
-        btnCancel.setOnClickListener { dialog.dismiss() }
-
-        btnSubmit.setOnClickListener {
-            val name = etName.text.toString().trim()
-            val phone = etPhone.text.toString().trim()
-            val title = etTitle.text.toString().trim().ifBlank { "Đầu Bếp" }
-            val email = etEmail.text.toString().trim()
-            val pass = etPassword.text.toString().trim()
-
-            if (name.isBlank()) {
-                etName.error = "Vui lòng nhập họ và tên đầu bếp"
-                return@setOnClickListener
-            }
-            if (phone.isBlank()) {
-                etPhone.error = "Vui lòng nhập số điện thoại"
-                return@setOnClickListener
-            }
-            if (email.isBlank() || !email.contains("@")) {
-                etEmail.error = "Vui lòng nhập email hợp lệ"
-                return@setOnClickListener
-            }
-            if (pass.length < 6) {
-                etPassword.error = "Mật khẩu tối thiểu 6 ký tự"
-                return@setOnClickListener
-            }
-
-            btnSubmit.isEnabled = false
-            btnSubmit.text = "Đang tạo tài khoản..."
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val result = firebaseRepository.createChefAccount(
-                    context = requireContext(),
-                    storeId = currentStoreId,
-                    name = name,
-                    phone = phone,
-                    email = email,
-                    pass = pass,
-                    title = title
-                )
-
-                if (result.isSuccess) {
-                    Toast.makeText(
-                        requireContext(),
-                        "✓ Đã tạo tài khoản Đầu Bếp [$name] thành công!\nEmail: $email",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    btnSubmit.isEnabled = true
-                    btnSubmit.text = "Tạo tài khoản bếp"
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    private fun showDeleteChefDialog(chef: Chef) {
-        AlertDialog.Builder(requireContext())
-            .setTitle("Xóa tài khoản đầu bếp")
-            .setMessage("Bạn có chắc chắn muốn xóa đầu bếp ${chef.name} khỏi danh sách nhân sự của quán không?")
-            .setPositiveButton("Xóa") { _, _ ->
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val result = firebaseRepository.deleteChef(chef.chefId)
-                    if (result.isSuccess) {
-                        Toast.makeText(requireContext(), "Đã xóa đầu bếp ${chef.name}", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    private fun showAddDriverDialog() {
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_add_driver)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etName = dialog.findViewById<EditText>(R.id.etDriverName)
-        val etPhone = dialog.findViewById<EditText>(R.id.etDriverPhone)
-        val etCode = dialog.findViewById<EditText>(R.id.etDriverCode)
-        val etPlate = dialog.findViewById<EditText>(R.id.etDriverPlate)
-        val etModel = dialog.findViewById<EditText>(R.id.etVehicleModel)
-        val etEmail = dialog.findViewById<EditText>(R.id.etDriverEmail)
-        val etPassword = dialog.findViewById<EditText>(R.id.etDriverPassword)
-        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
-        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
-        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitDriver)
-
-        btnClose.setOnClickListener { dialog.dismiss() }
-        btnCancel.setOnClickListener { dialog.dismiss() }
-
-        btnSubmit.setOnClickListener {
-            val name = etName.text.toString().trim()
-            val phone = etPhone.text.toString().trim()
-            val code = etCode.text.toString().trim()
-            val plate = etPlate.text.toString().trim()
-            val model = etModel.text.toString().trim()
-            val email = etEmail.text.toString().trim()
-            val pass = etPassword.text.toString().trim()
-
-            if (name.isBlank()) {
-                etName.error = "Vui lòng nhập họ và tên tài xế"
-                return@setOnClickListener
-            }
-            if (phone.isBlank()) {
-                etPhone.error = "Vui lòng nhập số điện thoại"
-                return@setOnClickListener
-            }
-            if (plate.isBlank()) {
-                etPlate.error = "Vui lòng nhập biển số xe"
-                return@setOnClickListener
-            }
-            if (email.isBlank() || !email.contains("@")) {
-                etEmail.error = "Vui lòng nhập email hợp lệ"
-                return@setOnClickListener
-            }
-            if (pass.length < 6) {
-                etPassword.error = "Mật khẩu đăng nhập tối thiểu 6 ký tự"
-                return@setOnClickListener
-            }
-
-            btnSubmit.isEnabled = false
-            btnSubmit.text = "Đang tạo..."
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val result = firebaseRepository.createDriverAccount(
-                    context = requireContext(),
-                    storeId = currentStoreId,
-                    name = name,
-                    phone = phone,
-                    driverCode = code,
-                    vehiclePlate = plate,
-                    vehicleModel = model,
-                    email = email,
-                    pass = pass
-                )
-
-                if (result.isSuccess) {
-                    Toast.makeText(
-                        requireContext(),
-                        "✓ Đã tạo tài khoản tài xế [$name - $code] thành công!\nEmail: $email",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    btnSubmit.isEnabled = true
-                    btnSubmit.text = "Tạo tài khoản"
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/DriverActiveOrdersAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -71684,6 +71002,168 @@ class DriverActiveOrdersAdapter(
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-internal/src/main/res/layout/item_chef_manage.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="@color/white"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/border"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvChefName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        tools:text="Nguyễn Văn A" />
+
+                    <TextView
+                        android:id="@+id/tvChefTitleBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_badge_shop_tag"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="1dp"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        tools:text="Bếp trưởng" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvChefPhone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11.5sp"
+                    tools:text="📞 0903.882.910" />
+
+                <TextView
+                    android:id="@+id/tvChefEmail"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    tools:text="✉ chef@oishi.vn" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvChefStatusBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_free"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:text="🟢 Đang trực"
+                android:textColor="@color/brand_green"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="10dp"
+            android:background="@color/divider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvChefCookingSummary"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/brand_orange"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                tools:text="🔥 Đang nấu: 2 đơn" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCallChef"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:backgroundTint="@color/brand_blue_bg"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="Gọi điện"
+                android:textColor="@color/brand_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp"
+                app:icon="@drawable/ic_phone"
+                app:iconSize="14dp"
+                app:iconTint="@color/brand_blue" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDeleteChef"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="@color/danger_bg"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="Xóa"
+                android:textColor="#DC2626"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+````
+
 ## File: app-internal/src/main/res/layout/item_driver_active_order.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -72152,24 +71632,46 @@ class DriverActiveOrdersAdapter(
                 android:id="@+id/btnCall"
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="32dp"
                 android:backgroundTint="@color/brand_green_bg"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:paddingHorizontal="14dp"
+                android:paddingHorizontal="12dp"
                 android:text="Liên hệ"
                 android:textColor="@color/brand_green"
-                android:textSize="11.5sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 app:cornerRadius="8dp"
                 app:strokeColor="#A7F3D0"
                 app:strokeWidth="1dp"
                 android:minHeight="0dp"
                 android:minWidth="0dp"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDeleteDriver"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="@color/danger_bg"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="Xóa"
+                android:textColor="#DC2626"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp" />
 
             <View
                 android:layout_width="0dp"
@@ -78064,6 +77566,554 @@ class OrderHistoryFragment : Fragment() {
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverListFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.driver
+
+import android.app.Dialog
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.net.Uri
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.Window
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Chef
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentDriverListBinding
+import com.chuyen_de_2.foodorder.internal.ui.chef.ChefAdapter
+import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Quản lý Đội ngũ Nhân sự Của Quán (Staff Management):
+ * - Tab 1: Đội Tài Xế (Drivers): Thống kê, giám sát tình trạng trực/giao đơn, tạo tài khoản tài xế.
+ * - Tab 2: Đội Đầu Bếp (Chefs): Thống kê, giám sát tình trạng nấu món, tạo tài khoản đầu bếp trực thuộc quán.
+ */
+@AndroidEntryPoint
+class DriverListFragment : Fragment() {
+
+    private var _binding: FragmentDriverListBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
+    private lateinit var driverAdapter: DriverAdapter
+    private lateinit var chefAdapter: ChefAdapter
+
+    private var currentStoreId = ""
+    private var allDriversList: List<Driver> = emptyList()
+    private var currentFilter: String = "ALL"
+    private var isChefTabSelected = false
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentDriverListBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupRecyclerViews()
+        setupTabs()
+        setupListeners()
+        resolveCurrentStoreIdAndObserve()
+    }
+
+    private fun resolveCurrentStoreIdAndObserve() {
+        val uid = auth.currentUser?.uid.orEmpty()
+        viewLifecycleOwner.lifecycleScope.launch {
+            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            observeDrivers()
+            observeChefs()
+        }
+    }
+
+    private fun setupRecyclerViews() {
+        // 1. Adapter Tài Xế
+        driverAdapter = DriverAdapter(
+            onCallClick = { phone ->
+                try {
+                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:$phone")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDeleteClick = { driver ->
+                showDeleteDriverDialog(driver)
+            }
+        )
+        binding.rvDrivers.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvDrivers.adapter = driverAdapter
+
+        // 2. Adapter Đầu Bếp
+        chefAdapter = ChefAdapter(
+            onCallClick = { phone ->
+                try {
+                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:$phone")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDeleteClick = { chef ->
+                showDeleteChefDialog(chef)
+            }
+        )
+        binding.rvChefs.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvChefs.adapter = chefAdapter
+    }
+
+    private fun setupTabs() {
+        binding.btnTabDrivers.setOnClickListener {
+            if (isChefTabSelected) {
+                isChefTabSelected = false
+                updateTabUI()
+            }
+        }
+
+        binding.btnTabChefs.setOnClickListener {
+            if (!isChefTabSelected) {
+                isChefTabSelected = true
+                updateTabUI()
+            }
+        }
+    }
+
+    private fun updateTabUI() {
+        if (!isChefTabSelected) {
+            // Hiển thị Tab Tài Xế
+            binding.tvStaffHeaderTitle.text = "Đội Tài Xế Của Quán"
+            binding.btnAddDriver.visibility = View.VISIBLE
+            binding.btnAddChef.visibility = View.GONE
+            binding.layoutDriverSection.visibility = View.VISIBLE
+            binding.layoutChefSection.visibility = View.GONE
+
+            binding.btnTabDrivers.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_blue)
+                setTextColor(Color.WHITE)
+                strokeWidth = 0
+            }
+            binding.btnTabChefs.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+                setStrokeColorResource(R.color.border)
+                strokeWidth = 2
+            }
+        } else {
+            // Hiển thị Tab Đầu Bếp
+            binding.tvStaffHeaderTitle.text = "Đội Đầu Bếp Của Quán"
+            binding.btnAddDriver.visibility = View.GONE
+            binding.btnAddChef.visibility = View.VISIBLE
+            binding.layoutDriverSection.visibility = View.GONE
+            binding.layoutChefSection.visibility = View.VISIBLE
+
+            binding.btnTabChefs.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_orange)
+                setTextColor(Color.WHITE)
+                strokeWidth = 0
+            }
+            binding.btnTabDrivers.apply {
+                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+                setStrokeColorResource(R.color.border)
+                strokeWidth = 2
+            }
+        }
+    }
+
+    private fun setupListeners() {
+        binding.btnAddDriver.setOnClickListener {
+            showAddDriverDialog()
+        }
+        binding.btnAddChef.setOnClickListener {
+            showAddChefDialog()
+        }
+
+        binding.layoutStatTotal.setOnClickListener {
+            currentFilter = "ALL"
+            applyFilter()
+            Toast.makeText(requireContext(), "Hiển thị: Tất cả tài xế", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatAvailable.setOnClickListener {
+            currentFilter = Driver.DutyStatus.AVAILABLE
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Đang trực (Sẵn sàng)", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatDelivering.setOnClickListener {
+            currentFilter = Driver.DutyStatus.DELIVERING
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Đang đi giao đơn", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatOffDuty.setOnClickListener {
+            currentFilter = Driver.DutyStatus.OFF_DUTY
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Nghỉ ca (OFF)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ==================== OBSERVERS ====================
+
+    private fun observeDrivers() {
+        binding.progressBar.visibility = View.VISIBLE
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            combine(
+                firebaseRepository.observeStoreDrivers(currentStoreId),
+                firebaseRepository.observeAllOrders()
+            ) { drivers, orders ->
+                val activeOrders = orders.filter { order ->
+                    !order.shipperId.isNullOrBlank() && (
+                        order.status == Order.Status.ASSIGNED ||
+                        order.status == Order.Status.ARRIVED_AT_SHOP ||
+                        order.status == Order.Status.DELIVERING ||
+                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        order.status == Order.Status.RETURNING_TO_STORE
+                    )
+                }
+                val activeOrdersByDriver = activeOrders.groupBy { it.shipperId }
+
+                drivers.map { driver ->
+                    val deliveringOrders = activeOrdersByDriver[driver.driverId].orEmpty()
+                    if (deliveringOrders.isNotEmpty()) {
+                        val primaryOrder = deliveringOrders.first()
+                        val shortCode = QRCodeUtils.getShortOrderCode(primaryOrder.orderId)
+                        val info = if (primaryOrder.status == Order.Status.RETURNING_TO_STORE) {
+                            "#$shortCode • Trả hàng về quán"
+                        } else if (deliveringOrders.size > 1) {
+                            "#$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
+                        } else {
+                            "#$shortCode • ${primaryOrder.customerName}"
+                        }
+                        driver.copy(
+                            dutyStatus = Driver.DutyStatus.DELIVERING,
+                            currentOrderCode = info
+                        )
+                    } else if (driver.dutyStatus == Driver.DutyStatus.OFF_DUTY ||
+                        driver.dutyStatus?.equals("OFFLINE", ignoreCase = true) == true ||
+                        driver.dutyStatus.isNullOrBlank()
+                    ) {
+                        driver.copy(dutyStatus = Driver.DutyStatus.OFF_DUTY)
+                    } else {
+                        driver.copy(dutyStatus = Driver.DutyStatus.AVAILABLE)
+                    }
+                }
+            }.collectLatest { syncedDrivers ->
+                binding.progressBar.visibility = View.GONE
+                allDriversList = syncedDrivers
+
+                val total = syncedDrivers.size
+                val available = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
+                val delivering = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.DELIVERING }
+                val offDuty = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
+
+                binding.tvTotalDrivers.text = total.toString()
+                binding.tvAvailableDrivers.text = available.toString()
+                binding.tvDeliveringDrivers.text = delivering.toString()
+                binding.tvOffDutyDrivers.text = offDuty.toString()
+
+                applyFilter()
+            }
+        }
+    }
+
+    private fun observeChefs() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            combine(
+                firebaseRepository.observeStoreChefs(currentStoreId),
+                firebaseRepository.observeAllOrders()
+            ) { chefs, orders ->
+                // Đếm số đơn PREPARING mà từng đầu bếp đang nấu
+                val preparingOrders = orders.filter { it.status == Order.Status.PREPARING && !it.chefId.isNullOrBlank() }
+                val cookingCounts = preparingOrders.groupBy { it.chefId }.mapValues { it.value.size }
+
+                chefs.map { chef ->
+                    val activeCount = cookingCounts[chef.chefId] ?: 0
+                    chef.copy(activeOrdersCount = activeCount)
+                }
+            }.collectLatest { syncedChefs ->
+                if (syncedChefs.isEmpty()) {
+                    binding.layoutEmptyChefs.visibility = View.VISIBLE
+                    binding.rvChefs.visibility = View.GONE
+                } else {
+                    binding.layoutEmptyChefs.visibility = View.GONE
+                    binding.rvChefs.visibility = View.VISIBLE
+                    chefAdapter.submitList(syncedChefs)
+                }
+            }
+        }
+    }
+
+    private fun applyFilter() {
+        val filtered = when (currentFilter) {
+            Driver.DutyStatus.AVAILABLE -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
+            Driver.DutyStatus.DELIVERING -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.DELIVERING }
+            Driver.DutyStatus.OFF_DUTY -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
+            else -> allDriversList
+        }
+
+        if (filtered.isEmpty()) {
+            binding.layoutEmpty.visibility = View.VISIBLE
+            binding.rvDrivers.visibility = View.GONE
+        } else {
+            binding.layoutEmpty.visibility = View.GONE
+            binding.rvDrivers.visibility = View.VISIBLE
+            driverAdapter.submitList(filtered)
+        }
+    }
+
+    // ==================== DIALOGS ====================
+
+    private fun showAddChefDialog() {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_add_chef)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etName = dialog.findViewById<EditText>(R.id.etChefName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etChefPhone)
+        val etTitle = dialog.findViewById<EditText>(R.id.etChefTitle)
+        val etEmail = dialog.findViewById<EditText>(R.id.etChefEmail)
+        val etPassword = dialog.findViewById<EditText>(R.id.etChefPassword)
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
+        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitChef)
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSubmit.setOnClickListener {
+            val name = etName.text.toString().trim()
+            val phone = etPhone.text.toString().trim()
+            val title = etTitle.text.toString().trim().ifBlank { "Đầu Bếp" }
+            val email = etEmail.text.toString().trim()
+            val pass = etPassword.text.toString().trim()
+
+            if (name.isBlank()) {
+                etName.error = "Vui lòng nhập họ và tên đầu bếp"
+                return@setOnClickListener
+            }
+            if (phone.isBlank()) {
+                etPhone.error = "Vui lòng nhập số điện thoại"
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !email.contains("@")) {
+                etEmail.error = "Vui lòng nhập email hợp lệ"
+                return@setOnClickListener
+            }
+            if (pass.length < 6) {
+                etPassword.error = "Mật khẩu tối thiểu 6 ký tự"
+                return@setOnClickListener
+            }
+
+            btnSubmit.isEnabled = false
+            btnSubmit.text = "Đang tạo tài khoản..."
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.createChefAccount(
+                    context = requireContext(),
+                    storeId = currentStoreId,
+                    name = name,
+                    phone = phone,
+                    email = email,
+                    pass = pass,
+                    title = title
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(
+                        requireContext(),
+                        "✓ Đã tạo tài khoản Đầu Bếp [$name] thành công!\nEmail: $email",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    btnSubmit.isEnabled = true
+                    btnSubmit.text = "Tạo tài khoản bếp"
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun showDeleteDriverDialog(driver: Driver) {
+        val driverName = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xóa tài khoản tài xế")
+            .setMessage("Bạn có chắc chắn muốn xóa tài xế $driverName (${driver.driverCode}) khỏi quán không?\n\nTài khoản sẽ bị gỡ bỏ và các đơn đang giao (nếu có) sẽ được chuyển về trạng thái sẵn sàng cho tài xế khác nhận.")
+            .setPositiveButton("Xóa") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val result = firebaseRepository.deleteDriver(driver.driverId)
+                    if (result.isSuccess) {
+                        Toast.makeText(requireContext(), "Đã xóa tài xế $driverName", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    private fun showDeleteChefDialog(chef: Chef) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xóa tài khoản đầu bếp")
+            .setMessage("Bạn có chắc chắn muốn xóa đầu bếp ${chef.name} khỏi danh sách nhân sự của quán không?")
+            .setPositiveButton("Xóa") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val result = firebaseRepository.deleteChef(chef.chefId)
+                    if (result.isSuccess) {
+                        Toast.makeText(requireContext(), "Đã xóa đầu bếp ${chef.name}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    private fun showAddDriverDialog() {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_add_driver)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etName = dialog.findViewById<EditText>(R.id.etDriverName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etDriverPhone)
+        val etCode = dialog.findViewById<EditText>(R.id.etDriverCode)
+        val etPlate = dialog.findViewById<EditText>(R.id.etDriverPlate)
+        val etModel = dialog.findViewById<EditText>(R.id.etVehicleModel)
+        val etEmail = dialog.findViewById<EditText>(R.id.etDriverEmail)
+        val etPassword = dialog.findViewById<EditText>(R.id.etDriverPassword)
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
+        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitDriver)
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSubmit.setOnClickListener {
+            val name = etName.text.toString().trim()
+            val phone = etPhone.text.toString().trim()
+            val code = etCode.text.toString().trim()
+            val plate = etPlate.text.toString().trim()
+            val model = etModel.text.toString().trim()
+            val email = etEmail.text.toString().trim()
+            val pass = etPassword.text.toString().trim()
+
+            if (name.isBlank()) {
+                etName.error = "Vui lòng nhập họ và tên tài xế"
+                return@setOnClickListener
+            }
+            if (phone.isBlank()) {
+                etPhone.error = "Vui lòng nhập số điện thoại"
+                return@setOnClickListener
+            }
+            if (plate.isBlank()) {
+                etPlate.error = "Vui lòng nhập biển số xe"
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !email.contains("@")) {
+                etEmail.error = "Vui lòng nhập email hợp lệ"
+                return@setOnClickListener
+            }
+            if (pass.length < 6) {
+                etPassword.error = "Mật khẩu đăng nhập tối thiểu 6 ký tự"
+                return@setOnClickListener
+            }
+
+            btnSubmit.isEnabled = false
+            btnSubmit.text = "Đang tạo..."
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.createDriverAccount(
+                    context = requireContext(),
+                    storeId = currentStoreId,
+                    name = name,
+                    phone = phone,
+                    driverCode = code,
+                    vehiclePlate = plate,
+                    vehicleModel = model,
+                    email = email,
+                    pass = pass
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(
+                        requireContext(),
+                        "✓ Đã tạo tài khoản tài xế [$name - $code] thành công!\nEmail: $email",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    btnSubmit.isEnabled = true
+                    btnSubmit.text = "Tạo tài khoản"
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperFragment.kt
@@ -84101,398 +84151,6 @@ class StoreProfileFragment : Fragment() {
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
-````
-
-## File: app-internal/src/main/res/layout/fragment_driver_list.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:orientation="vertical">
-
-    <!-- Top Navbar Quán -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="@color/white"
-        android:elevation="1dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp">
-
-        <TextView
-            android:id="@+id/tvStaffHeaderTitle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Quản Lý Đội Ngũ Nhân Sự"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnAddDriver"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:backgroundTint="@color/brand_blue_bg"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp"
-            android:paddingHorizontal="12dp"
-            android:paddingStart="12dp"
-            android:paddingTop="0dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="0dp"
-            android:text="+ Thêm TX"
-            android:textColor="@color/brand_blue"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            app:cornerRadius="8dp"
-            app:strokeColor="#BFDBFE"
-            app:strokeWidth="1dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnAddChef"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:backgroundTint="@color/brand_orange_bg"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp"
-            android:paddingHorizontal="12dp"
-            android:paddingStart="12dp"
-            android:paddingTop="0dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="0dp"
-            android:text="+ Thêm Đầu Bếp"
-            android:textColor="@color/brand_orange"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:visibility="gone"
-            app:cornerRadius="8dp"
-            app:strokeColor="#FED7AA"
-            app:strokeWidth="1dp"
-            tools:visibility="visible" />
-    </LinearLayout>
-
-    <!-- Switcher giữa Tài xế và Đầu bếp -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/white"
-        android:elevation="2dp"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingBottom="10dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTabDrivers"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_marginEnd="6dp"
-            android:layout_weight="1"
-            android:backgroundTint="@color/brand_blue"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:text="🛵 Đội Tài Xế"
-            android:textColor="@color/white"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="8dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTabChefs"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_marginStart="6dp"
-            android:layout_weight="1"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:text="👨‍🍳 Đội Đầu Bếp"
-            android:textColor="@color/text_secondary"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="8dp"
-            app:strokeColor="@color/border" />
-    </LinearLayout>
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="14dp"
-            android:paddingBottom="80dp">
-
-            <!-- ================= SECTION TÀI XẾ ================= -->
-            <LinearLayout
-                android:id="@+id/layoutDriverSection"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <!-- Stat Banner Tài Xế -->
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="14dp"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="14dp"
-                    app:cardElevation="0dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:paddingVertical="14dp">
-
-                        <LinearLayout
-                            android:id="@+id/layoutStatTotal"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/tvTotalDrivers"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="0"
-                                android:textColor="@color/text_primary"
-                                android:textSize="18sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="Tổng TX"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-
-                        <View
-                            android:layout_width="1dp"
-                            android:layout_height="match_parent"
-                            android:background="@color/divider" />
-
-                        <LinearLayout
-                            android:id="@+id/layoutStatAvailable"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/tvAvailableDrivers"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="0"
-                                android:textColor="@color/brand_green"
-                                android:textSize="18sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="🟢 Đang trực"
-                                android:textColor="@color/brand_green"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-
-                        <View
-                            android:layout_width="1dp"
-                            android:layout_height="match_parent"
-                            android:background="@color/divider" />
-
-                        <LinearLayout
-                            android:id="@+id/layoutStatDelivering"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/tvDeliveringDrivers"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="0"
-                                android:textColor="@color/brand_blue"
-                                android:textSize="18sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="🛵 Đang giao"
-                                android:textColor="@color/brand_blue"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-
-                        <View
-                            android:layout_width="1dp"
-                            android:layout_height="match_parent"
-                            android:background="@color/divider" />
-
-                        <LinearLayout
-                            android:id="@+id/layoutStatOffDuty"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/tvOffDutyDrivers"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="0"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="18sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="⏸️ Nghỉ ca"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- Empty State Drivers -->
-                <LinearLayout
-                    android:id="@+id/layoutEmpty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:paddingVertical="40dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🛵"
-                        android:textSize="48sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="Chưa có tài xế nào trong đội xe"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Bấm '+ Thêm TX' ở góc phải để thêm tài xế nội bộ"
-                        android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <!-- Danh sách tài xế -->
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvDrivers"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    tools:listitem="@layout/item_driver" />
-            </LinearLayout>
-
-            <!-- ================= SECTION ĐẦU BẾP ================= -->
-            <LinearLayout
-                android:id="@+id/layoutChefSection"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:visibility="gone"
-                tools:visibility="visible">
-
-                <!-- Empty State Chefs -->
-                <LinearLayout
-                    android:id="@+id/layoutEmptyChefs"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:paddingVertical="40dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="👨‍🍳"
-                        android:textSize="48sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="Chưa có đầu bếp nào thuộc quán"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Bấm '+ Thêm Đầu Bếp' ở góc phải để tạo tài khoản"
-                        android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <!-- Danh sách đầu bếp -->
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvChefs"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    tools:listitem="@layout/item_chef_manage" />
-            </LinearLayout>
-
-            <!-- ProgressBar Loading -->
-            <ProgressBar
-                android:id="@+id/progressBar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginVertical="24dp"
-                android:visibility="gone" />
-
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-
-</LinearLayout>
 ````
 
 ## File: app-internal/src/main/res/layout/fragment_store_report.xml
@@ -92094,6 +91752,398 @@ class OtpVerificationActivity : AppCompatActivity() {
 </LinearLayout>
 ````
 
+## File: app-internal/src/main/res/layout/fragment_driver_list.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:orientation="vertical">
+
+    <!-- Top Navbar Quán -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/white"
+        android:elevation="1dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp">
+
+        <TextView
+            android:id="@+id/tvStaffHeaderTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Quản Lý Đội Ngũ Nhân Sự"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAddDriver"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:backgroundTint="@color/brand_blue_bg"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingStart="12dp"
+            android:paddingTop="0dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="0dp"
+            android:text="+ Thêm TX"
+            android:textColor="@color/brand_blue"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            app:cornerRadius="8dp"
+            app:strokeColor="#BFDBFE"
+            app:strokeWidth="1dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAddChef"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:backgroundTint="@color/brand_orange_bg"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingStart="12dp"
+            android:paddingTop="0dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="0dp"
+            android:text="+ Thêm Đầu Bếp"
+            android:textColor="@color/brand_orange"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:cornerRadius="8dp"
+            app:strokeColor="#FED7AA"
+            app:strokeWidth="1dp"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- Switcher giữa Tài xế và Đầu bếp -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        android:elevation="2dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="10dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTabDrivers"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:backgroundTint="@color/brand_blue"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:text="🛵 Đội Tài Xế"
+            android:textColor="@color/white"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="8dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTabChefs"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:text="👨‍🍳 Đội Đầu Bếp"
+            android:textColor="@color/text_secondary"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="8dp"
+            app:strokeColor="@color/border" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:paddingBottom="80dp">
+
+            <!-- ================= SECTION TÀI XẾ ================= -->
+            <LinearLayout
+                android:id="@+id/layoutDriverSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Stat Banner Tài Xế -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="14dp"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="14dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingVertical="14dp">
+
+                        <LinearLayout
+                            android:id="@+id/layoutStatTotal"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvTotalDrivers"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textColor="@color/text_primary"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Tổng TX"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="match_parent"
+                            android:background="@color/divider" />
+
+                        <LinearLayout
+                            android:id="@+id/layoutStatAvailable"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvAvailableDrivers"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textColor="@color/brand_green"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="🟢 Đang trực"
+                                android:textColor="@color/brand_green"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="match_parent"
+                            android:background="@color/divider" />
+
+                        <LinearLayout
+                            android:id="@+id/layoutStatDelivering"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvDeliveringDrivers"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textColor="@color/brand_blue"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="🛵 Đang giao"
+                                android:textColor="@color/brand_blue"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="match_parent"
+                            android:background="@color/divider" />
+
+                        <LinearLayout
+                            android:id="@+id/layoutStatOffDuty"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvOffDutyDrivers"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="⏸️ Nghỉ ca"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Empty State Drivers -->
+                <LinearLayout
+                    android:id="@+id/layoutEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:paddingVertical="40dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🛵"
+                        android:textSize="48sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Chưa có tài xế nào trong đội xe"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Bấm '+ Thêm TX' ở góc phải để thêm tài xế nội bộ"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Danh sách tài xế -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvDrivers"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    tools:listitem="@layout/item_driver" />
+            </LinearLayout>
+
+            <!-- ================= SECTION ĐẦU BẾP ================= -->
+            <LinearLayout
+                android:id="@+id/layoutChefSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <!-- Empty State Chefs -->
+                <LinearLayout
+                    android:id="@+id/layoutEmptyChefs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:paddingVertical="40dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="👨‍🍳"
+                        android:textSize="48sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="Chưa có đầu bếp nào thuộc quán"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Bấm '+ Thêm Đầu Bếp' ở góc phải để tạo tài khoản"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Danh sách đầu bếp -->
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvChefs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
+                    tools:listitem="@layout/item_chef_manage" />
+            </LinearLayout>
+
+            <!-- ProgressBar Loading -->
+            <ProgressBar
+                android:id="@+id/progressBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginVertical="24dp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>
+````
+
 ## File: app-internal/src/main/res/layout/fragment_store_profile.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -92971,6 +93021,149 @@ class OtpVerificationActivity : AppCompatActivity() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-internal/src/main/AndroidManifest.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Foreground Service cho GPS Shipper & Giám sát đơn Quán ăn (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Cho phép kiểm tra và mở ứng dụng Khách hàng (Oishi Customer) -->
+    <queries>
+        <package android:name="com.chuyen_de_2.foodorder.customer" />
+    </queries>
+
+    <application
+        android:name=".FoodOrderInternalApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FoodOrder.Internal">
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
+        <!-- Auth -->
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.auth.RegisterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <activity
+            android:name=".ui.auth.OtpVerificationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Phiếu địa chỉ bắt buộc & Xác minh thông tin Quán -->
+        <activity
+            android:name=".ui.auth.StoreVerificationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Màn hình ghim vị trí quán trên bản đồ -->
+        <activity
+            android:name=".ui.auth.SelectLocationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Dashboard (RBAC routing) -->
+        <activity
+            android:name=".ui.dashboard.DashboardActivity"
+            android:theme="@style/Theme.FoodOrder.Internal" />
+
+        <!-- Màn hình Quản lý Chuỗi Chi Nhánh dành riêng cho BOSSMERCHANT -->
+        <activity
+            android:name=".ui.boss.BossDashboardActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
+        <activity
+            android:name=".ui.ship.DeliveryTripActivity"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
+        <service
+            android:name=".service.LocationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- FCM Service -->
+        <service
+            android:name=".service.InternalFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Dịch vụ tiền cảnh giữ kết nối Quán ăn & VietQR 24/7 không bị hệ điều hành diệt -->
+        <service
+            android:name=".service.MerchantKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
+        <service
+            android:name=".service.BankNotificationListenerService"
+            android:label="Tự Động Duyệt Thanh Toán Oishi"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- FileProvider cho phép Camera chụp ảnh thẻ CCCD & ảnh quán -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+</manifest>
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/util/QRCodeUtils.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.util
@@ -93395,6 +93588,645 @@ object QRCodeUtils {
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </ScrollView>
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/service/BankNotificationListenerService.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.service
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.media.RingtoneManager
+import android.os.Build
+import android.provider.Settings
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.internal.R
+import com.google.firebase.database.FirebaseDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+
+/**
+ * Dịch vụ chạy ngầm lắng nghe thông báo biến động số dư ngân hàng
+ * để tự động xác nhận thanh toán đơn hàng VietQR chuẩn OISHI_******.
+ * - Mã đơn: OISHI_****** (với 6 ký tự số hoặc chữ in hoa)
+ * - Điều kiện duyệt: Đúng mã đơn hàng VÀ số tiền nhận được >= số tiền trong đơn
+ * - Đổi trạng thái: paymentStatus = PAID và status = PAID
+ */
+class BankNotificationListenerService : NotificationListenerService() {
+
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    companion object {
+        private const val TAG = "BankNotifListener"
+        private const val CHANNEL_ID = "channel_payment_auto_confirm"
+
+        /** Kiểm tra xem quyền Notification Listener đã được cấp trong Settings chưa */
+        fun isPermissionGranted(context: Context): Boolean {
+            val packageName = context.packageName
+            val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+            return flat?.contains(packageName) == true
+        }
+
+        /** Mở màn hình Settings để người dùng cấp quyền Notification Listener */
+        fun openPermissionSettings(context: Context) {
+            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        }
+
+        /**
+         * Lệnh phổ quát kết nối lại Service trên mọi dòng máy (Universal Auto-Toggle & RequestRebind).
+         * Ép toàn bộ các hệ điều hành (Samsung, Xiaomi, Vivo, OPPO, Realme...) kết nối lại ngay lập tức.
+         */
+        fun forceRebindService(context: Context) {
+            if (!isPermissionGranted(context)) return
+            try {
+                val component = android.content.ComponentName(context, BankNotificationListenerService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    requestRebind(component)
+                }
+                val pm = context.packageManager
+                pm.setComponentEnabledSetting(
+                    component,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+                )
+                pm.setComponentEnabledSetting(
+                    component,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+                )
+                Log.i(TAG, "✓ Universal Auto-Toggle completed successfully for BankNotificationListenerService")
+            } catch (e: Exception) {
+                Log.e(TAG, "Lỗi forceRebindService: ${e.message}")
+            }
+        }
+
+        /** Yêu cầu hệ thống Android bỏ qua giới hạn pin (Chuẩn Android gốc chạy trên 100% mọi dòng máy) */
+        fun requestIgnoreBatteryOptimizations(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                    val packageName = context.packageName
+                    if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = android.net.Uri.parse("package:$packageName")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    }
+                } catch (e: Exception) {
+                    try {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
+        /** Giữ nguyên alias cũ để tương thích ngược */
+        fun requestRebindIfNecessary(context: Context) {
+            forceRebindService(context)
+        }
+
+        /** Mở màn hình cài đặt Tự Khởi Chạy (Autostart) trên Xiaomi/MIUI/HyperOS/Vivo */
+        fun openAutostartSettings(context: Context) {
+            val intents = listOf(
+                Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+                Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")),
+                Intent().setComponent(android.content.ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.PurviewTabActivity")),
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(android.net.Uri.fromParts("package", context.packageName, null))
+            )
+            for (intent in intents) {
+                try {
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    context.startActivity(intent)
+                    return
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.i(TAG, "✓✓✓ BankNotificationListenerService ĐÃ KẾT NỐI THÀNH CÔNG VỚI ANDROID! Sẵn sàng lắng nghe thông báo ngân hàng.")
+        // Quét ngay các thông báo ngân hàng đang có sẵn trên thanh trạng thái chưa kịp đọc
+        try {
+            activeNotifications?.forEach { sbn ->
+                onNotificationPosted(sbn)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi quét thông báo hiện có: ${e.message}")
+        }
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (sbn == null) return
+        val packageName = sbn.packageName.orEmpty()
+
+        // 1. Bỏ qua thông báo của chính ứng dụng nội bộ Oishi để tránh vòng lặp tự kích hoạt
+        if (packageName == applicationContext.packageName) return
+
+        // 2. CHẶN ĐỨNG 100% CÁC ỨNG DỤNG CHAT VÀ MẠNG XÃ HỘI (Zalo, Messenger, Telegram, WhatsApp...)
+        if (com.chuyen_de_2.foodorder.core.util.BankData.BLACKLISTED_CHAT_PACKAGES.contains(packageName) ||
+            packageName.contains("zalo", ignoreCase = true) ||
+            packageName.contains("orca", ignoreCase = true) ||
+            packageName.contains("telegram", ignoreCase = true) ||
+            packageName.contains("whatsapp", ignoreCase = true)
+        ) {
+            Log.w(TAG, "🚫 ĐÃ CHẶN THÔNG BÁO TỪ ỨNG DỤNG CHAT/MẠNG XÃ HỘI: $packageName")
+            return
+        }
+
+        val extras = sbn.notification?.extras ?: return
+        val title = extras.getString(Notification.EXTRA_TITLE).orEmpty().trim()
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty().trim()
+        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty().trim()
+
+        val fullContent = "$title $text $bigText".trim()
+        if (fullContent.isBlank()) return
+
+        // 3. KIỂM TRA NGUỒN PHÁT THÔNG BÁO: CHỈ CHẤP NHẬN CÁC ỨNG DỤNG NGÂN HÀNG/VÍ ĐIỆN TỬ HOẶC SMS BRANDNAME CHÍNH THỐNG
+        val isOfficialBankApp = com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.contains(packageName) ||
+                com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.any { packageName.startsWith(it, ignoreCase = true) }
+
+        val isSmsApp = packageName in listOf(
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.samsung.android.messaging",
+            "com.xiaomi.mms"
+        )
+
+        val isValidSmsBrandname = if (isSmsApp) {
+            val upperTitle = title.uppercase()
+            com.chuyen_de_2.foodorder.core.util.BankData.VALID_BANK_SMS_BRANDNAMES.any { brand ->
+                upperTitle.contains(brand)
+            }
+        } else false
+
+        if (!isOfficialBankApp && !isValidSmsBrandname) {
+            Log.d(TAG, "Bỏ qua thông báo không thuộc danh mục ngân hàng/ví điện tử: $packageName (Tiêu đề: $title)")
+            return
+        }
+
+        // Regex bóc tách mã đơn chuẩn OISHI_****** (linh hoạt cả OISHI_XXXXXX, OISHI XXXXXX, OISHIXXXXXX)
+        val orderCodeRegex = Regex("""OISHI[_ ]?([A-Z0-9]{6})""", RegexOption.IGNORE_CASE)
+        val matchResult = orderCodeRegex.find(fullContent) ?: return
+        val rawSuffix = matchResult.groupValues[1].uppercase()
+        val orderId = "OISHI_$rawSuffix"
+
+        // Bóc tách số tiền nhận được từ thông báo biến động số dư
+        val receivedAmount = extractAmount(fullContent)
+
+        Log.i(TAG, "[$packageName] Phát hiện mã đơn: $orderId | Tiền bóc tách: $receivedAmount VND | Nội dung: $fullContent")
+
+        serviceScope.launch {
+            processAutoConfirmPayment(orderId, receivedAmount, packageName)
+        }
+    }
+
+    /**
+     * Bóc tách số tiền chuyển đến từ thông báo ngân hàng
+     */
+    private fun extractAmount(content: String): Long {
+        try {
+            // Mẫu 1: Dấu cộng trước số tiền (+50.000 hoặc + 50,000 VND)
+            val plusPattern = Regex("""\+\s*([0-9.,]+)\s*(VND|VNĐ|đ|d|dong)?""", RegexOption.IGNORE_CASE)
+            val plusMatch = plusPattern.find(content)
+            if (plusMatch != null) {
+                val digits = plusMatch.groupValues[1].replace(".", "").replace(",", "").trim()
+                digits.toLongOrNull()?.let { if (it > 0) return it }
+            }
+
+            // Mẫu 2: Số tiền sau các từ khóa "số tiền", "so tien", "tang", "nhan", "GD"
+            val keywordPattern = Regex("""(?:số tiền|so tien|tăng|tang|nhận|nhan|gd|thanh toán)[\s:]*\+?\s*([0-9.,]+)""", RegexOption.IGNORE_CASE)
+            val keywordMatch = keywordPattern.find(content)
+            if (keywordMatch != null) {
+                val digits = keywordMatch.groupValues[1].replace(".", "").replace(",", "").trim()
+                digits.toLongOrNull()?.let { if (it > 0) return it }
+            }
+
+            // Mẫu 3: Số tiền chuẩn có phân cách hàng nghìn (vd: 50.000 đ hoặc 120,000 VND)
+            val amountPattern = Regex("""([0-9]{1,3}(?:[.,][0-9]{3})+)\s*(VND|VNĐ|đ|d|dong)""", RegexOption.IGNORE_CASE)
+            val amountMatch = amountPattern.find(content)
+            if (amountMatch != null) {
+                val digits = amountMatch.groupValues[1].replace(".", "").replace(",", "").trim()
+                digits.toLongOrNull()?.let { if (it > 0) return it }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi bóc tách số tiền: ${e.message}")
+        }
+        return 0L
+    }
+
+    /**
+     * Đối soát mã đơn hàng và số tiền chuyển trên Firebase Realtime Database
+     * Nếu khớp mã OISHI_****** và số tiền nhận >= số tiền trong đơn -> Đổi trạng thái sang PAID
+     */
+    private suspend fun processAutoConfirmPayment(orderId: String, receivedAmount: Long, packageName: String) {
+        try {
+            val db = FirebaseDatabase.getInstance(com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL)
+            var targetOrderRef = db.getReference("orders").child(orderId)
+            var snapshot = targetOrderRef.get().await()
+
+            // Retry tối đa 5 lần (mỗi lần cách nhau 1.5s) để đợi WebSocket đồng bộ đơn từ Server
+            var retries = 0
+            while (!snapshot.exists() && retries < 5) {
+                retries++
+                Log.d(TAG, "Chưa thấy đơn '$orderId', đang đợi đồng bộ Firebase (lần $retries/5)...")
+                kotlinx.coroutines.delay(1500)
+                snapshot = targetOrderRef.get().await()
+                if (!snapshot.exists()) {
+                    val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
+                    val altRef = db.getReference("orders").child(altId)
+                    val altSnap = altRef.get().await()
+                    if (altSnap.exists()) {
+                        targetOrderRef = altRef
+                        snapshot = altSnap
+                        break
+                    }
+                }
+            }
+
+            if (!snapshot.exists()) {
+                val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
+                Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' hoặc '$altId' trên hệ thống Firebase sau 5 lần thử")
+                return
+            }
+
+            val currentPaymentStatus = snapshot.child("paymentStatus").getValue(String::class.java).orEmpty()
+            if (currentPaymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) {
+                Log.d(TAG, "Đơn hàng '$orderId' đã được xác nhận thanh toán từ trước, bỏ qua")
+                return
+            }
+
+            val totalPayment = snapshot.child("totalPayment").getValue(Long::class.java)
+                ?: snapshot.child("total").getValue(Long::class.java) ?: 0L
+            val depositAmount = snapshot.child("depositAmount").getValue(Long::class.java) ?: 0L
+            val paymentMode = snapshot.child("paymentMode").getValue(String::class.java).orEmpty()
+            val customerName = snapshot.child("customerName").getValue(String::class.java).orEmpty()
+
+            // Xác định số tiền đơn hàng yêu cầu (trả cọc hoặc trả 100%)
+            val requiredAmount = if (paymentMode == Order.PaymentMode.DEPOSIT && depositAmount > 0) {
+                depositAmount
+            } else {
+                totalPayment
+            }
+
+            // ĐIỀU KIỆN TIÊN QUYẾT: Số tiền nhận được phải LỚN HƠN HOẶC BẰNG số tiền trong đơn
+            if (receivedAmount > 0 && receivedAmount < requiredAmount) {
+                Log.w(
+                    TAG,
+                    "Từ chối duyệt đơn '$orderId': Số tiền chuyển (${receivedAmount.toVndCurrency()}) " +
+                        "nhỏ hơn số tiền đơn yêu cầu (${requiredAmount.toVndCurrency()})"
+                )
+                return
+            }
+
+            val finalPaidAmount = if (receivedAmount > 0) receivedAmount else requiredAmount
+
+            // Cập nhật trạng thái đơn hàng: status = PAID, paymentStatus = PAID
+            val updates = mutableMapOf<String, Any>(
+                "status" to Order.Status.PAID,
+                "orderStatus" to Order.Status.PAID,
+                "paymentStatus" to Order.PaymentStatus.PAID,
+                "isPaid" to true,
+                "paidAmount" to finalPaidAmount,
+                "paidAt" to System.currentTimeMillis(),
+                "paymentMethod" to Order.PaymentMethod.BANKING,
+                "autoPaidBy" to "BANK_NOTIFICATION_LISTENER",
+                "paymentNote" to "Tự động duyệt từ thông báo ngân hàng ($packageName) với số tiền ${finalPaidAmount.toVndCurrency()}"
+            )
+
+            targetOrderRef.updateChildren(updates).await()
+            Log.i(TAG, "✓ XÁC NHẬN THÀNH CÔNG: Đơn '${targetOrderRef.key}' đã chuyển sang trạng thái PAID!")
+
+            // Phát thông báo âm thanh chuông báo nổi bật cho Quán/Boss
+            showSuccessNotification(orderId, finalPaidAmount, packageName, customerName)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi đối soát thanh toán đơn $orderId: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Bắn notification trên máy thông báo tiền đã vào và đơn đã được duyệt
+     */
+    private fun showSuccessNotification(orderId: String, amount: Long, packageName: String, customer: String) {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channelObj = NotificationChannel(
+                    CHANNEL_ID,
+                    "Tự động duyệt thanh toán",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Thông báo khi hệ thống tự động nhận diện tiền chuyển khoản"
+                    enableVibration(true)
+                }
+                nm.createNotificationChannel(channelObj)
+            }
+
+            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_check)
+                .setContentTitle("💰 ĐÃ THANH TOÁN: Đơn $orderId")
+                .setContentText("Đã nhận ${amount.toVndCurrency()} qua Ngân hàng • Khách: ${customer.ifBlank { "Khách hàng" }}")
+                .setStyle(NotificationCompat.BigTextStyle().bigText(
+                    "Đơn hàng $orderId đã tự động chuyển sang trạng thái ĐÃ THANH TOÁN (PAID).\n" +
+                        "Số tiền nhận: ${amount.toVndCurrency()}.\n" +
+                        "Khách hàng: ${customer.ifBlank { "Khách hàng" }}\n" +
+                        "Ứng dụng ghi nhận: $packageName"
+                ))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setSound(soundUri)
+                .setAutoCancel(true)
+                .build()
+
+            nm.notify(orderId.hashCode(), notif)
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi hiển thị notification: ${e.message}")
+        }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/ShopViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.shop
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Shop ViewModel — Quản lý đơn hàng Kanban 3 bước cho Quán theo Quán/5.html
+ * 1. Mới Nhận (PENDING) -> Xác nhận đơn khách -> COOKING (PREPARING)
+ * 2. Đang Nấu (PREPARING) -> Nấu xong -> READY
+ * 3. Sẵn Sàng (READY) -> Giao cho tài xế -> DELIVERING
+ */
+@HiltViewModel
+class ShopViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository
+) : ViewModel() {
+
+    enum class TabType {
+        NEW, COOKING, DELIVERING, HISTORY
+    }
+
+    private val _allOrders = MutableLiveData<List<Order>>(emptyList())
+    val allOrders: LiveData<List<Order>> = _allOrders
+
+    private val _currentTab = MutableLiveData<TabType>(TabType.NEW)
+    val currentTab: LiveData<TabType> = _currentTab
+
+    val filteredOrders = MediatorLiveData<List<Order>>().apply {
+        addSource(_allOrders) { filterOrders() }
+        addSource(_currentTab) { filterOrders() }
+    }
+
+    private val _countNew = MutableLiveData(0)
+    val countNew: LiveData<Int> = _countNew
+
+    private val _countCooking = MutableLiveData(0)
+    val countCooking: LiveData<Int> = _countCooking
+
+    private val _countDelivering = MutableLiveData(0)
+    val countDelivering: LiveData<Int> = _countDelivering
+
+    private val _todayRevenue = MutableLiveData(0L)
+    val todayRevenue: LiveData<Long> = _todayRevenue
+
+    private val _todayCompletedCount = MutableLiveData(0)
+    val todayCompletedCount: LiveData<Int> = _todayCompletedCount
+
+    private val _hasDeliveringWarning = MutableLiveData(false)
+    val hasDeliveringWarning: LiveData<Boolean> = _hasDeliveringWarning
+
+    private val _newOrderAlert = MutableLiveData<Boolean>()
+    val newOrderAlert: LiveData<Boolean> = _newOrderAlert
+
+    private val _activeShippers = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.User>>()
+    val activeShippers: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.User>> = _activeShippers
+
+    private var previousOrderCount = 0
+
+    init {
+        observeOrders()
+        observeShippers()
+    }
+
+    /** Chủ động quét dọn dữ liệu rác/mồ côi của các tài khoản đã xóa */
+    fun cleanupOrphanedData(onResult: ((Int) -> Unit)? = null) {
+        viewModelScope.launch {
+            val result = firebaseRepository.cleanupOrphanedData()
+            onResult?.invoke(result.getOrDefault(0))
+        }
+    }
+
+    private var currentStoreId: String = ""
+
+    fun setStoreId(id: String) {
+        currentStoreId = id
+        filterOrders()
+    }
+
+    fun selectTab(tab: TabType) {
+        _currentTab.value = tab
+    }
+
+    private fun filterOrders() {
+        val rawOrders = _allOrders.value ?: emptyList()
+        val orders = if (currentStoreId.isNotBlank()) {
+            rawOrders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
+        } else {
+            rawOrders
+        }
+        val tab = _currentTab.value ?: TabType.NEW
+
+        // Cập nhật số lượng đếm trên từng tab (Chỉ đếm các đơn khách đã xác nhận)
+        _countNew.value = orders.count {
+            it.status == Order.Status.PENDING ||
+            it.status == Order.Status.PAID ||
+            (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)
+        }
+        _countCooking.value = orders.count { it.status == Order.Status.PREPARING }
+        _countDelivering.value = orders.count {
+            it.status == Order.Status.READY ||
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.RETURNING_TO_STORE ||
+                    it.status == "WARNING"
+        }
+
+        // Bỏ cảnh báo đỏ ở quán theo yêu cầu
+        _hasDeliveringWarning.value = false
+
+        // Tính doanh thu và đơn hoàn tất hôm nay
+        val startOfToday = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val todayCompletedOrders = orders.filter {
+            it.status == Order.Status.COMPLETED &&
+            ((it.createdAt > 0 && it.createdAt >= startOfToday) || (it.timestamp > 0 && it.timestamp >= startOfToday))
+        }
+        _todayCompletedCount.value = todayCompletedOrders.size
+        val calculatedRevenue = todayCompletedOrders.sumOf {
+            if (it.totalPayment > 0) it.totalPayment else if (it.total > 0) it.total else 0L
+        }
+        _todayRevenue.value = calculatedRevenue
+
+        // Lọc danh sách theo tab được chọn (Tab NEW: Chỉ hiện đơn khách đã xác nhận)
+        filteredOrders.value = when (tab) {
+            TabType.NEW -> orders.filter {
+                it.status == Order.Status.PENDING ||
+                it.status == Order.Status.PAID ||
+                (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)        
+            }
+            TabType.COOKING -> orders.filter { it.status == Order.Status.PREPARING }
+            TabType.DELIVERING -> orders.filter {
+                it.status == Order.Status.READY ||
+                        it.status == Order.Status.ASSIGNED ||
+                        it.status == Order.Status.ARRIVED_AT_SHOP ||
+                        it.status == Order.Status.DELIVERING ||
+                        it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        it.status == Order.Status.RETURNING_TO_STORE ||
+                        it.status == "WARNING"
+            }
+            TabType.HISTORY -> orders.filter {
+                it.status == Order.Status.COMPLETED ||
+                        it.status == Order.Status.CANCELLED ||
+                        it.status == Order.Status.BOOM ||
+                        it.status == Order.Status.RETURNED_TO_STORE
+            }
+        }
+    }
+
+    private fun observeOrders() {
+        viewModelScope.launch {
+            firebaseRepository.observeAllOrders().collectLatest { orders ->
+                val pendingCount = orders.count {
+                    it.status == Order.Status.PENDING ||
+                    it.status == Order.Status.PAID ||
+                    (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)
+                }
+                if (pendingCount > previousOrderCount && previousOrderCount > 0) {
+                    _newOrderAlert.value = true
+                }
+                previousOrderCount = pendingCount
+
+                _allOrders.value = orders
+            }
+        }
+    }
+
+    private fun observeShippers() {
+        viewModelScope.launch {
+            firebaseRepository.observeActiveShippers().collectLatest { shippers ->
+                _activeShippers.value = shippers
+            }
+        }
+    }
+
+    private fun updateLocalOrderStatus(orderId: String, newStatus: String) {
+        val currentList = _allOrders.value ?: return
+        _allOrders.value = currentList.map {
+            if (it.orderId == orderId) it.copy(status = newStatus, orderStatus = newStatus) else it
+        }
+    }
+
+    /** Bước 1: Quán xác nhận đơn của khách -> Chuyển sang PREPARING (bếp đang nấu) */
+    fun confirmCustomerOrder(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.PREPARING)
+        viewModelScope.launch {
+            firebaseRepository.updateOrderStatus(orderId, Order.Status.PREPARING)
+        }
+    }
+
+    /** Quán chủ động kiểm tra sao kê ngân hàng và bấm duyệt đơn thủ công khi chưa nhận được webhook/thông báo */
+    fun confirmManualPaidAndPrepare(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.PREPARING)
+        viewModelScope.launch {
+            val updates = mapOf<String, Any>(
+                "status" to Order.Status.PREPARING,
+                "orderStatus" to Order.Status.PREPARING,
+                "paymentStatus" to Order.PaymentStatus.PAID,
+                "isPaid" to true,
+                "paidAt" to System.currentTimeMillis(),
+                "paymentMethod" to Order.PaymentMethod.BANKING,
+                "manualPaidBy" to "SHOP_MANUAL_VERIFY",
+                "paymentNote" to "Quán đã tự kiểm tra tài khoản ngân hàng và duyệt đơn"
+            )
+            com.google.firebase.database.FirebaseDatabase.getInstance()
+                .getReference("orders")
+                .child(orderId)
+                .updateChildren(updates)
+        }
+    }
+
+    /** Bước 2: Bếp nấu xong -> Chuyển sang READY (sẵn sàng giao tài xế) */
+    fun markCookingDone(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.READY)
+        viewModelScope.launch {
+            firebaseRepository.updateOrderStatus(orderId, Order.Status.READY)
+        }
+    }
+
+    /** Bước 3: Xác nhận đã giao món cho tài xế đến lấy -> Chuyển sang DELIVERING */
+    fun handoverToDriver(orderId: String) {
+        updateLocalOrderStatus(orderId, Order.Status.DELIVERING)
+        viewModelScope.launch {
+            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
+        }
+    }
+
+    /** Quán chấp thuận hủy đơn theo yêu cầu của khách */
+    fun approveCancelOrder(orderId: String, reason: String = "") {
+        updateLocalOrderStatus(orderId, Order.Status.CANCELLED)
+        viewModelScope.launch {
+            firebaseRepository.approveCancelOrder(orderId, reason)
+        }
+    }
+
+    /** Quán từ chối yêu cầu hủy đơn của khách */
+    fun rejectCancelOrder(orderId: String, rejectReason: String = "") {
+        viewModelScope.launch {
+            firebaseRepository.rejectCancelOrder(orderId, rejectReason)
+        }
+    }
+
+    fun dismissAlert() {
+        _newOrderAlert.value = false
+    }
+}
 ````
 
 ## File: app-internal/src/main/res/layout/activity_login_internal.xml
@@ -95294,149 +96126,6 @@ object QRCodeUtils {
 </com.google.android.material.card.MaterialCardView>
 ````
 
-## File: app-internal/src/main/AndroidManifest.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Foreground Service cho GPS Shipper & Giám sát đơn Quán ăn (Section 12 - doc-adr) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-
-    <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-
-    <!-- Cho phép kiểm tra và mở ứng dụng Khách hàng (Oishi Customer) -->
-    <queries>
-        <package android:name="com.chuyen_de_2.foodorder.customer" />
-    </queries>
-
-    <application
-        android:name=".FoodOrderInternalApp"
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.FoodOrder.Internal">
-
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
-
-        <!-- Auth -->
-        <activity
-            android:name=".ui.auth.LoginActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
-            android:name=".ui.auth.RegisterActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <activity
-            android:name=".ui.auth.OtpVerificationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Phiếu địa chỉ bắt buộc & Xác minh thông tin Quán -->
-        <activity
-            android:name=".ui.auth.StoreVerificationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Màn hình ghim vị trí quán trên bản đồ -->
-        <activity
-            android:name=".ui.auth.SelectLocationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Dashboard (RBAC routing) -->
-        <activity
-            android:name=".ui.dashboard.DashboardActivity"
-            android:theme="@style/Theme.FoodOrder.Internal" />
-
-        <!-- Màn hình Quản lý Chuỗi Chi Nhánh dành riêng cho BOSSMERCHANT -->
-        <activity
-            android:name=".ui.boss.BossDashboardActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
-        <activity
-            android:name=".ui.ship.DeliveryTripActivity"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
-        <service
-            android:name=".service.LocationForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-
-        <!-- FCM Service -->
-        <service
-            android:name=".service.InternalFCMService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
-        <!-- Dịch vụ tiền cảnh giữ kết nối Quán ăn & VietQR 24/7 không bị hệ điều hành diệt -->
-        <service
-            android:name=".service.MerchantKeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
-        <service
-            android:name=".service.BankNotificationListenerService"
-            android:label="Tự Động Duyệt Thanh Toán Oishi"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- FileProvider cho phép Camera chụp ảnh thẻ CCCD & ảnh quán -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-
-    </application>
-</manifest>
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/payment/PaymentActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.payment
@@ -96278,381 +96967,6 @@ class PaymentActivity : AppCompatActivity() {
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/service/BankNotificationListenerService.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.service
-
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
-import android.content.Intent
-import android.media.RingtoneManager
-import android.os.Build
-import android.provider.Settings
-import android.service.notification.NotificationListenerService
-import android.service.notification.StatusBarNotification
-import android.util.Log
-import androidx.core.app.NotificationCompat
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.internal.R
-import com.google.firebase.database.FirebaseDatabase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-
-/**
- * Dịch vụ chạy ngầm lắng nghe thông báo biến động số dư ngân hàng
- * để tự động xác nhận thanh toán đơn hàng VietQR chuẩn OISHI_******.
- * - Mã đơn: OISHI_****** (với 6 ký tự số hoặc chữ in hoa)
- * - Điều kiện duyệt: Đúng mã đơn hàng VÀ số tiền nhận được >= số tiền trong đơn
- * - Đổi trạng thái: paymentStatus = PAID và status = PAID
- */
-class BankNotificationListenerService : NotificationListenerService() {
-
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    companion object {
-        private const val TAG = "BankNotifListener"
-        private const val CHANNEL_ID = "channel_payment_auto_confirm"
-
-        /** Kiểm tra xem quyền Notification Listener đã được cấp trong Settings chưa */
-        fun isPermissionGranted(context: Context): Boolean {
-            val packageName = context.packageName
-            val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
-            return flat?.contains(packageName) == true
-        }
-
-        /** Mở màn hình Settings để người dùng cấp quyền Notification Listener */
-        fun openPermissionSettings(context: Context) {
-            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-        }
-
-        /**
-         * Lệnh phổ quát kết nối lại Service trên mọi dòng máy (Universal Auto-Toggle & RequestRebind).
-         * Ép toàn bộ các hệ điều hành (Samsung, Xiaomi, Vivo, OPPO, Realme...) kết nối lại ngay lập tức.
-         */
-        fun forceRebindService(context: Context) {
-            if (!isPermissionGranted(context)) return
-            try {
-                val component = android.content.ComponentName(context, BankNotificationListenerService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    requestRebind(component)
-                }
-                val pm = context.packageManager
-                pm.setComponentEnabledSetting(
-                    component,
-                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    android.content.pm.PackageManager.DONT_KILL_APP
-                )
-                pm.setComponentEnabledSetting(
-                    component,
-                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    android.content.pm.PackageManager.DONT_KILL_APP
-                )
-                Log.i(TAG, "✓ Universal Auto-Toggle completed successfully for BankNotificationListenerService")
-            } catch (e: Exception) {
-                Log.e(TAG, "Lỗi forceRebindService: ${e.message}")
-            }
-        }
-
-        /** Yêu cầu hệ thống Android bỏ qua giới hạn pin (Chuẩn Android gốc chạy trên 100% mọi dòng máy) */
-        fun requestIgnoreBatteryOptimizations(context: Context) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                try {
-                    val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-                    val packageName = context.packageName
-                    if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = android.net.Uri.parse("package:$packageName")
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        context.startActivity(intent)
-                    }
-                } catch (e: Exception) {
-                    try {
-                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        context.startActivity(intent)
-                    } catch (_: Exception) {}
-                }
-            }
-        }
-
-        /** Giữ nguyên alias cũ để tương thích ngược */
-        fun requestRebindIfNecessary(context: Context) {
-            forceRebindService(context)
-        }
-
-        /** Mở màn hình cài đặt Tự Khởi Chạy (Autostart) trên Xiaomi/MIUI/HyperOS/Vivo */
-        fun openAutostartSettings(context: Context) {
-            val intents = listOf(
-                Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
-                Intent().setComponent(android.content.ComponentName("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")),
-                Intent().setComponent(android.content.ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.PurviewTabActivity")),
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(android.net.Uri.fromParts("package", context.packageName, null))
-            )
-            for (intent in intents) {
-                try {
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    context.startActivity(intent)
-                    return
-                } catch (_: Exception) {}
-            }
-        }
-    }
-
-    override fun onListenerConnected() {
-        super.onListenerConnected()
-        Log.i(TAG, "✓✓✓ BankNotificationListenerService ĐÃ KẾT NỐI THÀNH CÔNG VỚI ANDROID! Sẵn sàng lắng nghe thông báo ngân hàng.")
-        // Quét ngay các thông báo ngân hàng đang có sẵn trên thanh trạng thái chưa kịp đọc
-        try {
-            activeNotifications?.forEach { sbn ->
-                onNotificationPosted(sbn)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Lỗi quét thông báo hiện có: ${e.message}")
-        }
-    }
-
-    override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        if (sbn == null) return
-        val packageName = sbn.packageName.orEmpty()
-
-        // 1. Bỏ qua thông báo của chính ứng dụng nội bộ Oishi để tránh vòng lặp tự kích hoạt
-        if (packageName == applicationContext.packageName) return
-
-        // 2. CHẶN ĐỨNG 100% CÁC ỨNG DỤNG CHAT VÀ MẠNG XÃ HỘI (Zalo, Messenger, Telegram, WhatsApp...)
-        if (com.chuyen_de_2.foodorder.core.util.BankData.BLACKLISTED_CHAT_PACKAGES.contains(packageName) ||
-            packageName.contains("zalo", ignoreCase = true) ||
-            packageName.contains("orca", ignoreCase = true) ||
-            packageName.contains("telegram", ignoreCase = true) ||
-            packageName.contains("whatsapp", ignoreCase = true)
-        ) {
-            Log.w(TAG, "🚫 ĐÃ CHẶN THÔNG BÁO TỪ ỨNG DỤNG CHAT/MẠNG XÃ HỘI: $packageName")
-            return
-        }
-
-        val extras = sbn.notification?.extras ?: return
-        val title = extras.getString(Notification.EXTRA_TITLE).orEmpty().trim()
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty().trim()
-        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty().trim()
-
-        val fullContent = "$title $text $bigText".trim()
-        if (fullContent.isBlank()) return
-
-        // 3. KIỂM TRA NGUỒN PHÁT THÔNG BÁO: CHỈ CHẤP NHẬN CÁC ỨNG DỤNG NGÂN HÀNG/VÍ ĐIỆN TỬ HOẶC SMS BRANDNAME CHÍNH THỐNG
-        val isOfficialBankApp = com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.contains(packageName) ||
-                com.chuyen_de_2.foodorder.core.util.BankData.OFFICIAL_BANK_PACKAGES.any { packageName.startsWith(it, ignoreCase = true) }
-
-        val isSmsApp = packageName in listOf(
-            "com.google.android.apps.messaging",
-            "com.android.mms",
-            "com.samsung.android.messaging",
-            "com.xiaomi.mms"
-        )
-
-        val isValidSmsBrandname = if (isSmsApp) {
-            val upperTitle = title.uppercase()
-            com.chuyen_de_2.foodorder.core.util.BankData.VALID_BANK_SMS_BRANDNAMES.any { brand ->
-                upperTitle.contains(brand)
-            }
-        } else false
-
-        if (!isOfficialBankApp && !isValidSmsBrandname) {
-            Log.d(TAG, "Bỏ qua thông báo không thuộc danh mục ngân hàng/ví điện tử: $packageName (Tiêu đề: $title)")
-            return
-        }
-
-        // Regex bóc tách mã đơn chuẩn OISHI_****** (linh hoạt cả OISHI_XXXXXX, OISHI XXXXXX, OISHIXXXXXX)
-        val orderCodeRegex = Regex("""OISHI[_ ]?([A-Z0-9]{6})""", RegexOption.IGNORE_CASE)
-        val matchResult = orderCodeRegex.find(fullContent) ?: return
-        val rawSuffix = matchResult.groupValues[1].uppercase()
-        val orderId = "OISHI_$rawSuffix"
-
-        // Bóc tách số tiền nhận được từ thông báo biến động số dư
-        val receivedAmount = extractAmount(fullContent)
-
-        Log.i(TAG, "[$packageName] Phát hiện mã đơn: $orderId | Tiền bóc tách: $receivedAmount VND | Nội dung: $fullContent")
-
-        serviceScope.launch {
-            processAutoConfirmPayment(orderId, receivedAmount, packageName)
-        }
-    }
-
-    /**
-     * Bóc tách số tiền chuyển đến từ thông báo ngân hàng
-     */
-    private fun extractAmount(content: String): Long {
-        try {
-            // Mẫu 1: Dấu cộng trước số tiền (+50.000 hoặc + 50,000 VND)
-            val plusPattern = Regex("""\+\s*([0-9.,]+)\s*(VND|VNĐ|đ|d|dong)?""", RegexOption.IGNORE_CASE)
-            val plusMatch = plusPattern.find(content)
-            if (plusMatch != null) {
-                val digits = plusMatch.groupValues[1].replace(".", "").replace(",", "").trim()
-                digits.toLongOrNull()?.let { if (it > 0) return it }
-            }
-
-            // Mẫu 2: Số tiền sau các từ khóa "số tiền", "so tien", "tang", "nhan", "GD"
-            val keywordPattern = Regex("""(?:số tiền|so tien|tăng|tang|nhận|nhan|gd|thanh toán)[\s:]*\+?\s*([0-9.,]+)""", RegexOption.IGNORE_CASE)
-            val keywordMatch = keywordPattern.find(content)
-            if (keywordMatch != null) {
-                val digits = keywordMatch.groupValues[1].replace(".", "").replace(",", "").trim()
-                digits.toLongOrNull()?.let { if (it > 0) return it }
-            }
-
-            // Mẫu 3: Số tiền chuẩn có phân cách hàng nghìn (vd: 50.000 đ hoặc 120,000 VND)
-            val amountPattern = Regex("""([0-9]{1,3}(?:[.,][0-9]{3})+)\s*(VND|VNĐ|đ|d|dong)""", RegexOption.IGNORE_CASE)
-            val amountMatch = amountPattern.find(content)
-            if (amountMatch != null) {
-                val digits = amountMatch.groupValues[1].replace(".", "").replace(",", "").trim()
-                digits.toLongOrNull()?.let { if (it > 0) return it }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Lỗi bóc tách số tiền: ${e.message}")
-        }
-        return 0L
-    }
-
-    /**
-     * Đối soát mã đơn hàng và số tiền chuyển trên Firebase Realtime Database
-     * Nếu khớp mã OISHI_****** và số tiền nhận >= số tiền trong đơn -> Đổi trạng thái sang PAID
-     */
-    private suspend fun processAutoConfirmPayment(orderId: String, receivedAmount: Long, packageName: String) {
-        try {
-            val db = FirebaseDatabase.getInstance(com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL)
-            var targetOrderRef = db.getReference("orders").child(orderId)
-            var snapshot = targetOrderRef.get().await()
-
-            // Retry tối đa 5 lần (mỗi lần cách nhau 1.5s) để đợi WebSocket đồng bộ đơn từ Server
-            var retries = 0
-            while (!snapshot.exists() && retries < 5) {
-                retries++
-                Log.d(TAG, "Chưa thấy đơn '$orderId', đang đợi đồng bộ Firebase (lần $retries/5)...")
-                kotlinx.coroutines.delay(1500)
-                snapshot = targetOrderRef.get().await()
-                if (!snapshot.exists()) {
-                    val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
-                    val altRef = db.getReference("orders").child(altId)
-                    val altSnap = altRef.get().await()
-                    if (altSnap.exists()) {
-                        targetOrderRef = altRef
-                        snapshot = altSnap
-                        break
-                    }
-                }
-            }
-
-            if (!snapshot.exists()) {
-                val altId = if (orderId.contains("_")) orderId.replace("_", "") else "OISHI_" + orderId.removePrefix("OISHI")
-                Log.w(TAG, "Không tìm thấy mã đơn hàng '$orderId' hoặc '$altId' trên hệ thống Firebase sau 5 lần thử")
-                return
-            }
-
-            val currentPaymentStatus = snapshot.child("paymentStatus").getValue(String::class.java).orEmpty()
-            if (currentPaymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) {
-                Log.d(TAG, "Đơn hàng '$orderId' đã được xác nhận thanh toán từ trước, bỏ qua")
-                return
-            }
-
-            val totalPayment = snapshot.child("totalPayment").getValue(Long::class.java)
-                ?: snapshot.child("total").getValue(Long::class.java) ?: 0L
-            val depositAmount = snapshot.child("depositAmount").getValue(Long::class.java) ?: 0L
-            val paymentMode = snapshot.child("paymentMode").getValue(String::class.java).orEmpty()
-            val customerName = snapshot.child("customerName").getValue(String::class.java).orEmpty()
-
-            // Xác định số tiền đơn hàng yêu cầu (trả cọc hoặc trả 100%)
-            val requiredAmount = if (paymentMode == Order.PaymentMode.DEPOSIT && depositAmount > 0) {
-                depositAmount
-            } else {
-                totalPayment
-            }
-
-            // ĐIỀU KIỆN TIÊN QUYẾT: Số tiền nhận được phải LỚN HƠN HOẶC BẰNG số tiền trong đơn
-            if (receivedAmount > 0 && receivedAmount < requiredAmount) {
-                Log.w(
-                    TAG,
-                    "Từ chối duyệt đơn '$orderId': Số tiền chuyển (${receivedAmount.toVndCurrency()}) " +
-                        "nhỏ hơn số tiền đơn yêu cầu (${requiredAmount.toVndCurrency()})"
-                )
-                return
-            }
-
-            val finalPaidAmount = if (receivedAmount > 0) receivedAmount else requiredAmount
-
-            // Cập nhật trạng thái đơn hàng: status = PAID, paymentStatus = PAID
-            val updates = mutableMapOf<String, Any>(
-                "status" to Order.Status.PAID,
-                "orderStatus" to Order.Status.PAID,
-                "paymentStatus" to Order.PaymentStatus.PAID,
-                "isPaid" to true,
-                "paidAmount" to finalPaidAmount,
-                "paidAt" to System.currentTimeMillis(),
-                "paymentMethod" to Order.PaymentMethod.BANKING,
-                "autoPaidBy" to "BANK_NOTIFICATION_LISTENER",
-                "paymentNote" to "Tự động duyệt từ thông báo ngân hàng ($packageName) với số tiền ${finalPaidAmount.toVndCurrency()}"
-            )
-
-            targetOrderRef.updateChildren(updates).await()
-            Log.i(TAG, "✓ XÁC NHẬN THÀNH CÔNG: Đơn '${targetOrderRef.key}' đã chuyển sang trạng thái PAID!")
-
-            // Phát thông báo âm thanh chuông báo nổi bật cho Quán/Boss
-            showSuccessNotification(orderId, finalPaidAmount, packageName, customerName)
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Lỗi đối soát thanh toán đơn $orderId: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Bắn notification trên máy thông báo tiền đã vào và đơn đã được duyệt
-     */
-    private fun showSuccessNotification(orderId: String, amount: Long, packageName: String, customer: String) {
-        try {
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channelObj = NotificationChannel(
-                    CHANNEL_ID,
-                    "Tự động duyệt thanh toán",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Thông báo khi hệ thống tự động nhận diện tiền chuyển khoản"
-                    enableVibration(true)
-                }
-                nm.createNotificationChannel(channelObj)
-            }
-
-            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val notif = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_check)
-                .setContentTitle("💰 ĐÃ THANH TOÁN: Đơn $orderId")
-                .setContentText("Đã nhận ${amount.toVndCurrency()} qua Ngân hàng • Khách: ${customer.ifBlank { "Khách hàng" }}")
-                .setStyle(NotificationCompat.BigTextStyle().bigText(
-                    "Đơn hàng $orderId đã tự động chuyển sang trạng thái ĐÃ THANH TOÁN (PAID).\n" +
-                        "Số tiền nhận: ${amount.toVndCurrency()}.\n" +
-                        "Khách hàng: ${customer.ifBlank { "Khách hàng" }}\n" +
-                        "Ứng dụng ghi nhận: $packageName"
-                ))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setSound(soundUri)
-                .setAutoCancel(true)
-                .build()
-
-            nm.notify(orderId.hashCode(), notif)
-        } catch (e: Exception) {
-            Log.e(TAG, "Lỗi hiển thị notification: ${e.message}")
-        }
-    }
-}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/LoginActivity.kt
@@ -97586,267 +97900,356 @@ class StoreVerificationActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/ShopViewModel.kt
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Order.kt
 ````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.shop
+package com.chuyen_de_2.foodorder.core.data.model
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MediatorLiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import javax.inject.Inject
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
+import com.google.gson.annotations.SerializedName
 
 /**
- * Shop ViewModel — Quản lý đơn hàng Kanban 3 bước cho Quán theo Quán/5.html
- * 1. Mới Nhận (PENDING) -> Xác nhận đơn khách -> COOKING (PREPARING)
- * 2. Đang Nấu (PREPARING) -> Nấu xong -> READY
- * 3. Sẵn Sàng (READY) -> Giao cho tài xế -> DELIVERING
+ * Đơn hàng — lưu tại: orders/{orderId}
+ * Giao diện: khách/b9.html — Theo dõi đơn + Mã QR Token
+ *            Quán/4.html — Tiếp nhận & Duyệt đơn
+ * Vòng đời: PENDING → PREPARING → ASSIGNED → DELIVERING → COMPLETED / BOOM / CANCELLED
+ * Mapping: Bảng 12 - orders (database_schema.sql)
  */
-@HiltViewModel
-class ShopViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository
-) : ViewModel() {
+@IgnoreExtraProperties
+data class Order(
+    @SerializedName("orderId")
+    val orderId: String = "",
 
-    enum class TabType {
-        NEW, COOKING, DELIVERING, HISTORY
+    @SerializedName("customerId")
+    val customerId: String = "",
+
+    @SerializedName("customerName")
+    val customerName: String = "",
+
+    @SerializedName("customerPhone")
+    val customerPhone: String = "",
+
+    @SerializedName("storeId")
+    val storeId: String = "",
+
+    @SerializedName("shopId")
+    val shopId: String = "",
+
+    @SerializedName("shopName")
+    val shopName: String = "",
+
+    @SerializedName("shopPhone")
+    val shopPhone: String = "",
+
+    @SerializedName("shopImageUrl", alternate = ["shopImage", "storeImageUrl", "storeImage"])
+    val shopImageUrl: String = "",
+
+    @SerializedName("driverId")
+    var driverId: String? = null,
+
+    @SerializedName("shipperId")
+    var shipperId: String? = null,
+
+    @SerializedName("shipperName")
+    var shipperName: String = "",
+
+    @SerializedName("shipperPhone")
+    var shipperPhone: String = "",
+
+    @SerializedName("chefId")
+    var chefId: String? = null,
+
+    @SerializedName("chefName")
+    var chefName: String = "",
+
+    @SerializedName("chefPhone")
+    var chefPhone: String = "",
+
+    @SerializedName("address")
+    val address: String = "",
+
+    @SerializedName("deliveryAddress")
+    val deliveryAddress: String = "",
+
+    @SerializedName("total")
+    val total: Long = 0,
+
+    @SerializedName("subtotalAmount")
+    val subtotalAmount: Long = 0,
+
+    @SerializedName("shippingFee")
+    val shippingFee: Long = 0,
+
+    @SerializedName("discount")
+    val discount: Long = 0,
+
+    @SerializedName("totalPayment")
+    val totalPayment: Long = 0,
+
+    @SerializedName("paymentMethod")
+    val paymentMethod: String = PaymentMethod.COD,
+
+    @SerializedName("paymentMode")
+    val paymentMode: String = PaymentMode.FULL,
+
+    @SerializedName("depositAmount")
+    val depositAmount: Long = 0,
+
+    @SerializedName("remainAmount")
+    val remainAmount: Long = 0,
+
+    @SerializedName("isDepositPaid")
+    val isDepositPaid: Boolean = false,
+
+    @SerializedName("isPaid")
+    val isPaid: Boolean = false,
+
+    @SerializedName("paymentStatus")
+    var paymentStatus: String = PaymentStatus.UNPAID,
+
+    @SerializedName("paidAt")
+    var paidAt: Long? = null,
+
+    @SerializedName("momoOrderId")
+    var momoOrderId: String = "",
+
+    @SerializedName("momoRequestId")
+    var momoRequestId: String = "",
+
+    @SerializedName("status")
+    var status: String = Status.PENDING,
+
+    @SerializedName("orderStatus")
+    var orderStatus: String = Status.PENDING,
+
+    @SerializedName("deliveryToken")
+    val deliveryToken: String = "",
+
+    @SerializedName("items")
+    val items: Map<String, OrderItem> = emptyMap(),
+
+    @SerializedName("note")
+    val note: String = "",
+
+    @SerializedName("timestamp")
+    val timestamp: Long = 0,
+
+    @SerializedName("createdAt")
+    val createdAt: Long = 0,
+
+    @SerializedName("updatedAt")
+    val updatedAt: Long? = null,
+
+    @SerializedName("completedAt")
+    val completedAt: Long? = null,
+
+    @SerializedName("hasIncidentWarning")
+    val hasIncidentWarning: Boolean = false,
+
+    @SerializedName("incidentWarningTime")
+    val incidentWarningTime: Long = 0L,
+
+    @SerializedName("countdownRound")
+    val countdownRound: Int = 1,
+
+    @SerializedName("incidentWarningText")
+    val incidentWarningText: String = "",
+
+    @SerializedName("cancelReason")
+    val cancelReason: String = "",
+
+    @SerializedName("riskReason")
+    val riskReason: String = "",
+
+    @SerializedName("riskStatus")
+    val riskStatus: String = "",
+
+    @SerializedName("isRiskOrder")
+    val isRiskOrder: Boolean = false,
+
+    @SerializedName("incidentCallProofImage")
+    val incidentCallProofImage: String = "",
+
+    @SerializedName("incidentMessageProofImage")
+    val incidentMessageProofImage: String = "",
+
+    @SerializedName("cancelRequested")
+    val cancelRequested: Boolean = false,
+
+    @SerializedName("cancelRequestReason")
+    val cancelRequestReason: String = "",
+
+    @SerializedName("cancelRequestTime")
+    val cancelRequestTime: Long = 0L,
+
+    @SerializedName("cancelRequestStatus")
+    val cancelRequestStatus: String = "",
+
+    @SerializedName("cancelRejectReason")
+    val cancelRejectReason: String = "",
+
+    @SerializedName("customerConfirmed")
+    val customerConfirmed: Boolean = false,
+
+    @SerializedName("customerConfirmedAt")
+    val customerConfirmedAt: Long? = null
+) {
+    @get:Exclude
+    val effectiveStoreId: String
+        get() = storeId.ifBlank { shopId }
+
+    @get:Exclude
+    val effectiveShopName: String
+        get() = shopName.ifBlank { storeId }
+
+    @get:Exclude
+    val effectiveDriverId: String
+        get() = driverId ?: shipperId ?: ""
+
+    @get:Exclude
+    val effectiveDriverName: String
+        get() = shipperName
+
+    @get:Exclude
+    val effectiveStatus: String
+        get() = status.ifBlank { orderStatus }
+
+    @get:Exclude
+    val effectiveAddress: String
+        get() = deliveryAddress.ifBlank { address }
+
+    @get:Exclude
+    val effectiveTotal: Long
+        get() = if (totalPayment > 0) totalPayment else total
+
+    @get:Exclude
+    val totalPrice: Long
+        get() = effectiveTotal
+
+    @get:Exclude
+    val effectiveTimestamp: Long
+        get() = if (createdAt > 0) createdAt else timestamp
+
+    @get:Exclude
+    val orderCode: String
+        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
+
+    @get:Exclude
+    val displayCode: String
+        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
+
+    /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
+    object CancelRequestStatus {
+        const val PENDING = "PENDING"
+        const val APPROVED = "APPROVED"
+        const val REJECTED = "REJECTED"
+        const val WITHDRAWN = "WITHDRAWN"
     }
 
-    private val _allOrders = MutableLiveData<List<Order>>(emptyList())
-    val allOrders: LiveData<List<Order>> = _allOrders
-
-    private val _currentTab = MutableLiveData<TabType>(TabType.NEW)
-    val currentTab: LiveData<TabType> = _currentTab
-
-    val filteredOrders = MediatorLiveData<List<Order>>().apply {
-        addSource(_allOrders) { filterOrders() }
-        addSource(_currentTab) { filterOrders() }
+    object Status {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
+        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
+        const val PENDING = "PENDING"
+        const val PREPARING = "PREPARING"
+        const val READY = "READY"
+        const val ASSIGNED = "ASSIGNED"
+        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
+        const val DELIVERING = "DELIVERING"
+        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
+        const val COMPLETED = "COMPLETED"
+        const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
+        const val CANCELLED = "CANCELLED"
     }
 
-    private val _countNew = MutableLiveData(0)
-    val countNew: LiveData<Int> = _countNew
-
-    private val _countCooking = MutableLiveData(0)
-    val countCooking: LiveData<Int> = _countCooking
-
-    private val _countDelivering = MutableLiveData(0)
-    val countDelivering: LiveData<Int> = _countDelivering
-
-    private val _todayRevenue = MutableLiveData(0L)
-    val todayRevenue: LiveData<Long> = _todayRevenue
-
-    private val _todayCompletedCount = MutableLiveData(0)
-    val todayCompletedCount: LiveData<Int> = _todayCompletedCount
-
-    private val _hasDeliveringWarning = MutableLiveData(false)
-    val hasDeliveringWarning: LiveData<Boolean> = _hasDeliveringWarning
-
-    private val _newOrderAlert = MutableLiveData<Boolean>()
-    val newOrderAlert: LiveData<Boolean> = _newOrderAlert
-
-    private val _activeShippers = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.User>>()
-    val activeShippers: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.User>> = _activeShippers
-
-    private var previousOrderCount = 0
-
-    init {
-        observeOrders()
-        observeShippers()
+    object OrderStatus {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
+        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
+        const val PENDING = "PENDING"
+        const val PREPARING = "PREPARING"
+        const val READY = "READY"
+        const val ASSIGNED = "ASSIGNED"
+        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
+        const val DELIVERING = "DELIVERING"
+        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
+        const val COMPLETED = "COMPLETED"
+        const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
+        const val CANCELLED = "CANCELLED"
     }
 
-    /** Chủ động quét dọn dữ liệu rác/mồ côi của các tài khoản đã xóa */
-    fun cleanupOrphanedData(onResult: ((Int) -> Unit)? = null) {
-        viewModelScope.launch {
-            val result = firebaseRepository.cleanupOrphanedData()
-            onResult?.invoke(result.getOrDefault(0))
-        }
+    /** Chế độ thanh toán: Trả thẳng 100%, Cọc 20%, hoặc COD (chuẩn b8.html) */
+    object PaymentMode {
+        const val FULL = "FULL"
+        const val DEPOSIT = "DEPOSIT"
+        const val COD = "COD"
     }
 
-    private var currentStoreId: String = ""
-
-    fun setStoreId(id: String) {
-        currentStoreId = id
-        filterOrders()
+    /** Phương thức thanh toán */
+    object PaymentMethod {
+        const val COD = "COD"
+        const val BANKING = "BANKING"
+        const val DEPOSIT = "DEPOSIT"
+        const val MOMO = "MOMO"
     }
 
-    fun selectTab(tab: TabType) {
-        _currentTab.value = tab
+    /** Trạng thái thanh toán chuyển khoản / ví MoMo */
+    object PaymentStatus {
+        const val UNPAID = "UNPAID"
+        const val PAID = "PAID"
     }
+}
 
-    private fun filterOrders() {
-        val rawOrders = _allOrders.value ?: emptyList()
-        val orders = if (currentStoreId.isNotBlank()) {
-            rawOrders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
-        } else {
-            rawOrders
-        }
-        val tab = _currentTab.value ?: TabType.NEW
+/**
+ * Chi tiết món trong đơn hàng
+ * Giao diện: khách/b7.html — Giỏ hàng
+ * Mapping: Bảng 13 - order_items (database_schema.sql)
+ */
+@IgnoreExtraProperties
+data class OrderItem(
+    @SerializedName("itemId")
+    val itemId: String = "",
 
-        // Cập nhật số lượng đếm trên từng tab (Chỉ đếm các đơn khách đã xác nhận)
-        _countNew.value = orders.count {
-            it.status == Order.Status.PENDING ||
-            it.status == Order.Status.PAID ||
-            (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)
-        }
-        _countCooking.value = orders.count { it.status == Order.Status.PREPARING }
-        _countDelivering.value = orders.count {
-            it.status == Order.Status.READY ||
-                    it.status == Order.Status.ASSIGNED ||
-                    it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.DELIVERING ||
-                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                    it.status == Order.Status.RETURNING_TO_STORE ||
-                    it.status == "WARNING"
-        }
+    @SerializedName("orderItemId")
+    val orderItemId: String = "",
 
-        // Bỏ cảnh báo đỏ ở quán theo yêu cầu
-        _hasDeliveringWarning.value = false
+    @SerializedName("dishId")
+    val dishId: String = "",
 
-        // Tính doanh thu và đơn hoàn tất hôm nay
-        val startOfToday = java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    @SerializedName("name")
+    val name: String = "",
 
-        val todayCompletedOrders = orders.filter {
-            it.status == Order.Status.COMPLETED &&
-            ((it.createdAt > 0 && it.createdAt >= startOfToday) || (it.timestamp > 0 && it.timestamp >= startOfToday))
-        }
-        _todayCompletedCount.value = todayCompletedOrders.size
-        val calculatedRevenue = todayCompletedOrders.sumOf {
-            if (it.totalPayment > 0) it.totalPayment else if (it.total > 0) it.total else 0L
-        }
-        _todayRevenue.value = calculatedRevenue
+    @SerializedName("price")
+    val price: Long = 0,
 
-        // Lọc danh sách theo tab được chọn (Tab NEW: Chỉ hiện đơn khách đã xác nhận)
-        filteredOrders.value = when (tab) {
-            TabType.NEW -> orders.filter {
-                it.status == Order.Status.PENDING ||
-                it.status == Order.Status.PAID ||
-                (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)        
-            }
-            TabType.COOKING -> orders.filter { it.status == Order.Status.PREPARING }
-            TabType.DELIVERING -> orders.filter {
-                it.status == Order.Status.READY ||
-                        it.status == Order.Status.ASSIGNED ||
-                        it.status == Order.Status.ARRIVED_AT_SHOP ||
-                        it.status == Order.Status.DELIVERING ||
-                        it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                        it.status == Order.Status.RETURNING_TO_STORE ||
-                        it.status == "WARNING"
-            }
-            TabType.HISTORY -> orders.filter {
-                it.status == Order.Status.COMPLETED ||
-                        it.status == Order.Status.CANCELLED ||
-                        it.status == Order.Status.BOOM ||
-                        it.status == Order.Status.RETURNED_TO_STORE
-            }
-        }
-    }
+    @SerializedName("quantity")
+    val quantity: Int = 0,
 
-    private fun observeOrders() {
-        viewModelScope.launch {
-            firebaseRepository.observeAllOrders().collectLatest { orders ->
-                val pendingCount = orders.count {
-                    it.status == Order.Status.PENDING ||
-                    it.status == Order.Status.PAID ||
-                    (it.status == Order.Status.AWAITING_PAYMENT && it.customerConfirmed)
-                }
-                if (pendingCount > previousOrderCount && previousOrderCount > 0) {
-                    _newOrderAlert.value = true
-                }
-                previousOrderCount = pendingCount
+    @SerializedName("unitPrice")
+    val unitPrice: Long = 0,
 
-                _allOrders.value = orders
-            }
-        }
-    }
+    @SerializedName("selectedOptions")
+    val selectedOptions: Map<String, Any>? = null,
 
-    private fun observeShippers() {
-        viewModelScope.launch {
-            firebaseRepository.observeActiveShippers().collectLatest { shippers ->
-                _activeShippers.value = shippers
-            }
-        }
-    }
+    @SerializedName("imageUrl", alternate = ["image", "photoUrl", "dishImage"])
+    val imageUrl: String = "",
 
-    private fun updateLocalOrderStatus(orderId: String, newStatus: String) {
-        val currentList = _allOrders.value ?: return
-        _allOrders.value = currentList.map {
-            if (it.orderId == orderId) it.copy(status = newStatus, orderStatus = newStatus) else it
-        }
-    }
+    @SerializedName("image")
+    val image: String = "",
 
-    /** Bước 1: Quán xác nhận đơn của khách -> Chuyển sang PREPARING (bếp đang nấu) */
-    fun confirmCustomerOrder(orderId: String) {
-        updateLocalOrderStatus(orderId, Order.Status.PREPARING)
-        viewModelScope.launch {
-            firebaseRepository.updateOrderStatus(orderId, Order.Status.PREPARING)
-        }
-    }
+    @SerializedName("itemSubtotal")
+    val itemSubtotal: Long = 0
+) {
+    @get:Exclude
+    val effectiveImageUrl: String
+        get() = imageUrl.ifBlank { image }
 
-    /** Quán chủ động kiểm tra sao kê ngân hàng và bấm duyệt đơn thủ công khi chưa nhận được webhook/thông báo */
-    fun confirmManualPaidAndPrepare(orderId: String) {
-        updateLocalOrderStatus(orderId, Order.Status.PREPARING)
-        viewModelScope.launch {
-            val updates = mapOf<String, Any>(
-                "status" to Order.Status.PREPARING,
-                "orderStatus" to Order.Status.PREPARING,
-                "paymentStatus" to Order.PaymentStatus.PAID,
-                "isPaid" to true,
-                "paidAt" to System.currentTimeMillis(),
-                "paymentMethod" to Order.PaymentMethod.BANKING,
-                "manualPaidBy" to "SHOP_MANUAL_VERIFY",
-                "paymentNote" to "Quán đã tự kiểm tra tài khoản ngân hàng và duyệt đơn"
-            )
-            com.google.firebase.database.FirebaseDatabase.getInstance()
-                .getReference("orders")
-                .child(orderId)
-                .updateChildren(updates)
-        }
-    }
-
-    /** Bước 2: Bếp nấu xong -> Chuyển sang READY (sẵn sàng giao tài xế) */
-    fun markCookingDone(orderId: String) {
-        updateLocalOrderStatus(orderId, Order.Status.READY)
-        viewModelScope.launch {
-            firebaseRepository.updateOrderStatus(orderId, Order.Status.READY)
-        }
-    }
-
-    /** Bước 3: Xác nhận đã giao món cho tài xế đến lấy -> Chuyển sang DELIVERING */
-    fun handoverToDriver(orderId: String) {
-        updateLocalOrderStatus(orderId, Order.Status.DELIVERING)
-        viewModelScope.launch {
-            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
-        }
-    }
-
-    /** Quán chấp thuận hủy đơn theo yêu cầu của khách */
-    fun approveCancelOrder(orderId: String, reason: String = "") {
-        updateLocalOrderStatus(orderId, Order.Status.CANCELLED)
-        viewModelScope.launch {
-            firebaseRepository.approveCancelOrder(orderId, reason)
-        }
-    }
-
-    /** Quán từ chối yêu cầu hủy đơn của khách */
-    fun rejectCancelOrder(orderId: String, rejectReason: String = "") {
-        viewModelScope.launch {
-            firebaseRepository.rejectCancelOrder(orderId, rejectReason)
-        }
-    }
-
-    fun dismissAlert() {
-        _newOrderAlert.value = false
-    }
+    @get:Exclude
+    val dishName: String get() = name
 }
 ````
 
@@ -98967,359 +99370,6 @@ class ShopViewModel @Inject constructor(
     </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>
-````
-
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Order.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.model
-
-import com.google.firebase.database.Exclude
-import com.google.firebase.database.IgnoreExtraProperties
-import com.google.gson.annotations.SerializedName
-
-/**
- * Đơn hàng — lưu tại: orders/{orderId}
- * Giao diện: khách/b9.html — Theo dõi đơn + Mã QR Token
- *            Quán/4.html — Tiếp nhận & Duyệt đơn
- * Vòng đời: PENDING → PREPARING → ASSIGNED → DELIVERING → COMPLETED / BOOM / CANCELLED
- * Mapping: Bảng 12 - orders (database_schema.sql)
- */
-@IgnoreExtraProperties
-data class Order(
-    @SerializedName("orderId")
-    val orderId: String = "",
-
-    @SerializedName("customerId")
-    val customerId: String = "",
-
-    @SerializedName("customerName")
-    val customerName: String = "",
-
-    @SerializedName("customerPhone")
-    val customerPhone: String = "",
-
-    @SerializedName("storeId")
-    val storeId: String = "",
-
-    @SerializedName("shopId")
-    val shopId: String = "",
-
-    @SerializedName("shopName")
-    val shopName: String = "",
-
-    @SerializedName("shopPhone")
-    val shopPhone: String = "",
-
-    @SerializedName("shopImageUrl", alternate = ["shopImage", "storeImageUrl", "storeImage"])
-    val shopImageUrl: String = "",
-
-    @SerializedName("driverId")
-    var driverId: String? = null,
-
-    @SerializedName("shipperId")
-    var shipperId: String? = null,
-
-    @SerializedName("shipperName")
-    var shipperName: String = "",
-
-    @SerializedName("shipperPhone")
-    var shipperPhone: String = "",
-
-    @SerializedName("chefId")
-    var chefId: String? = null,
-
-    @SerializedName("chefName")
-    var chefName: String = "",
-
-    @SerializedName("chefPhone")
-    var chefPhone: String = "",
-
-    @SerializedName("address")
-    val address: String = "",
-
-    @SerializedName("deliveryAddress")
-    val deliveryAddress: String = "",
-
-    @SerializedName("total")
-    val total: Long = 0,
-
-    @SerializedName("subtotalAmount")
-    val subtotalAmount: Long = 0,
-
-    @SerializedName("shippingFee")
-    val shippingFee: Long = 0,
-
-    @SerializedName("discount")
-    val discount: Long = 0,
-
-    @SerializedName("totalPayment")
-    val totalPayment: Long = 0,
-
-    @SerializedName("paymentMethod")
-    val paymentMethod: String = PaymentMethod.COD,
-
-    @SerializedName("paymentMode")
-    val paymentMode: String = PaymentMode.FULL,
-
-    @SerializedName("depositAmount")
-    val depositAmount: Long = 0,
-
-    @SerializedName("remainAmount")
-    val remainAmount: Long = 0,
-
-    @SerializedName("isDepositPaid")
-    val isDepositPaid: Boolean = false,
-
-    @SerializedName("isPaid")
-    val isPaid: Boolean = false,
-
-    @SerializedName("paymentStatus")
-    var paymentStatus: String = PaymentStatus.UNPAID,
-
-    @SerializedName("paidAt")
-    var paidAt: Long? = null,
-
-    @SerializedName("momoOrderId")
-    var momoOrderId: String = "",
-
-    @SerializedName("momoRequestId")
-    var momoRequestId: String = "",
-
-    @SerializedName("status")
-    var status: String = Status.PENDING,
-
-    @SerializedName("orderStatus")
-    var orderStatus: String = Status.PENDING,
-
-    @SerializedName("deliveryToken")
-    val deliveryToken: String = "",
-
-    @SerializedName("items")
-    val items: Map<String, OrderItem> = emptyMap(),
-
-    @SerializedName("note")
-    val note: String = "",
-
-    @SerializedName("timestamp")
-    val timestamp: Long = 0,
-
-    @SerializedName("createdAt")
-    val createdAt: Long = 0,
-
-    @SerializedName("updatedAt")
-    val updatedAt: Long? = null,
-
-    @SerializedName("completedAt")
-    val completedAt: Long? = null,
-
-    @SerializedName("hasIncidentWarning")
-    val hasIncidentWarning: Boolean = false,
-
-    @SerializedName("incidentWarningTime")
-    val incidentWarningTime: Long = 0L,
-
-    @SerializedName("countdownRound")
-    val countdownRound: Int = 1,
-
-    @SerializedName("incidentWarningText")
-    val incidentWarningText: String = "",
-
-    @SerializedName("cancelReason")
-    val cancelReason: String = "",
-
-    @SerializedName("riskReason")
-    val riskReason: String = "",
-
-    @SerializedName("riskStatus")
-    val riskStatus: String = "",
-
-    @SerializedName("isRiskOrder")
-    val isRiskOrder: Boolean = false,
-
-    @SerializedName("incidentCallProofImage")
-    val incidentCallProofImage: String = "",
-
-    @SerializedName("incidentMessageProofImage")
-    val incidentMessageProofImage: String = "",
-
-    @SerializedName("cancelRequested")
-    val cancelRequested: Boolean = false,
-
-    @SerializedName("cancelRequestReason")
-    val cancelRequestReason: String = "",
-
-    @SerializedName("cancelRequestTime")
-    val cancelRequestTime: Long = 0L,
-
-    @SerializedName("cancelRequestStatus")
-    val cancelRequestStatus: String = "",
-
-    @SerializedName("cancelRejectReason")
-    val cancelRejectReason: String = "",
-
-    @SerializedName("customerConfirmed")
-    val customerConfirmed: Boolean = false,
-
-    @SerializedName("customerConfirmedAt")
-    val customerConfirmedAt: Long? = null
-) {
-    @get:Exclude
-    val effectiveStoreId: String
-        get() = storeId.ifBlank { shopId }
-
-    @get:Exclude
-    val effectiveShopName: String
-        get() = shopName.ifBlank { storeId }
-
-    @get:Exclude
-    val effectiveDriverId: String
-        get() = driverId ?: shipperId ?: ""
-
-    @get:Exclude
-    val effectiveDriverName: String
-        get() = shipperName
-
-    @get:Exclude
-    val effectiveStatus: String
-        get() = status.ifBlank { orderStatus }
-
-    @get:Exclude
-    val effectiveAddress: String
-        get() = deliveryAddress.ifBlank { address }
-
-    @get:Exclude
-    val effectiveTotal: Long
-        get() = if (totalPayment > 0) totalPayment else total
-
-    @get:Exclude
-    val totalPrice: Long
-        get() = effectiveTotal
-
-    @get:Exclude
-    val effectiveTimestamp: Long
-        get() = if (createdAt > 0) createdAt else timestamp
-
-    @get:Exclude
-    val orderCode: String
-        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
-
-    @get:Exclude
-    val displayCode: String
-        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
-
-    /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
-    object CancelRequestStatus {
-        const val PENDING = "PENDING"
-        const val APPROVED = "APPROVED"
-        const val REJECTED = "REJECTED"
-        const val WITHDRAWN = "WITHDRAWN"
-    }
-
-    object Status {
-        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
-        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
-        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
-        const val PENDING = "PENDING"
-        const val PREPARING = "PREPARING"
-        const val READY = "READY"
-        const val ASSIGNED = "ASSIGNED"
-        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
-        const val DELIVERING = "DELIVERING"
-        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
-        const val COMPLETED = "COMPLETED"
-        const val BOOM = "BOOM"
-        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
-        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
-        const val CANCELLED = "CANCELLED"
-    }
-
-    object OrderStatus {
-        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
-        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
-        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
-        const val PENDING = "PENDING"
-        const val PREPARING = "PREPARING"
-        const val READY = "READY"
-        const val ASSIGNED = "ASSIGNED"
-        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
-        const val DELIVERING = "DELIVERING"
-        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
-        const val COMPLETED = "COMPLETED"
-        const val BOOM = "BOOM"
-        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
-        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
-        const val CANCELLED = "CANCELLED"
-    }
-
-    /** Chế độ thanh toán: Trả thẳng 100%, Cọc 20%, hoặc COD (chuẩn b8.html) */
-    object PaymentMode {
-        const val FULL = "FULL"
-        const val DEPOSIT = "DEPOSIT"
-        const val COD = "COD"
-    }
-
-    /** Phương thức thanh toán */
-    object PaymentMethod {
-        const val COD = "COD"
-        const val BANKING = "BANKING"
-        const val DEPOSIT = "DEPOSIT"
-        const val MOMO = "MOMO"
-    }
-
-    /** Trạng thái thanh toán chuyển khoản / ví MoMo */
-    object PaymentStatus {
-        const val UNPAID = "UNPAID"
-        const val PAID = "PAID"
-    }
-}
-
-/**
- * Chi tiết món trong đơn hàng
- * Giao diện: khách/b7.html — Giỏ hàng
- * Mapping: Bảng 13 - order_items (database_schema.sql)
- */
-@IgnoreExtraProperties
-data class OrderItem(
-    @SerializedName("itemId")
-    val itemId: String = "",
-
-    @SerializedName("orderItemId")
-    val orderItemId: String = "",
-
-    @SerializedName("dishId")
-    val dishId: String = "",
-
-    @SerializedName("name")
-    val name: String = "",
-
-    @SerializedName("price")
-    val price: Long = 0,
-
-    @SerializedName("quantity")
-    val quantity: Int = 0,
-
-    @SerializedName("unitPrice")
-    val unitPrice: Long = 0,
-
-    @SerializedName("selectedOptions")
-    val selectedOptions: Map<String, Any>? = null,
-
-    @SerializedName("imageUrl", alternate = ["image", "photoUrl", "dishImage"])
-    val imageUrl: String = "",
-
-    @SerializedName("image")
-    val image: String = "",
-
-    @SerializedName("itemSubtotal")
-    val itemSubtotal: Long = 0
-) {
-    @get:Exclude
-    val effectiveImageUrl: String
-        get() = imageUrl.ifBlank { image }
-
-    @get:Exclude
-    val dishName: String get() = name
-}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossDashboardActivity.kt
@@ -101408,6 +101458,420 @@ class OrderHistoryAdapter(
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/OrderAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.shop
+
+import android.content.Context
+import android.graphics.Color
+import android.widget.Toast
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ItemOrderBinding
+
+/**
+ * OrderAdapter — Hiển thị danh sách đơn hàng cho Quán theo mẫu Quán/5.html
+ * Quy trình 3 bước: Xác nhận đơn -> Nấu xong -> Giao tài xế
+ */
+class OrderAdapter(
+    private val onActionClick: (Order) -> Unit,
+    private val onDetailClick: (Order) -> Unit,
+    private val onChatCustomerClick: (Order) -> Unit,
+    private val onCallDriverClick: (String) -> Unit,
+    private val onWarningDetailClick: (Order) -> Unit,
+    private val onApproveCancelClick: (Order) -> Unit = {},
+    private val onRejectCancelClick: (Order) -> Unit = {}
+) : ListAdapter<Order, OrderAdapter.ViewHolder>(DiffCallback()) {
+
+    var canOperate: Boolean = true
+        set(value) {
+            if (field != value) {
+                field = value
+                notifyDataSetChanged()
+            }
+        }
+
+    inner class ViewHolder(private val binding: ItemOrderBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(order: Order) {
+            val context = binding.root.context
+            binding.tvOrderCode.text = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
+
+            // 1. Danh sách món ăn
+            val dishesSummary = if (order.items.isNotEmpty()) {
+                order.items.values.joinToString("\n") { "• ${it.quantity}x ${it.name}" }
+            } else {
+                "• 1x Suất ăn đặt trực tiếp"
+            }
+            val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
+                order.isPaid || order.isDepositPaid || order.status == Order.Status.PAID
+            val payText = when {
+                order.paymentMode == Order.PaymentMode.DEPOSIT && isPaidOnline ->
+                    "⚡ ĐÃ CỌC ${order.depositAmount.toVndCurrency()} • CÒN THU ${order.remainAmount.toVndCurrency()} KHI GIAO"
+                order.paymentMode == Order.PaymentMode.DEPOSIT ->
+                    "⏳ CHƯA XÁC NHẬN CỌC ${order.depositAmount.toVndCurrency()}"
+                order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
+                    if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo"
+                    else "⏳ Chờ khách chuyển khoản Ví MoMo (Chưa chuyển)"
+                }
+                order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
+                    if (isPaidOnline) "💰 Đã thanh toán Ngân hàng"
+                    else "⏳ Chờ chuyển khoản VietQR (Chưa nhận)"
+                }
+                else -> "💵 Thu tiền mặt khi nhận (COD)"
+            }
+
+            when {
+                order.paymentMode == Order.PaymentMode.DEPOSIT && isPaidOnline -> {
+                    binding.tvPaymentStatusBadge.text = "⚡ Đã cọc • còn thu khi giao"
+                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                    binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                }
+                order.paymentMode == Order.PaymentMode.DEPOSIT -> {
+                    binding.tvPaymentStatusBadge.text = "⏳ Chờ xác nhận cọc"
+                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
+                }
+                order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
+                    if (isPaidOnline) {
+                        binding.tvPaymentStatusBadge.text = "✅ Đã chuyển MoMo"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                    } else {
+                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển MoMo"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
+                    }
+                }
+                order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
+                    if (isPaidOnline) {
+                        binding.tvPaymentStatusBadge.text = "✅ Đã thanh toán Ngân hàng"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
+                    } else {
+                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển khoản VietQR"
+                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
+                    }
+                }
+                else -> {
+                    binding.tvPaymentStatusBadge.text = "💵 Thu tiền mặt (COD)"
+                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_blue)
+                    binding.tvPaymentStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                }
+            }
+
+            val total = if (order.totalPayment > 0) order.totalPayment else order.total
+            binding.tvOrderDishes.text = "$dishesSummary\nTổng bill: ${total.toVndCurrency()} ($payText)"
+
+            // 2. Địa chỉ & Khách
+            val customerName = order.customerName.ifBlank { "Khách Hàng" }
+            val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Địa chỉ nhận món" } }
+            binding.tvOrderAddress.text = "📍 Giao đến: $customerName - $address"
+
+            // 3. Tắt phần đơn hàng bị cảnh báo màu đỏ theo yêu cầu
+            binding.cardOrderItem.strokeColor = ContextCompat.getColor(context, R.color.border)
+            binding.cardOrderItem.strokeWidth = (1 * context.resources.displayMetrics.density).toInt()
+            binding.boxWarningIncident.visibility = View.GONE
+            binding.btnWarningDetail.visibility = View.GONE
+
+            // 3.5 Khách hàng gửi yêu cầu hủy đơn (khi đang nấu hoặc sẵn sàng)
+            if (order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING) {
+                binding.boxCancelRequest.visibility = View.VISIBLE
+                binding.tvCancelRequestReason.text = "Lý do: " + (order.cancelRequestReason.ifBlank { "Khách đặt nhầm món" })
+                binding.btnApproveCancel.setOnClickListener { onApproveCancelClick(order) }
+                binding.btnRejectCancel.setOnClickListener { onRejectCancelClick(order) }
+            } else {
+                binding.boxCancelRequest.visibility = View.GONE
+            }
+
+            // 4. Trạng thái Quy trình 3 bước (Quán/5.html)
+            setupStatusAndActions(context, order)
+
+            if (!canOperate) {
+                binding.btnMainAction.alpha = 0.65f
+                binding.boxCancelRequest.alpha = 0.65f
+            } else {
+                binding.btnMainAction.alpha = 1.0f
+                binding.boxCancelRequest.alpha = 1.0f
+            }
+
+            // Click Listeners
+            binding.btnMainAction.setOnClickListener { onActionClick(order) }
+            binding.btnDetail.setOnClickListener { onDetailClick(order) }
+            binding.btnChatCustomer.text = "Nhắn Khách"
+            binding.btnChatCustomer.tag = order.orderId
+            binding.btnChatCustomer.setOnClickListener { onChatCustomerClick(order) }
+
+            if (order.orderId.isNotBlank()) {
+                com.google.firebase.database.FirebaseDatabase.getInstance()
+                    .getReference("tracking")
+                    .child("chats_${order.orderId}")
+                    .limitToLast(1)
+                    .addValueEventListener(object : com.google.firebase.database.ValueEventListener {
+                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                            if (binding.btnChatCustomer.tag != order.orderId) return
+                            val lastChild = snapshot.children.lastOrNull()
+                            val sender = lastChild?.child("sender")?.getValue(String::class.java)
+                            if (sender == "customer") {
+                                binding.btnChatCustomer.text = "Tin nhắn Khách (1)"
+                                binding.btnChatCustomer.setTextColor(Color.parseColor("#EA580C"))
+                            } else {
+                                binding.btnChatCustomer.text = "Nhắn Khách"
+                                binding.btnChatCustomer.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+                            }
+                        }
+                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+                    })
+            }
+            binding.btnCallDriver.setOnClickListener {
+                val driverPhone = order.shipperPhone
+                if (driverPhone.isNotBlank()) {
+                    onCallDriverClick(driverPhone)
+                } else {
+                    Toast.makeText(context, "Tài xế chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
+                }
+            }
+            binding.btnWarningDetail.setOnClickListener { onWarningDetailClick(order) }
+        }
+
+        private fun setupStatusAndActions(context: Context, order: Order) {
+            when (order.status) {
+                Order.Status.AWAITING_PAYMENT -> {
+                    // Đơn đang chờ khách chuyển khoản ngân hàng
+                    binding.tvOrderBadge.text = "⏳ Chờ chuyển khoản VietQR"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
+
+                    binding.boxDriverStatus.visibility = View.GONE
+                    binding.btnMainAction.visibility = View.VISIBLE
+                    binding.btnMainAction.apply {
+                        isEnabled = true
+                        text = "👁️ ĐÃ CHECK TIỀN ➔ DUYỆT & NẤU"
+                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
+                        setTextColor(Color.WHITE)
+                    }
+                }
+
+                Order.Status.PAID -> {
+                    // Đơn đã thanh toán VietQR ngân hàng -> Quán bấm xác nhận nấu
+                    binding.tvOrderBadge.text = "💰 Đã TT VietQR • Chờ nấu"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.GONE
+                    binding.btnMainAction.visibility = View.VISIBLE
+                    binding.btnMainAction.apply {
+                        isEnabled = true
+                        text = "✓ XÁC NHẬN & NẤU MÓN ➔"
+                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
+                        setTextColor(Color.WHITE)
+                    }
+                }
+
+                Order.Status.PENDING -> {
+                    // Bước 1: Mới nhận -> Chờ quán xác nhận
+                    binding.tvOrderBadge.text = "⏳ Chờ Quán Xác Nhận Đơn"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
+
+                    binding.boxDriverStatus.visibility = View.GONE
+                    binding.btnMainAction.visibility = View.VISIBLE
+                    binding.btnMainAction.apply {
+                        isEnabled = true
+                        text = "✓ XÁC NHẬN ĐƠN CỦA KHÁCH ➔"
+                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
+                        setTextColor(Color.WHITE)
+                    }
+                }
+
+                Order.Status.PREPARING -> {
+                    // Bước 2: Đã xác nhận -> Chuyển giao cho Đầu Bếp (Merchant không thể xác nhận nấu xong)
+                    binding.boxDriverStatus.visibility = View.VISIBLE
+                    binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_searching)
+                    binding.btnCallDriver.visibility = View.GONE
+
+                    val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+                    if (!hasChef) {
+                        binding.tvOrderBadge.text = "⏳ Chờ Đầu Bếp Nhận Nấu"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+
+                        binding.tvDriverStatusTxt.apply {
+                            text = "👨‍🍳 Đơn đã duyệt. Đang chờ Đầu bếp bấm nhận nấu..."
+                            setTextColor(Color.parseColor("#B45309"))
+                        }
+
+                        binding.btnMainAction.visibility = View.VISIBLE
+                        binding.btnMainAction.apply {
+                            isEnabled = false
+                            alpha = 0.65f
+                            text = "CHỜ ĐẦU BẾP NHẬN NẤU"
+                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.text_secondary)
+                            setTextColor(Color.WHITE)
+                        }
+                    } else {
+                        val chefDisplayName = if (order.chefName.isNotBlank()) order.chefName else "Đầu Bếp"
+                        binding.tvOrderBadge.text = "🔥 Bếp đang nấu ($chefDisplayName)"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_blue)
+                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+
+                        binding.tvDriverStatusTxt.apply {
+                            text = "👨‍🍳 $chefDisplayName đang nấu món • Chờ đầu bếp xác nhận xong"
+                            setTextColor(Color.parseColor("#1D4ED8"))
+                        }
+
+                        binding.btnMainAction.visibility = View.VISIBLE
+                        binding.btnMainAction.apply {
+                            isEnabled = false
+                            alpha = 0.65f
+                            text = "BẾP ĐANG NẤU ($chefDisplayName)"
+                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_orange)
+                            setTextColor(Color.WHITE)
+                        }
+                    }
+                }
+
+                Order.Status.READY -> {
+                    // Bước 3: Nấu xong -> Chờ tài xế bấm tự nhận đơn
+                    val hasShipper = !order.shipperId.isNullOrBlank()
+                    if (!hasShipper) {
+                        binding.tvOrderBadge.text = "🍳 Đã nấu xong • Chờ tài xế"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
+                        binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                        binding.boxDriverStatus.visibility = View.VISIBLE
+                        binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_searching)
+                        binding.tvDriverStatusTxt.apply {
+                            text = "⏳ Món đã xong. Đang phát đơn để tài xế tự bấm nhận..."
+                            setTextColor(Color.parseColor("#B45309"))
+                        }
+                        binding.btnCallDriver.visibility = View.GONE
+                        binding.btnMainAction.visibility = View.GONE
+                    } else {
+                        // Trường hợp tài xế đã nhận
+                        val driverText = order.shipperName.ifBlank { "Tài xế" }
+                        binding.tvOrderBadge.text = "🛵 Tài xế đang đến quán"
+                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+
+                        binding.boxDriverStatus.visibility = View.VISIBLE
+                        binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
+                        binding.tvDriverStatusTxt.apply {
+                            text = "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
+                            setTextColor(Color.parseColor("#047857"))
+                        }
+                        binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
+                        // Bỏ nút xác nhận đơn cho tài xế bên quán
+                        binding.btnMainAction.visibility = View.GONE
+                    }
+                }
+
+                Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
+                    // Bước 3.5: Tài xế ĐÃ bấm nhận đơn hoặc ĐÃ ĐẾN QUÁN -> Chờ bàn giao túi món
+                    val driverText = order.shipperName.ifBlank { "Tài xế" }
+                    val isAtShop = order.status == Order.Status.ARRIVED_AT_SHOP
+                    binding.tvOrderBadge.text = if (isAtShop) "🏪 Tài xế đã đến quầy" else "🛵 Tài xế đang đến quán"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+
+                    binding.boxDriverStatus.visibility = View.VISIBLE
+                    binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
+                    binding.tvDriverStatusTxt.apply {
+                        text = if (isAtShop) "🏪 $driverText đã có mặt tại quán, sẵn sàng nhận túi món" else "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
+                        setTextColor(Color.parseColor("#047857"))
+                    }
+                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
+                    // Bỏ nút xác nhận đơn cho tài xế bên quán
+                    binding.btnMainAction.visibility = View.GONE
+                }
+
+                Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
+                    // Bước 4: Quán đã giao túi món cho tài xế -> Tài xế đang chạy đến khách hoặc đã đến nhà khách
+                    val driverText = order.shipperName.ifBlank { "Tài xế" }
+                    val isAtCustomer = order.status == Order.Status.ARRIVED_AT_CUSTOMER
+                    binding.tvOrderBadge.text = if (isAtCustomer) "📍 Đã đến nhà khách • Chờ nhận món" else "🛵 Đang giao hàng • $driverText"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_delivering)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.VISIBLE
+                    binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
+                    binding.tvDriverStatusTxt.apply {
+                        text = if (isAtCustomer) "📍 $driverText đã đến nhà khách, đang chờ xác minh mã" else "🛵 Đã giao túi món cho $driverText • Đang chạy đến khách"
+                        setTextColor(Color.parseColor("#047857"))
+                    }
+                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
+                    binding.btnMainAction.visibility = View.GONE
+                }
+
+                Order.Status.COMPLETED -> {
+                    binding.tvOrderBadge.text = "🎉 ĐÃ GIAO THÀNH CÔNG"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_completed)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.GONE
+                    binding.btnMainAction.visibility = View.GONE
+                }
+
+                Order.Status.RETURNING_TO_STORE -> {
+                    binding.tvOrderBadge.text = "🚨 ĐANG TRẢ MÓN VỀ QUÁN"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.VISIBLE
+                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
+                    binding.btnMainAction.visibility = View.GONE
+                }
+
+                Order.Status.RETURNED_TO_STORE -> {
+                    binding.tvOrderBadge.text = "🏪 ĐÃ TRẢ MÓN VỀ QUÁN"
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_completed)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.GONE
+                    binding.btnMainAction.visibility = View.GONE
+                }
+
+                Order.Status.CANCELLED, Order.Status.BOOM -> {
+                    val cancelTxt = if (order.cancelReason.isNotBlank()) "🚫 ĐÃ HỦY: ${order.cancelReason}" else "🚫 ĐÃ HỦY ĐƠN"
+                    binding.tvOrderBadge.text = cancelTxt
+                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                    binding.tvOrderBadge.setTextColor(Color.WHITE)
+
+                    binding.boxDriverStatus.visibility = View.GONE
+                    binding.btnMainAction.visibility = View.GONE
+                }
+            }
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = ItemOrderBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return ViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    private class DiffCallback : DiffUtil.ItemCallback<Order>() {
+        override fun areItemsTheSame(old: Order, new: Order) = old.orderId == new.orderId
+        override fun areContentsTheSame(old: Order, new: Order) = old == new
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/dashboard/DashboardActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.dashboard
@@ -102034,420 +102498,6 @@ class DashboardActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(binding.fragmentContainer.id, fragment)
             .commit()
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/OrderAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.shop
-
-import android.content.Context
-import android.graphics.Color
-import android.widget.Toast
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ItemOrderBinding
-
-/**
- * OrderAdapter — Hiển thị danh sách đơn hàng cho Quán theo mẫu Quán/5.html
- * Quy trình 3 bước: Xác nhận đơn -> Nấu xong -> Giao tài xế
- */
-class OrderAdapter(
-    private val onActionClick: (Order) -> Unit,
-    private val onDetailClick: (Order) -> Unit,
-    private val onChatCustomerClick: (Order) -> Unit,
-    private val onCallDriverClick: (String) -> Unit,
-    private val onWarningDetailClick: (Order) -> Unit,
-    private val onApproveCancelClick: (Order) -> Unit = {},
-    private val onRejectCancelClick: (Order) -> Unit = {}
-) : ListAdapter<Order, OrderAdapter.ViewHolder>(DiffCallback()) {
-
-    var canOperate: Boolean = true
-        set(value) {
-            if (field != value) {
-                field = value
-                notifyDataSetChanged()
-            }
-        }
-
-    inner class ViewHolder(private val binding: ItemOrderBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(order: Order) {
-            val context = binding.root.context
-            binding.tvOrderCode.text = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
-
-            // 1. Danh sách món ăn
-            val dishesSummary = if (order.items.isNotEmpty()) {
-                order.items.values.joinToString("\n") { "• ${it.quantity}x ${it.name}" }
-            } else {
-                "• 1x Suất ăn đặt trực tiếp"
-            }
-            val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                order.isPaid || order.isDepositPaid || order.status == Order.Status.PAID
-            val payText = when {
-                order.paymentMode == Order.PaymentMode.DEPOSIT && isPaidOnline ->
-                    "⚡ ĐÃ CỌC ${order.depositAmount.toVndCurrency()} • CÒN THU ${order.remainAmount.toVndCurrency()} KHI GIAO"
-                order.paymentMode == Order.PaymentMode.DEPOSIT ->
-                    "⏳ CHƯA XÁC NHẬN CỌC ${order.depositAmount.toVndCurrency()}"
-                order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
-                    if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo"
-                    else "⏳ Chờ khách chuyển khoản Ví MoMo (Chưa chuyển)"
-                }
-                order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
-                    if (isPaidOnline) "💰 Đã thanh toán Ngân hàng"
-                    else "⏳ Chờ chuyển khoản VietQR (Chưa nhận)"
-                }
-                else -> "💵 Thu tiền mặt khi nhận (COD)"
-            }
-
-            when {
-                order.paymentMode == Order.PaymentMode.DEPOSIT && isPaidOnline -> {
-                    binding.tvPaymentStatusBadge.text = "⚡ Đã cọc • còn thu khi giao"
-                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                    binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
-                }
-                order.paymentMode == Order.PaymentMode.DEPOSIT -> {
-                    binding.tvPaymentStatusBadge.text = "⏳ Chờ xác nhận cọc"
-                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
-                }
-                order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
-                    if (isPaidOnline) {
-                        binding.tvPaymentStatusBadge.text = "✅ Đã chuyển MoMo"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
-                    } else {
-                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển MoMo"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
-                    }
-                }
-                order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
-                    if (isPaidOnline) {
-                        binding.tvPaymentStatusBadge.text = "✅ Đã thanh toán Ngân hàng"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
-                    } else {
-                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển khoản VietQR"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
-                    }
-                }
-                else -> {
-                    binding.tvPaymentStatusBadge.text = "💵 Thu tiền mặt (COD)"
-                    binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_blue)
-                    binding.tvPaymentStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-                }
-            }
-
-            val total = if (order.totalPayment > 0) order.totalPayment else order.total
-            binding.tvOrderDishes.text = "$dishesSummary\nTổng bill: ${total.toVndCurrency()} ($payText)"
-
-            // 2. Địa chỉ & Khách
-            val customerName = order.customerName.ifBlank { "Khách Hàng" }
-            val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Địa chỉ nhận món" } }
-            binding.tvOrderAddress.text = "📍 Giao đến: $customerName - $address"
-
-            // 3. Tắt phần đơn hàng bị cảnh báo màu đỏ theo yêu cầu
-            binding.cardOrderItem.strokeColor = ContextCompat.getColor(context, R.color.border)
-            binding.cardOrderItem.strokeWidth = (1 * context.resources.displayMetrics.density).toInt()
-            binding.boxWarningIncident.visibility = View.GONE
-            binding.btnWarningDetail.visibility = View.GONE
-
-            // 3.5 Khách hàng gửi yêu cầu hủy đơn (khi đang nấu hoặc sẵn sàng)
-            if (order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING) {
-                binding.boxCancelRequest.visibility = View.VISIBLE
-                binding.tvCancelRequestReason.text = "Lý do: " + (order.cancelRequestReason.ifBlank { "Khách đặt nhầm món" })
-                binding.btnApproveCancel.setOnClickListener { onApproveCancelClick(order) }
-                binding.btnRejectCancel.setOnClickListener { onRejectCancelClick(order) }
-            } else {
-                binding.boxCancelRequest.visibility = View.GONE
-            }
-
-            // 4. Trạng thái Quy trình 3 bước (Quán/5.html)
-            setupStatusAndActions(context, order)
-
-            if (!canOperate) {
-                binding.btnMainAction.alpha = 0.65f
-                binding.boxCancelRequest.alpha = 0.65f
-            } else {
-                binding.btnMainAction.alpha = 1.0f
-                binding.boxCancelRequest.alpha = 1.0f
-            }
-
-            // Click Listeners
-            binding.btnMainAction.setOnClickListener { onActionClick(order) }
-            binding.btnDetail.setOnClickListener { onDetailClick(order) }
-            binding.btnChatCustomer.text = "Nhắn Khách"
-            binding.btnChatCustomer.tag = order.orderId
-            binding.btnChatCustomer.setOnClickListener { onChatCustomerClick(order) }
-
-            if (order.orderId.isNotBlank()) {
-                com.google.firebase.database.FirebaseDatabase.getInstance()
-                    .getReference("tracking")
-                    .child("chats_${order.orderId}")
-                    .limitToLast(1)
-                    .addValueEventListener(object : com.google.firebase.database.ValueEventListener {
-                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                            if (binding.btnChatCustomer.tag != order.orderId) return
-                            val lastChild = snapshot.children.lastOrNull()
-                            val sender = lastChild?.child("sender")?.getValue(String::class.java)
-                            if (sender == "customer") {
-                                binding.btnChatCustomer.text = "Tin nhắn Khách (1)"
-                                binding.btnChatCustomer.setTextColor(Color.parseColor("#EA580C"))
-                            } else {
-                                binding.btnChatCustomer.text = "Nhắn Khách"
-                                binding.btnChatCustomer.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-                            }
-                        }
-                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
-                    })
-            }
-            binding.btnCallDriver.setOnClickListener {
-                val driverPhone = order.shipperPhone
-                if (driverPhone.isNotBlank()) {
-                    onCallDriverClick(driverPhone)
-                } else {
-                    Toast.makeText(context, "Tài xế chưa cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
-                }
-            }
-            binding.btnWarningDetail.setOnClickListener { onWarningDetailClick(order) }
-        }
-
-        private fun setupStatusAndActions(context: Context, order: Order) {
-            when (order.status) {
-                Order.Status.AWAITING_PAYMENT -> {
-                    // Đơn đang chờ khách chuyển khoản ngân hàng
-                    binding.tvOrderBadge.text = "⏳ Chờ chuyển khoản VietQR"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
-
-                    binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.visibility = View.VISIBLE
-                    binding.btnMainAction.apply {
-                        isEnabled = true
-                        text = "👁️ ĐÃ CHECK TIỀN ➔ DUYỆT & NẤU"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
-                        setTextColor(Color.WHITE)
-                    }
-                }
-
-                Order.Status.PAID -> {
-                    // Đơn đã thanh toán VietQR ngân hàng -> Quán bấm xác nhận nấu
-                    binding.tvOrderBadge.text = "💰 Đã TT VietQR • Chờ nấu"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                    binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                    binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.visibility = View.VISIBLE
-                    binding.btnMainAction.apply {
-                        isEnabled = true
-                        text = "✓ XÁC NHẬN & NẤU MÓN ➔"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_green)
-                        setTextColor(Color.WHITE)
-                    }
-                }
-
-                Order.Status.PENDING -> {
-                    // Bước 1: Mới nhận -> Chờ quán xác nhận
-                    binding.tvOrderBadge.text = "⏳ Chờ Quán Xác Nhận Đơn"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.primary))
-
-                    binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.visibility = View.VISIBLE
-                    binding.btnMainAction.apply {
-                        isEnabled = true
-                        text = "✓ XÁC NHẬN ĐƠN CỦA KHÁCH ➔"
-                        backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
-                        setTextColor(Color.WHITE)
-                    }
-                }
-
-                Order.Status.PREPARING -> {
-                    // Bước 2: Đã xác nhận -> Chuyển giao cho Đầu Bếp (Merchant không thể xác nhận nấu xong)
-                    binding.boxDriverStatus.visibility = View.VISIBLE
-                    binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_searching)
-                    binding.btnCallDriver.visibility = View.GONE
-
-                    val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
-                    if (!hasChef) {
-                        binding.tvOrderBadge.text = "⏳ Chờ Đầu Bếp Nhận Nấu"
-                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-
-                        binding.tvDriverStatusTxt.apply {
-                            text = "👨‍🍳 Đơn đã duyệt. Đang chờ Đầu bếp bấm nhận nấu..."
-                            setTextColor(Color.parseColor("#B45309"))
-                        }
-
-                        binding.btnMainAction.visibility = View.VISIBLE
-                        binding.btnMainAction.apply {
-                            isEnabled = false
-                            alpha = 0.65f
-                            text = "CHỜ ĐẦU BẾP NHẬN NẤU"
-                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.text_secondary)
-                            setTextColor(Color.WHITE)
-                        }
-                    } else {
-                        val chefDisplayName = if (order.chefName.isNotBlank()) order.chefName else "Đầu Bếp"
-                        binding.tvOrderBadge.text = "🔥 Bếp đang nấu ($chefDisplayName)"
-                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_blue)
-                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-
-                        binding.tvDriverStatusTxt.apply {
-                            text = "👨‍🍳 $chefDisplayName đang nấu món • Chờ đầu bếp xác nhận xong"
-                            setTextColor(Color.parseColor("#1D4ED8"))
-                        }
-
-                        binding.btnMainAction.visibility = View.VISIBLE
-                        binding.btnMainAction.apply {
-                            isEnabled = false
-                            alpha = 0.65f
-                            text = "BẾP ĐANG NẤU ($chefDisplayName)"
-                            backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_orange)
-                            setTextColor(Color.WHITE)
-                        }
-                    }
-                }
-
-                Order.Status.READY -> {
-                    // Bước 3: Nấu xong -> Chờ tài xế bấm tự nhận đơn
-                    val hasShipper = !order.shipperId.isNullOrBlank()
-                    if (!hasShipper) {
-                        binding.tvOrderBadge.text = "🍳 Đã nấu xong • Chờ tài xế"
-                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                        binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                        binding.boxDriverStatus.visibility = View.VISIBLE
-                        binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_searching)
-                        binding.tvDriverStatusTxt.apply {
-                            text = "⏳ Món đã xong. Đang phát đơn để tài xế tự bấm nhận..."
-                            setTextColor(Color.parseColor("#B45309"))
-                        }
-                        binding.btnCallDriver.visibility = View.GONE
-                        binding.btnMainAction.visibility = View.GONE
-                    } else {
-                        // Trường hợp tài xế đã nhận
-                        val driverText = order.shipperName.ifBlank { "Tài xế" }
-                        binding.tvOrderBadge.text = "🛵 Tài xế đang đến quán"
-                        binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
-                        binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-
-                        binding.boxDriverStatus.visibility = View.VISIBLE
-                        binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
-                        binding.tvDriverStatusTxt.apply {
-                            text = "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
-                            setTextColor(Color.parseColor("#047857"))
-                        }
-                        binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-                        // Bỏ nút xác nhận đơn cho tài xế bên quán
-                        binding.btnMainAction.visibility = View.GONE
-                    }
-                }
-
-                Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
-                    // Bước 3.5: Tài xế ĐÃ bấm nhận đơn hoặc ĐÃ ĐẾN QUÁN -> Chờ bàn giao túi món
-                    val driverText = order.shipperName.ifBlank { "Tài xế" }
-                    val isAtShop = order.status == Order.Status.ARRIVED_AT_SHOP
-                    binding.tvOrderBadge.text = if (isAtShop) "🏪 Tài xế đã đến quầy" else "🛵 Tài xế đang đến quán"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_green)
-                    binding.tvOrderBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-
-                    binding.boxDriverStatus.visibility = View.VISIBLE
-                    binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
-                    binding.tvDriverStatusTxt.apply {
-                        text = if (isAtShop) "🏪 $driverText đã có mặt tại quán, sẵn sàng nhận túi món" else "🛵 $driverText đã nhận đơn, đang đến quầy lấy món"
-                        setTextColor(Color.parseColor("#047857"))
-                    }
-                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-                    // Bỏ nút xác nhận đơn cho tài xế bên quán
-                    binding.btnMainAction.visibility = View.GONE
-                }
-
-                Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
-                    // Bước 4: Quán đã giao túi món cho tài xế -> Tài xế đang chạy đến khách hoặc đã đến nhà khách
-                    val driverText = order.shipperName.ifBlank { "Tài xế" }
-                    val isAtCustomer = order.status == Order.Status.ARRIVED_AT_CUSTOMER
-                    binding.tvOrderBadge.text = if (isAtCustomer) "📍 Đã đến nhà khách • Chờ nhận món" else "🛵 Đang giao hàng • $driverText"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_delivering)
-                    binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                    binding.boxDriverStatus.visibility = View.VISIBLE
-                    binding.boxDriverStatus.setBackgroundResource(R.drawable.bg_driver_assigned)
-                    binding.tvDriverStatusTxt.apply {
-                        text = if (isAtCustomer) "📍 $driverText đã đến nhà khách, đang chờ xác minh mã" else "🛵 Đã giao túi món cho $driverText • Đang chạy đến khách"
-                        setTextColor(Color.parseColor("#047857"))
-                    }
-                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-                    binding.btnMainAction.visibility = View.GONE
-                }
-
-                Order.Status.COMPLETED -> {
-                    binding.tvOrderBadge.text = "🎉 ĐÃ GIAO THÀNH CÔNG"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_completed)
-                    binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                    binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.visibility = View.GONE
-                }
-
-                Order.Status.RETURNING_TO_STORE -> {
-                    binding.tvOrderBadge.text = "🚨 ĐANG TRẢ MÓN VỀ QUÁN"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                    binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                    binding.boxDriverStatus.visibility = View.VISIBLE
-                    binding.btnCallDriver.visibility = if (!order.shipperId.isNullOrBlank()) View.VISIBLE else View.GONE
-                    binding.btnMainAction.visibility = View.GONE
-                }
-
-                Order.Status.RETURNED_TO_STORE -> {
-                    binding.tvOrderBadge.text = "🏪 ĐÃ TRẢ MÓN VỀ QUÁN"
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_status_completed)
-                    binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                    binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.visibility = View.GONE
-                }
-
-                Order.Status.CANCELLED, Order.Status.BOOM -> {
-                    val cancelTxt = if (order.cancelReason.isNotBlank()) "🚫 ĐÃ HỦY: ${order.cancelReason}" else "🚫 ĐÃ HỦY ĐƠN"
-                    binding.tvOrderBadge.text = cancelTxt
-                    binding.tvOrderBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                    binding.tvOrderBadge.setTextColor(Color.WHITE)
-
-                    binding.boxDriverStatus.visibility = View.GONE
-                    binding.btnMainAction.visibility = View.GONE
-                }
-            }
-        }
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = ItemOrderBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return ViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    private class DiffCallback : DiffUtil.ItemCallback<Order>() {
-        override fun areItemsTheSame(old: Order, new: Order) = old.orderId == new.orderId
-        override fun areContentsTheSame(old: Order, new: Order) = old == new
     }
 }
 ````

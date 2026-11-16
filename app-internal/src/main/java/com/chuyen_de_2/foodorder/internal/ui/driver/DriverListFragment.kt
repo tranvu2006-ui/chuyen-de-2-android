@@ -98,6 +98,9 @@ class DriverListFragment : Fragment() {
                 } catch (e: Exception) {
                     Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
                 }
+            },
+            onDeleteClick = { driver ->
+                showDeleteDriverDialog(driver)
             }
         )
         binding.rvDrivers.layoutManager = LinearLayoutManager(requireContext())
@@ -403,6 +406,25 @@ class DriverListFragment : Fragment() {
         }
 
         dialog.show()
+    }
+
+    private fun showDeleteDriverDialog(driver: Driver) {
+        val driverName = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xóa tài khoản tài xế")
+            .setMessage("Bạn có chắc chắn muốn xóa tài xế $driverName (${driver.driverCode}) khỏi quán không?\n\nTài khoản sẽ bị gỡ bỏ và các đơn đang giao (nếu có) sẽ được chuyển về trạng thái sẵn sàng cho tài xế khác nhận.")
+            .setPositiveButton("Xóa") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val result = firebaseRepository.deleteDriver(driver.driverId)
+                    if (result.isSuccess) {
+                        Toast.makeText(requireContext(), "Đã xóa tài xế $driverName", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 
     private fun showDeleteChefDialog(chef: Chef) {

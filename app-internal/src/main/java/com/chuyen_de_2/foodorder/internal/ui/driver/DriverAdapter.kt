@@ -12,7 +12,8 @@ import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverBinding
 
 class DriverAdapter(
-    private val onCallClick: (String) -> Unit
+    private val onCallClick: (String) -> Unit,
+    private val onDeleteClick: (Driver) -> Unit = {}
 ) : ListAdapter<Driver, DriverAdapter.DriverViewHolder>(DriverDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DriverViewHolder {
@@ -115,6 +116,11 @@ class DriverAdapter(
                 if (driver.phone.isNotBlank()) {
                     onCallClick(driver.phone)
                 }
+            }
+
+            // Xóa tài xế
+            binding.btnDeleteDriver.setOnClickListener {
+                onDeleteClick(driver)
             }
         }
     }

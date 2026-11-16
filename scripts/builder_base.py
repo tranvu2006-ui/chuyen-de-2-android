@@ -31,6 +31,34 @@ normal_style.font.color.rgb = RGBColor(0x11, 0x18, 0x27)
 normal_style.paragraph_format.line_spacing = 1.3
 normal_style.paragraph_format.space_after = Pt(6)
 
+# Cấu hình chuẩn Heading Styles để hiển thị đầy đủ trên Navigation Pane (Cây mục lục Word)
+h1_style = doc.styles['Heading 1']
+h1_style.font.name = 'Times New Roman'
+h1_style.font.size = Pt(15)
+h1_style.font.bold = True
+h1_style.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A) # Dark Navy
+h1_style.paragraph_format.space_before = Pt(14)
+h1_style.paragraph_format.space_after = Pt(6)
+h1_style.paragraph_format.keep_with_next = True
+
+h2_style = doc.styles['Heading 2']
+h2_style.font.name = 'Times New Roman'
+h2_style.font.size = Pt(13.5)
+h2_style.font.bold = True
+h2_style.font.color.rgb = RGBColor(0x1E, 0x29, 0x3B)
+h2_style.paragraph_format.space_before = Pt(10)
+h2_style.paragraph_format.space_after = Pt(4)
+h2_style.paragraph_format.keep_with_next = True
+
+h3_style = doc.styles['Heading 3']
+h3_style.font.name = 'Times New Roman'
+h3_style.font.size = Pt(13)
+h3_style.font.bold = True
+h3_style.font.color.rgb = RGBColor(0x33, 0x41, 0x55)
+h3_style.paragraph_format.space_before = Pt(6)
+h3_style.paragraph_format.space_after = Pt(2)
+h3_style.paragraph_format.keep_with_next = True
+
 def set_cell_background(cell, fill_hex):
     tcPr = cell._tc.get_or_add_tcPr()
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
@@ -49,19 +77,20 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     tcPr.append(tcMar)
 
 def add_title(text, level=1, space_before=12, space_after=6):
-    p = doc.add_paragraph()
+    # Sử dụng doc.add_heading để gắn chính xác Outline Level cho Word Navigation Pane
+    p = doc.add_heading(level=level)
     p.paragraph_format.space_before = Pt(space_before)
     p.paragraph_format.space_after = Pt(space_after)
     p.paragraph_format.keep_with_next = True
+    
     run = p.add_run(text)
     run.font.name = 'Times New Roman'
     run.bold = True
     if level == 1:
-        run.font.size = Pt(16)
-        run.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A) # Dark Navy
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        run.font.size = Pt(15)
+        run.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
     elif level == 2:
-        run.font.size = Pt(14)
+        run.font.size = Pt(13.5)
         run.font.color.rgb = RGBColor(0x1E, 0x29, 0x3B)
     elif level == 3:
         run.font.size = Pt(13)
@@ -130,7 +159,7 @@ def create_table(headers, rows, col_widths=None):
     hdr_cells = tbl.rows[0].cells
     for i, title in enumerate(headers):
         hdr_cells[i].text = title
-        set_cell_background(hdr_cells[i], "1E293B") # Slate 800
+        set_cell_background(hdr_cells[i], "1E293B")
         set_cell_margins(hdr_cells[i], top=120, bottom=120, left=140, right=140)
         hdr_cells[i].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         p = hdr_cells[i].paragraphs[0]
@@ -151,7 +180,6 @@ def create_table(headers, rows, col_widths=None):
             set_cell_margins(row_cells[c_idx], top=80, bottom=80, left=120, right=120)
             row_cells[c_idx].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             p = row_cells[c_idx].paragraphs[0]
-            # Align center for short columns, left for longer
             if c_idx == 0 or len(str(val)) <= 8:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             else:
@@ -168,4 +196,16 @@ def create_table(headers, rows, col_widths=None):
     doc.add_paragraph().paragraph_format.space_after = Pt(8)
     return tbl
 
-print("Base builder helper ready!")
+def add_table_of_contents():
+    p = doc.add_paragraph()
+    r = p.add_run()
+    fldChar1 = parse_xml(r'<w:fldChar %s w:fldCharType="begin"/>' % nsdecls('w'))
+    instrText = parse_xml(r'<w:instrText %s xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText>' % nsdecls('w'))
+    fldChar2 = parse_xml(r'<w:fldChar %s w:fldCharType="separate"/>' % nsdecls('w'))
+    fldChar3 = parse_xml(r'<w:fldChar %s w:fldCharType="end"/>' % nsdecls('w'))
+    r._r.append(fldChar1)
+    r._r.append(instrText)
+    r._r.append(fldChar2)
+    r._r.append(fldChar3)
+
+print("Updated builder_base with true Word Headings & TOC support!")

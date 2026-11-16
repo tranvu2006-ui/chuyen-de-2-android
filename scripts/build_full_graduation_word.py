@@ -1,5 +1,11 @@
 import os
 import sys
+
+# Thêm thư mục scripts vào đường dẫn tìm kiếm module
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.append(script_dir)
+
 import docx
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -7,10 +13,10 @@ from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 
 from builder_base import (
     doc, out_word_path, diag_dir, sc_dir, tc_dir,
-    add_title, add_p, add_bullet, add_image_box, create_table
+    add_title, add_p, add_bullet, add_image_box, create_table, add_table_of_contents
 )
 
-print("Starting to build FULL Graduation Report Word document...")
+print("Starting to build FULL Graduation Report Word document with Headings & TOC...")
 
 # ==========================================================
 # TRANG BÌA CHÍNH (COVER PAGE)
@@ -99,10 +105,10 @@ doc.add_page_break()
 # ==========================================================
 # BẢNG NHẬT KÝ VÀ PHÂN CÔNG ĐÁNH GIÁ (33% - 33% - 33% - 1%)
 # ==========================================================
-add_title("BẢNG PHÂN CÔNG NHIỆM VỤ VÀ ĐÁNH GIÁ ĐÓNG GÓP", level=1, space_before=18)
+add_title("PHÂN CÔNG BÁO CÁO", level=1, space_before=18)
 add_p("Căn cứ theo quá trình triển khai thực tế mã nguồn, thiết kế kiến trúc và mức độ hoàn thành nhiệm vụ trong suốt học kỳ, nhóm thống nhất đánh giá tỷ lệ đóng góp của từng thành viên như sau:")
 
-diary_headers = ["STT", "Họ và tên", "Nhiệm vụ kỹ thuật phụ trách chính", "Đánh giá (%)", "Ký tên"]
+diary_headers = ["STT", "Họ và tên", "Nhiệm vụ kỹ thuật phụ trách chính", "Đánh giá (%)", "Chữ ký"]
 diary_rows = [
     [
         "1",
@@ -134,6 +140,15 @@ diary_rows = [
     ],
 ]
 create_table(diary_headers, diary_rows, col_widths=[0.5, 1.6, 3.2, 0.8, 0.7])
+
+doc.add_page_break()
+
+# ==========================================================
+# TRANG MỤC LỤC TỰ ĐỘNG (TABLE OF CONTENTS)
+# ==========================================================
+add_title("MỤC LỤC", level=1, space_before=18)
+add_p("Nhấp chuột phải vào vùng mục lục bên dưới và chọn 'Update Field' (hoặc nhấn phím F9) để Word tự động làm mới số trang chính xác nhất:", italic=True)
+add_table_of_contents()
 
 doc.add_page_break()
 
@@ -170,7 +185,7 @@ fig_rows = [
     ["Ảnh 1 – Ảnh 12", "Bộ ảnh chụp giao diện Ứng dụng Khách hàng (app-customer)", "Mục 2.6 - Phần A"],
     ["Ảnh 13 – Ảnh 23", "Bộ ảnh chụp giao diện Ứng dụng Nội bộ Quán, Bếp & Tài xế (app-internal)", "Mục 2.6 - Phần B"],
     ["Ảnh 24 – Ảnh 25B", "Bộ ảnh chụp giao diện Bảng điều khiển Quản trị viên (admin.html)", "Mục 2.6 - Phần C"],
-    ["Ảnh KT-1 – KT-6", "Bộ ảnh chụp minh chứng kết quả kiểm thử thực nghiệm hệ thống", "Mục 3.3.2"]
+    ["Ảnh KT-1 – KT-6", "Bộ ảnh chụp minh chứng kết quả kiểm thử thực nghiệm hệ thống", "Mục 3.2"]
 ]
 create_table(fig_headers, fig_rows, col_widths=[1.5, 4.3, 1.0])
 
@@ -181,7 +196,7 @@ tbl_rows = [
     ["Bảng 2", "Ma trận phân quyền 6 Roles (RBAC Matrix) trong hệ thống", "Mục 2.1"],
     ["Bảng 3", "Đặc tả các nhánh dữ liệu Firebase Realtime Database", "Mục 2.4"],
     ["Bảng 4 – Bảng 29", "Bảng yêu cầu chức năng và phản hồi 25 màn hình giao diện (IEEE)", "Mục 2.6"],
-    ["Bảng 30 – Bảng 35", "Bảng kịch bản kiểm thử thực nghiệm chi tiết (KT-1 đến KT-6)", "Mục 3.3.2"]
+    ["Bảng 30 – Bảng 35", "Bảng kịch bản kiểm thử thực nghiệm chi tiết (KT-1 đến KT-6)", "Mục 3.2"]
 ]
 create_table(tbl_headers, tbl_rows, col_widths=[1.5, 4.3, 1.0])
 
@@ -419,7 +434,7 @@ test_cases_data = [
 ]
 
 for img_file, cap_code, tc_code, tc_name, tc_input, tc_steps, tc_exp, tc_act in test_cases_data:
-    add_title(f"3.3.{tc_code}: {tc_name}", level=3)
+    add_title(f"3.2.{tc_code}: {tc_name}", level=2)
     
     tc_tbl_headers = ["Mục kiểm thử", "Chi tiết kịch bản"]
     tc_tbl_rows = [

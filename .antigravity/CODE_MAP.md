@@ -42833,1065 +42833,6 @@ class CheckoutViewModel @Inject constructor(
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
-
-import androidx.activity.OnBackPressedCallback
-import androidx.annotation.IdRes
-import androidx.fragment.app.Fragment
-import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryFragment
-import com.chuyen_de_2.foodorder.customer.ui.notification.NotificationFragment
-import com.chuyen_de_2.foodorder.customer.ui.profile.ProfileFragment
-
-import android.app.Activity
-import android.content.Intent
-import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.View
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.AccountLockWatcher
-import com.chuyen_de_2.foodorder.core.util.Constants
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
-import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
-import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
-import com.chuyen_de_2.foodorder.customer.ui.checkout.SelectLocationActivity
-import android.widget.TextView
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
-import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
-import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
-import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
-import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
-import android.Manifest
-import android.annotation.SuppressLint
-import android.content.pm.PackageManager
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Trang Chủ Khám Phá & Đặt Món Ăn (Customer Home Marketplace)
- * Cách hoạt động:
- *  - Hiển thị danh mục món ăn (Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, v.v.).
- *  - Cung cấp danh sách Món ăn Hot bán chạy cuộn ngang và Thực đơn món ăn toàn hệ thống cuộn dọc.
- *  - Tìm kiếm món ăn tức thời theo từ khóa (Instant Search Filter).
- *  - Bộ lọc Quán gần bạn (< 1.5 km) hiển thị qua BottomSheetDialog.
- *  - Nút giỏ hàng nổi (Floating Cart Button) cập nhật số lượng món và tổng tiền theo thời gian thực.
- *  - Thanh điều hướng BottomNavigation: Trang chủ, Đơn hàng, Thông báo, Tài khoản.
- * Luồng hướng tới:
- *  - Bấm vào món ăn / quán ăn -> Chuyển sang màn hình thực đơn chi tiết [MenuActivity].
- *  - Bấm nút Giỏ hàng nổi -> Chuyển sang giỏ hàng [CartActivity].
- *  - Bấm tab Đơn hàng -> Chuyển sang lịch sử đơn [OrderHistoryActivity].
- *  - Bấm tab Thông báo -> Chuyển sang [NotificationActivity].
- *  - Bấm tab Tài khoản -> Chuyển sang [ProfileActivity].
- */
-@AndroidEntryPoint
-class HomeActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityHomeBinding
-    private val viewModel: HomeViewModel by viewModels()
-    private val cartViewModel: CartViewModel by viewModels()
-
-    private lateinit var dishAdapter: HomeDishAdapter
-    private lateinit var hotDishAdapter: HotDishAdapter
-    private lateinit var categoryAdapter: HomeCategoryAdapter
-
-    private var selectedCategory: String? = null
-    private var selectedPriceLabel: String? = null
-    private var isNearbyFiltered: Boolean = false
-    private var selectedNearbyDistanceKm: Double = 1.5
-    private var selectedNearbyDistanceLabel: String = "< 1.5 km"
-    private var currentLocationName: String = "Đang xác định vị trí..."
-    private var hasAutoFilteredNearbyOnce: Boolean = false
-
-    private val selectLocationLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val data = result.data!!
-            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
-            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
-            val fullAddr = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS).orEmpty()
-            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT).orEmpty()
-            if (lat != 0.0 && lng != 0.0) {
-                applyCustomLocation(lat, lng, fullAddr, district)
-            }
-        }
-    }
-
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        ) {
-            requestFreshGpsLocation()
-        }
-    }
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    /**
-     * Tên chức năng: Khởi tạo Trang chủ Khách hàng
-     * Cách hoạt động: Cấu hình Insets Edge-to-Edge, khởi tạo các thành phần giao diện, adapter, bộ lọc và lắng nghe ViewModel.
-     * Luồng hướng tới: Chuẩn bị sàn thương mại món ăn cho khách đặt.
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        if (FirebaseAuth.getInstance().currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
-            return
-        }
-
-        binding = ActivityHomeBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, false)
-        InsetUtils.applyStatusBarPadding(binding.headerBar, 8)
-        InsetUtils.applyNavigationBarPadding(binding.bottomNav)
-
-        setupHeader()
-        setupCategories()
-        setupAdvancedFilterBar()
-        setupHotDishes()
-        setupSearch()
-        setupDishRecyclerView()
-        setupSwipeRefresh()
-        setupFloatingCart()
-        setupBottomNav()
-        setupBackNavigation()
-        observeViewModel()
-        checkUserRoleForBanner()
-        detectUserLocation()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        checkAccountLock()
-        if (binding.bottomNav.selectedItemId == R.id.nav_home) {
-            InsetUtils.setLightStatusBar(this, false)
-        } else {
-            InsetUtils.setLightStatusBar(this, true)
-        }
-    }
-
-    /**
-     * Tên chức năng: Kiểm tra trạng thái tài khoản khi người dùng quay lại màn hình
-     * Cách hoạt động: Kiểm tra cờ `isActive` trên Firestore; nếu bị khóa, tự động đăng xuất và thông báo lỗi.
-     * Luồng hướng tới: Điều hướng về [LoginActivity] nếu tài khoản bị khóa.
-     */
-    private fun checkAccountLock() {
-        lifecycleScope.launch {
-            val statusCheck = authRepository.checkAccountActiveStatus()
-            if (statusCheck.isFailure) {
-                val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                AccountLockWatcher.notifyLockedManually(this@HomeActivity, reason)
-            }
-        }
-    }
-
-    /**
-     * Mở bản đồ kéo thả ghim để chọn vị trí mới
-     */
-    private fun openSelectLocationMap() {
-        val intent = Intent(this, SelectLocationActivity::class.java).apply {
-            val current = viewModel.getUserLocation()
-            if (current.latitude != 0.0 && current.longitude != 0.0) {
-                putExtra(SelectLocationActivity.EXTRA_LAT, current.latitude)
-                putExtra(SelectLocationActivity.EXTRA_LNG, current.longitude)
-            }
-        }
-        selectLocationLauncher.launch(intent)
-    }
-
-    /**
-     * Cập nhật vị trí tùy chọn từ bản đồ hoặc GPS và tự động lọc quán gần (< 1.5 km)
-     */
-    private fun applyCustomLocation(lat: Double, lng: Double, fullAddr: String, district: String) {
-        val displayDistrict = district.ifBlank { GoogleMapUtils.findNearestDistrict(lat, lng) }
-        currentLocationName = fullAddr.ifBlank { "$displayDistrict, TP.HCM" }
-        binding.tvLocation.text = "📍 $displayDistrict ▾"
-
-        viewModel.setUserLocation(lat, lng)
-
-        if (isNearbyFiltered) {
-            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
-        }
-        updateFilterIndicator()
-
-        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict", Toast.LENGTH_SHORT).show()
-    }
-
-    /**
-     * Tên chức năng: Thiết lập thanh tiêu đề Header và bộ lọc quán gần
-     * Cách hoạt động: Bắt sự kiện Click nút "Quán gần đây", chọn địa chỉ, nút "Xem tất cả" và "Xóa lọc".
-     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet], mở bản đồ chọn vị trí hoặc reset bộ lọc.
-     */
-    private fun setupHeader() {
-        binding.btnNearbyStores.setOnClickListener {
-            showNearbyStoresBottomSheet()
-        }
-
-        binding.tvLocation.setOnClickListener {
-            openSelectLocationMap()
-        }
-
-        binding.tvViewAll.setOnClickListener {
-            selectedCategory = null
-            isNearbyFiltered = false
-            selectedNearbyDistanceKm = 1.5
-            selectedNearbyDistanceLabel = "< 1.5 km"
-            clearCategoryHighlight()
-            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
-            binding.etSearch.setText("")
-            syncFilterUI()
-            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-            Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
-        }
-
-        binding.btnClearFilter.setOnClickListener {
-            selectedCategory = null
-            isNearbyFiltered = false
-            selectedNearbyDistanceKm = 1.5
-            selectedNearbyDistanceLabel = "< 1.5 km"
-            clearCategoryHighlight()
-            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
-            syncFilterUI()
-            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-        }
-
-        binding.layoutActiveFilterIndicator.setOnClickListener {
-            showNearbyStoresBottomSheet()
-        }
-    }
-
-    /**
-     * Tên chức năng: Phát hiện vị trí người dùng (từ địa chỉ đã lưu hoặc GPS)
-     */
-    private fun detectUserLocation() {
-        lifecycleScope.launch {
-            try {
-                val uid = FirebaseAuth.getInstance().currentUser?.uid
-                if (!uid.isNullOrBlank()) {
-                    val userSnap = FirebaseDatabase.getInstance().getReference("users").child(uid).get().await()
-                    val addr = userSnap.child("address").getValue(String::class.java).orEmpty().trim()
-                    if (addr.isNotBlank()) {
-                        currentLocationName = addr
-                        val shortDistrict = addr.split(",")
-                            .map { it.trim() }
-                            .firstOrNull { it.contains("Quận", true) || it.contains("Thủ Đức", true) || it.contains("Bình Thạnh", true) || it.contains("Gò Vấp", true) || it.contains("Tân Bình", true) || it.contains("Phú Nhuận", true) }
-                            ?: "TP.HCM"
-                        binding.tvLocation.text = "📍 $shortDistrict ▾"
-
-                        val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
-                        if (coords.latitude != 0.0 && coords.longitude != 0.0) {
-                            viewModel.setUserLocation(coords.latitude, coords.longitude)
-                            hasAutoFilteredNearbyOnce = true
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-
-            checkGpsPermissionAndFetch()
-        }
-    }
-
-    private fun checkGpsPermissionAndFetch(onComplete: (() -> Unit)? = null) {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        ) {
-            requestFreshGpsLocation(onComplete)
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun requestFreshGpsLocation(onComplete: (() -> Unit)? = null) {
-        try {
-            val fused = LocationServices.getFusedLocationProviderClient(this)
-            val priority = Priority.PRIORITY_HIGH_ACCURACY
-            fused.getCurrentLocation(priority, null).addOnSuccessListener { loc ->
-                if (loc != null) {
-                    onGpsLocationUpdated(loc.latitude, loc.longitude, onComplete)
-                } else {
-                    fused.lastLocation.addOnSuccessListener { fallbackLoc ->
-                        if (fallbackLoc != null) {
-                            onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
-                        } else {
-                            onComplete?.invoke()
-                        }
-                    }
-                }
-            }.addOnFailureListener {
-                fused.lastLocation.addOnSuccessListener { fallbackLoc ->
-                    if (fallbackLoc != null) {
-                        onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
-                    } else {
-                        onComplete?.invoke()
-                    }
-                }
-            }
-        } catch (_: SecurityException) {
-            onComplete?.invoke()
-        }
-    }
-
-    private fun onGpsLocationUpdated(lat: Double, lng: Double, onComplete: (() -> Unit)? = null) {
-        viewModel.setUserLocation(lat, lng)
-        lifecycleScope.launch {
-            val nearestDistrict = GoogleMapUtils.findNearestDistrict(lat, lng)
-            binding.tvLocation.text = "📍 $nearestDistrict ▾"
-            val reverseAddr = GoogleMapUtils.reverseGeocode(this@HomeActivity, lat, lng)
-            currentLocationName = if (reverseAddr.isNotBlank() && reverseAddr != "TP. Hồ Chí Minh") {
-                reverseAddr
-            } else {
-                "$nearestDistrict, TP.HCM"
-            }
-
-            if (!hasAutoFilteredNearbyOnce) {
-                hasAutoFilteredNearbyOnce = true
-                isNearbyFiltered = true
-                selectedNearbyDistanceKm = 1.5
-                selectedNearbyDistanceLabel = "< 1.5 km"
-                updateFilterIndicator()
-                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
-            }
-            onComplete?.invoke()
-        }
-    }
-
-    /**
-     * Tên chức năng: Hiển thị Bottom Sheet Modal danh sách Quán Ăn Gần Bạn Nhất
-     * Cách hoạt động: Mở bảng trượt dưới lên hiển thị danh sách quán ăn theo bán kính khoảng cách GPS, hỗ trợ lọc món theo quán gần.
-     * Luồng hướng tới: Bấm chọn quán -> Mở [MenuActivity] của quán đó.
-     */
-    private fun showNearbyStoresBottomSheet() {
-        val dialog = BottomSheetDialog(this)
-        val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
-        dialog.setContentView(sheetBinding.root)
-
-        val updateSheetLocation = {
-            sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
-        }
-        updateSheetLocation()
-
-        sheetBinding.btnChangeLocationSheet.setOnClickListener {
-            dialog.dismiss()
-            openSelectLocationMap()
-        }
-
-        sheetBinding.tvGpsStatusBadge.setOnClickListener {
-            dialog.dismiss()
-            openSelectLocationMap()
-        }
-
-        if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
-            checkGpsPermissionAndFetch {
-                updateSheetLocation()
-            }
-        }
-
-        var currentRadius = selectedNearbyDistanceKm
-        var currentRadiusLabel = selectedNearbyDistanceLabel
-
-        val nearbyAdapter = NearbyStoreAdapter { storeItem ->
-            dialog.dismiss()
-            val intent = Intent(this, MenuActivity::class.java).apply {
-                putExtra(Constants.EXTRA_SHOP_ID, storeItem.id)
-                putExtra(Constants.EXTRA_SHOP_NAME, storeItem.name)
-                putExtra(Constants.EXTRA_SHOP_IMAGE, storeItem.imageUrl)
-            }
-            startActivity(intent)
-        }
-
-        sheetBinding.rvNearbyStores.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity)
-            adapter = nearbyAdapter
-        }
-
-        fun filterAndDisplayStores(allStores: List<NearbyStoreItem>) {
-            val filteredStores = if (currentRadius >= 999.0) {
-                allStores
-            } else {
-                allStores.filter { it.distanceKm in 0.001..currentRadius }
-            }
-            nearbyAdapter.submitList(filteredStores)
-
-            if (filteredStores.isEmpty()) {
-                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\nHãy thử chọn bán kính 5 km hoặc 10 km!"
-                sheetBinding.tvEmptyNearby.visibility = View.VISIBLE
-                sheetBinding.tvNearbyStoreCountSummary.visibility = View.GONE
-            } else {
-                sheetBinding.tvEmptyNearby.visibility = View.GONE
-                sheetBinding.tvNearbyStoreCountSummary.text = "Tìm thấy ${filteredStores.size} quán trong bán kính $currentRadiusLabel"
-                sheetBinding.tvNearbyStoreCountSummary.visibility = View.VISIBLE
-            }
-
-            sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
-                "Áp Dụng Lọc Món Quán Gần (Tất cả)"
-            } else {
-                "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel)"
-            }
-        }
-
-        // Chọn sẵn Chip khoảng cách hiện tại
-        when (currentRadius) {
-            1.5 -> sheetBinding.chipDist1.isChecked = true
-            3.0 -> sheetBinding.chipDist3.isChecked = true
-            5.0 -> sheetBinding.chipDist5.isChecked = true
-            10.0 -> sheetBinding.chipDist10.isChecked = true
-            else -> sheetBinding.chipDistAll.isChecked = true
-        }
-
-        filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
-
-        sheetBinding.chipGroupDistance.setOnCheckedStateChangeListener { _, checkedIds ->
-            when (checkedIds.firstOrNull()) {
-                R.id.chipDist1 -> {
-                    currentRadius = 1.5
-                    currentRadiusLabel = "< 1.5 km"
-                }
-                R.id.chipDist3 -> {
-                    currentRadius = 3.0
-                    currentRadiusLabel = "< 3 km"
-                }
-                R.id.chipDist5 -> {
-                    currentRadius = 5.0
-                    currentRadiusLabel = "< 5 km"
-                }
-                R.id.chipDist10 -> {
-                    currentRadius = 10.0
-                    currentRadiusLabel = "< 10 km"
-                }
-                R.id.chipDistAll -> {
-                    currentRadius = 999.0
-                    currentRadiusLabel = "Tất cả"
-                }
-            }
-            filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
-        }
-
-        // Quan sát Realtime để cập nhật khi dữ liệu quán tải xong
-        val nearbyObserver = androidx.lifecycle.Observer<List<NearbyStoreItem>> { updatedStores ->
-            filterAndDisplayStores(updatedStores)
-        }
-        viewModel.nearbyStores.observe(this, nearbyObserver)
-        dialog.setOnDismissListener {
-            viewModel.nearbyStores.removeObserver(nearbyObserver)
-        }
-
-        sheetBinding.btnCloseSheet.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        sheetBinding.btnFilterNearbyOnly.setOnClickListener {
-            dialog.dismiss()
-            selectedNearbyDistanceKm = currentRadius
-            selectedNearbyDistanceLabel = currentRadiusLabel
-            isNearbyFiltered = true
-            updateFilterIndicator()
-            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Tên chức năng: Thiết lập RecyclerView danh sách Món Ăn chính
-     * Cách hoạt động: Khởi tạo [HomeDishAdapter] và xử lý callback mở thực đơn quán chứa món ăn đó.
-     * Luồng hướng tới: Điều hướng sang [MenuActivity].
-     */
-    private fun setupDishRecyclerView() {
-        dishAdapter = HomeDishAdapter(
-            onDishClick = { dish ->
-                val intent = Intent(this, MenuActivity::class.java).apply {
-                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
-                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
-                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
-                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
-                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
-                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
-                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
-                }
-                startActivity(intent)
-            },
-            onAddClick = { dish ->
-                val intent = Intent(this, MenuActivity::class.java).apply {
-                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
-                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
-                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
-                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
-                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
-                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
-                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
-                }
-                startActivity(intent)
-            }
-        )
-
-        binding.rvDishes.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity)
-            adapter = dishAdapter
-        }
-    }
-
-    /**
-     * Tên chức năng: Cấu hình danh sách Món Ăn Hot (Thịnh hành)
-     * Cách hoạt động: Gắn [HotDishAdapter] với chiều ngang (HORIZONTAL).
-     * Luồng hướng tới: Chọn món hot -> Mở [MenuActivity].
-     */
-    private fun setupHotDishes() {
-        hotDishAdapter = HotDishAdapter { hotDish ->
-            val intent = Intent(this, MenuActivity::class.java).apply {
-                putExtra(Constants.EXTRA_SHOP_ID, hotDish.storeId)
-                putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName.removePrefix("🏪 ").trim())
-                putExtra(Constants.EXTRA_DISH_ID, hotDish.id)
-            }
-            startActivity(intent)
-        }
-
-        binding.rvHotDishes.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
-            adapter = hotDishAdapter
-        }
-
-        binding.btnHotBestSeller.setOnClickListener {
-            viewModel.switchHotTab(HomeViewModel.HotTab.BEST_SELLER)
-        }
-
-        binding.btnHotFavorite.setOnClickListener {
-            viewModel.switchHotTab(HomeViewModel.HotTab.FAVORITE)
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập các nút chọn Danh mục món ăn
-     * Cách hoạt động: Gán sự kiện click cho từng danh mục: Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, Pizza, Cà phê, Tráng miệng.
-     * Luồng hướng tới: Gọi [onCategorySelected].
-     */
-    private fun setupCategories() {
-        categoryAdapter = HomeCategoryAdapter { category ->
-            if (category == null) {
-                selectedCategory = null
-                viewModel.filterDishes(category = "ALL")
-                binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
-                updateFilterIndicator()
-                Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
-            } else {
-                selectedCategory = category.name
-                if (binding.etSearch.text.isNotBlank()) {
-                    binding.etSearch.setText("")
-                }
-                viewModel.filterDishes(category = category.categoryId)
-                binding.tvSectionTitle.text = "Món ngon: ${category.name}"
-                updateFilterIndicator()
-                Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
-            }
-        }
-        binding.rvHomeCategories.apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
-            adapter = categoryAdapter
-        }
-    }
-
-    private fun clearCategoryHighlight() {
-        if (::categoryAdapter.isInitialized) {
-            categoryAdapter.setSelected(null)
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập thanh Bộ Lọc (Giá & Sao) và các Chip sao nhanh
-     */
-    private fun setupAdvancedFilterBar() {
-        binding.btnFilterToggle.setOnClickListener {
-            showAdvancedFilterBottomSheet()
-        }
-
-        syncFilterUI()
-    }
-
-    private fun toggleQuickRating(starNum: Int) {
-        val targetMin = when (starNum) {
-            5 -> 4.8f
-            4 -> 4.0f
-            3 -> 3.0f
-            else -> 1.0f
-        }
-        val targetMax = 5.0f
-
-        val isCurrentlySelected = Math.abs(viewModel.currentMinRating - targetMin) < 0.05f &&
-                Math.abs(viewModel.currentMaxRating - targetMax) < 0.05f
-
-        if (isCurrentlySelected) {
-            viewModel.filterDishes(minRating = 1.0f, maxRating = 5.0f)
-        } else {
-            viewModel.filterDishes(minRating = targetMin, maxRating = targetMax)
-        }
-        syncFilterUI()
-    }
-
-    private fun showAdvancedFilterBottomSheet() {
-        val dialog = BottomSheetDialog(this)
-        val sheetBinding = BottomSheetAdvancedFilterBinding.inflate(layoutInflater)
-        dialog.setContentView(sheetBinding.root)
-
-        var draftMinPrice: Long? = viewModel.currentMinPrice
-        var draftMaxPrice: Long? = viewModel.currentMaxPrice
-        var draftMinRating: Float = viewModel.currentMinRating
-        var draftMaxRating: Float = viewModel.currentMaxRating
-
-        if (draftMinPrice != null && draftMinPrice!! > 0L) {
-            sheetBinding.etMinPrice.setText(draftMinPrice.toString())
-        }
-        if (draftMaxPrice != null && draftMaxPrice!! > 0L) {
-            sheetBinding.etMaxPrice.setText(draftMaxPrice.toString())
-        }
-
-        sheetBinding.rangeSliderRating.values = listOf(
-            draftMinRating.coerceIn(1.0f, 5.0f),
-            draftMaxRating.coerceIn(1.0f, 5.0f)
-        )
-
-        fun updateRatingUI() {
-            sheetBinding.tvDispRatingMin.text = String.format(java.util.Locale.US, "%.1f", draftMinRating)
-            sheetBinding.tvDispRatingMax.text = String.format(java.util.Locale.US, "%.1f", draftMaxRating)
-
-            if (draftMinRating <= 1.05f && draftMaxRating >= 4.95f) {
-                sheetBinding.tvValRatingText.text = "1.0★ - 5.0★ (Tất cả)"
-            } else if (Math.abs(draftMinRating - draftMaxRating) < 0.05f) {
-                sheetBinding.tvValRatingText.text = "Đúng ${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★"
-            } else {
-                sheetBinding.tvValRatingText.text = "${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★ - ${String.format(java.util.Locale.US, "%.1f", draftMaxRating)}★"
-            }
-        }
-
-        fun updatePriceSummaryUI() {
-            if (draftMinPrice != null && draftMaxPrice != null) {
-                sheetBinding.tvValPriceText.text = "${draftMinPrice!!.toVndCurrency()} - ${draftMaxPrice!!.toVndCurrency()}"
-            } else if (draftMinPrice != null) {
-                sheetBinding.tvValPriceText.text = "Từ ${draftMinPrice!!.toVndCurrency()}"
-            } else if (draftMaxPrice != null) {
-                sheetBinding.tvValPriceText.text = "Đến ${draftMaxPrice!!.toVndCurrency()}"
-            } else {
-                sheetBinding.tvValPriceText.text = "Tất cả giá"
-            }
-        }
-
-        fun updatePreviewMatchCount() {
-            val count = viewModel.getFilteredDishesCount(
-                draftMinPrice,
-                draftMaxPrice,
-                draftMinRating,
-                draftMaxRating
-            )
-            sheetBinding.btnSheetApply.text = "Áp dụng ($count món)"
-        }
-
-        sheetBinding.etMinPrice.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                draftMinPrice = s?.toString()?.trim()?.toLongOrNull()
-                updatePriceSummaryUI()
-                updatePreviewMatchCount()
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        sheetBinding.etMaxPrice.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                draftMaxPrice = s?.toString()?.trim()?.toLongOrNull()
-                updatePriceSummaryUI()
-                updatePreviewMatchCount()
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        sheetBinding.rangeSliderRating.addOnChangeListener { slider, _, _ ->
-            val vals = slider.values
-            if (vals.size >= 2) {
-                draftMinRating = (Math.round(vals[0] * 10f) / 10f)
-                draftMaxRating = (Math.round(vals[1] * 10f) / 10f)
-                updateRatingUI()
-                updatePreviewMatchCount()
-            }
-        }
-
-        fun setSliderRating(minR: Float?, maxR: Float?) {
-            var newMin = minR ?: draftMinRating
-            var newMax = maxR ?: draftMaxRating
-            if (newMin > newMax) {
-                if (minR != null) newMax = newMin else newMin = newMax
-            }
-            draftMinRating = newMin
-            draftMaxRating = newMax
-            sheetBinding.rangeSliderRating.values = listOf(newMin, newMax)
-            updateRatingUI()
-            updatePreviewMatchCount()
-        }
-
-        sheetBinding.tvTick1.setOnClickListener { setSliderRating(1.0f, null) }
-        sheetBinding.tvTick2.setOnClickListener { setSliderRating(2.0f, null) }
-        sheetBinding.tvTick3.setOnClickListener { setSliderRating(3.0f, null) }
-        sheetBinding.tvTick4.setOnClickListener { setSliderRating(4.0f, null) }
-        sheetBinding.tvTick5.setOnClickListener { setSliderRating(null, 5.0f) }
-
-        sheetBinding.tvValPriceText.setOnClickListener {
-            sheetBinding.etMinPrice.setText("")
-            sheetBinding.etMaxPrice.setText("")
-            draftMinPrice = null
-            draftMaxPrice = null
-            updatePriceSummaryUI()
-            updatePreviewMatchCount()
-        }
-
-        sheetBinding.btnCloseSheet.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        sheetBinding.btnSheetReset.setOnClickListener {
-            sheetBinding.etMinPrice.setText("")
-            sheetBinding.etMaxPrice.setText("")
-            draftMinPrice = null
-            draftMaxPrice = null
-            draftMinRating = 1.0f
-            draftMaxRating = 5.0f
-            sheetBinding.rangeSliderRating.values = listOf(1.0f, 5.0f)
-            updateRatingUI()
-            updatePriceSummaryUI()
-            updatePreviewMatchCount()
-        }
-
-        sheetBinding.btnSheetApply.setOnClickListener {
-            dialog.dismiss()
-            viewModel.filterDishes(
-                minPrice = draftMinPrice,
-                maxPrice = draftMaxPrice,
-                minRating = draftMinRating,
-                maxRating = draftMaxRating
-            )
-            syncFilterUI()
-        }
-
-        updateRatingUI()
-        updatePriceSummaryUI()
-        updatePreviewMatchCount()
-
-        dialog.show()
-    }
-
-    private fun syncFilterUI() {
-        var activeCount = 0
-        if (viewModel.currentMinPrice != null || viewModel.currentMaxPrice != null) activeCount++
-        if (viewModel.currentMinRating > 1.05f || viewModel.currentMaxRating < 4.95f) activeCount++
-
-        if (activeCount > 0) {
-            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle_active)
-            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.white))
-            binding.tvFilterBadge.visibility = View.VISIBLE
-            binding.tvFilterBadge.text = activeCount.toString()
-        } else {
-            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle)
-            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
-            binding.tvFilterBadge.visibility = View.GONE
-        }
-
-
-
-        updateFilterIndicator()
-    }
-
-    private fun updateFilterIndicator() {
-        val activeFilters = mutableListOf<String>()
-        if (!selectedCategory.isNullOrBlank()) {
-            activeFilters.add(selectedCategory!!)
-        }
-
-        val minP = viewModel.currentMinPrice
-        val maxP = viewModel.currentMaxPrice
-        if (minP != null && maxP != null) {
-            activeFilters.add("Giá: ${minP.toVndCurrency()} - ${maxP.toVndCurrency()}")
-        } else if (minP != null) {
-            activeFilters.add("Giá: từ ${minP.toVndCurrency()}")
-        } else if (maxP != null) {
-            activeFilters.add("Giá: đến ${maxP.toVndCurrency()}")
-        }
-
-        val minR = viewModel.currentMinRating
-        val maxR = viewModel.currentMaxRating
-        if (minR > 1.05f || maxR < 4.95f) {
-            if (minR >= 4.75f && maxR >= 4.95f) {
-                activeFilters.add("⭐ 5 Sao")
-            } else if (minR >= 3.95f && maxR >= 4.95f) {
-                activeFilters.add("⭐ 4 Sao+")
-            } else if (minR >= 2.95f && maxR >= 4.95f) {
-                activeFilters.add("⭐ 3 Sao+")
-            } else {
-                activeFilters.add("⭐ ${String.format(java.util.Locale.US, "%.1f", minR)} - ${String.format(java.util.Locale.US, "%.1f", maxR)}★")
-            }
-        }
-
-        if (isNearbyFiltered) {
-            activeFilters.add("📍 $selectedNearbyDistanceLabel")
-        }
-
-        if (activeFilters.isNotEmpty()) {
-            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
-            binding.tvFilterIndicatorSummary.text = "Đang lọc: ${activeFilters.joinToString(" • ")}"
-        } else {
-            binding.layoutActiveFilterIndicator.visibility = View.GONE
-        }
-    }
-
-    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
-
-    /**
-     * Tên chức năng: Tìm kiếm món ăn theo từ khóa nhập liệu
-     * Cách hoạt động: Lắng nghe TextWatcher trên ô tìm kiếm, gọi [HomeViewModel.filterDishes] cập nhật danh sách hiển thị tức thời.
-     * Luồng hướng tới: Lọc kết quả tìm kiếm.
-     */
-    private fun setupSearch() {
-        binding.etSearch.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val q = s?.toString()?.trim() ?: ""
-                binding.btnClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
-
-                // Nếu người dùng gõ tìm kiếm, hủy lọc danh mục để tìm kiếm toàn diện trên mọi quán và món
-                if (q.isNotEmpty() && selectedCategory != null) {
-                    selectedCategory = null
-                    clearCategoryHighlight()
-                }
-
-                viewModel.filterDishes(query = q)
-
-                if (q.isNotEmpty()) {
-                    binding.tvSectionTitle.text = "Kết quả tìm kiếm cho \"$q\""
-                } else {
-                    binding.tvSectionTitle.text = if (selectedCategory != null) "Món ngon: $selectedCategory" else "Món ngon đề xuất cho bạn"
-                }
-                updateFilterIndicator()
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        binding.btnClearSearch.setOnClickListener {
-            binding.etSearch.setText("")
-        }
-
-        binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-                imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
-                true
-            } else false
-        }
-    }
-
-    private fun setupSwipeRefresh() {
-        binding.swipeRefresh.setOnRefreshListener {
-            viewModel.loadRestaurants()
-        }
-    }
-
-    /**
-     * Tên chức năng: Nút Giỏ Hàng Nổi (Floating Cart)
-     * Cách hoạt động: Hiển thị nổi trên màn hình khi có món trong giỏ, click vào để điều hướng sang màn hình xem giỏ hàng.
-     * Luồng hướng tới: [CartActivity].
-     */
-    private fun setupFloatingCart() {
-        binding.btnCart.setOnClickListener {
-            startActivity(Intent(this, CartActivity::class.java))
-        }
-    }
-
-    /**
-     * Tên chức năng: Cấu hình điều hướng thanh Bottom Navigation
-     * Cách hoạt động: Bắt sự kiện chuyển hướng giữa các tab chính: Trang chủ, Đơn hàng, Thông báo, Hồ sơ cá nhân.
-     * Luồng hướng tới: [HomeActivity], [OrderHistoryActivity], [NotificationActivity], [ProfileActivity].
-     */
-    private fun setupBottomNav() {
-        binding.bottomNav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_home -> {
-                    binding.customerFragmentContainer.visibility = View.GONE
-                    binding.layoutHomeContent.visibility = View.VISIBLE
-                    InsetUtils.setLightStatusBar(this, false)
-                    true
-                }
-                R.id.nav_orders -> {
-                    binding.layoutHomeContent.visibility = View.GONE
-                    binding.customerFragmentContainer.visibility = View.VISIBLE
-                    loadCustomerFragment(OrderHistoryFragment())
-                    InsetUtils.setLightStatusBar(this, true)
-                    true
-                }
-                R.id.nav_notification -> {
-                    binding.layoutHomeContent.visibility = View.GONE
-                    binding.customerFragmentContainer.visibility = View.VISIBLE
-                    loadCustomerFragment(NotificationFragment())
-                    InsetUtils.setLightStatusBar(this, true)
-                    true
-                }
-                R.id.nav_profile -> {
-                    binding.layoutHomeContent.visibility = View.GONE
-                    binding.customerFragmentContainer.visibility = View.VISIBLE
-                    loadCustomerFragment(ProfileFragment())
-                    InsetUtils.setLightStatusBar(this, true)
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    fun selectTab(@IdRes tabId: Int) {
-        binding.bottomNav.selectedItemId = tabId
-    }
-
-    private fun loadCustomerFragment(fragment: Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.customerFragmentContainer, fragment)
-            .commit()
-    }
-
-    private fun setupBackNavigation() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (binding.bottomNav.selectedItemId != R.id.nav_home) {
-                    binding.bottomNav.selectedItemId = R.id.nav_home
-                } else {
-                    finish()
-                }
-            }
-        })
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ HomeViewModel & CartViewModel
-     * Cách hoạt động: Cập nhật danh sách món ăn, món hot, trạng thái loading/error, và cập nhật số lượng/tổng tiền hiển thị trên nút Giỏ hàng nổi.
-     * Luồng hướng tới: Đồng bộ hiển thị Realtime.
-     */
-    private fun observeViewModel() {
-        viewModel.platformCategories.observe(this) { categories ->
-            if (::categoryAdapter.isInitialized) {
-                categoryAdapter.submitCategories(categories)
-            }
-        }
-
-        viewModel.homeDishes.observe(this) { dishes ->
-            dishAdapter.submitList(dishes)
-            binding.tvDishesCountBadge.text = "(${dishes.size} món)"
-            if (dishes.isEmpty()) {
-                binding.tvEmpty.visibility = View.VISIBLE
-                if (isNearbyFiltered) {
-                    binding.tvEmpty.text = "Không có món ăn nào trong phạm vi $selectedNearbyDistanceLabel.\nHãy thử chọn bán kính 3 km hoặc 5 km trong mục Quán gần đây!"
-                } else {
-                    binding.tvEmpty.setText(R.string.empty_restaurants)
-                }
-            } else {
-                binding.tvEmpty.visibility = View.GONE
-            }
-        }
-
-        viewModel.currentHotTab.observe(this) { tab ->
-            val isBestSeller = tab == HomeViewModel.HotTab.BEST_SELLER
-            binding.btnHotBestSeller.apply {
-                setBackgroundResource(if (isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
-                setTextColor(ContextCompat.getColor(this@HomeActivity, if (isBestSeller) R.color.primary else R.color.text_secondary))
-                setTypeface(null, if (isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-            }
-            binding.btnHotFavorite.apply {
-                setBackgroundResource(if (!isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
-                setTextColor(ContextCompat.getColor(this@HomeActivity, if (!isBestSeller) R.color.primary else R.color.text_secondary))
-                setTypeface(null, if (!isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-            }
-        }
-
-        viewModel.hotDishes.observe(this) { hotDishes ->
-            hotDishAdapter.submitList(hotDishes)
-            val hasHot = hotDishes.isNotEmpty()
-            binding.layoutHotDishesHeader.visibility = if (hasHot) View.VISIBLE else View.GONE
-            binding.rvHotDishes.visibility = if (hasHot) View.VISIBLE else View.GONE
-            if (hasHot) {
-                binding.rvHotDishes.scrollToPosition(0)
-            }
-        }
-
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.swipeRefresh.isRefreshing = isLoading
-        }
-
-        viewModel.error.observe(this) { error ->
-            error?.let {
-                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
-            }
-        }
-
-        cartViewModel.carts.observe(this) { carts ->
-            val totalItems = carts.sumOf { cart -> cart.items.values.sumOf { it.quantity } }
-            if (totalItems > 0) {
-                binding.btnCart.visibility = View.VISIBLE
-                val shopCount = carts.size
-                binding.tvCartBadge.text = if (shopCount > 1) "$shopCount quán" else "$totalItems món"
-            } else {
-                binding.btnCart.visibility = View.GONE
-            }
-        }
-
-        cartViewModel.totalAmount.observe(this) { total ->
-            if (total != null && total > 0L) {
-                binding.tvCartAmount.text = "${total.toVndCurrency()} ➔"
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Hiển thị Banner nhắc nhở mở App Nội bộ nếu tài khoản là Đối tác
-     * Cách hoạt động: Kiểm tra role của user; nếu là Quán hoặc Tài xế, hiển thị banner đầu trang hỗ trợ 1 chạm mở app Oishi Internal.
-     * Luồng hướng tới: Mở Package `com.chuyen_de_2.foodorder.internal`.
-     */
-    private fun checkUserRoleForBanner() {
-        binding.bannerMerchantNotice.visibility = View.GONE
-        lifecycleScope.launch {
-            // Gọi getUserRole() để tự động đồng bộ và khôi phục role CUSTOMER nếu tài khoản từng bị ghi đè nhầm
-            authRepository.getUserRole()
-        }
-    }
-}
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/NearbyStoreAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.home
@@ -44454,6 +43395,592 @@ class OrderHistoryActivity : AppCompatActivity() {
 
         adapter.submitList(filtered)
         binding.layoutEmpty.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+    }
+}
+````
+
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/order/OrderHistoryAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.order
+
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ItemOrderHistoryBinding
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class OrderHistoryAdapter(
+    private val onTrackClick: (Order) -> Unit,
+    private val onComplaintClick: (Order) -> Unit,
+    private val onReorderClick: (Order) -> Unit,
+    private val onViewProofClick: (Order) -> Unit,
+    private val onCallClick: (String) -> Unit,
+    private val onChatStoreClick: (Order) -> Unit = {},
+    private val onCancelOrderClick: (Order) -> Unit = {},
+    private val onWithdrawCancelClick: (Order) -> Unit = {}
+) : ListAdapter<Order, OrderHistoryAdapter.OrderViewHolder>(DiffCallback) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
+        val binding = ItemOrderHistoryBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return OrderViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: OrderViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class OrderViewHolder(
+        private val binding: ItemOrderHistoryBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(order: Order) {
+            val context = binding.root.context
+            val shopName = order.shopName.ifBlank { "Quán Ăn Oishi Food" }
+            binding.tvShopName.text = shopName
+
+            val orderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
+            binding.tvOrderCodeMono.text = orderCode
+
+            // Logo mini quán dạng emoji fallback
+            val shopEmoji = when {
+                shopName.contains("trà", ignoreCase = true) || shopName.contains("sữa", ignoreCase = true) -> "🧋"
+                shopName.contains("cơm", ignoreCase = true) -> "🍛"
+                shopName.contains("phở", ignoreCase = true) || shopName.contains("bún", ignoreCase = true) -> "🍜"
+                shopName.contains("gà", ignoreCase = true) -> "🍗"
+                shopName.contains("bánh mì", ignoreCase = true) -> "🥖"
+                else -> "🍲"
+            }
+            binding.tvShopLogoMini.text = shopEmoji
+
+            // Ảnh đại diện quán ăn (Avatar quán)
+            val targetStoreId = order.effectiveStoreId
+            val directShopImage = order.shopImageUrl.trim()
+            val cachedImage = if (targetStoreId.isNotBlank()) storeImageCache[targetStoreId] else null
+            val effectiveShopImage = directShopImage.ifBlank { cachedImage.orEmpty() }
+
+            if (effectiveShopImage.isNotBlank()) {
+                binding.ivShopLogoMini.visibility = View.VISIBLE
+                binding.tvShopLogoMini.visibility = View.GONE
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = binding.ivShopLogoMini,
+                    imageUrl = effectiveShopImage,
+                    placeholderResId = R.drawable.placeholder_restaurant,
+                    cornerDp = 17
+                )
+            } else if (targetStoreId.isNotBlank()) {
+                binding.ivShopLogoMini.visibility = View.VISIBLE
+                binding.tvShopLogoMini.visibility = View.GONE
+                binding.ivShopLogoMini.setImageResource(R.drawable.placeholder_restaurant)
+                binding.ivShopLogoMini.tag = targetStoreId
+
+                com.google.firebase.database.FirebaseDatabase.getInstance()
+                    .getReference("stores")
+                    .child(targetStoreId)
+                    .addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
+                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                            val store = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                            val resolvedUrl = store?.effectiveImageUrl.orEmpty().trim()
+                            if (resolvedUrl.isNotBlank()) {
+                                storeImageCache[targetStoreId] = resolvedUrl
+                                if (binding.ivShopLogoMini.tag == targetStoreId) {
+                                    binding.ivShopLogoMini.visibility = View.VISIBLE
+                                    binding.tvShopLogoMini.visibility = View.GONE
+                                    com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                                        imageView = binding.ivShopLogoMini,
+                                        imageUrl = resolvedUrl,
+                                        placeholderResId = R.drawable.placeholder_restaurant,
+                                        cornerDp = 17
+                                    )
+                                }
+                            } else {
+                                if (binding.ivShopLogoMini.tag == targetStoreId) {
+                                    binding.ivShopLogoMini.visibility = View.GONE
+                                    binding.tvShopLogoMini.visibility = View.VISIBLE
+                                    binding.tvShopLogoMini.text = shopEmoji
+                                }
+                            }
+                        }
+
+                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                            if (binding.ivShopLogoMini.tag == targetStoreId) {
+                                binding.ivShopLogoMini.visibility = View.GONE
+                                binding.tvShopLogoMini.visibility = View.VISIBLE
+                                binding.tvShopLogoMini.text = shopEmoji
+                            }
+                        }
+                    })
+            } else {
+                binding.ivShopLogoMini.visibility = View.GONE
+                binding.tvShopLogoMini.visibility = View.VISIBLE
+                binding.tvShopLogoMini.text = shopEmoji
+            }
+
+            // Tóm tắt món
+            val summaryText = if (order.items.isNotEmpty()) {
+                order.items.values.joinToString("\n") { item -> "• ${item.quantity}x ${item.name}" }
+            } else {
+                "• 1x Suất ăn tiêu chuẩn"
+            }
+            binding.tvDishesSummary.text = summaryText
+
+            // Hiển thị ảnh đại diện món ăn
+            val firstItemWithImage = order.items.values.firstOrNull { it.effectiveImageUrl.isNotBlank() }
+            val mainImageUrl = firstItemWithImage?.effectiveImageUrl ?: order.items.values.firstOrNull()?.effectiveImageUrl.orEmpty()
+
+            if (mainImageUrl.isNotBlank()) {
+                binding.ivDishThumb.visibility = View.VISIBLE
+                binding.tvDishEmoji.visibility = View.GONE
+                if (mainImageUrl.startsWith("data:image") || mainImageUrl.length > 500) {
+                    try {
+                        val clean = if (mainImageUrl.contains(",")) mainImageUrl.substringAfter(",") else mainImageUrl
+                        val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
+                        Glide.with(context)
+                            .asBitmap()
+                            .load(decoded)
+                            .transform(CenterCrop(), RoundedCorners(14))
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    } catch (_: Exception) {
+                        Glide.with(context)
+                            .load(mainImageUrl)
+                            .transform(CenterCrop(), RoundedCorners(14))
+                            .placeholder(R.drawable.placeholder_food)
+                            .error(R.drawable.placeholder_food)
+                            .into(binding.ivDishThumb)
+                    }
+                } else {
+                    Glide.with(context)
+                        .load(mainImageUrl)
+                        .transform(CenterCrop(), RoundedCorners(14))
+                        .placeholder(R.drawable.placeholder_food)
+                        .error(R.drawable.placeholder_food)
+                        .into(binding.ivDishThumb)
+                }
+            } else {
+                binding.ivDishThumb.visibility = View.VISIBLE
+                binding.ivDishThumb.setImageResource(R.drawable.placeholder_food)
+                binding.tvDishEmoji.visibility = View.GONE
+            }
+
+            // Badge hiển thị số lượng món phụ nếu đơn > 1 món (+2)
+            val extraItems = order.items.size - 1
+            if (extraItems > 0) {
+                binding.tvExtraItemsCount.visibility = View.VISIBLE
+                binding.tvExtraItemsCount.text = "+$extraItems"
+            } else {
+                binding.tvExtraItemsCount.visibility = View.GONE
+            }
+
+            // Tổng tiền
+            val total = if (order.totalPayment > 0) order.totalPayment else order.total
+            binding.tvOrderPrice.text = total.toVndCurrency()
+
+            // Ghi chú ngày giờ / thanh toán
+            val time = if (order.timestamp > 0) order.timestamp else order.createdAt
+            val dateStr = if (time > 0) {
+                SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(time))
+            } else {
+                "Vừa xong"
+            }
+            binding.tvOrderSubStatus.text = dateStr
+
+            // Phân loại trạng thái chi tiết theo b3.html
+            val effectiveStatus = order.effectiveStatus.uppercase()
+            val isTerminalOrBombed = effectiveStatus == Order.Status.COMPLETED ||
+                    effectiveStatus == Order.Status.CANCELLED ||
+                    effectiveStatus == Order.Status.BOOM ||
+                    effectiveStatus == Order.Status.RETURNING_TO_STORE ||
+                    effectiveStatus == Order.Status.RETURNED_TO_STORE
+
+            val isWarningOrder = !isTerminalOrBombed && (
+                ((order.hasIncidentWarning || order.isRiskOrder) && order.countdownRound >= 2) ||
+                order.riskStatus == "RISK_REPORTED" ||
+                order.riskStatus == "RISK_CONFIRMED"
+            )
+
+            binding.cardOrder.setOnClickListener { onTrackClick(order) }
+            binding.btnChatStore.text = "💬 Nhắn Quán"
+            binding.btnChatStore.tag = order.orderId
+            binding.btnChatStore.setOnClickListener { onChatStoreClick(order) }
+
+            if (order.orderId.isNotBlank()) {
+                com.google.firebase.database.FirebaseDatabase.getInstance()
+                    .getReference("tracking")
+                    .child("chats_${order.orderId}")
+                    .limitToLast(1)
+                    .addValueEventListener(object : com.google.firebase.database.ValueEventListener {
+                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                            if (binding.btnChatStore.tag != order.orderId) return
+                            val lastChild = snapshot.children.lastOrNull()
+                            val sender = lastChild?.child("sender")?.getValue(String::class.java)
+                            if (sender == "SHOP") {
+                                binding.btnChatStore.text = "💬 Tin nhắn Quán (1)"
+                                binding.btnChatStore.setTextColor(Color.parseColor("#EA580C"))
+                            } else {
+                                binding.btnChatStore.text = "💬 Nhắn Quán"
+                                binding.btnChatStore.setTextColor(Color.parseColor("#0284C7"))
+                            }
+                        }
+                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+                    })
+            }
+
+            if (isWarningOrder) {
+                // 1. ĐƠN BỊ CẢNH BÁO MẤT ĐƠN (15 PHÚT)
+                binding.cardOrder.strokeColor = ContextCompat.getColor(context, R.color.error)
+                binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFDFD"))
+
+                binding.tvOrderStatusBadge.text = "🚨 CẢNH BÁO MẤT ĐƠN"
+                binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#DC2626"))
+                binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_red)
+
+                binding.tvShipperInfo.visibility = View.VISIBLE
+                val shipper = order.shipperName.ifBlank { "Tài xế giao hàng" }
+                binding.tvShipperInfo.text = "🛵 Shipper: $shipper (Đã đến điểm giao)"
+                binding.tvShipperInfo.setTextColor(Color.parseColor("#DC2626"))
+
+                binding.layoutAlertBox.visibility = View.VISIBLE
+                binding.tvAlertIcon.text = "📢"
+                binding.tvAlertTitle.text = "Tài xế cảnh báo đếm ngược chờ nhận món!"
+                binding.tvAlertCountdown.visibility = View.GONE
+                binding.tvAlertMessage.text = order.incidentWarningText.ifBlank {
+                    "Tài xế đã có mặt tại điểm giao và gọi nhiều cuộc nhưng chưa nghe máy. Vui lòng nhận đơn kẻo bị hủy do bom hàng!"
+                }
+
+                binding.btnActionSecondary.visibility = View.VISIBLE
+                binding.btnActionSecondary.text = "📋 Xem Chi Tiết"
+                binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
+
+                binding.btnActionPrimary.text = "🚨 Xử Lý Ngay ➔"
+                binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.error)
+                binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+
+            } else when (effectiveStatus) {
+                Order.Status.AWAITING_PAYMENT, Order.Status.PENDING, Order.Status.PAID -> {
+                    // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
+                    val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||
+                            (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L)
+                    if (isUnpaid) {
+                        binding.cardOrder.strokeColor = Color.parseColor("#FDBA74")
+                        binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFCF9"))
+
+                        binding.tvOrderStatusBadge.text = "⏳ Chờ thanh toán"
+                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+
+                        binding.tvShipperInfo.visibility = View.GONE
+
+                        val now = System.currentTimeMillis()
+                        val elapsed = now - order.createdAt
+                        val remainingMs = maxOf(0L, 30 * 60 * 1000L - elapsed)
+                        val minutes = (remainingMs / 1000) / 60
+                        val seconds = (remainingMs / 1000) % 60
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "💡"
+                        binding.tvAlertTitle.text = "Chưa hoàn tất thanh toán"
+                        binding.tvAlertCountdown.visibility = View.VISIBLE
+                        binding.tvAlertCountdown.text = String.format("%02d:%02d", minutes, seconds)
+                        binding.tvAlertMessage.text = if (order.paymentMode == Order.PaymentMode.DEPOSIT) {
+                            "Vui lòng quét mã cọc 20% để quán nhận đơn và chế biến."
+                        } else {
+                            "Vui lòng chuyển khoản để quán nhận đơn và chế biến."
+                        }
+
+                        binding.btnActionSecondary.visibility = View.VISIBLE
+                        binding.btnActionSecondary.text = "✕ Hủy đơn"
+                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
+
+                        binding.btnActionPrimary.text = "💳 Thanh Toán Ngay ➔"
+                        binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
+                        binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                    } else {
+                        // CHỜ QUÁN XÁC NHẬN
+                        binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
+                        binding.cardOrder.setCardBackgroundColor(Color.parseColor("#F8FAFC"))
+
+                        binding.tvOrderStatusBadge.text = "⏱️ Chờ quán xác nhận"
+                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
+
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.text = "👨‍🍳 Quán đang nhận đơn và chuẩn bị pha chế"
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "✓"
+                        binding.tvAlertTitle.text = "Đã nhận đơn"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
+
+                        binding.btnActionSecondary.visibility = View.VISIBLE
+                        binding.btnActionSecondary.text = "✕ Hủy đơn"
+                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
+
+                        binding.btnActionPrimary.text = "Chi Tiết Đơn ➔"
+                        binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
+                        binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                    }
+                }
+
+                Order.Status.PREPARING, Order.Status.READY -> {
+                    binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
+                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
+
+                    val isCancelPending = order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING
+                    if (isCancelPending) {
+                        binding.tvOrderStatusBadge.text = "⏳ Chờ duyệt hủy"
+                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.text = "👨‍🍳 Đã gửi yêu cầu hủy đến quán"
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#EA580C"))
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "⏳"
+                        binding.tvAlertTitle.text = "Yêu cầu hủy đơn đang chờ quán duyệt"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu của bạn."
+
+                        binding.btnActionSecondary.visibility = View.VISIBLE
+                        binding.btnActionSecondary.text = "Rút lại yêu cầu"
+                        binding.btnActionSecondary.setOnClickListener { onWithdrawCancelClick(order) }
+                    } else {
+                        binding.tvOrderStatusBadge.text = "🍳 Đang nấu món"
+                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
+                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
+
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.text = "👨‍🍳 Quán đang nấu món và đóng gói"
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
+
+                        if (order.cancelRequestStatus == Order.CancelRequestStatus.REJECTED) {
+                            binding.layoutAlertBox.visibility = View.VISIBLE
+                            binding.tvAlertIcon.text = "❌"
+                            binding.tvAlertTitle.text = "Quán từ chối yêu cầu hủy"
+                            binding.tvAlertCountdown.visibility = View.GONE
+                            binding.tvAlertMessage.text = "Lý do: ${order.cancelRejectReason.ifBlank { "Quán đã nấu xong, không thể hủy." }}"
+                        } else {
+                            binding.layoutAlertBox.visibility = View.GONE
+                        }
+
+                        binding.btnActionSecondary.visibility = View.VISIBLE
+                        binding.btnActionSecondary.text = "✕ Yêu cầu hủy"
+                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
+                    }
+
+                    binding.btnActionPrimary.text = "Theo Dõi Đơn ➔"
+                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
+                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                }
+
+                Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP, Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
+                    binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
+                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
+
+                    val badgeText: String
+                    val badgeColor: Int
+                    val badgeBg: Int
+                    val shipperDesc: String
+
+                    val shipper = order.shipperName.ifBlank { "Tài xế" }
+                    when (order.status) {
+                        Order.Status.ARRIVED_AT_SHOP -> {
+                            badgeText = "🏪 Tài xế đã đến quán"
+                            badgeColor = Color.parseColor("#2563EB")
+                            badgeBg = R.drawable.bg_tab_badge_blue
+                            shipperDesc = "🛵 Shipper: $shipper đã có mặt tại quán"
+                        }
+                        Order.Status.ARRIVED_AT_CUSTOMER -> {
+                            badgeText = "📍 Tài xế đã đến nơi"
+                            badgeColor = Color.parseColor("#EA580C")
+                            badgeBg = R.drawable.bg_badge_orange
+                            shipperDesc = "🔔 Shipper: $shipper đang chờ trước cửa"
+                        }
+                        Order.Status.DELIVERING -> {
+                            badgeText = "🚚 Đã lấy hàng, đang giao"
+                            badgeColor = Color.parseColor("#2563EB")
+                            badgeBg = R.drawable.bg_tab_badge_blue
+                            shipperDesc = "🛵 Shipper: $shipper đang giao tới bạn"
+                        }
+                        else -> {
+                            badgeText = "🛵 Tài xế đang đến quán"
+                            badgeColor = Color.parseColor("#2563EB")
+                            badgeBg = R.drawable.bg_tab_badge_blue
+                            shipperDesc = "🛵 Shipper: $shipper đang di chuyển đến quán"
+                        }
+                    }
+
+                    binding.tvOrderStatusBadge.text = badgeText
+                    binding.tvOrderStatusBadge.setTextColor(badgeColor)
+                    binding.tvOrderStatusBadge.setBackgroundResource(badgeBg)
+
+                    binding.tvShipperInfo.visibility = View.VISIBLE
+                    binding.tvShipperInfo.text = shipperDesc
+                    binding.tvShipperInfo.setTextColor(badgeColor)
+
+                    binding.layoutAlertBox.visibility = View.GONE
+
+                    binding.btnActionSecondary.visibility = View.VISIBLE
+                    binding.btnActionSecondary.text = "📞 Gọi Shipper"
+                    val phone = order.shipperPhone.ifBlank { "19001234" }
+                    binding.btnActionSecondary.setOnClickListener { onCallClick(phone) }
+
+                    binding.btnActionPrimary.text = "Theo Dõi ➔"
+                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
+                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                }
+
+                Order.Status.COMPLETED -> {
+                    // ĐƠN ĐÃ HOÀN TẤT
+                    binding.cardOrder.strokeColor = Color.parseColor("#E2E8F0")
+                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
+
+                    binding.tvOrderStatusBadge.text = "✓ Đã giao thành công"
+                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#10B981"))
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_status_open)
+
+                    binding.tvShipperInfo.visibility = View.GONE
+                    binding.layoutAlertBox.visibility = View.GONE
+
+                    binding.btnActionSecondary.visibility = View.VISIBLE
+                    binding.btnActionSecondary.text = "⚠️ Khiếu nại"
+                    binding.btnActionSecondary.setOnClickListener { onComplaintClick(order) }
+
+                    binding.btnActionPrimary.text = "↺ Đặt lại món"
+                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.text_primary)
+                    binding.btnActionPrimary.setOnClickListener { onReorderClick(order) }
+                }
+
+                Order.Status.BOOM, Order.Status.RETURNING_TO_STORE, Order.Status.RETURNED_TO_STORE, Order.Status.CANCELLED -> {
+                    val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
+                            order.paymentMode == Order.PaymentMode.COD ||
+                            order.remainAmount > 0L ||
+                            order.paymentStatus != Order.PaymentStatus.PAID
+
+                    val isBombed = effectiveStatus == Order.Status.BOOM ||
+                            (effectiveStatus == Order.Status.RETURNING_TO_STORE && isCod) ||
+                            (effectiveStatus == Order.Status.RETURNED_TO_STORE && isCod) ||
+                            order.cancelReason.contains("bom", ignoreCase = true) ||
+                            order.riskReason.contains("bom", ignoreCase = true)
+
+                    binding.cardOrder.strokeColor = Color.parseColor("#FECACA")
+                    binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFDFD"))
+
+                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#DC2626"))
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_red)
+
+                    if (isBombed) {
+                        // ĐƠN KHÁCH ĐÃ BOM (COD)
+                        binding.tvOrderStatusBadge.text = "🚫 Đã bom hàng"
+
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#DC2626"))
+                        val shipper = order.shipperName.ifBlank { "Tài xế" }
+                        binding.tvShipperInfo.text = when (effectiveStatus) {
+                            Order.Status.RETURNING_TO_STORE -> "🛵 Shipper: $shipper đang hoàn trả món về quán"
+                            Order.Status.RETURNED_TO_STORE -> "🏪 Shipper: $shipper đã hoàn trả món về quán"
+                            else -> "🚫 Không nhận hàng • Trừ 30 điểm uy tín"
+                        }
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "🚫"
+                        binding.tvAlertTitle.text = "ĐƠN HÀNG ĐÃ BỊ BOM (-30 ĐIỂM UY TÍN):"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            order.riskReason.ifBlank {
+                                "Khách hủy khi đang giao / từ chối nhận món (Trừ 30 điểm uy tín do là đơn COD)."
+                            }
+                        }
+                    } else if (effectiveStatus == Order.Status.RETURNING_TO_STORE || effectiveStatus == Order.Status.RETURNED_TO_STORE) {
+                        // ĐƠN HỦY KHI ĐANG GIAO (ĐÃ THANH TOÁN ONLINE)
+                        binding.tvOrderStatusBadge.text = "🏪 Trả món về quán"
+
+                        binding.tvShipperInfo.visibility = View.VISIBLE
+                        binding.tvShipperInfo.setTextColor(Color.parseColor("#EA580C"))
+                        val shipper = order.shipperName.ifBlank { "Tài xế" }
+                        binding.tvShipperInfo.text = "🛵 Shipper: $shipper đang hoàn trả món về quán"
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "⚠️"
+                        binding.tvAlertTitle.text = "KHÁCH HỦY KHI ĐANG GIAO (ĐÃ THANH TOÁN ONLINE):"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            "Đơn hàng được yêu cầu hủy khi đang giao. Tiền món sẽ được đối soát hoàn trả theo quy định."
+                        }
+                    } else {
+                        // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG
+                        binding.tvOrderStatusBadge.text = "✕ Đã bị hủy"
+                        binding.tvShipperInfo.visibility = View.GONE
+
+                        binding.layoutAlertBox.visibility = View.VISIBLE
+                        binding.tvAlertIcon.text = "🚫"
+                        binding.tvAlertTitle.text = "LÝ DO HỦY ĐƠN HÀNG:"
+                        binding.tvAlertCountdown.visibility = View.GONE
+                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
+                            order.note.ifBlank {
+                                "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
+                            }
+                        }
+                    }
+
+                    binding.btnActionSecondary.visibility = View.VISIBLE
+                    binding.btnActionSecondary.text = "📄 Xem biên bản"
+                    binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
+
+                    binding.btnActionPrimary.text = "↺ Đặt lại món"
+                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
+                    binding.btnActionPrimary.setOnClickListener { onReorderClick(order) }
+                }
+
+                else -> {
+                    binding.cardOrder.strokeColor = Color.parseColor("#E2E8F0")
+                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
+
+                    binding.tvOrderStatusBadge.text = order.status
+                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#64748B"))
+                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_chip_unselected)
+
+                    binding.tvShipperInfo.visibility = View.GONE
+                    binding.layoutAlertBox.visibility = View.GONE
+
+                    binding.btnActionSecondary.visibility = View.GONE
+                    binding.btnActionPrimary.text = "Xem Chi Tiết ➔"
+                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
+                }
+            }
+        }
+    }
+
+    companion object DiffCallback : DiffUtil.ItemCallback<Order>() {
+        private val storeImageCache = mutableMapOf<String, String>()
+
+        override fun areItemsTheSame(oldItem: Order, newItem: Order): Boolean =
+            oldItem.orderId == newItem.orderId
+
+        override fun areContentsTheSame(oldItem: Order, newItem: Order): Boolean =
+            oldItem == newItem
     }
 }
 ````
@@ -47722,7 +47249,7 @@ class StoreReportFragment : Fragment() {
             launch {
                 firebaseRepository.observeAllOrders().collectLatest { orders ->
                     allStoreOrders = if (currentStoreId.isNotBlank()) {
-                        orders.filter { it.shopId == currentStoreId }
+                        orders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
                     } else {
                         orders
                     }
@@ -60162,6 +59689,1065 @@ class LoginActivity : AppCompatActivity() {
 }
 ````
 
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.home
+
+import androidx.activity.OnBackPressedCallback
+import androidx.annotation.IdRes
+import androidx.fragment.app.Fragment
+import com.chuyen_de_2.foodorder.customer.ui.order.OrderHistoryFragment
+import com.chuyen_de_2.foodorder.customer.ui.notification.NotificationFragment
+import com.chuyen_de_2.foodorder.customer.ui.profile.ProfileFragment
+
+import android.app.Activity
+import android.content.Intent
+import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.View
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AccountLockWatcher
+import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityHomeBinding
+import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetNearbyStoresBinding
+import com.chuyen_de_2.foodorder.customer.databinding.BottomSheetAdvancedFilterBinding
+import com.chuyen_de_2.foodorder.customer.ui.checkout.SelectLocationActivity
+import android.widget.TextView
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import com.chuyen_de_2.foodorder.customer.ui.auth.LoginActivity
+import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
+import com.chuyen_de_2.foodorder.customer.ui.cart.CartViewModel
+import com.chuyen_de_2.foodorder.customer.ui.menu.MenuActivity
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Trang Chủ Khám Phá & Đặt Món Ăn (Customer Home Marketplace)
+ * Cách hoạt động:
+ *  - Hiển thị danh mục món ăn (Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, v.v.).
+ *  - Cung cấp danh sách Món ăn Hot bán chạy cuộn ngang và Thực đơn món ăn toàn hệ thống cuộn dọc.
+ *  - Tìm kiếm món ăn tức thời theo từ khóa (Instant Search Filter).
+ *  - Bộ lọc Quán gần bạn (< 1.5 km) hiển thị qua BottomSheetDialog.
+ *  - Nút giỏ hàng nổi (Floating Cart Button) cập nhật số lượng món và tổng tiền theo thời gian thực.
+ *  - Thanh điều hướng BottomNavigation: Trang chủ, Đơn hàng, Thông báo, Tài khoản.
+ * Luồng hướng tới:
+ *  - Bấm vào món ăn / quán ăn -> Chuyển sang màn hình thực đơn chi tiết [MenuActivity].
+ *  - Bấm nút Giỏ hàng nổi -> Chuyển sang giỏ hàng [CartActivity].
+ *  - Bấm tab Đơn hàng -> Chuyển sang lịch sử đơn [OrderHistoryActivity].
+ *  - Bấm tab Thông báo -> Chuyển sang [NotificationActivity].
+ *  - Bấm tab Tài khoản -> Chuyển sang [ProfileActivity].
+ */
+@AndroidEntryPoint
+class HomeActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityHomeBinding
+    private val viewModel: HomeViewModel by viewModels()
+    private val cartViewModel: CartViewModel by viewModels()
+
+    private lateinit var dishAdapter: HomeDishAdapter
+    private lateinit var hotDishAdapter: HotDishAdapter
+    private lateinit var categoryAdapter: HomeCategoryAdapter
+
+    private var selectedCategory: String? = null
+    private var selectedPriceLabel: String? = null
+    private var isNearbyFiltered: Boolean = false
+    private var selectedNearbyDistanceKm: Double = 1.5
+    private var selectedNearbyDistanceLabel: String = "< 1.5 km"
+    private var currentLocationName: String = "Đang xác định vị trí..."
+    private var hasAutoFilteredNearbyOnce: Boolean = false
+
+    private val selectLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val data = result.data!!
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+            val fullAddr = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS).orEmpty()
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT).orEmpty()
+            if (lat != 0.0 && lng != 0.0) {
+                applyCustomLocation(lat, lng, fullAddr, district)
+            }
+        }
+    }
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
+            requestFreshGpsLocation()
+        }
+    }
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    /**
+     * Tên chức năng: Khởi tạo Trang chủ Khách hàng
+     * Cách hoạt động: Cấu hình Insets Edge-to-Edge, khởi tạo các thành phần giao diện, adapter, bộ lọc và lắng nghe ViewModel.
+     * Luồng hướng tới: Chuẩn bị sàn thương mại món ăn cho khách đặt.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            startActivity(Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
+
+        binding = ActivityHomeBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, false)
+        InsetUtils.applyStatusBarPadding(binding.headerBar, 8)
+        InsetUtils.applyNavigationBarPadding(binding.bottomNav)
+
+        setupHeader()
+        setupCategories()
+        setupAdvancedFilterBar()
+        setupHotDishes()
+        setupSearch()
+        setupDishRecyclerView()
+        setupSwipeRefresh()
+        setupFloatingCart()
+        setupBottomNav()
+        setupBackNavigation()
+        observeViewModel()
+        checkUserRoleForBanner()
+        detectUserLocation()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkAccountLock()
+        if (binding.bottomNav.selectedItemId == R.id.nav_home) {
+            InsetUtils.setLightStatusBar(this, false)
+        } else {
+            InsetUtils.setLightStatusBar(this, true)
+        }
+    }
+
+    /**
+     * Tên chức năng: Kiểm tra trạng thái tài khoản khi người dùng quay lại màn hình
+     * Cách hoạt động: Kiểm tra cờ `isActive` trên Firestore; nếu bị khóa, tự động đăng xuất và thông báo lỗi.
+     * Luồng hướng tới: Điều hướng về [LoginActivity] nếu tài khoản bị khóa.
+     */
+    private fun checkAccountLock() {
+        lifecycleScope.launch {
+            val statusCheck = authRepository.checkAccountActiveStatus()
+            if (statusCheck.isFailure) {
+                val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                AccountLockWatcher.notifyLockedManually(this@HomeActivity, reason)
+            }
+        }
+    }
+
+    /**
+     * Mở bản đồ kéo thả ghim để chọn vị trí mới
+     */
+    private fun openSelectLocationMap() {
+        val intent = Intent(this, SelectLocationActivity::class.java).apply {
+            val current = viewModel.getUserLocation()
+            if (current.latitude != 0.0 && current.longitude != 0.0) {
+                putExtra(SelectLocationActivity.EXTRA_LAT, current.latitude)
+                putExtra(SelectLocationActivity.EXTRA_LNG, current.longitude)
+            }
+        }
+        selectLocationLauncher.launch(intent)
+    }
+
+    /**
+     * Cập nhật vị trí tùy chọn từ bản đồ hoặc GPS và tự động lọc quán gần (< 1.5 km)
+     */
+    private fun applyCustomLocation(lat: Double, lng: Double, fullAddr: String, district: String) {
+        val displayDistrict = district.ifBlank { GoogleMapUtils.findNearestDistrict(lat, lng) }
+        currentLocationName = fullAddr.ifBlank { "$displayDistrict, TP.HCM" }
+        binding.tvLocation.text = "📍 $displayDistrict ▾"
+
+        viewModel.setUserLocation(lat, lng)
+
+        if (isNearbyFiltered) {
+            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
+        }
+        updateFilterIndicator()
+
+        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Tên chức năng: Thiết lập thanh tiêu đề Header và bộ lọc quán gần
+     * Cách hoạt động: Bắt sự kiện Click nút "Quán gần đây", chọn địa chỉ, nút "Xem tất cả" và "Xóa lọc".
+     * Luồng hướng tới: Gọi [showNearbyStoresBottomSheet], mở bản đồ chọn vị trí hoặc reset bộ lọc.
+     */
+    private fun setupHeader() {
+        binding.btnNearbyStores.setOnClickListener {
+            showNearbyStoresBottomSheet()
+        }
+
+        binding.tvLocation.setOnClickListener {
+            openSelectLocationMap()
+        }
+
+        binding.tvViewAll.setOnClickListener {
+            selectedCategory = null
+            isNearbyFiltered = false
+            selectedNearbyDistanceKm = 1.5
+            selectedNearbyDistanceLabel = "< 1.5 km"
+            clearCategoryHighlight()
+            viewModel.filterDishes(query = "", category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
+            binding.etSearch.setText("")
+            syncFilterUI()
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+            Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnClearFilter.setOnClickListener {
+            selectedCategory = null
+            isNearbyFiltered = false
+            selectedNearbyDistanceKm = 1.5
+            selectedNearbyDistanceLabel = "< 1.5 km"
+            clearCategoryHighlight()
+            viewModel.filterDishes(category = "ALL", nearbyOnly = false, maxDistanceKm = 1.5, resetPrice = true, resetRating = true)
+            syncFilterUI()
+            binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+        }
+
+        binding.layoutActiveFilterIndicator.setOnClickListener {
+            showNearbyStoresBottomSheet()
+        }
+    }
+
+    /**
+     * Tên chức năng: Phát hiện vị trí người dùng (từ địa chỉ đã lưu hoặc GPS)
+     */
+    private fun detectUserLocation() {
+        lifecycleScope.launch {
+            try {
+                val uid = FirebaseAuth.getInstance().currentUser?.uid
+                if (!uid.isNullOrBlank()) {
+                    val userSnap = FirebaseDatabase.getInstance().getReference("users").child(uid).get().await()
+                    val addr = userSnap.child("address").getValue(String::class.java).orEmpty().trim()
+                    if (addr.isNotBlank()) {
+                        currentLocationName = addr
+                        val shortDistrict = addr.split(",")
+                            .map { it.trim() }
+                            .firstOrNull { it.contains("Quận", true) || it.contains("Thủ Đức", true) || it.contains("Bình Thạnh", true) || it.contains("Gò Vấp", true) || it.contains("Tân Bình", true) || it.contains("Phú Nhuận", true) }
+                            ?: "TP.HCM"
+                        binding.tvLocation.text = "📍 $shortDistrict ▾"
+
+                        val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
+                        if (coords.latitude != 0.0 && coords.longitude != 0.0) {
+                            viewModel.setUserLocation(coords.latitude, coords.longitude)
+                            hasAutoFilteredNearbyOnce = true
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            checkGpsPermissionAndFetch()
+        }
+    }
+
+    private fun checkGpsPermissionAndFetch(onComplete: (() -> Unit)? = null) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ) {
+            requestFreshGpsLocation(onComplete)
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestFreshGpsLocation(onComplete: (() -> Unit)? = null) {
+        try {
+            val fused = LocationServices.getFusedLocationProviderClient(this)
+            val priority = Priority.PRIORITY_HIGH_ACCURACY
+            fused.getCurrentLocation(priority, null).addOnSuccessListener { loc ->
+                if (loc != null) {
+                    onGpsLocationUpdated(loc.latitude, loc.longitude, onComplete)
+                } else {
+                    fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                        if (fallbackLoc != null) {
+                            onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                        } else {
+                            onComplete?.invoke()
+                        }
+                    }
+                }
+            }.addOnFailureListener {
+                fused.lastLocation.addOnSuccessListener { fallbackLoc ->
+                    if (fallbackLoc != null) {
+                        onGpsLocationUpdated(fallbackLoc.latitude, fallbackLoc.longitude, onComplete)
+                    } else {
+                        onComplete?.invoke()
+                    }
+                }
+            }
+        } catch (_: SecurityException) {
+            onComplete?.invoke()
+        }
+    }
+
+    private fun onGpsLocationUpdated(lat: Double, lng: Double, onComplete: (() -> Unit)? = null) {
+        viewModel.setUserLocation(lat, lng)
+        lifecycleScope.launch {
+            val nearestDistrict = GoogleMapUtils.findNearestDistrict(lat, lng)
+            binding.tvLocation.text = "📍 $nearestDistrict ▾"
+            val reverseAddr = GoogleMapUtils.reverseGeocode(this@HomeActivity, lat, lng)
+            currentLocationName = if (reverseAddr.isNotBlank() && reverseAddr != "TP. Hồ Chí Minh") {
+                reverseAddr
+            } else {
+                "$nearestDistrict, TP.HCM"
+            }
+
+            if (!hasAutoFilteredNearbyOnce) {
+                hasAutoFilteredNearbyOnce = true
+                isNearbyFiltered = true
+                selectedNearbyDistanceKm = 1.5
+                selectedNearbyDistanceLabel = "< 1.5 km"
+                updateFilterIndicator()
+                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+            }
+            onComplete?.invoke()
+        }
+    }
+
+    /**
+     * Tên chức năng: Hiển thị Bottom Sheet Modal danh sách Quán Ăn Gần Bạn Nhất
+     * Cách hoạt động: Mở bảng trượt dưới lên hiển thị danh sách quán ăn theo bán kính khoảng cách GPS, hỗ trợ lọc món theo quán gần.
+     * Luồng hướng tới: Bấm chọn quán -> Mở [MenuActivity] của quán đó.
+     */
+    private fun showNearbyStoresBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = BottomSheetNearbyStoresBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
+
+        val updateSheetLocation = {
+            sheetBinding.tvSheetCurrentLocation.text = "Vị trí: $currentLocationName"
+        }
+        updateSheetLocation()
+
+        sheetBinding.btnChangeLocationSheet.setOnClickListener {
+            dialog.dismiss()
+            openSelectLocationMap()
+        }
+
+        sheetBinding.tvGpsStatusBadge.setOnClickListener {
+            dialog.dismiss()
+            openSelectLocationMap()
+        }
+
+        if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
+            checkGpsPermissionAndFetch {
+                updateSheetLocation()
+            }
+        }
+
+        var currentRadius = selectedNearbyDistanceKm
+        var currentRadiusLabel = selectedNearbyDistanceLabel
+
+        val nearbyAdapter = NearbyStoreAdapter { storeItem ->
+            dialog.dismiss()
+            val intent = Intent(this, MenuActivity::class.java).apply {
+                putExtra(Constants.EXTRA_SHOP_ID, storeItem.id)
+                putExtra(Constants.EXTRA_SHOP_NAME, storeItem.name)
+                putExtra(Constants.EXTRA_SHOP_IMAGE, storeItem.imageUrl)
+            }
+            startActivity(intent)
+        }
+
+        sheetBinding.rvNearbyStores.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity)
+            adapter = nearbyAdapter
+        }
+
+        fun filterAndDisplayStores(allStores: List<NearbyStoreItem>) {
+            val filteredStores = if (currentRadius >= 999.0) {
+                allStores
+            } else {
+                allStores.filter { it.distanceKm in 0.001..currentRadius }
+            }
+            nearbyAdapter.submitList(filteredStores)
+
+            if (filteredStores.isEmpty()) {
+                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\nHãy thử chọn bán kính 5 km hoặc 10 km!"
+                sheetBinding.tvEmptyNearby.visibility = View.VISIBLE
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.GONE
+            } else {
+                sheetBinding.tvEmptyNearby.visibility = View.GONE
+                sheetBinding.tvNearbyStoreCountSummary.text = "Tìm thấy ${filteredStores.size} quán trong bán kính $currentRadiusLabel"
+                sheetBinding.tvNearbyStoreCountSummary.visibility = View.VISIBLE
+            }
+
+            sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
+                "Áp Dụng Lọc Món Quán Gần (Tất cả)"
+            } else {
+                "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel)"
+            }
+        }
+
+        // Chọn sẵn Chip khoảng cách hiện tại
+        when (currentRadius) {
+            1.5 -> sheetBinding.chipDist1.isChecked = true
+            3.0 -> sheetBinding.chipDist3.isChecked = true
+            5.0 -> sheetBinding.chipDist5.isChecked = true
+            10.0 -> sheetBinding.chipDist10.isChecked = true
+            else -> sheetBinding.chipDistAll.isChecked = true
+        }
+
+        filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+
+        sheetBinding.chipGroupDistance.setOnCheckedStateChangeListener { _, checkedIds ->
+            when (checkedIds.firstOrNull()) {
+                R.id.chipDist1 -> {
+                    currentRadius = 1.5
+                    currentRadiusLabel = "< 1.5 km"
+                }
+                R.id.chipDist3 -> {
+                    currentRadius = 3.0
+                    currentRadiusLabel = "< 3 km"
+                }
+                R.id.chipDist5 -> {
+                    currentRadius = 5.0
+                    currentRadiusLabel = "< 5 km"
+                }
+                R.id.chipDist10 -> {
+                    currentRadius = 10.0
+                    currentRadiusLabel = "< 10 km"
+                }
+                R.id.chipDistAll -> {
+                    currentRadius = 999.0
+                    currentRadiusLabel = "Tất cả"
+                }
+            }
+            filterAndDisplayStores(viewModel.nearbyStores.value ?: emptyList())
+        }
+
+        // Quan sát Realtime để cập nhật khi dữ liệu quán tải xong
+        val nearbyObserver = androidx.lifecycle.Observer<List<NearbyStoreItem>> { updatedStores ->
+            filterAndDisplayStores(updatedStores)
+        }
+        viewModel.nearbyStores.observe(this, nearbyObserver)
+        dialog.setOnDismissListener {
+            viewModel.nearbyStores.removeObserver(nearbyObserver)
+        }
+
+        sheetBinding.btnCloseSheet.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        sheetBinding.btnFilterNearbyOnly.setOnClickListener {
+            dialog.dismiss()
+            selectedNearbyDistanceKm = currentRadius
+            selectedNearbyDistanceLabel = currentRadiusLabel
+            isNearbyFiltered = true
+            updateFilterIndicator()
+            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Tên chức năng: Thiết lập RecyclerView danh sách Món Ăn chính
+     * Cách hoạt động: Khởi tạo [HomeDishAdapter] và xử lý callback mở thực đơn quán chứa món ăn đó.
+     * Luồng hướng tới: Điều hướng sang [MenuActivity].
+     */
+    private fun setupDishRecyclerView() {
+        dishAdapter = HomeDishAdapter(
+            onDishClick = { dish ->
+                val intent = Intent(this, MenuActivity::class.java).apply {
+                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
+                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
+                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
+                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
+                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
+                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
+                }
+                startActivity(intent)
+            },
+            onAddClick = { dish ->
+                val intent = Intent(this, MenuActivity::class.java).apply {
+                    putExtra(Constants.EXTRA_SHOP_ID, dish.storeId)
+                    putExtra(Constants.EXTRA_SHOP_NAME, dish.storeName.removePrefix("🏪 ").trim())
+                    putExtra(Constants.EXTRA_DISH_ID, dish.id)
+                    putExtra(Constants.EXTRA_DISH_NAME, dish.name)
+                    putExtra(Constants.EXTRA_DISH_PRICE, dish.price)
+                    putExtra(Constants.EXTRA_DISH_IMAGE, dish.imageUrl)
+                    putExtra(Constants.EXTRA_DISH_CATEGORY, dish.category)
+                }
+                startActivity(intent)
+            }
+        )
+
+        binding.rvDishes.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity)
+            adapter = dishAdapter
+        }
+    }
+
+    /**
+     * Tên chức năng: Cấu hình danh sách Món Ăn Hot (Thịnh hành)
+     * Cách hoạt động: Gắn [HotDishAdapter] với chiều ngang (HORIZONTAL).
+     * Luồng hướng tới: Chọn món hot -> Mở [MenuActivity].
+     */
+    private fun setupHotDishes() {
+        hotDishAdapter = HotDishAdapter { hotDish ->
+            val intent = Intent(this, MenuActivity::class.java).apply {
+                putExtra(Constants.EXTRA_SHOP_ID, hotDish.storeId)
+                putExtra(Constants.EXTRA_SHOP_NAME, hotDish.storeName.removePrefix("🏪 ").trim())
+                putExtra(Constants.EXTRA_DISH_ID, hotDish.id)
+            }
+            startActivity(intent)
+        }
+
+        binding.rvHotDishes.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = hotDishAdapter
+        }
+
+        binding.btnHotBestSeller.setOnClickListener {
+            viewModel.switchHotTab(HomeViewModel.HotTab.BEST_SELLER)
+        }
+
+        binding.btnHotFavorite.setOnClickListener {
+            viewModel.switchHotTab(HomeViewModel.HotTab.FAVORITE)
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập các nút chọn Danh mục món ăn
+     * Cách hoạt động: Gán sự kiện click cho từng danh mục: Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, Pizza, Cà phê, Tráng miệng.
+     * Luồng hướng tới: Gọi [onCategorySelected].
+     */
+    private fun setupCategories() {
+        categoryAdapter = HomeCategoryAdapter { category ->
+            if (category == null) {
+                selectedCategory = null
+                viewModel.filterDishes(category = "ALL")
+                binding.tvSectionTitle.text = "Món ngon đề xuất cho bạn"
+                updateFilterIndicator()
+                Toast.makeText(this, "Hiển thị tất cả món ăn", Toast.LENGTH_SHORT).show()
+            } else {
+                selectedCategory = category.name
+                if (binding.etSearch.text.isNotBlank()) {
+                    binding.etSearch.setText("")
+                }
+                viewModel.filterDishes(category = category.categoryId)
+                binding.tvSectionTitle.text = "Món ngon: ${category.name}"
+                updateFilterIndicator()
+                Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        binding.rvHomeCategories.apply {
+            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = categoryAdapter
+        }
+    }
+
+    private fun clearCategoryHighlight() {
+        if (::categoryAdapter.isInitialized) {
+            categoryAdapter.setSelected(null)
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập thanh Bộ Lọc (Giá & Sao) và các Chip sao nhanh
+     */
+    private fun setupAdvancedFilterBar() {
+        binding.btnFilterToggle.setOnClickListener {
+            showAdvancedFilterBottomSheet()
+        }
+
+        syncFilterUI()
+    }
+
+    private fun toggleQuickRating(starNum: Int) {
+        val targetMin = when (starNum) {
+            5 -> 4.8f
+            4 -> 4.0f
+            3 -> 3.0f
+            else -> 1.0f
+        }
+        val targetMax = 5.0f
+
+        val isCurrentlySelected = Math.abs(viewModel.currentMinRating - targetMin) < 0.05f &&
+                Math.abs(viewModel.currentMaxRating - targetMax) < 0.05f
+
+        if (isCurrentlySelected) {
+            viewModel.filterDishes(minRating = 1.0f, maxRating = 5.0f)
+        } else {
+            viewModel.filterDishes(minRating = targetMin, maxRating = targetMax)
+        }
+        syncFilterUI()
+    }
+
+    private fun showAdvancedFilterBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val sheetBinding = BottomSheetAdvancedFilterBinding.inflate(layoutInflater)
+        dialog.setContentView(sheetBinding.root)
+
+        var draftMinPrice: Long? = viewModel.currentMinPrice
+        var draftMaxPrice: Long? = viewModel.currentMaxPrice
+        var draftMinRating: Float = viewModel.currentMinRating
+        var draftMaxRating: Float = viewModel.currentMaxRating
+
+        if (draftMinPrice != null && draftMinPrice!! > 0L) {
+            sheetBinding.etMinPrice.setText(draftMinPrice.toString())
+        }
+        if (draftMaxPrice != null && draftMaxPrice!! > 0L) {
+            sheetBinding.etMaxPrice.setText(draftMaxPrice.toString())
+        }
+
+        sheetBinding.rangeSliderRating.values = listOf(
+            draftMinRating.coerceIn(1.0f, 5.0f),
+            draftMaxRating.coerceIn(1.0f, 5.0f)
+        )
+
+        fun updateRatingUI() {
+            sheetBinding.tvDispRatingMin.text = String.format(java.util.Locale.US, "%.1f", draftMinRating)
+            sheetBinding.tvDispRatingMax.text = String.format(java.util.Locale.US, "%.1f", draftMaxRating)
+
+            if (draftMinRating <= 1.05f && draftMaxRating >= 4.95f) {
+                sheetBinding.tvValRatingText.text = "1.0★ - 5.0★ (Tất cả)"
+            } else if (Math.abs(draftMinRating - draftMaxRating) < 0.05f) {
+                sheetBinding.tvValRatingText.text = "Đúng ${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★"
+            } else {
+                sheetBinding.tvValRatingText.text = "${String.format(java.util.Locale.US, "%.1f", draftMinRating)}★ - ${String.format(java.util.Locale.US, "%.1f", draftMaxRating)}★"
+            }
+        }
+
+        fun updatePriceSummaryUI() {
+            if (draftMinPrice != null && draftMaxPrice != null) {
+                sheetBinding.tvValPriceText.text = "${draftMinPrice!!.toVndCurrency()} - ${draftMaxPrice!!.toVndCurrency()}"
+            } else if (draftMinPrice != null) {
+                sheetBinding.tvValPriceText.text = "Từ ${draftMinPrice!!.toVndCurrency()}"
+            } else if (draftMaxPrice != null) {
+                sheetBinding.tvValPriceText.text = "Đến ${draftMaxPrice!!.toVndCurrency()}"
+            } else {
+                sheetBinding.tvValPriceText.text = "Tất cả giá"
+            }
+        }
+
+        fun updatePreviewMatchCount() {
+            val count = viewModel.getFilteredDishesCount(
+                draftMinPrice,
+                draftMaxPrice,
+                draftMinRating,
+                draftMaxRating
+            )
+            sheetBinding.btnSheetApply.text = "Áp dụng ($count món)"
+        }
+
+        sheetBinding.etMinPrice.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                draftMinPrice = s?.toString()?.trim()?.toLongOrNull()
+                updatePriceSummaryUI()
+                updatePreviewMatchCount()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        sheetBinding.etMaxPrice.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                draftMaxPrice = s?.toString()?.trim()?.toLongOrNull()
+                updatePriceSummaryUI()
+                updatePreviewMatchCount()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        sheetBinding.rangeSliderRating.addOnChangeListener { slider, _, _ ->
+            val vals = slider.values
+            if (vals.size >= 2) {
+                draftMinRating = (Math.round(vals[0] * 10f) / 10f)
+                draftMaxRating = (Math.round(vals[1] * 10f) / 10f)
+                updateRatingUI()
+                updatePreviewMatchCount()
+            }
+        }
+
+        fun setSliderRating(minR: Float?, maxR: Float?) {
+            var newMin = minR ?: draftMinRating
+            var newMax = maxR ?: draftMaxRating
+            if (newMin > newMax) {
+                if (minR != null) newMax = newMin else newMin = newMax
+            }
+            draftMinRating = newMin
+            draftMaxRating = newMax
+            sheetBinding.rangeSliderRating.values = listOf(newMin, newMax)
+            updateRatingUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.tvTick1.setOnClickListener { setSliderRating(1.0f, null) }
+        sheetBinding.tvTick2.setOnClickListener { setSliderRating(2.0f, null) }
+        sheetBinding.tvTick3.setOnClickListener { setSliderRating(3.0f, null) }
+        sheetBinding.tvTick4.setOnClickListener { setSliderRating(4.0f, null) }
+        sheetBinding.tvTick5.setOnClickListener { setSliderRating(null, 5.0f) }
+
+        sheetBinding.tvValPriceText.setOnClickListener {
+            sheetBinding.etMinPrice.setText("")
+            sheetBinding.etMaxPrice.setText("")
+            draftMinPrice = null
+            draftMaxPrice = null
+            updatePriceSummaryUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.btnCloseSheet.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        sheetBinding.btnSheetReset.setOnClickListener {
+            sheetBinding.etMinPrice.setText("")
+            sheetBinding.etMaxPrice.setText("")
+            draftMinPrice = null
+            draftMaxPrice = null
+            draftMinRating = 1.0f
+            draftMaxRating = 5.0f
+            sheetBinding.rangeSliderRating.values = listOf(1.0f, 5.0f)
+            updateRatingUI()
+            updatePriceSummaryUI()
+            updatePreviewMatchCount()
+        }
+
+        sheetBinding.btnSheetApply.setOnClickListener {
+            dialog.dismiss()
+            viewModel.filterDishes(
+                minPrice = draftMinPrice,
+                maxPrice = draftMaxPrice,
+                minRating = draftMinRating,
+                maxRating = draftMaxRating
+            )
+            syncFilterUI()
+        }
+
+        updateRatingUI()
+        updatePriceSummaryUI()
+        updatePreviewMatchCount()
+
+        dialog.show()
+    }
+
+    private fun syncFilterUI() {
+        var activeCount = 0
+        if (viewModel.currentMinPrice != null || viewModel.currentMaxPrice != null) activeCount++
+        if (viewModel.currentMinRating > 1.05f || viewModel.currentMaxRating < 4.95f) activeCount++
+
+        if (activeCount > 0) {
+            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle_active)
+            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.white))
+            binding.tvFilterBadge.visibility = View.VISIBLE
+            binding.tvFilterBadge.text = activeCount.toString()
+        } else {
+            binding.btnFilterToggle.setBackgroundResource(R.drawable.bg_btn_filter_toggle)
+            binding.tvFilterToggleTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
+            binding.tvFilterBadge.visibility = View.GONE
+        }
+
+
+
+        updateFilterIndicator()
+    }
+
+    private fun updateFilterIndicator() {
+        val activeFilters = mutableListOf<String>()
+        if (!selectedCategory.isNullOrBlank()) {
+            activeFilters.add(selectedCategory!!)
+        }
+
+        val minP = viewModel.currentMinPrice
+        val maxP = viewModel.currentMaxPrice
+        if (minP != null && maxP != null) {
+            activeFilters.add("Giá: ${minP.toVndCurrency()} - ${maxP.toVndCurrency()}")
+        } else if (minP != null) {
+            activeFilters.add("Giá: từ ${minP.toVndCurrency()}")
+        } else if (maxP != null) {
+            activeFilters.add("Giá: đến ${maxP.toVndCurrency()}")
+        }
+
+        val minR = viewModel.currentMinRating
+        val maxR = viewModel.currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            if (minR >= 4.75f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 5 Sao")
+            } else if (minR >= 3.95f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 4 Sao+")
+            } else if (minR >= 2.95f && maxR >= 4.95f) {
+                activeFilters.add("⭐ 3 Sao+")
+            } else {
+                activeFilters.add("⭐ ${String.format(java.util.Locale.US, "%.1f", minR)} - ${String.format(java.util.Locale.US, "%.1f", maxR)}★")
+            }
+        }
+
+        if (isNearbyFiltered) {
+            activeFilters.add("📍 $selectedNearbyDistanceLabel")
+        }
+
+        if (activeFilters.isNotEmpty()) {
+            binding.layoutActiveFilterIndicator.visibility = View.VISIBLE
+            binding.tvFilterIndicatorSummary.text = "Đang lọc: ${activeFilters.joinToString(" • ")}"
+        } else {
+            binding.layoutActiveFilterIndicator.visibility = View.GONE
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
+
+    /**
+     * Tên chức năng: Tìm kiếm món ăn theo từ khóa nhập liệu
+     * Cách hoạt động: Lắng nghe TextWatcher trên ô tìm kiếm, gọi [HomeViewModel.filterDishes] cập nhật danh sách hiển thị tức thời.
+     * Luồng hướng tới: Lọc kết quả tìm kiếm.
+     */
+    private fun setupSearch() {
+        binding.etSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val q = s?.toString()?.trim() ?: ""
+                binding.btnClearSearch.visibility = if (q.isNotEmpty()) View.VISIBLE else View.GONE
+
+                // Nếu người dùng gõ tìm kiếm, hủy lọc danh mục để tìm kiếm toàn diện trên mọi quán và món
+                if (q.isNotEmpty() && selectedCategory != null) {
+                    selectedCategory = null
+                    clearCategoryHighlight()
+                }
+
+                viewModel.filterDishes(query = q)
+
+                if (q.isNotEmpty()) {
+                    binding.tvSectionTitle.text = "Kết quả tìm kiếm cho \"$q\""
+                } else {
+                    binding.tvSectionTitle.text = if (selectedCategory != null) "Món ngon: $selectedCategory" else "Món ngon đề xuất cho bạn"
+                }
+                updateFilterIndicator()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        binding.btnClearSearch.setOnClickListener {
+            binding.etSearch.setText("")
+        }
+
+        binding.etSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
+                val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+                imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
+                true
+            } else false
+        }
+    }
+
+    private fun setupSwipeRefresh() {
+        binding.swipeRefresh.setOnRefreshListener {
+            viewModel.loadRestaurants()
+        }
+    }
+
+    /**
+     * Tên chức năng: Nút Giỏ Hàng Nổi (Floating Cart)
+     * Cách hoạt động: Hiển thị nổi trên màn hình khi có món trong giỏ, click vào để điều hướng sang màn hình xem giỏ hàng.
+     * Luồng hướng tới: [CartActivity].
+     */
+    private fun setupFloatingCart() {
+        binding.btnCart.setOnClickListener {
+            startActivity(Intent(this, CartActivity::class.java))
+        }
+    }
+
+    /**
+     * Tên chức năng: Cấu hình điều hướng thanh Bottom Navigation
+     * Cách hoạt động: Bắt sự kiện chuyển hướng giữa các tab chính: Trang chủ, Đơn hàng, Thông báo, Hồ sơ cá nhân.
+     * Luồng hướng tới: [HomeActivity], [OrderHistoryActivity], [NotificationActivity], [ProfileActivity].
+     */
+    private fun setupBottomNav() {
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> {
+                    binding.customerFragmentContainer.visibility = View.GONE
+                    binding.layoutHomeContent.visibility = View.VISIBLE
+                    InsetUtils.setLightStatusBar(this, false)
+                    true
+                }
+                R.id.nav_orders -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(OrderHistoryFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                R.id.nav_notification -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(NotificationFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                R.id.nav_profile -> {
+                    binding.layoutHomeContent.visibility = View.GONE
+                    binding.customerFragmentContainer.visibility = View.VISIBLE
+                    loadCustomerFragment(ProfileFragment())
+                    InsetUtils.setLightStatusBar(this, true)
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    fun selectTab(@IdRes tabId: Int) {
+        binding.bottomNav.selectedItemId = tabId
+    }
+
+    private fun loadCustomerFragment(fragment: Fragment) {
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.customerFragmentContainer, fragment)
+            .commit()
+    }
+
+    private fun setupBackNavigation() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (binding.bottomNav.selectedItemId != R.id.nav_home) {
+                    binding.bottomNav.selectedItemId = R.id.nav_home
+                } else {
+                    finish()
+                }
+            }
+        })
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ HomeViewModel & CartViewModel
+     * Cách hoạt động: Cập nhật danh sách món ăn, món hot, trạng thái loading/error, và cập nhật số lượng/tổng tiền hiển thị trên nút Giỏ hàng nổi.
+     * Luồng hướng tới: Đồng bộ hiển thị Realtime.
+     */
+    private fun observeViewModel() {
+        viewModel.platformCategories.observe(this) { categories ->
+            if (::categoryAdapter.isInitialized) {
+                categoryAdapter.submitCategories(categories)
+            }
+        }
+
+        viewModel.homeDishes.observe(this) { dishes ->
+            dishAdapter.submitList(dishes)
+            binding.tvDishesCountBadge.text = "(${dishes.size} món)"
+            if (dishes.isEmpty()) {
+                binding.tvEmpty.visibility = View.VISIBLE
+                if (isNearbyFiltered) {
+                    binding.tvEmpty.text = "Không có món ăn nào trong phạm vi $selectedNearbyDistanceLabel.\nHãy thử chọn bán kính 3 km hoặc 5 km trong mục Quán gần đây!"
+                } else {
+                    binding.tvEmpty.setText(R.string.empty_restaurants)
+                }
+            } else {
+                binding.tvEmpty.visibility = View.GONE
+            }
+        }
+
+        viewModel.currentHotTab.observe(this) { tab ->
+            val isBestSeller = tab == HomeViewModel.HotTab.BEST_SELLER
+            binding.btnHotBestSeller.apply {
+                setBackgroundResource(if (isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
+                setTextColor(ContextCompat.getColor(this@HomeActivity, if (isBestSeller) R.color.primary else R.color.text_secondary))
+                setTypeface(null, if (isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
+            binding.btnHotFavorite.apply {
+                setBackgroundResource(if (!isBestSeller) R.drawable.bg_quick_chip_active else R.drawable.bg_quick_chip)
+                setTextColor(ContextCompat.getColor(this@HomeActivity, if (!isBestSeller) R.color.primary else R.color.text_secondary))
+                setTypeface(null, if (!isBestSeller) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
+        }
+
+        viewModel.hotDishes.observe(this) { hotDishes ->
+            hotDishAdapter.submitList(hotDishes)
+            val hasHot = hotDishes.isNotEmpty()
+            binding.layoutHotDishesHeader.visibility = if (hasHot) View.VISIBLE else View.GONE
+            binding.rvHotDishes.visibility = if (hasHot) View.VISIBLE else View.GONE
+            if (hasHot) {
+                binding.rvHotDishes.scrollToPosition(0)
+            }
+        }
+
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.swipeRefresh.isRefreshing = isLoading
+        }
+
+        viewModel.error.observe(this) { error ->
+            error?.let {
+                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+            }
+        }
+
+        cartViewModel.carts.observe(this) { carts ->
+            val totalItems = carts.sumOf { cart -> cart.items.values.sumOf { it.quantity } }
+            if (totalItems > 0) {
+                binding.btnCart.visibility = View.VISIBLE
+                val shopCount = carts.size
+                binding.tvCartBadge.text = if (shopCount > 1) "$shopCount quán" else "$totalItems món"
+            } else {
+                binding.btnCart.visibility = View.GONE
+            }
+        }
+
+        cartViewModel.totalAmount.observe(this) { total ->
+            if (total != null && total > 0L) {
+                binding.tvCartAmount.text = "${total.toVndCurrency()} ➔"
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Hiển thị Banner nhắc nhở mở App Nội bộ nếu tài khoản là Đối tác
+     * Cách hoạt động: Kiểm tra role của user; nếu là Quán hoặc Tài xế, hiển thị banner đầu trang hỗ trợ 1 chạm mở app Oishi Internal.
+     * Luồng hướng tới: Mở Package `com.chuyen_de_2.foodorder.internal`.
+     */
+    private fun checkUserRoleForBanner() {
+        binding.bannerMerchantNotice.visibility = View.GONE
+        lifecycleScope.launch {
+            // Gọi getUserRole() để tự động đồng bộ và khôi phục role CUSTOMER nếu tài khoản từng bị ghi đè nhầm
+            authRepository.getUserRole()
+        }
+    }
+}
+````
+
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeDishAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.home
@@ -60714,592 +61300,6 @@ class MenuActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         viewModel.flushCart()
-    }
-}
-````
-
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/order/OrderHistoryAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.order
-
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ItemOrderHistoryBinding
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-class OrderHistoryAdapter(
-    private val onTrackClick: (Order) -> Unit,
-    private val onComplaintClick: (Order) -> Unit,
-    private val onReorderClick: (Order) -> Unit,
-    private val onViewProofClick: (Order) -> Unit,
-    private val onCallClick: (String) -> Unit,
-    private val onChatStoreClick: (Order) -> Unit = {},
-    private val onCancelOrderClick: (Order) -> Unit = {},
-    private val onWithdrawCancelClick: (Order) -> Unit = {}
-) : ListAdapter<Order, OrderHistoryAdapter.OrderViewHolder>(DiffCallback) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
-        val binding = ItemOrderHistoryBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return OrderViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: OrderViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class OrderViewHolder(
-        private val binding: ItemOrderHistoryBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(order: Order) {
-            val context = binding.root.context
-            val shopName = order.shopName.ifBlank { "Quán Ăn Oishi Food" }
-            binding.tvShopName.text = shopName
-
-            val orderCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
-            binding.tvOrderCodeMono.text = orderCode
-
-            // Logo mini quán dạng emoji fallback
-            val shopEmoji = when {
-                shopName.contains("trà", ignoreCase = true) || shopName.contains("sữa", ignoreCase = true) -> "🧋"
-                shopName.contains("cơm", ignoreCase = true) -> "🍛"
-                shopName.contains("phở", ignoreCase = true) || shopName.contains("bún", ignoreCase = true) -> "🍜"
-                shopName.contains("gà", ignoreCase = true) -> "🍗"
-                shopName.contains("bánh mì", ignoreCase = true) -> "🥖"
-                else -> "🍲"
-            }
-            binding.tvShopLogoMini.text = shopEmoji
-
-            // Ảnh đại diện quán ăn (Avatar quán)
-            val targetStoreId = order.effectiveStoreId
-            val directShopImage = order.shopImageUrl.trim()
-            val cachedImage = if (targetStoreId.isNotBlank()) storeImageCache[targetStoreId] else null
-            val effectiveShopImage = directShopImage.ifBlank { cachedImage.orEmpty() }
-
-            if (effectiveShopImage.isNotBlank()) {
-                binding.ivShopLogoMini.visibility = View.VISIBLE
-                binding.tvShopLogoMini.visibility = View.GONE
-                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                    imageView = binding.ivShopLogoMini,
-                    imageUrl = effectiveShopImage,
-                    placeholderResId = R.drawable.placeholder_restaurant,
-                    cornerDp = 17
-                )
-            } else if (targetStoreId.isNotBlank()) {
-                binding.ivShopLogoMini.visibility = View.VISIBLE
-                binding.tvShopLogoMini.visibility = View.GONE
-                binding.ivShopLogoMini.setImageResource(R.drawable.placeholder_restaurant)
-                binding.ivShopLogoMini.tag = targetStoreId
-
-                com.google.firebase.database.FirebaseDatabase.getInstance()
-                    .getReference("stores")
-                    .child(targetStoreId)
-                    .addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
-                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                            val store = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
-                            val resolvedUrl = store?.effectiveImageUrl.orEmpty().trim()
-                            if (resolvedUrl.isNotBlank()) {
-                                storeImageCache[targetStoreId] = resolvedUrl
-                                if (binding.ivShopLogoMini.tag == targetStoreId) {
-                                    binding.ivShopLogoMini.visibility = View.VISIBLE
-                                    binding.tvShopLogoMini.visibility = View.GONE
-                                    com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                                        imageView = binding.ivShopLogoMini,
-                                        imageUrl = resolvedUrl,
-                                        placeholderResId = R.drawable.placeholder_restaurant,
-                                        cornerDp = 17
-                                    )
-                                }
-                            } else {
-                                if (binding.ivShopLogoMini.tag == targetStoreId) {
-                                    binding.ivShopLogoMini.visibility = View.GONE
-                                    binding.tvShopLogoMini.visibility = View.VISIBLE
-                                    binding.tvShopLogoMini.text = shopEmoji
-                                }
-                            }
-                        }
-
-                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
-                            if (binding.ivShopLogoMini.tag == targetStoreId) {
-                                binding.ivShopLogoMini.visibility = View.GONE
-                                binding.tvShopLogoMini.visibility = View.VISIBLE
-                                binding.tvShopLogoMini.text = shopEmoji
-                            }
-                        }
-                    })
-            } else {
-                binding.ivShopLogoMini.visibility = View.GONE
-                binding.tvShopLogoMini.visibility = View.VISIBLE
-                binding.tvShopLogoMini.text = shopEmoji
-            }
-
-            // Tóm tắt món
-            val summaryText = if (order.items.isNotEmpty()) {
-                order.items.values.joinToString("\n") { item -> "• ${item.quantity}x ${item.name}" }
-            } else {
-                "• 1x Suất ăn tiêu chuẩn"
-            }
-            binding.tvDishesSummary.text = summaryText
-
-            // Hiển thị ảnh đại diện món ăn
-            val firstItemWithImage = order.items.values.firstOrNull { it.effectiveImageUrl.isNotBlank() }
-            val mainImageUrl = firstItemWithImage?.effectiveImageUrl ?: order.items.values.firstOrNull()?.effectiveImageUrl.orEmpty()
-
-            if (mainImageUrl.isNotBlank()) {
-                binding.ivDishThumb.visibility = View.VISIBLE
-                binding.tvDishEmoji.visibility = View.GONE
-                if (mainImageUrl.startsWith("data:image") || mainImageUrl.length > 500) {
-                    try {
-                        val clean = if (mainImageUrl.contains(",")) mainImageUrl.substringAfter(",") else mainImageUrl
-                        val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
-                        Glide.with(context)
-                            .asBitmap()
-                            .load(decoded)
-                            .transform(CenterCrop(), RoundedCorners(14))
-                            .placeholder(R.drawable.placeholder_food)
-                            .error(R.drawable.placeholder_food)
-                            .into(binding.ivDishThumb)
-                    } catch (_: Exception) {
-                        Glide.with(context)
-                            .load(mainImageUrl)
-                            .transform(CenterCrop(), RoundedCorners(14))
-                            .placeholder(R.drawable.placeholder_food)
-                            .error(R.drawable.placeholder_food)
-                            .into(binding.ivDishThumb)
-                    }
-                } else {
-                    Glide.with(context)
-                        .load(mainImageUrl)
-                        .transform(CenterCrop(), RoundedCorners(14))
-                        .placeholder(R.drawable.placeholder_food)
-                        .error(R.drawable.placeholder_food)
-                        .into(binding.ivDishThumb)
-                }
-            } else {
-                binding.ivDishThumb.visibility = View.VISIBLE
-                binding.ivDishThumb.setImageResource(R.drawable.placeholder_food)
-                binding.tvDishEmoji.visibility = View.GONE
-            }
-
-            // Badge hiển thị số lượng món phụ nếu đơn > 1 món (+2)
-            val extraItems = order.items.size - 1
-            if (extraItems > 0) {
-                binding.tvExtraItemsCount.visibility = View.VISIBLE
-                binding.tvExtraItemsCount.text = "+$extraItems"
-            } else {
-                binding.tvExtraItemsCount.visibility = View.GONE
-            }
-
-            // Tổng tiền
-            val total = if (order.totalPayment > 0) order.totalPayment else order.total
-            binding.tvOrderPrice.text = total.toVndCurrency()
-
-            // Ghi chú ngày giờ / thanh toán
-            val time = if (order.timestamp > 0) order.timestamp else order.createdAt
-            val dateStr = if (time > 0) {
-                SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(time))
-            } else {
-                "Vừa xong"
-            }
-            binding.tvOrderSubStatus.text = dateStr
-
-            // Phân loại trạng thái chi tiết theo b3.html
-            val effectiveStatus = order.effectiveStatus.uppercase()
-            val isTerminalOrBombed = effectiveStatus == Order.Status.COMPLETED ||
-                    effectiveStatus == Order.Status.CANCELLED ||
-                    effectiveStatus == Order.Status.BOOM ||
-                    effectiveStatus == Order.Status.RETURNING_TO_STORE ||
-                    effectiveStatus == Order.Status.RETURNED_TO_STORE
-
-            val isWarningOrder = !isTerminalOrBombed && (
-                ((order.hasIncidentWarning || order.isRiskOrder) && order.countdownRound >= 2) ||
-                order.riskStatus == "RISK_REPORTED" ||
-                order.riskStatus == "RISK_CONFIRMED"
-            )
-
-            binding.cardOrder.setOnClickListener { onTrackClick(order) }
-            binding.btnChatStore.text = "💬 Nhắn Quán"
-            binding.btnChatStore.tag = order.orderId
-            binding.btnChatStore.setOnClickListener { onChatStoreClick(order) }
-
-            if (order.orderId.isNotBlank()) {
-                com.google.firebase.database.FirebaseDatabase.getInstance()
-                    .getReference("tracking")
-                    .child("chats_${order.orderId}")
-                    .limitToLast(1)
-                    .addValueEventListener(object : com.google.firebase.database.ValueEventListener {
-                        override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                            if (binding.btnChatStore.tag != order.orderId) return
-                            val lastChild = snapshot.children.lastOrNull()
-                            val sender = lastChild?.child("sender")?.getValue(String::class.java)
-                            if (sender == "SHOP") {
-                                binding.btnChatStore.text = "💬 Tin nhắn Quán (1)"
-                                binding.btnChatStore.setTextColor(Color.parseColor("#EA580C"))
-                            } else {
-                                binding.btnChatStore.text = "💬 Nhắn Quán"
-                                binding.btnChatStore.setTextColor(Color.parseColor("#0284C7"))
-                            }
-                        }
-                        override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
-                    })
-            }
-
-            if (isWarningOrder) {
-                // 1. ĐƠN BỊ CẢNH BÁO MẤT ĐƠN (15 PHÚT)
-                binding.cardOrder.strokeColor = ContextCompat.getColor(context, R.color.error)
-                binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFDFD"))
-
-                binding.tvOrderStatusBadge.text = "🚨 CẢNH BÁO MẤT ĐƠN"
-                binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#DC2626"))
-                binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_red)
-
-                binding.tvShipperInfo.visibility = View.VISIBLE
-                val shipper = order.shipperName.ifBlank { "Tài xế giao hàng" }
-                binding.tvShipperInfo.text = "🛵 Shipper: $shipper (Đã đến điểm giao)"
-                binding.tvShipperInfo.setTextColor(Color.parseColor("#DC2626"))
-
-                binding.layoutAlertBox.visibility = View.VISIBLE
-                binding.tvAlertIcon.text = "📢"
-                binding.tvAlertTitle.text = "Tài xế cảnh báo đếm ngược chờ nhận món!"
-                binding.tvAlertCountdown.visibility = View.GONE
-                binding.tvAlertMessage.text = order.incidentWarningText.ifBlank {
-                    "Tài xế đã có mặt tại điểm giao và gọi nhiều cuộc nhưng chưa nghe máy. Vui lòng nhận đơn kẻo bị hủy do bom hàng!"
-                }
-
-                binding.btnActionSecondary.visibility = View.VISIBLE
-                binding.btnActionSecondary.text = "📋 Xem Chi Tiết"
-                binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
-
-                binding.btnActionPrimary.text = "🚨 Xử Lý Ngay ➔"
-                binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.error)
-                binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
-
-            } else when (effectiveStatus) {
-                Order.Status.AWAITING_PAYMENT, Order.Status.PENDING, Order.Status.PAID -> {
-                    // 2. CHỜ THANH TOÁN HOẶC CHỜ XÁC NHẬN
-                    val isUnpaid = (order.status == Order.Status.AWAITING_PAYMENT) ||
-                            (order.paymentMethod != Order.PaymentMethod.COD && order.totalPayment == 0L)
-                    if (isUnpaid) {
-                        binding.cardOrder.strokeColor = Color.parseColor("#FDBA74")
-                        binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFCF9"))
-
-                        binding.tvOrderStatusBadge.text = "⏳ Chờ thanh toán"
-                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-
-                        binding.tvShipperInfo.visibility = View.GONE
-
-                        val now = System.currentTimeMillis()
-                        val elapsed = now - order.createdAt
-                        val remainingMs = maxOf(0L, 30 * 60 * 1000L - elapsed)
-                        val minutes = (remainingMs / 1000) / 60
-                        val seconds = (remainingMs / 1000) % 60
-
-                        binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = "💡"
-                        binding.tvAlertTitle.text = "Chưa hoàn tất thanh toán"
-                        binding.tvAlertCountdown.visibility = View.VISIBLE
-                        binding.tvAlertCountdown.text = String.format("%02d:%02d", minutes, seconds)
-                        binding.tvAlertMessage.text = if (order.paymentMode == Order.PaymentMode.DEPOSIT) {
-                            "Vui lòng quét mã cọc 20% để quán nhận đơn và chế biến."
-                        } else {
-                            "Vui lòng chuyển khoản để quán nhận đơn và chế biến."
-                        }
-
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "✕ Hủy đơn"
-                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
-
-                        binding.btnActionPrimary.text = "💳 Thanh Toán Ngay ➔"
-                        binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
-                        binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
-                    } else {
-                        // CHỜ QUÁN XÁC NHẬN
-                        binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
-                        binding.cardOrder.setCardBackgroundColor(Color.parseColor("#F8FAFC"))
-
-                        binding.tvOrderStatusBadge.text = "⏱️ Chờ quán xác nhận"
-                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
-
-                        binding.tvShipperInfo.visibility = View.VISIBLE
-                        binding.tvShipperInfo.text = "👨‍🍳 Quán đang nhận đơn và chuẩn bị pha chế"
-                        binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
-
-                        binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = "✓"
-                        binding.tvAlertTitle.text = "Đã nhận đơn"
-                        binding.tvAlertCountdown.visibility = View.GONE
-                        binding.tvAlertMessage.text = "Quán đang chuẩn bị món ăn thơm ngon cho bạn."
-
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "✕ Hủy đơn"
-                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
-
-                        binding.btnActionPrimary.text = "Chi Tiết Đơn ➔"
-                        binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
-                        binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
-                    }
-                }
-
-                Order.Status.PREPARING, Order.Status.READY -> {
-                    binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
-                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
-
-                    val isCancelPending = order.cancelRequested && order.cancelRequestStatus == Order.CancelRequestStatus.PENDING
-                    if (isCancelPending) {
-                        binding.tvOrderStatusBadge.text = "⏳ Chờ duyệt hủy"
-                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#EA580C"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-
-                        binding.tvShipperInfo.visibility = View.VISIBLE
-                        binding.tvShipperInfo.text = "👨‍🍳 Đã gửi yêu cầu hủy đến quán"
-                        binding.tvShipperInfo.setTextColor(Color.parseColor("#EA580C"))
-
-                        binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = "⏳"
-                        binding.tvAlertTitle.text = "Yêu cầu hủy đơn đang chờ quán duyệt"
-                        binding.tvAlertCountdown.visibility = View.GONE
-                        binding.tvAlertMessage.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu của bạn."
-
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "Rút lại yêu cầu"
-                        binding.btnActionSecondary.setOnClickListener { onWithdrawCancelClick(order) }
-                    } else {
-                        binding.tvOrderStatusBadge.text = "🍳 Đang nấu món"
-                        binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#2563EB"))
-                        binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_blue)
-
-                        binding.tvShipperInfo.visibility = View.VISIBLE
-                        binding.tvShipperInfo.text = "👨‍🍳 Quán đang nấu món và đóng gói"
-                        binding.tvShipperInfo.setTextColor(Color.parseColor("#2563EB"))
-
-                        if (order.cancelRequestStatus == Order.CancelRequestStatus.REJECTED) {
-                            binding.layoutAlertBox.visibility = View.VISIBLE
-                            binding.tvAlertIcon.text = "❌"
-                            binding.tvAlertTitle.text = "Quán từ chối yêu cầu hủy"
-                            binding.tvAlertCountdown.visibility = View.GONE
-                            binding.tvAlertMessage.text = "Lý do: ${order.cancelRejectReason.ifBlank { "Quán đã nấu xong, không thể hủy." }}"
-                        } else {
-                            binding.layoutAlertBox.visibility = View.GONE
-                        }
-
-                        binding.btnActionSecondary.visibility = View.VISIBLE
-                        binding.btnActionSecondary.text = "✕ Yêu cầu hủy"
-                        binding.btnActionSecondary.setOnClickListener { onCancelOrderClick(order) }
-                    }
-
-                    binding.btnActionPrimary.text = "Theo Dõi Đơn ➔"
-                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.brand_blue)
-                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
-                }
-
-                Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP, Order.Status.DELIVERING, Order.Status.ARRIVED_AT_CUSTOMER -> {
-                    binding.cardOrder.strokeColor = Color.parseColor("#BFDBFE")
-                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
-
-                    val badgeText: String
-                    val badgeColor: Int
-                    val badgeBg: Int
-                    val shipperDesc: String
-
-                    val shipper = order.shipperName.ifBlank { "Tài xế" }
-                    when (order.status) {
-                        Order.Status.ARRIVED_AT_SHOP -> {
-                            badgeText = "🏪 Tài xế đã đến quán"
-                            badgeColor = Color.parseColor("#2563EB")
-                            badgeBg = R.drawable.bg_tab_badge_blue
-                            shipperDesc = "🛵 Shipper: $shipper đã có mặt tại quán"
-                        }
-                        Order.Status.ARRIVED_AT_CUSTOMER -> {
-                            badgeText = "📍 Tài xế đã đến nơi"
-                            badgeColor = Color.parseColor("#EA580C")
-                            badgeBg = R.drawable.bg_badge_orange
-                            shipperDesc = "🔔 Shipper: $shipper đang chờ trước cửa"
-                        }
-                        Order.Status.DELIVERING -> {
-                            badgeText = "🚚 Đã lấy hàng, đang giao"
-                            badgeColor = Color.parseColor("#2563EB")
-                            badgeBg = R.drawable.bg_tab_badge_blue
-                            shipperDesc = "🛵 Shipper: $shipper đang giao tới bạn"
-                        }
-                        else -> {
-                            badgeText = "🛵 Tài xế đang đến quán"
-                            badgeColor = Color.parseColor("#2563EB")
-                            badgeBg = R.drawable.bg_tab_badge_blue
-                            shipperDesc = "🛵 Shipper: $shipper đang di chuyển đến quán"
-                        }
-                    }
-
-                    binding.tvOrderStatusBadge.text = badgeText
-                    binding.tvOrderStatusBadge.setTextColor(badgeColor)
-                    binding.tvOrderStatusBadge.setBackgroundResource(badgeBg)
-
-                    binding.tvShipperInfo.visibility = View.VISIBLE
-                    binding.tvShipperInfo.text = shipperDesc
-                    binding.tvShipperInfo.setTextColor(badgeColor)
-
-                    binding.layoutAlertBox.visibility = View.GONE
-
-                    binding.btnActionSecondary.visibility = View.VISIBLE
-                    binding.btnActionSecondary.text = "📞 Gọi Shipper"
-                    val phone = order.shipperPhone.ifBlank { "19001234" }
-                    binding.btnActionSecondary.setOnClickListener { onCallClick(phone) }
-
-                    binding.btnActionPrimary.text = "Theo Dõi ➔"
-                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
-                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
-                }
-
-                Order.Status.COMPLETED -> {
-                    // ĐƠN ĐÃ HOÀN TẤT
-                    binding.cardOrder.strokeColor = Color.parseColor("#E2E8F0")
-                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
-
-                    binding.tvOrderStatusBadge.text = "✓ Đã giao thành công"
-                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#10B981"))
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_status_open)
-
-                    binding.tvShipperInfo.visibility = View.GONE
-                    binding.layoutAlertBox.visibility = View.GONE
-
-                    binding.btnActionSecondary.visibility = View.VISIBLE
-                    binding.btnActionSecondary.text = "⚠️ Khiếu nại"
-                    binding.btnActionSecondary.setOnClickListener { onComplaintClick(order) }
-
-                    binding.btnActionPrimary.text = "↺ Đặt lại món"
-                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.text_primary)
-                    binding.btnActionPrimary.setOnClickListener { onReorderClick(order) }
-                }
-
-                Order.Status.BOOM, Order.Status.RETURNING_TO_STORE, Order.Status.RETURNED_TO_STORE, Order.Status.CANCELLED -> {
-                    val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
-                            order.paymentMode == Order.PaymentMode.COD ||
-                            order.remainAmount > 0L ||
-                            order.paymentStatus != Order.PaymentStatus.PAID
-
-                    val isBombed = effectiveStatus == Order.Status.BOOM ||
-                            (effectiveStatus == Order.Status.RETURNING_TO_STORE && isCod) ||
-                            (effectiveStatus == Order.Status.RETURNED_TO_STORE && isCod) ||
-                            order.cancelReason.contains("bom", ignoreCase = true) ||
-                            order.riskReason.contains("bom", ignoreCase = true)
-
-                    binding.cardOrder.strokeColor = Color.parseColor("#FECACA")
-                    binding.cardOrder.setCardBackgroundColor(Color.parseColor("#FFFDFD"))
-
-                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#DC2626"))
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_tab_badge_red)
-
-                    if (isBombed) {
-                        // ĐƠN KHÁCH ĐÃ BOM (COD)
-                        binding.tvOrderStatusBadge.text = "🚫 Đã bom hàng"
-
-                        binding.tvShipperInfo.visibility = View.VISIBLE
-                        binding.tvShipperInfo.setTextColor(Color.parseColor("#DC2626"))
-                        val shipper = order.shipperName.ifBlank { "Tài xế" }
-                        binding.tvShipperInfo.text = when (effectiveStatus) {
-                            Order.Status.RETURNING_TO_STORE -> "🛵 Shipper: $shipper đang hoàn trả món về quán"
-                            Order.Status.RETURNED_TO_STORE -> "🏪 Shipper: $shipper đã hoàn trả món về quán"
-                            else -> "🚫 Không nhận hàng • Trừ 30 điểm uy tín"
-                        }
-
-                        binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = "🚫"
-                        binding.tvAlertTitle.text = "ĐƠN HÀNG ĐÃ BỊ BOM (-30 ĐIỂM UY TÍN):"
-                        binding.tvAlertCountdown.visibility = View.GONE
-                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
-                            order.riskReason.ifBlank {
-                                "Khách hủy khi đang giao / từ chối nhận món (Trừ 30 điểm uy tín do là đơn COD)."
-                            }
-                        }
-                    } else if (effectiveStatus == Order.Status.RETURNING_TO_STORE || effectiveStatus == Order.Status.RETURNED_TO_STORE) {
-                        // ĐƠN HỦY KHI ĐANG GIAO (ĐÃ THANH TOÁN ONLINE)
-                        binding.tvOrderStatusBadge.text = "🏪 Trả món về quán"
-
-                        binding.tvShipperInfo.visibility = View.VISIBLE
-                        binding.tvShipperInfo.setTextColor(Color.parseColor("#EA580C"))
-                        val shipper = order.shipperName.ifBlank { "Tài xế" }
-                        binding.tvShipperInfo.text = "🛵 Shipper: $shipper đang hoàn trả món về quán"
-
-                        binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = "⚠️"
-                        binding.tvAlertTitle.text = "KHÁCH HỦY KHI ĐANG GIAO (ĐÃ THANH TOÁN ONLINE):"
-                        binding.tvAlertCountdown.visibility = View.GONE
-                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
-                            "Đơn hàng được yêu cầu hủy khi đang giao. Tiền món sẽ được đối soát hoàn trả theo quy định."
-                        }
-                    } else {
-                        // ĐƠN ĐÃ BỊ HỦY THÔNG THƯỜNG
-                        binding.tvOrderStatusBadge.text = "✕ Đã bị hủy"
-                        binding.tvShipperInfo.visibility = View.GONE
-
-                        binding.layoutAlertBox.visibility = View.VISIBLE
-                        binding.tvAlertIcon.text = "🚫"
-                        binding.tvAlertTitle.text = "LÝ DO HỦY ĐƠN HÀNG:"
-                        binding.tvAlertCountdown.visibility = View.GONE
-                        binding.tvAlertMessage.text = order.cancelReason.ifBlank {
-                            order.note.ifBlank {
-                                "Hệ thống ghi nhận đơn đã bị hủy theo yêu cầu hoặc quá thời gian xác nhận."
-                            }
-                        }
-                    }
-
-                    binding.btnActionSecondary.visibility = View.VISIBLE
-                    binding.btnActionSecondary.text = "📄 Xem biên bản"
-                    binding.btnActionSecondary.setOnClickListener { onViewProofClick(order) }
-
-                    binding.btnActionPrimary.text = "↺ Đặt lại món"
-                    binding.btnActionPrimary.backgroundTintList = ContextCompat.getColorStateList(context, R.color.primary)
-                    binding.btnActionPrimary.setOnClickListener { onReorderClick(order) }
-                }
-
-                else -> {
-                    binding.cardOrder.strokeColor = Color.parseColor("#E2E8F0")
-                    binding.cardOrder.setCardBackgroundColor(ContextCompat.getColor(context, R.color.white))
-
-                    binding.tvOrderStatusBadge.text = order.status
-                    binding.tvOrderStatusBadge.setTextColor(Color.parseColor("#64748B"))
-                    binding.tvOrderStatusBadge.setBackgroundResource(R.drawable.bg_chip_unselected)
-
-                    binding.tvShipperInfo.visibility = View.GONE
-                    binding.layoutAlertBox.visibility = View.GONE
-
-                    binding.btnActionSecondary.visibility = View.GONE
-                    binding.btnActionPrimary.text = "Xem Chi Tiết ➔"
-                    binding.btnActionPrimary.setOnClickListener { onTrackClick(order) }
-                }
-            }
-        }
-    }
-
-    companion object DiffCallback : DiffUtil.ItemCallback<Order>() {
-        private val storeImageCache = mutableMapOf<String, String>()
-
-        override fun areItemsTheSame(oldItem: Order, newItem: Order): Boolean =
-            oldItem.orderId == newItem.orderId
-
-        override fun areContentsTheSame(oldItem: Order, newItem: Order): Boolean =
-            oldItem == newItem
     }
 }
 ````
@@ -78035,6 +78035,19 @@ chefs_data = {
 # Bảng customers (Địa chỉ chuẩn Thủ Đức, Điểm uy tín 100)
 customers_data = {
 ⋮----
+# 6.1 Tạo đơn hàng mẫu hoàn tất (COMPLETED) để màn hình Báo Cáo có số liệu Doanh Thu & Top Món Bán Chạy thật
+⋮----
+now_ms = int(time.time() * 1000)
+orders_data = {
+⋮----
+# 5 đơn hoàn tất cho Quán 1 (Cơm Tấm Oishi - Vũ Central)
+⋮----
+# Đơn cho Quán 2 (Trà Sữa & Ăn Vặt)
+⋮----
+# Đơn cho Quán 3 (Bún Bò Huế)
+⋮----
+# Đơn cho Quán 4 (Bánh Mì Chảo)
+⋮----
 # 7. Hoàn tất
 ````
 
@@ -79336,609 +79349,6 @@ class CheckoutActivity : AppCompatActivity() {
 
 
 
-}
-````
-
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
-
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-@HiltViewModel
-class HomeViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository
-) : ViewModel() {
-
-    private val _stores = MutableLiveData<List<Store>>(emptyList())
-    val stores: LiveData<List<Store>> = _stores
-    val restaurants: LiveData<List<Store>> get() = _stores
-
-    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
-    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
-    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
-
-    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
-    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
-    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
-
-    enum class HotTab {
-        BEST_SELLER,
-        FAVORITE
-    }
-
-    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
-    val currentHotTab: LiveData<HotTab> = _currentHotTab
-
-    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
-    private var topBestSellerDishes = listOf<HotDish>()
-    private var topFavoriteDishes = listOf<HotDish>()
-
-    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
-    val hotDishes: LiveData<List<HotDish>> = _hotDishes
-
-    // Danh sách danh mục nền tảng thời gian thực từ Firebase
-    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
-    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
-
-    private val _isLoading = MutableLiveData(false)
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>()
-    val error: LiveData<String?> = _error
-
-    private var masterDishList = listOf<HomeDishItem>()
-    private var currentQuery: String? = null
-    private var currentCategory: String? = null
-    private var currentNearbyOnly: Boolean = false
-    var currentNearbyMaxDistanceKm: Double = 1.5
-        private set
-    var currentMinPrice: Long? = null
-        private set
-    var currentMaxPrice: Long? = null
-        private set
-    var currentMinRating: Float = 1.0f
-        private set
-    var currentMaxRating: Float = 5.0f
-        private set
-    private var currentPriceSort: PriceSort = PriceSort.NONE
-    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
-        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-
-    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
-
-    fun setUserLocation(lat: Double, lng: Double) {
-        if (lat != 0.0 && lng != 0.0) {
-            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
-            _stores.value?.let { processStoresAndDishes(it) }
-        }
-    }
-
-    init {
-        loadStores()
-    }
-
-    fun loadStores() {
-        _isLoading.value = true
-        _error.value = null
-
-        viewModelScope.launch {
-            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
-            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
-                _isLoading.value = false
-                _stores.value = firebaseStores
-                processStoresAndDishes(firebaseStores)
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
-            firebaseRepository.observeAllOrders().collectLatest { orders ->
-                cachedOrders = orders
-                _stores.value?.let { recalculateHotDishes(it) }
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
-            firebaseRepository.observeCategories().collectLatest { cats ->
-                _platformCategories.value = cats
-            }
-        }
-    }
-
-    private fun processStoresAndDishes(storeList: List<Store>) {
-        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // 1. Quán gần đây (Sắp xếp theo thứ tự: Quán đang mở trước, khoảng cách từ gần đến xa)
-        val nearbyList = activeStores.map { store ->
-            val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
-                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
-                "$baseTime-${baseTime + 10} phút"
-            } else "15-25 phút"
-            val emoji = when {
-                store.name.contains("Trà", true) -> "🍵"
-                store.name.contains("Cơm", true) -> "🍛"
-                store.name.contains("Gà", true) -> "🍗"
-                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
-                else -> "🍲"
-            }
-            NearbyStoreItem(
-                id = store.id,
-                name = store.name,
-                address = store.address.ifBlank { "TP.HCM" },
-                distanceKm = roundedDist,
-                eta = eta,
-                rating = store.ratingAvg,
-                imageUrl = store.imageUrl,
-                emoji = emoji,
-                originalStore = store,
-                isClosed = isClosed
-            )
-        }
-
-        val sortedNearbyList = nearbyList.sortedWith(
-            compareBy<NearbyStoreItem> { if (it.isClosed) 1 else 0 }
-                .thenBy { if (it.distanceKm > 0.0) 0 else 1 }
-                .thenBy { it.distanceKm }
-        )
-        _nearbyStores.value = sortedNearbyList
-
-        // 2. Thu thập các món ăn của quán - CHỈ HIỂN THỊ MÓN CỦA CÁC QUÁN ĐANG MỞ CỬA (OPEN)
-        // Khi quán tạm đóng, ẩn toàn bộ món khỏi danh sách gợi ý trang chủ
-        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
-        val allDishes = mutableListOf<HomeDishItem>()
-
-        openStores.forEach { store ->
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-
-            availableDishes.forEach { dish ->
-                val isCombo = dish.isCombo || dish.platformCategory.equals("Combo", ignoreCase = true) || dish.id.startsWith("combo_")
-                val platformCat = if (isCombo) "Combo" else dish.platformCategory.ifBlank {
-                    inferPlatformCategory(dish.name, dish.category)
-                }
-                val emoji = when {
-                    isCombo -> "🍱"
-                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
-                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
-                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
-                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
-                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
-                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
-                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
-                    platformCat.contains("Chay", true) -> "🥗"
-                    platformCat.contains("Hải sản", true) -> "🦐"
-                    platformCat.contains("Ăn vặt", true) -> "🍟"
-                    platformCat.contains("Tráng miệng", true) -> "🍰"
-                    platformCat.contains("Lẩu", true) -> "🍲"
-                    else -> "🍽️"
-                }
-                val resolvedCatId = when {
-                    isCombo -> "cat_combo"
-                    dish.categoryId.isNotBlank() -> dish.categoryId
-                    platformCat.contains("bánh mì", true) -> "cat_banhmi"
-                    platformCat.contains("trà sữa", true) -> "cat_trasua"
-                    platformCat.contains("bún", true) || platformCat.contains("phở", true) -> "cat_bun"
-                    platformCat.contains("cơm", true) -> "cat_com"
-                    else -> ""
-                }
-                allDishes.add(
-                    HomeDishItem(
-                        id = dish.id,
-                        name = dish.name,
-                        price = dish.basePrice,
-                        originalPrice = if (dish.originalPrice > 0L) dish.originalPrice else dish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = emoji,
-                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
-                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
-                        distanceKm = roundedDist,
-                        promoBadge = if (isCombo) "Combo" else "",
-                        tag1 = if (isCombo) "Combo Tiết Kiệm" else platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
-                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
-                        category = if (isCombo) "Combo" else dish.category.ifBlank { store.category },
-                        platformCategory = platformCat,
-                        categoryId = resolvedCatId,
-                        isCombo = isCombo
-                    )
-                )
-            }
-        }
-
-        masterDishList = allDishes
-        applyFilters()
-
-        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
-        recalculateHotDishes(activeStores)
-    }
-
-    private fun recalculateHotDishes(storeList: List<Store>) {
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
-        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
-        val weeklyDishSales = mutableMapOf<String, Int>()
-        cachedOrders.filter { order ->
-            val ts = order.effectiveTimestamp
-            ts >= oneWeekAgo &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
-        }.forEach { order ->
-            order.items.values.forEach { item ->
-                if (item.dishId.isNotBlank()) {
-                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
-                }
-            }
-        }
-
-        // Chỉ tính món hot từ các quán ĐANG MỞ CỬA (OPEN)
-        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
-
-        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
-        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
-        openStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val bestDish = availableDishes.maxWithOrNull(
-                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
-                )
-                if (bestDish != null) {
-                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
-                    val totalCount = bestDish.soldCount
-                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
-                    val badgeText = when {
-                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
-                        totalCount > 0 -> "🔥 $totalCount đã bán"
-                        else -> "🔥 Bán chạy"
-                    }
-                    val hotDish = HotDish(
-                        id = bestDish.id,
-                        name = bestDish.name,
-                        price = bestDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    bestSellerList.add(Pair(hotDish, salesScore))
-                }
-            }
-        }
-        topBestSellerDishes = bestSellerList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
-        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
-        openStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val topRatedDish = availableDishes.maxWithOrNull(
-                    compareBy(
-                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
-                        { it.reviewCount },
-                        { it.soldCount }
-                    )
-                )
-                if (topRatedDish != null) {
-                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
-                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
-                        else 5.0f
-                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
-                    val badgeText = "⭐ $formattedRating"
-                    val hotDish = HotDish(
-                        id = topRatedDish.id,
-                        name = topRatedDish.name,
-                        price = topRatedDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    favoriteList.add(Pair(hotDish, rating))
-                }
-            }
-        }
-        topFavoriteDishes = favoriteList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    fun switchHotTab(tab: HotTab) {
-        if (_currentHotTab.value == tab) return
-        _currentHotTab.value = tab
-        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
-        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
-        return when {
-            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
-            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
-            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
-            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
-            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
-            else -> "🍽️"
-        }
-    }
-
-    enum class PriceSort {
-        NONE, ASC, DESC
-    }
-
-    /** Lọc danh sách món ăn */
-    fun filterDishes(
-        query: String? = null,
-        category: String? = null,
-        nearbyOnly: Boolean? = null,
-        maxDistanceKm: Double? = null,
-        minPrice: Long? = null,
-        maxPrice: Long? = null,
-        minRating: Float? = null,
-        maxRating: Float? = null,
-        resetPrice: Boolean = false,
-        resetRating: Boolean = false,
-        priceSort: PriceSort? = null
-    ) {
-        if (query != null) currentQuery = query
-        if (category != null) currentCategory = if (category == "ALL") null else category
-        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
-        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
-        if (resetPrice) {
-            currentMinPrice = null
-            currentMaxPrice = null
-            currentPriceSort = PriceSort.NONE
-        } else {
-            if (minPrice != null || maxPrice != null) {
-                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
-                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
-            }
-            if (priceSort != null) {
-                currentPriceSort = priceSort
-            }
-        }
-        if (resetRating) {
-            currentMinRating = 1.0f
-            currentMaxRating = 5.0f
-        } else {
-            if (minRating != null) currentMinRating = minRating
-            if (maxRating != null) currentMaxRating = maxRating
-        }
-        applyFilters()
-    }
-
-    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
-    fun getFilteredDishesCount(
-        minPrice: Long?,
-        maxPrice: Long?,
-        minRating: Float,
-        maxRating: Float
-    ): Int {
-        var list = masterDishList
-
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            list = list.filter { matchesCategory(it, cat) }
-        }
-
-        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
-            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
-        }
-
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            list = list.filter { matchesSearch(it, q) }
-        }
-
-        if (minPrice != null && minPrice > 0) {
-            list = list.filter { it.price >= minPrice }
-        }
-        if (maxPrice != null && maxPrice > 0) {
-            list = list.filter { it.price <= maxPrice }
-        }
-
-        if (minRating > 1.05f || maxRating < 4.95f) {
-            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
-        }
-
-        return list.size
-    }
-
-    /**
-     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
-     */
-    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
-        val qClean = query.trim().lowercase()
-        if (qClean.isBlank()) return true
-
-        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
-
-        val name = dish.name.lowercase()
-        val store = dish.storeName.lowercase()
-        val cat = dish.category.lowercase()
-        val platCat = dish.platformCategory.lowercase()
-
-        val fullWithAccent = "$name $store $cat $platCat"
-        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
-
-        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
-        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
-            return true
-        }
-
-        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
-        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
-        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
-            return true
-        }
-
-        return false
-    }
-
-    private fun applyFilters() {
-        var filtered = masterDishList
-
-        // 1. Lọc theo cự ly gần (chuẩn xác theo bán kính tối đa)
-        if (currentNearbyOnly) {
-            val maxDist = currentNearbyMaxDistanceKm
-            filtered = if (maxDist >= 999.0) {
-                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
-            } else {
-                // CHỈ GIỮ LẠI MÓN CÓ KHOẢNG CÁCH THỰC TẾ <= maxDist (không tự tiện fallback nhả toàn bộ 16 món)
-                filtered.filter { it.distanceKm in 0.001..maxDist }
-                    .sortedBy { it.distanceKm }
-            }
-        }
-
-        // 2. Lọc theo danh mục
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesCategory(dish, cat)
-            }
-        }
-
-        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesSearch(dish, q)
-            }
-        }
-
-        // 4. Lọc theo khoảng giá tiền
-        val minP = currentMinPrice
-        val maxP = currentMaxPrice
-        if (minP != null || maxP != null) {
-            filtered = filtered.filter { dish ->
-                val p = dish.price
-                (minP == null || p >= minP) && (maxP == null || p <= maxP)
-            }
-        }
-
-        // 5. Lọc theo khoảng sao đánh giá
-        val minR = currentMinRating
-        val maxR = currentMaxRating
-        if (minR > 1.05f || maxR < 4.95f) {
-            filtered = filtered.filter { dish ->
-                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
-            }
-        }
-
-        // 5. Sắp xếp theo giá tiền nếu có
-        when (currentPriceSort) {
-            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
-            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
-            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
-        }
-
-        _homeDishes.value = filtered
-    }
-
-    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
-        val target = filterCat.trim()
-        if (target.isBlank() || target.equals("ALL", ignoreCase = true)) return true
-
-        // 1. Trường hợp người dùng lọc danh mục cấp sàn "Combo"
-        val isFilterCombo = target.equals("cat_combo", ignoreCase = true) || target.contains("combo", ignoreCase = true)
-        if (isFilterCombo) {
-            return dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)
-        }
-
-        // 2. Trường hợp lọc các danh mục cấp sàn món lẻ: BẮT BUỘC LOẠI TRỪ 100% CÁC MÓN COMBO
-        if (dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)) {
-            return false
-        }
-
-        // 3. SO KHỚP TRỰC TIẾP THEO categoryId (Khóa chính / Foreign Key chuẩn Firebase)
-        if (dish.categoryId.isNotBlank() && dish.categoryId.equals(target, ignoreCase = true)) {
-            return true
-        }
-
-        // 4. Fallback so khớp theo tên danh mục cấp sàn (nếu filter truyền tên thay vì ID)
-        val targetLower = target.lowercase()
-        val pCat = dish.platformCategory.lowercase()
-        return when {
-            targetLower.contains("banhmi") || targetLower.contains("bánh mì") -> dish.categoryId == "cat_banhmi" || pCat.contains("bánh mì")
-            targetLower.contains("trasua") || targetLower.contains("trà sữa") -> dish.categoryId == "cat_trasua" || pCat.contains("trà sữa")
-            targetLower.contains("bun") || targetLower.contains("bún") || targetLower.contains("phở") -> dish.categoryId == "cat_bun" || pCat.contains("bún") || pCat.contains("phở")
-            targetLower.contains("com") || targetLower.contains("cơm") -> dish.categoryId == "cat_com" || pCat.contains("cơm")
-            else -> pCat.equals(targetLower, ignoreCase = true)
-        }
-    }
-
-    private fun inferPlatformCategory(name: String, category: String): String {
-        val text = "$name $category".lowercase()
-        return when {
-            text.contains("cơm") -> "Cơm"
-            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
-            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
-            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
-            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
-            text.contains("trà") -> "Trà sữa"
-            else -> "Cơm"
-        }
-    }
-
-    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
-        if (store.latitude != 0.0 && store.longitude != 0.0) {
-            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
-        }
-        val distName = store.district.trim()
-        if (distName.isNotBlank()) {
-            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
-            if (exact != null) return exact
-            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
-                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
-            if (fuzzy != null) return fuzzy
-        }
-        return null
-    }
-
-    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
-        if (storeLatLng == null) return 0.0
-        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
-            currentUserLatLng,
-            storeLatLng
-        ).toDouble()
-        return Math.round(dist * 10.0) / 10.0
-    }
-
-    fun loadRestaurants() = loadStores()
 }
 ````
 
@@ -91761,6 +91171,609 @@ stateDiagram-v2
 4. **KT-4 (Định vị GPS Tài xế & Ghép đơn đa điểm Batching):** Kiểm tra `LocationForegroundService` gửi tọa độ GPS xe chạy trực tiếp lên Firebase, vẽ đường Polyline liên tục trên màn hình khách hàng.
 5. **KT-5 (Bảo mật giao hàng 2 chiều qua mã QR / PIN OTP):** Kiểm tra tài xế quét mã QR hoặc nhập đúng mã PIN 4 số do khách cung cấp để hoàn tất đơn; chống trường hợp shipper tự ý bấm hoàn thành khi chưa giao.
 6. **KT-6 (Xử lý sự cố bùng hàng & Hoàn trả món RETURNING_TO_STORE):** Kiểm tra luồng đếm ngược 15 phút gọi khách, bấm hoàn trả món về quán, hệ thống tự động trừ 20 điểm uy tín của khách vi phạm và bảo toàn tiền cọc cho tài xế.
+````
+
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.home
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository
+) : ViewModel() {
+
+    private val _stores = MutableLiveData<List<Store>>(emptyList())
+    val stores: LiveData<List<Store>> = _stores
+    val restaurants: LiveData<List<Store>> get() = _stores
+
+    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
+    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
+    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
+
+    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
+    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
+    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
+
+    enum class HotTab {
+        BEST_SELLER,
+        FAVORITE
+    }
+
+    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
+    val currentHotTab: LiveData<HotTab> = _currentHotTab
+
+    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
+    private var topBestSellerDishes = listOf<HotDish>()
+    private var topFavoriteDishes = listOf<HotDish>()
+
+    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
+    val hotDishes: LiveData<List<HotDish>> = _hotDishes
+
+    // Danh sách danh mục nền tảng thời gian thực từ Firebase
+    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
+    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
+
+    private val _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+
+    private val _error = MutableLiveData<String?>()
+    val error: LiveData<String?> = _error
+
+    private var masterDishList = listOf<HomeDishItem>()
+    private var currentQuery: String? = null
+    private var currentCategory: String? = null
+    private var currentNearbyOnly: Boolean = false
+    var currentNearbyMaxDistanceKm: Double = 1.5
+        private set
+    var currentMinPrice: Long? = null
+        private set
+    var currentMaxPrice: Long? = null
+        private set
+    var currentMinRating: Float = 1.0f
+        private set
+    var currentMaxRating: Float = 5.0f
+        private set
+    private var currentPriceSort: PriceSort = PriceSort.NONE
+    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
+        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
+
+    fun setUserLocation(lat: Double, lng: Double) {
+        if (lat != 0.0 && lng != 0.0) {
+            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
+            _stores.value?.let { processStoresAndDishes(it) }
+        }
+    }
+
+    init {
+        loadStores()
+    }
+
+    fun loadStores() {
+        _isLoading.value = true
+        _error.value = null
+
+        viewModelScope.launch {
+            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
+            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
+                _isLoading.value = false
+                _stores.value = firebaseStores
+                processStoresAndDishes(firebaseStores)
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
+            firebaseRepository.observeAllOrders().collectLatest { orders ->
+                cachedOrders = orders
+                _stores.value?.let { recalculateHotDishes(it) }
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
+            firebaseRepository.observeCategories().collectLatest { cats ->
+                _platformCategories.value = cats
+            }
+        }
+    }
+
+    private fun processStoresAndDishes(storeList: List<Store>) {
+        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // 1. Quán gần đây (Sắp xếp theo thứ tự: Quán đang mở trước, khoảng cách từ gần đến xa)
+        val nearbyList = activeStores.map { store ->
+            val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
+                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
+                "$baseTime-${baseTime + 10} phút"
+            } else "15-25 phút"
+            val emoji = when {
+                store.name.contains("Trà", true) -> "🍵"
+                store.name.contains("Cơm", true) -> "🍛"
+                store.name.contains("Gà", true) -> "🍗"
+                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
+                else -> "🍲"
+            }
+            NearbyStoreItem(
+                id = store.id,
+                name = store.name,
+                address = store.address.ifBlank { "TP.HCM" },
+                distanceKm = roundedDist,
+                eta = eta,
+                rating = store.ratingAvg,
+                imageUrl = store.imageUrl,
+                emoji = emoji,
+                originalStore = store,
+                isClosed = isClosed
+            )
+        }
+
+        val sortedNearbyList = nearbyList.sortedWith(
+            compareBy<NearbyStoreItem> { if (it.isClosed) 1 else 0 }
+                .thenBy { if (it.distanceKm > 0.0) 0 else 1 }
+                .thenBy { it.distanceKm }
+        )
+        _nearbyStores.value = sortedNearbyList
+
+        // 2. Thu thập các món ăn của quán - CHỈ HIỂN THỊ MÓN CỦA CÁC QUÁN ĐANG MỞ CỬA (OPEN)
+        // Khi quán tạm đóng, ẩn toàn bộ món khỏi danh sách gợi ý trang chủ
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
+        val allDishes = mutableListOf<HomeDishItem>()
+
+        openStores.forEach { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+
+            availableDishes.forEach { dish ->
+                val isCombo = dish.isCombo || dish.platformCategory.equals("Combo", ignoreCase = true) || dish.id.startsWith("combo_")
+                val platformCat = if (isCombo) "Combo" else dish.platformCategory.ifBlank {
+                    inferPlatformCategory(dish.name, dish.category)
+                }
+                val emoji = when {
+                    isCombo -> "🍱"
+                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
+                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
+                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
+                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
+                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
+                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
+                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
+                    platformCat.contains("Chay", true) -> "🥗"
+                    platformCat.contains("Hải sản", true) -> "🦐"
+                    platformCat.contains("Ăn vặt", true) -> "🍟"
+                    platformCat.contains("Tráng miệng", true) -> "🍰"
+                    platformCat.contains("Lẩu", true) -> "🍲"
+                    else -> "🍽️"
+                }
+                val resolvedCatId = when {
+                    isCombo -> "cat_combo"
+                    dish.categoryId.isNotBlank() -> dish.categoryId
+                    platformCat.contains("bánh mì", true) -> "cat_banhmi"
+                    platformCat.contains("trà sữa", true) -> "cat_trasua"
+                    platformCat.contains("bún", true) || platformCat.contains("phở", true) -> "cat_bun"
+                    platformCat.contains("cơm", true) -> "cat_com"
+                    else -> ""
+                }
+                allDishes.add(
+                    HomeDishItem(
+                        id = dish.id,
+                        name = dish.name,
+                        price = dish.basePrice,
+                        originalPrice = if (dish.originalPrice > 0L) dish.originalPrice else dish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = emoji,
+                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
+                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
+                        distanceKm = roundedDist,
+                        promoBadge = if (isCombo) "Combo" else "",
+                        tag1 = if (isCombo) "Combo Tiết Kiệm" else platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
+                        category = if (isCombo) "Combo" else dish.category.ifBlank { store.category },
+                        platformCategory = platformCat,
+                        categoryId = resolvedCatId,
+                        isCombo = isCombo
+                    )
+                )
+            }
+        }
+
+        masterDishList = allDishes
+        applyFilters()
+
+        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
+        recalculateHotDishes(activeStores)
+    }
+
+    private fun recalculateHotDishes(storeList: List<Store>) {
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
+        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
+        val weeklyDishSales = mutableMapOf<String, Int>()
+        cachedOrders.filter { order ->
+            val ts = order.effectiveTimestamp
+            ts >= oneWeekAgo &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
+        }.forEach { order ->
+            order.items.values.forEach { item ->
+                if (item.dishId.isNotBlank()) {
+                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
+                }
+            }
+        }
+
+        // Chỉ tính món hot từ các quán ĐANG MỞ CỬA (OPEN)
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
+
+        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
+        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
+        openStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val bestDish = availableDishes.maxWithOrNull(
+                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
+                )
+                if (bestDish != null) {
+                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
+                    val totalCount = bestDish.soldCount
+                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
+                    val badgeText = when {
+                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
+                        totalCount > 0 -> "🔥 $totalCount đã bán"
+                        else -> "🔥 Bán chạy"
+                    }
+                    val hotDish = HotDish(
+                        id = bestDish.id,
+                        name = bestDish.name,
+                        price = bestDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    bestSellerList.add(Pair(hotDish, salesScore))
+                }
+            }
+        }
+        topBestSellerDishes = bestSellerList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
+        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
+        openStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val topRatedDish = availableDishes.maxWithOrNull(
+                    compareBy(
+                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
+                        { it.reviewCount },
+                        { it.soldCount }
+                    )
+                )
+                if (topRatedDish != null) {
+                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
+                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
+                        else 5.0f
+                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
+                    val badgeText = "⭐ $formattedRating"
+                    val hotDish = HotDish(
+                        id = topRatedDish.id,
+                        name = topRatedDish.name,
+                        price = topRatedDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    favoriteList.add(Pair(hotDish, rating))
+                }
+            }
+        }
+        topFavoriteDishes = favoriteList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    fun switchHotTab(tab: HotTab) {
+        if (_currentHotTab.value == tab) return
+        _currentHotTab.value = tab
+        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
+        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
+        return when {
+            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
+            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
+            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
+            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
+            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
+            else -> "🍽️"
+        }
+    }
+
+    enum class PriceSort {
+        NONE, ASC, DESC
+    }
+
+    /** Lọc danh sách món ăn */
+    fun filterDishes(
+        query: String? = null,
+        category: String? = null,
+        nearbyOnly: Boolean? = null,
+        maxDistanceKm: Double? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        minRating: Float? = null,
+        maxRating: Float? = null,
+        resetPrice: Boolean = false,
+        resetRating: Boolean = false,
+        priceSort: PriceSort? = null
+    ) {
+        if (query != null) currentQuery = query
+        if (category != null) currentCategory = if (category == "ALL") null else category
+        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
+        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
+        if (resetPrice) {
+            currentMinPrice = null
+            currentMaxPrice = null
+            currentPriceSort = PriceSort.NONE
+        } else {
+            if (minPrice != null || maxPrice != null) {
+                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
+                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
+            }
+            if (priceSort != null) {
+                currentPriceSort = priceSort
+            }
+        }
+        if (resetRating) {
+            currentMinRating = 1.0f
+            currentMaxRating = 5.0f
+        } else {
+            if (minRating != null) currentMinRating = minRating
+            if (maxRating != null) currentMaxRating = maxRating
+        }
+        applyFilters()
+    }
+
+    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
+    fun getFilteredDishesCount(
+        minPrice: Long?,
+        maxPrice: Long?,
+        minRating: Float,
+        maxRating: Float
+    ): Int {
+        var list = masterDishList
+
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            list = list.filter { matchesCategory(it, cat) }
+        }
+
+        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
+            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+        }
+
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            list = list.filter { matchesSearch(it, q) }
+        }
+
+        if (minPrice != null && minPrice > 0) {
+            list = list.filter { it.price >= minPrice }
+        }
+        if (maxPrice != null && maxPrice > 0) {
+            list = list.filter { it.price <= maxPrice }
+        }
+
+        if (minRating > 1.05f || maxRating < 4.95f) {
+            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
+        }
+
+        return list.size
+    }
+
+    /**
+     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     */
+    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
+        val qClean = query.trim().lowercase()
+        if (qClean.isBlank()) return true
+
+        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
+
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val cat = dish.category.lowercase()
+        val platCat = dish.platformCategory.lowercase()
+
+        val fullWithAccent = "$name $store $cat $platCat"
+        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
+
+        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
+        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
+            return true
+        }
+
+        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
+        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
+        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun applyFilters() {
+        var filtered = masterDishList
+
+        // 1. Lọc theo cự ly gần (chuẩn xác theo bán kính tối đa)
+        if (currentNearbyOnly) {
+            val maxDist = currentNearbyMaxDistanceKm
+            filtered = if (maxDist >= 999.0) {
+                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            } else {
+                // CHỈ GIỮ LẠI MÓN CÓ KHOẢNG CÁCH THỰC TẾ <= maxDist (không tự tiện fallback nhả toàn bộ 16 món)
+                filtered.filter { it.distanceKm in 0.001..maxDist }
+                    .sortedBy { it.distanceKm }
+            }
+        }
+
+        // 2. Lọc theo danh mục
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesCategory(dish, cat)
+            }
+        }
+
+        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesSearch(dish, q)
+            }
+        }
+
+        // 4. Lọc theo khoảng giá tiền
+        val minP = currentMinPrice
+        val maxP = currentMaxPrice
+        if (minP != null || maxP != null) {
+            filtered = filtered.filter { dish ->
+                val p = dish.price
+                (minP == null || p >= minP) && (maxP == null || p <= maxP)
+            }
+        }
+
+        // 5. Lọc theo khoảng sao đánh giá
+        val minR = currentMinRating
+        val maxR = currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            filtered = filtered.filter { dish ->
+                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
+            }
+        }
+
+        // 5. Sắp xếp theo giá tiền nếu có
+        when (currentPriceSort) {
+            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
+            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
+            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
+        }
+
+        _homeDishes.value = filtered
+    }
+
+    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
+        val target = filterCat.trim()
+        if (target.isBlank() || target.equals("ALL", ignoreCase = true)) return true
+
+        // 1. Trường hợp người dùng lọc danh mục cấp sàn "Combo"
+        val isFilterCombo = target.equals("cat_combo", ignoreCase = true) || target.contains("combo", ignoreCase = true)
+        if (isFilterCombo) {
+            return dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)
+        }
+
+        // 2. Trường hợp lọc các danh mục cấp sàn món lẻ: BẮT BUỘC LOẠI TRỪ 100% CÁC MÓN COMBO
+        if (dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)) {
+            return false
+        }
+
+        // 3. SO KHỚP TRỰC TIẾP THEO categoryId (Khóa chính / Foreign Key chuẩn Firebase)
+        if (dish.categoryId.isNotBlank() && dish.categoryId.equals(target, ignoreCase = true)) {
+            return true
+        }
+
+        // 4. Fallback so khớp theo tên danh mục cấp sàn (nếu filter truyền tên thay vì ID)
+        val targetLower = target.lowercase()
+        val pCat = dish.platformCategory.lowercase()
+        return when {
+            targetLower.contains("banhmi") || targetLower.contains("bánh mì") -> dish.categoryId == "cat_banhmi" || pCat.contains("bánh mì")
+            targetLower.contains("trasua") || targetLower.contains("trà sữa") -> dish.categoryId == "cat_trasua" || pCat.contains("trà sữa")
+            targetLower.contains("bun") || targetLower.contains("bún") || targetLower.contains("phở") -> dish.categoryId == "cat_bun" || pCat.contains("bún") || pCat.contains("phở")
+            targetLower.contains("com") || targetLower.contains("cơm") -> dish.categoryId == "cat_com" || pCat.contains("cơm")
+            else -> pCat.equals(targetLower, ignoreCase = true)
+        }
+    }
+
+    private fun inferPlatformCategory(name: String, category: String): String {
+        val text = "$name $category".lowercase()
+        return when {
+            text.contains("cơm") -> "Cơm"
+            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
+            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
+            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
+            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
+            text.contains("trà") -> "Trà sữa"
+            else -> "Cơm"
+        }
+    }
+
+    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
+        if (store.latitude != 0.0 && store.longitude != 0.0) {
+            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+        }
+        val distName = store.district.trim()
+        if (distName.isNotBlank()) {
+            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
+            if (exact != null) return exact
+            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
+                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
+            if (fuzzy != null) return fuzzy
+        }
+        return null
+    }
+
+    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
+        if (storeLatLng == null) return 0.0
+        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+            currentUserLatLng,
+            storeLatLng
+        ).toDouble()
+        return Math.round(dist * 10.0) / 10.0
+    }
+
+    fun loadRestaurants() = loadStores()
+}
 ````
 
 ## File: app-customer/src/main/res/layout/activity_checkout.xml

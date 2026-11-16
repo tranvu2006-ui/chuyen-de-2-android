@@ -236,9 +236,9 @@ def main():
             "isVerified": True,
             "category": "Cơm",
             "storeCategories": ["Món chính", "Món canh", "Đồ uống"],
-            "rating": 4.9,
-            "ratingAvg": 4.9,
-            "reviewCount": 128,
+            "rating": 5.0,
+            "ratingAvg": 5.0,
+            "reviewCount": 5,
             "openHours": "07:00 - 22:00",
             "prepTime": "15 phút",
             "deliveryTime": "20-30 phút",
@@ -325,9 +325,9 @@ def main():
             "isVerified": True,
             "category": "Trà Sữa & Ăn Vặt",
             "storeCategories": ["Trà sữa", "Trà trái cây", "Ăn vặt"],
-            "rating": 4.8,
-            "ratingAvg": 4.8,
-            "reviewCount": 95,
+            "rating": 4.9,
+            "ratingAvg": 4.9,
+            "reviewCount": 2,
             "openHours": "08:30 - 22:30",
             "prepTime": "10 phút",
             "deliveryTime": "15-25 phút",
@@ -416,7 +416,7 @@ def main():
             "storeCategories": ["Bún bò đặc biệt", "Món gọi thêm", "Giải khát"],
             "rating": 5.0,
             "ratingAvg": 5.0,
-            "reviewCount": 142,
+            "reviewCount": 2,
             "openHours": "06:00 - 21:30",
             "prepTime": "15 phút",
             "deliveryTime": "20-30 phút",
@@ -503,9 +503,9 @@ def main():
             "isVerified": True,
             "category": "Bánh Mì & Fastfood",
             "storeCategories": ["Bánh mì chảo", "Bánh mì kẹp", "Khai vị"],
-            "rating": 4.9,
-            "ratingAvg": 4.9,
-            "reviewCount": 112,
+            "rating": 5.0,
+            "ratingAvg": 5.0,
+            "reviewCount": 2,
             "openHours": "06:30 - 21:00",
             "prepTime": "12 phút",
             "deliveryTime": "15-25 phút",
@@ -968,6 +968,298 @@ def main():
     }
     make_request(f"{DATABASE_URL}/customers.json?auth={admin_token}", method="PUT", data=customers_data)
     print("  ✓ Đã lưu hồ sơ giao hàng và 100 điểm uy tín trong node 'customers'!")
+
+    # 6.1 Tạo đơn hàng mẫu hoàn tất (COMPLETED) để màn hình Báo Cáo có số liệu Doanh Thu & Top Món Bán Chạy thật
+    print("\n[6.1] Đang tạo danh sách Đơn hàng mẫu hoàn tất (COMPLETED)...")
+    now_ms = int(time.time() * 1000)
+    orders_data = {
+        # 5 đơn hoàn tất cho Quán 1 (Cơm Tấm Oishi - Vũ Central)
+        f"order_{store_1_id}_1": {
+            "orderId": f"order_{store_1_id}_1",
+            "storeId": store_1_id,
+            "shopId": store_1_id,
+            "shopName": "Cơm Tấm Oishi - Vũ Central",
+            "customerId": uids["cust_giau"],
+            "customerName": "Giàu Khách Hàng",
+            "customerPhone": "0798351169",
+            "shipperId": uids["driver_vu"],
+            "shipperName": "Trần Vũ (Tài xế)",
+            "deliveryAddress": "20 Tăng Nhơn Phú, Phước Long B, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 45000,
+            "totalPayment": 45000,
+            "createdAt": now_ms - 2 * 3600 * 1000,
+            "timestamp": now_ms - 2 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"dish_{store_1_id}_1",
+                    "dishId": f"dish_{store_1_id}_1",
+                    "name": "Cơm Tấm Sườn Bì Chả Đặc Biệt",
+                    "price": 45000,
+                    "quantity": 1,
+                    "itemSubtotal": 45000
+                }
+            }
+        },
+        f"order_{store_1_id}_2": {
+            "orderId": f"order_{store_1_id}_2",
+            "storeId": store_1_id,
+            "shopId": store_1_id,
+            "shopName": "Cơm Tấm Oishi - Vũ Central",
+            "customerId": uids["cust_vu"],
+            "customerName": "Trần Vũ (Khách)",
+            "customerPhone": "0929894248",
+            "shipperId": uids["driver_giau"],
+            "shipperName": "Phạm Phúc Mạnh Giàu (Tài xế)",
+            "deliveryAddress": "53 Võ Văn Ngân, Linh Chiểu, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 110000,
+            "totalPayment": 110000,
+            "createdAt": now_ms - 4 * 3600 * 1000,
+            "timestamp": now_ms - 4 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"dish_{store_1_id}_1",
+                    "dishId": f"dish_{store_1_id}_1",
+                    "name": "Cơm Tấm Sườn Bì Chả Đặc Biệt",
+                    "price": 45000,
+                    "quantity": 2,
+                    "itemSubtotal": 90000
+                },
+                "item_2": {
+                    "itemId": f"dish_{store_1_id}_3",
+                    "dishId": f"dish_{store_1_id}_3",
+                    "name": "Canh Khổ Qua Nhồi Thịt",
+                    "price": 20000,
+                    "quantity": 1,
+                    "itemSubtotal": 20000
+                }
+            }
+        },
+        f"order_{store_1_id}_3": {
+            "orderId": f"order_{store_1_id}_3",
+            "storeId": store_1_id,
+            "shopId": store_1_id,
+            "shopName": "Cơm Tấm Oishi - Vũ Central",
+            "customerId": uids["cust_giau"],
+            "customerName": "Giàu Khách Hàng",
+            "customerPhone": "0798351169",
+            "shipperId": uids["driver_vu"],
+            "shipperName": "Trần Vũ (Tài xế)",
+            "deliveryAddress": "20 Tăng Nhơn Phú, Phước Long B, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 59000,
+            "totalPayment": 59000,
+            "createdAt": now_ms - 6 * 3600 * 1000,
+            "timestamp": now_ms - 6 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"combo_{store_1_id}_1",
+                    "dishId": f"combo_{store_1_id}_1",
+                    "name": "🔥 COMBO: Cơm Sườn Bì Chả + Trà Tắc Mát Lạnh",
+                    "price": 59000,
+                    "quantity": 1,
+                    "itemSubtotal": 59000
+                }
+            }
+        },
+        f"order_{store_1_id}_4": {
+            "orderId": f"order_{store_1_id}_4",
+            "storeId": store_1_id,
+            "shopId": store_1_id,
+            "shopName": "Cơm Tấm Oishi - Vũ Central",
+            "customerId": uids["cust_vu"],
+            "customerName": "Trần Vũ (Khách)",
+            "customerPhone": "0929894248",
+            "shipperId": uids["driver_giau"],
+            "shipperName": "Phạm Phúc Mạnh Giàu (Tài xế)",
+            "deliveryAddress": "53 Võ Văn Ngân, Linh Chiểu, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 75000,
+            "totalPayment": 75000,
+            "createdAt": now_ms - 8 * 3600 * 1000,
+            "timestamp": now_ms - 8 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"dish_{store_1_id}_2",
+                    "dishId": f"dish_{store_1_id}_2",
+                    "name": "Cơm Tấm Sườn Cây Nướng Muối Ớt",
+                    "price": 55000,
+                    "quantity": 1,
+                    "itemSubtotal": 55000
+                },
+                "item_2": {
+                    "itemId": f"dish_{store_1_id}_3",
+                    "dishId": f"dish_{store_1_id}_3",
+                    "name": "Canh Khổ Qua Nhồi Thịt",
+                    "price": 20000,
+                    "quantity": 1,
+                    "itemSubtotal": 20000
+                }
+            }
+        },
+        f"order_{store_1_id}_5": {
+            "orderId": f"order_{store_1_id}_5",
+            "storeId": store_1_id,
+            "shopId": store_1_id,
+            "shopName": "Cơm Tấm Oishi - Vũ Central",
+            "customerId": uids["cust_giau"],
+            "customerName": "Giàu Khách Hàng",
+            "customerPhone": "0798351169",
+            "shipperId": uids["driver_vu"],
+            "shipperName": "Trần Vũ (Tài xế)",
+            "deliveryAddress": "20 Tăng Nhơn Phú, Phước Long B, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 59000,
+            "totalPayment": 59000,
+            "createdAt": now_ms - 10 * 3600 * 1000,
+            "timestamp": now_ms - 10 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"combo_{store_1_id}_1",
+                    "dishId": f"combo_{store_1_id}_1",
+                    "name": "🔥 COMBO: Cơm Sườn Bì Chả + Trà Tắc Mát Lạnh",
+                    "price": 59000,
+                    "quantity": 1,
+                    "itemSubtotal": 59000
+                }
+            }
+        },
+        # Đơn cho Quán 2 (Trà Sữa & Ăn Vặt)
+        f"order_{store_2_id}_1": {
+            "orderId": f"order_{store_2_id}_1",
+            "storeId": store_2_id,
+            "shopId": store_2_id,
+            "shopName": "Trà Sữa & Ăn Vặt Oishi - Vũ Chi Nhánh 2",
+            "customerId": uids["cust_giau"],
+            "customerName": "Giàu Khách Hàng",
+            "customerPhone": "0798351169",
+            "shipperId": uids["driver_giau"],
+            "shipperName": "Phạm Phúc Mạnh Giàu (Tài xế)",
+            "deliveryAddress": "20 Tăng Nhơn Phú, Phước Long B, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 60000,
+            "totalPayment": 60000,
+            "createdAt": now_ms - 3 * 3600 * 1000,
+            "timestamp": now_ms - 3 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"dish_{store_2_id}_1",
+                    "dishId": f"dish_{store_2_id}_1",
+                    "name": "Trà Sữa Trân Châu Hoàng Gia (Size L)",
+                    "price": 35000,
+                    "quantity": 1,
+                    "itemSubtotal": 35000
+                },
+                "item_2": {
+                    "itemId": f"dish_{store_2_id}_3",
+                    "dishId": f"dish_{store_2_id}_3",
+                    "name": "Bánh Tráng Trộn Sốt Tắc Đặc Biệt",
+                    "price": 25000,
+                    "quantity": 1,
+                    "itemSubtotal": 25000
+                }
+            }
+        },
+        # Đơn cho Quán 3 (Bún Bò Huế)
+        f"order_{store_3_id}_1": {
+            "orderId": f"order_{store_3_id}_1",
+            "storeId": store_3_id,
+            "shopId": store_3_id,
+            "shopName": "Bún Bò Huế Oishi - Giàu Central",
+            "customerId": uids["cust_vu"],
+            "customerName": "Trần Vũ (Khách)",
+            "customerPhone": "0929894248",
+            "shipperId": uids["driver_vu"],
+            "shipperName": "Trần Vũ (Tài xế)",
+            "deliveryAddress": "53 Võ Văn Ngân, Linh Chiểu, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 70000,
+            "totalPayment": 70000,
+            "createdAt": now_ms - 5 * 3600 * 1000,
+            "timestamp": now_ms - 5 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"dish_{store_3_id}_1",
+                    "dishId": f"dish_{store_3_id}_1",
+                    "name": "Bún Bò Huế Nạm Gân Chả Cua",
+                    "price": 50000,
+                    "quantity": 1,
+                    "itemSubtotal": 50000
+                },
+                "item_2": {
+                    "itemId": f"dish_{store_3_id}_3",
+                    "dishId": f"dish_{store_3_id}_3",
+                    "name": "Phần Chả Cua Huế Chiên Thơm (3 Viên)",
+                    "price": 20000,
+                    "quantity": 1,
+                    "itemSubtotal": 20000
+                }
+            }
+        },
+        # Đơn cho Quán 4 (Bánh Mì Chảo)
+        f"order_{store_4_id}_1": {
+            "orderId": f"order_{store_4_id}_1",
+            "storeId": store_4_id,
+            "shopId": store_4_id,
+            "shopName": "Bánh Mì Chảo & Fastfood - Giàu Chi Nhánh 2",
+            "customerId": uids["cust_giau"],
+            "customerName": "Giàu Khách Hàng",
+            "customerPhone": "0798351169",
+            "shipperId": uids["driver_giau"],
+            "shipperName": "Phạm Phúc Mạnh Giàu (Tài xế)",
+            "deliveryAddress": "20 Tăng Nhơn Phú, Phước Long B, TP. Thủ Đức",
+            "status": "COMPLETED",
+            "orderStatus": "COMPLETED",
+            "paymentStatus": "PAID",
+            "paymentMethod": "COD",
+            "total": 75000,
+            "totalPayment": 75000,
+            "createdAt": now_ms - 1 * 3600 * 1000,
+            "timestamp": now_ms - 1 * 3600 * 1000,
+            "items": {
+                "item_1": {
+                    "itemId": f"dish_{store_4_id}_1",
+                    "dishId": f"dish_{store_4_id}_1",
+                    "name": "Bánh Mì Chảo Bò Phô Mai Trứng Ốp La",
+                    "price": 45000,
+                    "quantity": 1,
+                    "itemSubtotal": 45000
+                },
+                "item_2": {
+                    "itemId": f"dish_{store_4_id}_3",
+                    "dishId": f"dish_{store_4_id}_3",
+                    "name": "Khoai Tây Chiên Lắc Phô Mai Rong Biển",
+                    "price": 30000,
+                    "quantity": 1,
+                    "itemSubtotal": 30000
+                }
+            }
+        }
+    }
+    make_request(f"{DATABASE_URL}/orders.json?auth={admin_token}", method="PUT", data=orders_data)
+    print("  ✓ Đã nạp danh sách Đơn hàng mẫu hoàn tất vào node 'orders'!")
 
     # 7. Hoàn tất
     print("\n[7/7] Đang kiểm tra lần cuối...")

@@ -134,7 +134,7 @@ class StoreReportFragment : Fragment() {
             launch {
                 firebaseRepository.observeAllOrders().collectLatest { orders ->
                     allStoreOrders = if (currentStoreId.isNotBlank()) {
-                        orders.filter { it.shopId == currentStoreId }
+                        orders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
                     } else {
                         orders
                     }

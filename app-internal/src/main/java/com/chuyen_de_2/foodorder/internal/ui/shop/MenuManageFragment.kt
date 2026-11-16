@@ -1059,6 +1059,7 @@ class MenuManageFragment : Fragment() {
                 comboItems = comboItemsList,
                 category = "Combo",
                 platformCategory = "Combo",
+                categoryId = "cat_combo",
                 isAvailable = true
             )
 

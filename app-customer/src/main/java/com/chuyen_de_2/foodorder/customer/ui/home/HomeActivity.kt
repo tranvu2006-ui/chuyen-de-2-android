@@ -583,7 +583,7 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.etSearch.text.isNotBlank()) {
                     binding.etSearch.setText("")
                 }
-                viewModel.filterDishes(category = category.name)
+                viewModel.filterDishes(category = category.categoryId)
                 binding.tvSectionTitle.text = "Món ngon: ${category.name}"
                 updateFilterIndicator()
                 Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()

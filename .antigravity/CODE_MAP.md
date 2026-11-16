@@ -39642,140 +39642,6 @@ class DriverAdapter(
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/DriverActiveOrdersAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.ship
-
-import android.content.res.ColorStateList
-import android.graphics.Color
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.recyclerview.widget.RecyclerView
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverActiveOrderBinding
-
-class DriverActiveOrdersAdapter(
-    private val onContinueTrip: (Order) -> Unit,
-    private val onCancelOrder: (Order) -> Unit
-) : RecyclerView.Adapter<DriverActiveOrdersAdapter.ActiveOrderViewHolder>() {
-
-    private val orders = mutableListOf<Order>()
-
-    fun submitList(list: List<Order>) {
-        orders.clear()
-        orders.addAll(list)
-        notifyDataSetChanged()
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ActiveOrderViewHolder {
-        val binding = ItemDriverActiveOrderBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return ActiveOrderViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: ActiveOrderViewHolder, position: Int) {
-        holder.bind(orders[position])
-    }
-
-    override fun getItemCount(): Int = orders.size
-
-    inner class ActiveOrderViewHolder(
-        private val binding: ItemDriverActiveOrderBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(order: Order) {
-            binding.tvActiveOrderCode.text = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
-
-            val ch = bindingAdapterPosition + 1
-            if (orders.size > 1) {
-                binding.tvActiveOrderBatchBadge.visibility = View.VISIBLE
-                binding.tvActiveOrderBatchBadge.text = "Đơn $ch/${orders.size}"
-            } else {
-                binding.tvActiveOrderBatchBadge.visibility = View.GONE
-            }
-
-            val fee = if (order.shippingFee > 0) order.shippingFee else 15000L
-            binding.tvActiveOrderFee.text = "💰 Tiền ship: +${fee.toVndCurrency()}"
-
-            val isCod = order.paymentMethod.equals("COD", ignoreCase = true)
-            val totalPayment = if (order.totalPayment > 0) order.totalPayment else (order.total + fee)
-            val isDepositPaid = order.paymentMode == Order.PaymentMode.DEPOSIT &&
-                (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
-                    order.isDepositPaid)
-            if (isDepositPaid) {
-                binding.tvActivePaymentBadge.text =
-                    "⚡ Đã thu cọc ${order.depositAmount.toVndCurrency()} • thu ${order.remainAmount.toVndCurrency()} khi giao"
-                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
-                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#B45309"))
-            } else if (isCod) {
-                binding.tvActivePaymentBadge.text = "💵 Thu COD: ${totalPayment.toVndCurrency()}"
-                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
-                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#D97706"))
-            } else if (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid) {
-                binding.tvActivePaymentBadge.text = "✓ Đã thanh toán online đủ"
-                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#F0FDF4"))
-                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#15803D"))
-            } else {
-                binding.tvActivePaymentBadge.text = "⏳ Chưa xác nhận thanh toán"
-                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
-                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#D97706"))
-            }
-
-            val isReturningToStore = order.status == Order.Status.RETURNING_TO_STORE
-            if (isReturningToStore) {
-                binding.tvActiveOrderStatusTag.text = "🚨 Đang trả món về quán"
-                binding.tvActiveOrderStatusTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
-                binding.tvActiveOrderStatusTag.setTextColor(Color.parseColor("#DC2626"))
-                binding.btnCancelOrder.visibility = View.GONE
-                binding.btnContinueTrip.text = "🏪 QUAY VỀ QUÁN TRẢ MÓN ➔"
-                binding.btnContinueTrip.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
-            } else {
-                binding.tvActiveOrderStatusTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EFF6FF"))
-                binding.tvActiveOrderStatusTag.setTextColor(Color.parseColor("#1D4ED8"))
-                binding.tvActiveOrderStatusTag.text = when (order.status) {
-                    Order.Status.ARRIVED_AT_SHOP -> "Đã đến quán"
-                    Order.Status.DELIVERING -> "Đang giao khách"
-                    Order.Status.ARRIVED_AT_CUSTOMER -> "Đã đến nhà khách"
-                    else -> "Đang lấy món"
-                }
-                val isPickedUp = order.status == Order.Status.DELIVERING ||
-                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                        order.status == Order.Status.COMPLETED
-                binding.btnCancelOrder.visibility = if (!isPickedUp) View.VISIBLE else View.GONE
-                binding.btnContinueTrip.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EE4D2D"))
-                if (orders.size > 1) {
-                    binding.btnContinueTrip.text = "🛵 TIẾP TỤC CHẶNG $ch/${orders.size} ➔"
-                } else {
-                    binding.btnContinueTrip.text = "🛵 TIẾP TỤC LỘ TRÌNH ➔"
-                }
-            }
-
-            val cusName = order.customerName.ifBlank { "Khách hàng" }
-            val address = order.address.ifBlank { "Quận 1, TP.HCM" }
-            binding.tvActiveOrderRoute.text = "$cusName - $address"
-
-            val dishSummary = if (order.items.isNotEmpty()) {
-                order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName.ifBlank { it.name }}" }
-            } else {
-                "Món ăn theo đơn"
-            }
-            binding.tvActiveOrderDishes.text = "Món: $dishSummary"
-
-            binding.btnContinueTrip.setOnClickListener {
-                onContinueTrip(order)
-            }
-
-            binding.btnCancelOrder.setOnClickListener {
-                onCancelOrder(order)
-            }
-        }
-    }
-}
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperProfileFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -40256,281 +40122,6 @@ class ShipperProfileFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.ship
-
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
-
-@HiltViewModel
-class ShipperViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository,
-    private val auth: FirebaseAuth
-) : ViewModel() {
-
-    private val _assignedOrders = MutableLiveData<List<Order>>()
-    val assignedOrders: LiveData<List<Order>> = _assignedOrders
-
-    private val _storePendingOrders = MutableLiveData<List<Order>>()
-    val storePendingOrders: LiveData<List<Order>> = _storePendingOrders
-
-    private val _currentDeliveryOrderId = MutableLiveData<String?>()
-    val currentDeliveryOrderId: LiveData<String?> = _currentDeliveryOrderId
-
-    private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
-    val shipperStore: LiveData<Pair<String, String>> = _shipperStore
-
-    private val _isOnline = MutableLiveData(true)
-    val isOnline: LiveData<Boolean> = _isOnline
-
-    private val _messageEvent = MutableLiveData<String>()
-    val messageEvent: LiveData<String> = _messageEvent
-
-    private var cachedShipperName: String = ""
-    private var cachedShipperPhone: String = ""
-
-    init {
-        loadShipperStoreAndOrders()
-    }
-
-    private fun loadShipperStoreAndOrders() {
-        val shipperId = auth.currentUser?.uid.orEmpty()
-        viewModelScope.launch {
-            if (shipperId.isNotBlank()) {
-                firebaseRepository.setupDriverPresence(shipperId)
-                val isCurrentlyOnline = _isOnline.value ?: true
-                val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
-                try {
-                    val userSnap = firebaseRepository.readCacheFirst(firebaseRepository.database.getReference("users").child(shipperId))
-                    cachedShipperPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
-                    cachedShipperName = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
-                } catch (_: Exception) {}
-            }
-            val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
-            _shipperStore.value = storeInfo
-            observeShipperOrders()
-            observePendingStoreOrders(storeInfo.first)
-        }
-    }
-
-    private fun observeShipperOrders() {
-        val shipperId = auth.currentUser?.uid
-        if (shipperId.isNullOrBlank()) {
-            _assignedOrders.value = emptyList()
-            return
-        }
-        viewModelScope.launch {
-            firebaseRepository.observeOrdersByShipper(shipperId).collectLatest { orders ->
-                // Chỉ nhận những đơn có đúng shipperId của tài xế này
-                val myOrders = orders.filter { it.shipperId == shipperId }
-                _assignedOrders.value = myOrders
-
-                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER, RETURNING_TO_STORE)
-                val delivering = myOrders.find {
-                    it.status == Order.Status.DELIVERING ||
-                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                    it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED ||
-                    it.status == Order.Status.RETURNING_TO_STORE
-                }
-                _currentDeliveryOrderId.value = delivering?.orderId
-
-                // Đồng bộ trạng thái thật (DELIVERING / AVAILABLE / OFF_DUTY) lên Firebase cho Quán thấy
-                val isCurrentlyOnline = _isOnline.value ?: true
-                if (delivering != null) {
-                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
-                    val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
-                        "#$shortCode (Trả hàng về quán)"
-                    } else {
-                        "#$shortCode (${delivering.customerName})"
-                    }
-                    firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
-                } else {
-                    val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                    firebaseRepository.updateDriverDutyStatus(shipperId, status, "")
-                }
-            }
-        }
-    }
-
-    private fun observePendingStoreOrders(storeId: String) {
-        viewModelScope.launch {
-            firebaseRepository.observeAllOrders().collectLatest { allOrders ->
-                // Phân quyền chuẩn: Chỉ nhận đơn thuộc đúng QUÁN CỦA SHIPPER NÀY, đã READY và CHƯA có shipper nhận
-                if (storeId.isNotBlank()) {
-                    val pending = allOrders.filter { order ->
-                        (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
-                                order.status == Order.Status.READY &&
-                                order.storeId.isNotBlank() &&
-                                order.storeId == storeId
-                    }
-                    _storePendingOrders.value = pending
-                } else {
-                    // Tài xế chưa được gán vào quán ăn nào -> không nhận đơn của quán khác
-                    _storePendingOrders.value = emptyList()
-                }
-            }
-        }
-    }
-
-    fun toggleDuty(online: Boolean) {
-        _isOnline.value = online
-        val shipperId = auth.currentUser?.uid.orEmpty()
-        if (shipperId.isNotBlank()) {
-            viewModelScope.launch {
-                val hasDelivering = _assignedOrders.value?.any {
-                    it.status == Order.Status.DELIVERING ||
-                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                    it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED ||
-                    it.status == Order.Status.RETURNING_TO_STORE
-                } == true
-                val status = if (hasDelivering) {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
-                } else if (online) {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE
-                } else {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                }
-                firebaseRepository.updateDriverDutyStatus(shipperId, status)
-            }
-        }
-    }
-
-    /** Nhận đơn mới từ quán (ghép chuyến) */
-    fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
-        val currentActiveCount = _assignedOrders.value?.count {
-            it.status == Order.Status.DELIVERING ||
-            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-            it.status == Order.Status.ARRIVED_AT_SHOP ||
-            it.status == Order.Status.ASSIGNED ||
-            it.status == Order.Status.RETURNING_TO_STORE
-        } ?: 0
-
-        if (currentActiveCount >= 3) {
-            onResult(false, "Tài xế chỉ được nhận tối đa 3 đơn cùng lúc để đảm bảo thời gian giao!")
-            return
-        }
-
-        val shipperId = auth.currentUser?.uid ?: ""
-        if (shipperId.isBlank()) {
-            onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
-            return
-        }
-
-        val myStoreId = _shipperStore.value?.first.orEmpty()
-        val myStoreName = _shipperStore.value?.second.orEmpty()
-
-        if (myStoreId.isBlank()) {
-            onResult(false, "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Chủ quán để được thêm vào đội ngũ giao hàng!")
-            return
-        }
-
-        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
-        if (acceptedOrder != null && acceptedOrder.storeId.isNotBlank() && acceptedOrder.storeId != myStoreId) {
-            val storeDisplay = if (myStoreName.isNotBlank()) myStoreName else myStoreId
-            onResult(false, "Phân quyền: Bạn chỉ có thể nhận đơn từ quán của mình ($storeDisplay)!")
-            return
-        }
-
-        val resolvedShipperName = cachedShipperName.ifBlank {
-            auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
-        }
-        val resolvedShipperPhone = cachedShipperPhone.ifBlank {
-            auth.currentUser?.phoneNumber.orEmpty()
-        }
-
-        // Optimistic UI: Cập nhật ngay lập tức trên luồng chính (0ms) không chờ mạng
-        if (acceptedOrder != null) {
-            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
-            val updatedOrder = acceptedOrder.copy(
-                shipperId = shipperId,
-                driverId = shipperId,
-                shipperName = resolvedShipperName,
-                shipperPhone = resolvedShipperPhone,
-                status = Order.Status.ASSIGNED,
-                orderStatus = Order.Status.ASSIGNED
-            )
-            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
-            if (currentAssigned.none { it.orderId == orderId }) {
-                currentAssigned.add(0, updatedOrder)
-                _assignedOrders.value = currentAssigned
-            }
-            _currentDeliveryOrderId.value = orderId
-        }
-
-        firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
-            if (success) {
-                _currentDeliveryOrderId.value = orderId
-            } else {
-                if (acceptedOrder != null) {
-                    _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
-                }
-            }
-            onResult(success, msg)
-        }
-    }
-
-    /** Hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán) */
-    fun cancelAssignedOrder(orderId: String, reason: String, onResult: (Boolean, String) -> Unit) {
-        val removedOrder = _assignedOrders.value?.find { it.orderId == orderId }
-        // Optimistic UI: Xóa khỏi danh sách nhận ngay lập tức
-        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
-
-        viewModelScope.launch {
-            firebaseRepository.unassignShipper(orderId, reason) { success, msg ->
-                if (!success && removedOrder != null) {
-                    val current = _assignedOrders.value.orEmpty().toMutableList()
-                    current.add(removedOrder)
-                    _assignedOrders.value = current
-                }
-                onResult(success, msg)
-            }
-        }
-    }
-
-    /** Shipper xác nhận lấy hàng thành công tại quán */
-    fun confirmPickedUpAtShop(orderId: String) {
-        // Optimistic UI
-        _assignedOrders.value = _assignedOrders.value?.map {
-            if (it.orderId == orderId) it.copy(status = Order.Status.DELIVERING, orderStatus = Order.Status.DELIVERING) else it
-        }
-        viewModelScope.launch {
-            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
-        }
-    }
-
-    /** Shipper xác nhận hoàn thành giao hàng */
-    fun completeDelivery(orderId: String, onResult: ((Boolean) -> Unit)? = null) {
-        // Optimistic UI
-        _assignedOrders.value = _assignedOrders.value?.map {
-            if (it.orderId == orderId) it.copy(status = Order.Status.COMPLETED, orderStatus = Order.Status.COMPLETED) else it
-        }
-        viewModelScope.launch {
-            try {
-                firebaseRepository.updateOrderStatus(orderId, Order.Status.COMPLETED)
-                firebaseRepository.clearTracking(orderId)
-                onResult?.invoke(true)
-            } catch (e: Exception) {
-                onResult?.invoke(false)
-            }
-        }
     }
 }
 ````
@@ -67940,6 +67531,140 @@ class ChefViewModel @Inject constructor(
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/DriverActiveOrdersAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.ship
+
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverActiveOrderBinding
+
+class DriverActiveOrdersAdapter(
+    private val onContinueTrip: (Order) -> Unit,
+    private val onCancelOrder: (Order) -> Unit
+) : RecyclerView.Adapter<DriverActiveOrdersAdapter.ActiveOrderViewHolder>() {
+
+    private val orders = mutableListOf<Order>()
+
+    fun submitList(list: List<Order>) {
+        orders.clear()
+        orders.addAll(list)
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ActiveOrderViewHolder {
+        val binding = ItemDriverActiveOrderBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return ActiveOrderViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: ActiveOrderViewHolder, position: Int) {
+        holder.bind(orders[position])
+    }
+
+    override fun getItemCount(): Int = orders.size
+
+    inner class ActiveOrderViewHolder(
+        private val binding: ItemDriverActiveOrderBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(order: Order) {
+            binding.tvActiveOrderCode.text = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
+
+            val ch = bindingAdapterPosition + 1
+            if (orders.size > 1) {
+                binding.tvActiveOrderBatchBadge.visibility = View.VISIBLE
+                binding.tvActiveOrderBatchBadge.text = "Đơn $ch/${orders.size}"
+            } else {
+                binding.tvActiveOrderBatchBadge.visibility = View.GONE
+            }
+
+            val fee = if (order.shippingFee > 0) order.shippingFee else 15000L
+            binding.tvActiveOrderFee.text = "💰 Tiền ship: +${fee.toVndCurrency()}"
+
+            val isCod = order.paymentMethod.equals("COD", ignoreCase = true)
+            val totalPayment = if (order.totalPayment > 0) order.totalPayment else (order.total + fee)
+            val isDepositPaid = order.paymentMode == Order.PaymentMode.DEPOSIT &&
+                (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) ||
+                    order.isDepositPaid)
+            if (isDepositPaid) {
+                binding.tvActivePaymentBadge.text =
+                    "⚡ Đã thu cọc ${order.depositAmount.toVndCurrency()} • thu ${order.remainAmount.toVndCurrency()} khi giao"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#B45309"))
+            } else if (isCod) {
+                binding.tvActivePaymentBadge.text = "💵 Thu COD: ${totalPayment.toVndCurrency()}"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#D97706"))
+            } else if (order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid) {
+                binding.tvActivePaymentBadge.text = "✓ Đã thanh toán online đủ"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#F0FDF4"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#15803D"))
+            } else {
+                binding.tvActivePaymentBadge.text = "⏳ Chưa xác nhận thanh toán"
+                binding.tvActivePaymentBadge.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FFFBEB"))
+                binding.tvActivePaymentBadge.setTextColor(Color.parseColor("#D97706"))
+            }
+
+            val isReturningToStore = order.status == Order.Status.RETURNING_TO_STORE
+            if (isReturningToStore) {
+                binding.tvActiveOrderStatusTag.text = "🚨 Đang trả món về quán"
+                binding.tvActiveOrderStatusTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#FEF2F2"))
+                binding.tvActiveOrderStatusTag.setTextColor(Color.parseColor("#DC2626"))
+                binding.btnCancelOrder.visibility = View.GONE
+                binding.btnContinueTrip.text = "🏪 QUAY VỀ QUÁN TRẢ MÓN ➔"
+                binding.btnContinueTrip.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#DC2626"))
+            } else {
+                binding.tvActiveOrderStatusTag.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EFF6FF"))
+                binding.tvActiveOrderStatusTag.setTextColor(Color.parseColor("#1D4ED8"))
+                binding.tvActiveOrderStatusTag.text = when (order.status) {
+                    Order.Status.ARRIVED_AT_SHOP -> "Đã đến quán"
+                    Order.Status.DELIVERING -> "Đang giao khách"
+                    Order.Status.ARRIVED_AT_CUSTOMER -> "Đã đến nhà khách"
+                    else -> "Đang lấy món"
+                }
+                val isPickedUp = order.status == Order.Status.DELIVERING ||
+                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        order.status == Order.Status.COMPLETED
+                binding.btnCancelOrder.visibility = if (!isPickedUp) View.VISIBLE else View.GONE
+                binding.btnContinueTrip.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EE4D2D"))
+                if (orders.size > 1) {
+                    binding.btnContinueTrip.text = "🛵 TIẾP TỤC CHẶNG $ch/${orders.size} ➔"
+                } else {
+                    binding.btnContinueTrip.text = "🛵 TIẾP TỤC LỘ TRÌNH ➔"
+                }
+            }
+
+            val cusName = order.customerName.ifBlank { "Khách hàng" }
+            val address = order.address.ifBlank { "Quận 1, TP.HCM" }
+            binding.tvActiveOrderRoute.text = "$cusName - $address"
+
+            val dishSummary = if (order.items.isNotEmpty()) {
+                order.items.values.joinToString(", ") { "${it.quantity}x ${it.dishName.ifBlank { it.name }}" }
+            } else {
+                "Món ăn theo đơn"
+            }
+            binding.tvActiveOrderDishes.text = "Món: $dishSummary"
+
+            binding.btnContinueTrip.setOnClickListener {
+                onContinueTrip(order)
+            }
+
+            binding.btnCancelOrder.setOnClickListener {
+                onCancelOrder(order)
+            }
+        }
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -68297,6 +68022,281 @@ class ShipperFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.ship
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+@HiltViewModel
+class ShipperViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository,
+    private val auth: FirebaseAuth
+) : ViewModel() {
+
+    private val _assignedOrders = MutableLiveData<List<Order>>()
+    val assignedOrders: LiveData<List<Order>> = _assignedOrders
+
+    private val _storePendingOrders = MutableLiveData<List<Order>>()
+    val storePendingOrders: LiveData<List<Order>> = _storePendingOrders
+
+    private val _currentDeliveryOrderId = MutableLiveData<String?>()
+    val currentDeliveryOrderId: LiveData<String?> = _currentDeliveryOrderId
+
+    private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
+    val shipperStore: LiveData<Pair<String, String>> = _shipperStore
+
+    private val _isOnline = MutableLiveData(true)
+    val isOnline: LiveData<Boolean> = _isOnline
+
+    private val _messageEvent = MutableLiveData<String>()
+    val messageEvent: LiveData<String> = _messageEvent
+
+    private var cachedShipperName: String = ""
+    private var cachedShipperPhone: String = ""
+
+    init {
+        loadShipperStoreAndOrders()
+    }
+
+    private fun loadShipperStoreAndOrders() {
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        viewModelScope.launch {
+            if (shipperId.isNotBlank()) {
+                firebaseRepository.setupDriverPresence(shipperId)
+                val isCurrentlyOnline = _isOnline.value ?: true
+                val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
+                try {
+                    val userSnap = firebaseRepository.readCacheFirst(firebaseRepository.database.getReference("users").child(shipperId))
+                    cachedShipperPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
+                    cachedShipperName = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
+                } catch (_: Exception) {}
+            }
+            val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
+            _shipperStore.value = storeInfo
+            observeShipperOrders()
+            observePendingStoreOrders(storeInfo.first)
+        }
+    }
+
+    private fun observeShipperOrders() {
+        val shipperId = auth.currentUser?.uid
+        if (shipperId.isNullOrBlank()) {
+            _assignedOrders.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            firebaseRepository.observeOrdersByShipper(shipperId).collectLatest { orders ->
+                // Chỉ nhận những đơn có đúng shipperId của tài xế này
+                val myOrders = orders.filter { it.shipperId == shipperId }
+                _assignedOrders.value = myOrders
+
+                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER, RETURNING_TO_STORE)
+                val delivering = myOrders.find {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
+                }
+                _currentDeliveryOrderId.value = delivering?.orderId
+
+                // Đồng bộ trạng thái thật (DELIVERING / AVAILABLE / OFF_DUTY) lên Firebase cho Quán thấy
+                val isCurrentlyOnline = _isOnline.value ?: true
+                if (delivering != null) {
+                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
+                    val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
+                        "#$shortCode (Trả hàng về quán)"
+                    } else {
+                        "#$shortCode (${delivering.customerName})"
+                    }
+                    firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
+                } else {
+                    val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                    firebaseRepository.updateDriverDutyStatus(shipperId, status, "")
+                }
+            }
+        }
+    }
+
+    private fun observePendingStoreOrders(storeId: String) {
+        viewModelScope.launch {
+            firebaseRepository.observeAllOrders().collectLatest { allOrders ->
+                // Phân quyền chuẩn: Chỉ nhận đơn thuộc đúng QUÁN CỦA SHIPPER NÀY, đã READY và CHƯA có shipper nhận
+                if (storeId.isNotBlank()) {
+                    val pending = allOrders.filter { order ->
+                        (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
+                                order.status == Order.Status.READY &&
+                                order.storeId.isNotBlank() &&
+                                order.storeId == storeId
+                    }
+                    _storePendingOrders.value = pending
+                } else {
+                    // Tài xế chưa được gán vào quán ăn nào -> không nhận đơn của quán khác
+                    _storePendingOrders.value = emptyList()
+                }
+            }
+        }
+    }
+
+    fun toggleDuty(online: Boolean) {
+        _isOnline.value = online
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        if (shipperId.isNotBlank()) {
+            viewModelScope.launch {
+                val hasDelivering = _assignedOrders.value?.any {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
+                } == true
+                val status = if (hasDelivering) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
+                } else if (online) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE
+                } else {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                }
+                firebaseRepository.updateDriverDutyStatus(shipperId, status)
+            }
+        }
+    }
+
+    /** Nhận đơn mới từ quán (ghép chuyến) */
+    fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
+        val currentActiveCount = _assignedOrders.value?.count {
+            it.status == Order.Status.DELIVERING ||
+            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+            it.status == Order.Status.ARRIVED_AT_SHOP ||
+            it.status == Order.Status.ASSIGNED ||
+            it.status == Order.Status.RETURNING_TO_STORE
+        } ?: 0
+
+        if (currentActiveCount >= 3) {
+            onResult(false, "Tài xế chỉ được nhận tối đa 3 đơn cùng lúc để đảm bảo thời gian giao!")
+            return
+        }
+
+        val shipperId = auth.currentUser?.uid ?: ""
+        if (shipperId.isBlank()) {
+            onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
+            return
+        }
+
+        val myStoreId = _shipperStore.value?.first.orEmpty()
+        val myStoreName = _shipperStore.value?.second.orEmpty()
+
+        if (myStoreId.isBlank()) {
+            onResult(false, "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Chủ quán để được thêm vào đội ngũ giao hàng!")
+            return
+        }
+
+        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
+        if (acceptedOrder != null && acceptedOrder.storeId.isNotBlank() && acceptedOrder.storeId != myStoreId) {
+            val storeDisplay = if (myStoreName.isNotBlank()) myStoreName else myStoreId
+            onResult(false, "Phân quyền: Bạn chỉ có thể nhận đơn từ quán của mình ($storeDisplay)!")
+            return
+        }
+
+        val resolvedShipperName = cachedShipperName.ifBlank {
+            auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
+        }
+        val resolvedShipperPhone = cachedShipperPhone.ifBlank {
+            auth.currentUser?.phoneNumber.orEmpty()
+        }
+
+        // Optimistic UI: Cập nhật ngay lập tức trên luồng chính (0ms) không chờ mạng
+        if (acceptedOrder != null) {
+            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
+            val updatedOrder = acceptedOrder.copy(
+                shipperId = shipperId,
+                driverId = shipperId,
+                shipperName = resolvedShipperName,
+                shipperPhone = resolvedShipperPhone,
+                status = Order.Status.ASSIGNED,
+                orderStatus = Order.Status.ASSIGNED
+            )
+            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
+            if (currentAssigned.none { it.orderId == orderId }) {
+                currentAssigned.add(0, updatedOrder)
+                _assignedOrders.value = currentAssigned
+            }
+            _currentDeliveryOrderId.value = orderId
+        }
+
+        firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
+            if (success) {
+                _currentDeliveryOrderId.value = orderId
+            } else {
+                if (acceptedOrder != null) {
+                    _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+                }
+            }
+            onResult(success, msg)
+        }
+    }
+
+    /** Hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán) */
+    fun cancelAssignedOrder(orderId: String, reason: String, onResult: (Boolean, String) -> Unit) {
+        val removedOrder = _assignedOrders.value?.find { it.orderId == orderId }
+        // Optimistic UI: Xóa khỏi danh sách nhận ngay lập tức
+        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+
+        viewModelScope.launch {
+            firebaseRepository.unassignShipper(orderId, reason) { success, msg ->
+                if (!success && removedOrder != null) {
+                    val current = _assignedOrders.value.orEmpty().toMutableList()
+                    current.add(removedOrder)
+                    _assignedOrders.value = current
+                }
+                onResult(success, msg)
+            }
+        }
+    }
+
+    /** Shipper xác nhận lấy hàng thành công tại quán */
+    fun confirmPickedUpAtShop(orderId: String) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.DELIVERING, orderStatus = Order.Status.DELIVERING) else it
+        }
+        viewModelScope.launch {
+            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
+        }
+    }
+
+    /** Shipper xác nhận hoàn thành giao hàng */
+    fun completeDelivery(orderId: String, onResult: ((Boolean) -> Unit)? = null) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.COMPLETED, orderStatus = Order.Status.COMPLETED) else it
+        }
+        viewModelScope.launch {
+            try {
+                firebaseRepository.updateOrderStatus(orderId, Order.Status.COMPLETED)
+                firebaseRepository.clearTracking(orderId)
+                onResult?.invoke(true)
+            } catch (e: Exception) {
+                onResult?.invoke(false)
+            }
+        }
     }
 }
 ````
@@ -99904,7 +99904,7 @@ data class OrderItem(
 ---
 
 ## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
-- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và CHỈ push lên nhánh `giau5.0` (`git push origin giau5.0`).
+- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và CHỈ push lên nhánh `giau6.0` (`git push origin giau6.0`).
 
 ---
 

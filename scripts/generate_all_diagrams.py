@@ -63,7 +63,7 @@ def generate_so_do_1():
         ("UC5", "Đánh giá món, Khiếu nại & Điểm uy tín", "Trừ điểm vi phạm bùng hàng", 37, 57, "#EFF6FF", "#1E3A8A"),
         
         ("UC6", "Quản lý Chuỗi, Mở Chi nhánh & Gán Merchant", "Boss phân quyền chi nhánh", 63, 81, "#FEF3C7", "#78350F"),
-        ("UC7", "Xác minh Quán bằng OCR CCCD", "ML Kit bóc tách căn cước", 63, 73, "#FEF3C7", "#78350F"),
+        ("UC7", "Thiết lập Quán & Cấu hình VietQR", "Địa chỉ, GPS và Ngân hàng", 63, 73, "#FEF3C7", "#78350F"),
         ("UC8", "Quản lý Menu Món, Topping, Combo & VietQR", "Cấu hình ngân hàng quán", 63, 65, "#FEF3C7", "#78350F"),
         ("UC9", "Tiếp nhận Đơn hàng Kanban & Báo cáo Doanh thu", "4 tab xử lý đơn hàng", 63, 57, "#FEF3C7", "#78350F"),
 
@@ -73,7 +73,7 @@ def generate_so_do_1():
         ("UC12", "Dẫn đường Google Maps & Quét Camera QR/PIN", "Xác thực giao hàng 2 chiều", 37, 26, "#F0FDF4", "#14532D"),
         ("UC13", "Báo sự cố 15 phút & Hoàn trả món về Bếp", "RETURNING_TO_STORE", 37, 16, "#F0FDF4", "#14532D"),
 
-        ("UC14", "Kiểm duyệt Quán mới & Quản lý Danh mục sàn", "Admin duyệt hồ sơ OCR", 63, 30, "#FEE2E2", "#7F1D1D"),
+        ("UC14", "Kiểm duyệt Quán mới & Quản lý Danh mục sàn", "Admin kiểm duyệt cửa hàng", 63, 30, "#FEE2E2", "#7F1D1D"),
         ("UC15", "Giám sát Đơn Realtime & Giải quyết Khiếu nại", "Can thiệp điểm uy tín", 63, 20, "#FEE2E2", "#7F1D1D"),
         ("UC16", "Cấu hình Sàn: Phí Vận chuyển & Bypass OTP Test", "system_config", 63, 10, "#FEE2E2", "#7F1D1D"),
     ]
@@ -174,7 +174,7 @@ def generate_so_do_2():
     ], "#F8FAFC", "#334155")
 
     draw_box(68, 15, 28, 25, "6. QUẢN TRỊ VIÊN (admin.html)", [
-        "- Duyệt hồ sơ quán mới từ OCR CCCD",
+        "- Kiểm duyệt hồ sơ cửa hàng mới",
         "- Quản lý danh mục món toàn hệ thống",
         "- Giám sát trực tiếp đơn hàng toàn sàn",
         "- Phán quyết tranh chấp khiếu nại",

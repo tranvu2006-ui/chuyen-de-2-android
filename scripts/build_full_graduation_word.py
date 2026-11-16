@@ -127,7 +127,7 @@ diary_rows = [
     [
         "3",
         "Dương Minh Thư\n(24211TTxxxx)\nThành viên",
-        "• Thiết kế kiến trúc Firebase Realtime Database phân cấp (15 node) & Firebase Authentication (Email OTP, công tắc Bypass OTP).\n• Xây dựng module lõi core (26 Data Models, FirebaseRepository, AuthRepository, CccdOcrHelper).\n• Phát triển ứng dụng Quản trị viên admin.html (Duyệt quán OCR CCCD, Quản lý danh mục sàn, Giám sát đơn realtime, Can thiệp điểm uy tín).\n• Tổng hợp và biên tập tài liệu báo cáo kỹ thuật.",
+        "• Thiết kế kiến trúc Firebase Realtime Database phân cấp (15 node) & Firebase Authentication (Email OTP, công tắc Bypass OTP).\n• Xây dựng module lõi core (26 Data Models, FirebaseRepository, AuthRepository, CccdOcrHelper).\n• Phát triển ứng dụng Quản trị viên admin.html (Kiểm duyệt cửa hàng mới, Quản lý danh mục sàn, Giám sát đơn realtime, Can thiệp điểm uy tín).\n• Tổng hợp và biên tập tài liệu báo cáo kỹ thuật.",
         "33%",
         ""
     ],
@@ -163,7 +163,6 @@ abbr_rows = [
     ["RTDB", "Realtime Database", "Cơ sở dữ liệu thời gian thực của nền tảng Google Firebase"],
     ["OTP", "One-Time Password", "Mã mật khẩu dùng một lần xác thực qua Email"],
     ["VietQR", "Vietnam Quick Response", "Chuẩn mã QR thanh toán liên ngân hàng Napas247"],
-    ["OCR", "Optical Character Recognition", "Nhận dạng ký tự quang học quét Căn cước công dân (ML Kit)"],
     ["GPS", "Global Positioning System", "Hệ thống định vị toàn cầu theo dõi vị trí tài xế"],
     ["COD", "Cash On Delivery", "Thanh toán bằng tiền mặt khi nhận hàng"],
     ["SRS", "Software Requirements Specification", "Bản đặc tả yêu cầu phần mềm"],
@@ -210,7 +209,7 @@ add_p("Trong kỷ nguyên chuyển đổi số và sự bùng nổ mạnh mẽ c
 add_p("Tuy nhiên, bên cạnh những bước phát triển vượt bậc, thị trường giao đồ ăn hiện tại cũng bộc lộ những vấn đề nhức nhối đối với các bên tham gia: tình trạng khách hàng 'bùng đơn' (bom hàng) gây thất thoát nặng nề cho nhà hàng và tài xế; quy trình thanh toán chuyển khoản ngân hàng thủ công buộc chủ quán phải tự chụp màn hình hoặc kiểm tra sao kê đối soát chậm chạp; sự thiếu liên kết chặt chẽ giữa khu vực chế biến (Bếp) và đội ngũ giao hàng dẫn đến thức ăn bị nguội hoặc đơn hàng bị dồn ứ.")
 add_p("Xuất phát từ thực tiễn trên, nhóm chúng em đã quyết định lựa chọn và triển khai đề tài:", bold_prefix="Mục đích nghiên cứu: ")
 add_p("'HỆ THỐNG ĐẶT VÀ GIAO ĐỒ ĂN TRỰC TUYẾN ĐA PHÂN HỆ OISHI FOOD'", bold_prefix="", italic=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-add_p("Đồ án hướng tới việc ứng dụng những công nghệ di động và điện toán đám mây tiên tiến nhất hiện nay (Android Multi-Module Clean Architecture, Kotlin Coroutines, Jetpack Hilt, Firebase Realtime Database thời gian thực, Google Maps SDK, Google ML Kit OCR Căn cước công dân và chuẩn thanh toán Napas247 VietQR) để xây dựng một giải pháp hoàn chỉnh, minh bạch, an toàn và tối ưu cho cả 6 vai trò: Khách hàng, Chủ chuỗi, Quản lý chi nhánh, Đầu bếp, Tài xế và Quản trị viên sàn.")
+add_p("Đồ án hướng tới việc ứng dụng những công nghệ di động và điện toán đám mây tiên tiến nhất hiện nay (Android Multi-Module Clean Architecture, Kotlin Coroutines, Jetpack Hilt, Firebase Realtime Database thời gian thực, Google Maps SDK, chuẩn thanh toán Napas247 VietQR) để xây dựng một giải pháp hoàn chỉnh, minh bạch, an toàn và tối ưu cho cả 6 vai trò: Khách hàng, Chủ chuỗi, Quản lý chi nhánh, Đầu bếp, Tài xế và Quản trị viên sàn.")
 
 doc.add_page_break()
 
@@ -248,10 +247,10 @@ rbac_headers = ["Mã Role", "Tên vai trò", "Phân hệ ứng dụng", "Quyền
 rbac_rows = [
     ["CUSTOMER", "Khách hàng", "app-customer", "Duyệt thực đơn, chọn combo/topping, thanh toán VietQR/COD, theo dõi GPS tài xế, quét mã QR nhận hàng, đánh giá sao, tích lũy điểm uy tín và khiếu nại."],
     ["BOSSMERCHANT", "Chủ chuỗi (Boss)", "app-internal", "Tạo và sở hữu chuỗi nhà hàng, mở chi nhánh mới, phân quyền chi nhánh cho Merchant, theo dõi tổng quan doanh thu toàn chuỗi."],
-    ["MERCHANT", "Quản lý quán", "app-internal", "Xác minh quán (OCR CCCD), cấu hình VietQR ngân hàng, quản lý thực đơn/combo, tiếp nhận đơn Kanban và điều phối tài xế trực thuộc."],
+    ["MERCHANT", "Quản lý quán", "app-internal", "Thiết lập thông tin quán, cấu hình VietQR ngân hàng, quản lý thực đơn/combo, tiếp nhận đơn Kanban và điều phối tài xế trực thuộc."],
     ["CHEF", "Đầu bếp", "app-internal", "Tiếp nhận đơn cần nấu (PREPARING), chế biến món theo định lượng, bấm 'Đã nấu xong' chuyển đơn sang READY thông báo tài xế."],
     ["DRIVER", "Tài xế giao hàng", "app-internal", "Nhận đơn READY, ghép đơn đa điểm, điều hướng Google Maps, quét Camera QR/PIN giao hàng, báo sự cố 15p hoàn trả quán RETURNING_TO_STORE."],
-    ["ADMIN", "Quản trị viên", "admin.html", "Kiểm duyệt quán mới (OCR CCCD), quản lý danh mục toàn sàn, giám sát realtime đơn hàng, giải quyết khiếu nại, can thiệp uy tín và cấu hình hệ thống."]
+    ["ADMIN", "Quản trị viên", "admin.html", "Kiểm duyệt cửa hàng mới, quản lý danh mục toàn sàn, giám sát realtime đơn hàng, giải quyết khiếu nại, can thiệp uy tín và cấu hình hệ thống."]
 ]
 create_table(rbac_headers, rbac_rows, col_widths=[1.2, 1.4, 1.2, 3.0])
 
@@ -329,7 +328,7 @@ screens_data = [
 
     # Phần B: Internal (Ảnh 13 -> Ảnh 23)
     ("anh_13.png", "Ảnh 13", "Màn hình Đăng nhập / Đăng ký Nội bộ", "activity_login_internal.xml", "Quán / Bếp / Tài xế", "Nhập tài khoản đối tác và chọn phân hệ tương ứng", "Xác thực Firebase Auth và chuyển hướng đúng Role qua DashboardActivity."),
-    ("anh_14.png", "Ảnh 14", "Màn hình Xác minh Quán & OCR CCCD", "activity_store_verification.xml", "Merchant / Boss", "Chụp ảnh mặt trước Căn cước công dân và gửi duyệt", "Google ML Kit tự động bóc tách số CCCD, họ tên và gửi hồ sơ cho Admin."),
+    ("anh_14.png", "Ảnh 14", "Màn hình Xác minh Cửa hàng & Cấu hình VietQR", "activity_store_verification.xml", "Merchant / Boss", "Nhập địa chỉ, ghim tọa độ GPS và thiết lập tài khoản ngân hàng", "Lưu thông tin cửa hàng và gửi trạng thái PENDING chờ Quản trị viên phê duyệt."),
     ("anh_15.png", "Ảnh 15", "Màn hình Quản lý Chuỗi & Mở Chi nhánh", "activity_boss_dashboard.xml", "Chủ chuỗi (Boss)", "Xem danh sách chi nhánh, tạo quán mới và gán tài khoản Merchant quản lý", "Lưu liên kết vào /boss_stores và đồng bộ phân quyền tức thời."),
     ("anh_16.png", "Ảnh 16", "Màn hình Quản lý Đơn hàng Kanban 4 Tab", "fragment_order_list.xml", "Quản lý quán", "Xem 4 tab: Chờ duyệt, Đang nấu, Đã nấu xong, Lịch sử; bấm Nhận đơn", "Chuyển trạng thái đơn sang PREPARING để bắn thông báo xuống Bếp."),
     ("anh_17.png", "Ảnh 17", "Popup Chuông báo Đơn hàng mới", "dialog_new_order_popup.xml", "Quản lý quán", "Phát âm thanh chuông báo và hiển thị tóm tắt món ăn cần giao", "Bấm 'Chấp nhận đơn' hoặc 'Từ chối' kèm lý do."),
@@ -341,7 +340,7 @@ screens_data = [
     ("anh_23.png", "Ảnh 23", "Màn hình Quét Camera QR / PIN Giao món", "activity_driver_scan_qr.xml", "Tài xế (Driver)", "Quét mã QR trên máy khách hoặc nhập mã PIN 4 số", "ZXing BarcodeScanner xác thực khớp mã, chuyển đơn sang COMPLETED."),
 
     # Phần C: Admin (Ảnh 24 -> Ảnh 25B)
-    ("anh_24.png", "Ảnh 24", "Bảng điều khiển Admin: Duyệt Quán & Cấu hình", "admin.html (Stores & Config)", "Quản trị viên", "Xem thông tin OCR CCCD của quán, bấm 'Duyệt / Từ chối' và chỉnh phí sàn", "Cập nhật isApproved = true và lưu tham số vào /system_config."),
+    ("anh_24.png", "Ảnh 24", "Bảng điều khiển Admin: Duyệt Quán & Cấu hình", "admin.html (Stores & Config)", "Quản trị viên", "Kiểm tra địa chỉ, định vị và ngân hàng của quán, bấm 'Duyệt / Từ chối' và chỉnh phí sàn", "Cập nhật isApproved = true và lưu tham số vào /system_config."),
     ("anh_25a.png", "Ảnh 25A", "Màn hình Admin: Giám sát Đơn hàng Realtime", "admin.html (Orders)", "Quản trị viên", "Giám sát trực tiếp trạng thái đơn hàng toàn sàn trên bảng Kanban tổng", "Hiển thị实时 mọi thay đổi trạng thái và định vị các cuốc xe đang chạy."),
     ("anh_25b.png", "Ảnh 25B", "Màn hình Admin: Giải quyết Khiếu nại & Khóa tài khoản", "admin.html (Complaints & Users)", "Quản trị viên", "Xem ảnh bằng chứng sai món/thái độ, đưa ra phán quyết và can thiệp điểm uy tín", "Cộng/trừ điểm trustScore hoặc khóa tài khoản vi phạm vĩnh viễn.")
 ]
@@ -377,7 +376,7 @@ add_bullet("Ngôn ngữ lập trình: Kotlin 1.9+ với cơ chế bất đồng 
 add_bullet("Kiến trúc phần mềm: Android Multi-Module Clean Architecture kết hợp mô hình MVVM (Model-View-ViewModel) và Hilt Dependency Injection giúp module hóa mã nguồn và dễ bảo trì.")
 add_bullet("Dịch vụ ngầm LocationForegroundService: Lắng nghe GPS liên tục ngay cả khi tắt màn hình, phát Notification cố định và gửi tọa độ tài xế lên Firebase Realtime Database.")
 add_bullet("Dịch vụ BankNotificationListenerService: Kế thừa NotificationListenerService trên Android, tự động lắng nghe biến động số dư ngân hàng và phân tích regex để duyệt đơn VietQR tự động.")
-add_bullet("Thư viện quét mã: ZXing Android Embedded cho camera quét mã QR và Google ML Kit Text Recognition cho tính năng OCR căn cước công dân.")
+add_bullet("Thư viện quét mã: ZXing Android Embedded cho camera quét mã QR.")
 
 add_title("3.2 Kết quả Kiểm thử Thực nghiệm (Bảng Test Cases KT-1 đến KT-6)", level=2)
 add_p("Nhóm đã tiến hành kiểm thử thực nghiệm trên các thiết bị Android vật lý và máy ảo với 6 kịch bản kiểm thử then chốt. Tất cả đều đạt kết quả 100%:")

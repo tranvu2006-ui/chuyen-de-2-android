@@ -61,7 +61,7 @@ Hệ thống được thiết kế theo mô hình **Multi-Module Gradle** chuẩ
 |:---:|:---|:---|:---|:---|
 | 1 | `CUSTOMER` | **Khách hàng** | `app-customer` | Đăng ký/đăng nhập OTP, duyệt danh mục, đặt món/combo, thanh toán VietQR/COD/MoMo, chat với quán, theo dõi GPS tài xế, cung cấp mã QR/PIN nhận hàng, đánh giá sao, quản lý điểm uy tín và gửi khiếu nại. |
 | 2 | `BOSSMERCHANT` | **Chủ chuỗi (Boss)** | `app-internal` | Cấp cao nhất của chuỗi F&B: Tạo và quản lý nhiều chi nhánh nhà hàng (`stores`), tạo tài khoản và phân quyền cho Quản lý chi nhánh (`Merchant`), xem tổng quan doanh thu toàn chuỗi. |
-| 3 | `MERCHANT` | **Quản lý quán** | `app-internal` | Quản lý cửa hàng được phân công: Xác minh quán (OCR CCCD), cấu hình thông tin quán và ngân hàng VietQR, quản lý menu món/combo/topping, tiếp nhận đơn hàng Kanban, quản lý đội tài xế nội bộ của quán. |
+| 3 | `MERCHANT` | **Quản lý quán** | `app-internal` | Quản lý cửa hàng được phân công: Xác minh quán (Xác minh Cửa hàng & VietQR), cấu hình thông tin quán và ngân hàng VietQR, quản lý menu món/combo/topping, tiếp nhận đơn hàng Kanban, quản lý đội tài xế nội bộ của quán. |
 | 4 | `CHEF` | **Đầu bếp** | `app-internal` | Chuyên trách khu vực Bếp: Tiếp nhận tức thời các đơn hàng đang chế biến (`PREPARING`), xem chi tiết số lượng món ăn và ghi chú của khách, cập nhật trạng thái sẵn sàng giao (`READY`). |
 | 5 | `DRIVER` | **Tài xế (Shipper)** | `app-internal` | Giao nhận hàng hóa: Xem danh sách đơn sẵn sàng của quán, nhận đơn lẻ hoặc ghép đơn đa điểm (Batching), dẫn đường Google Maps, nhận món từ Bếp, quét QR/nhập PIN giao cho khách, xử lý sự cố hoàn trả quán (`RETURNING_TO_STORE`). |
 | 6 | `ADMIN` | **Quản trị viên sàn** | `admin.html` / `app-admin` | Toàn quyền kiểm soát hệ thống: Kiểm duyệt và kích hoạt quán ăn mới, quản lý danh mục ẩm thực dùng chung toàn sàn, giám sát realtime toàn bộ đơn hàng, phán quyết khiếu nại, can thiệp điểm uy tín, cấu hình tham số hệ thống (phí ship, bật/tắt bypass OTP). |
@@ -93,7 +93,7 @@ flowchart LR
         
         %% Nhóm Chuỗi & Quán
         UC_BOSS_CHAIN(Quản lý Chuỗi, Mở Chi nhánh & Gán Merchant)
-        UC_STORE_VERIFY(Xác minh Quán bằng OCR CCCD)
+        UC_STORE_VERIFY(Thiết lập & Xác minh Cửa hàng)
         UC_MENU_MANAGE(Quản lý Menu Món, Topping, Combo & Cấu hình VietQR)
         UC_KANBAN(Quản lý Đơn hàng Kanban & Tự động duyệt VietQR)
         UC_REPORT(Báo cáo Doanh thu & Thống kê Món bán chạy)

@@ -25,7 +25,7 @@ screenshots = [
     ("anh_11.png", "Ảnh 11", "Lịch sử Đơn hàng & Bộ lọc", "activity_order_history.xml", "app-customer", "#EFF6FF", "#1D4ED8"),
     ("anh_12.png", "Ảnh 12", "Hồ sơ Cá nhân & Điểm uy tín", "activity_profile.xml", "app-customer", "#EFF6FF", "#1D4ED8"),
     ("anh_13.png", "Ảnh 13", "Đăng nhập / Đăng ký Ứng dụng Nội bộ", "activity_login_internal.xml", "app-internal", "#FEF3C7", "#B45309"),
-    ("anh_14.png", "Ảnh 14", "Xác minh Quán & OCR CCCD", "activity_store_verification.xml", "app-internal (Merchant)", "#FEF3C7", "#B45309"),
+    ("anh_14.png", "Ảnh 14", "Xác minh Cửa hàng & Thiết lập VietQR", "activity_store_verification.xml", "app-internal (Merchant)", "#FEF3C7", "#B45309"),
     ("anh_15.png", "Ảnh 15", "Quản lý Chuỗi & Mở Chi nhánh", "activity_boss_dashboard.xml", "app-internal (Boss)", "#FEF3C7", "#B45309"),
     ("anh_16.png", "Ảnh 16", "Quản lý Đơn hàng Kanban 4 Tab", "fragment_order_list.xml", "app-internal (Merchant)", "#FEF3C7", "#B45309"),
     ("anh_17.png", "Ảnh 17", "Popup Chuông báo Đơn hàng mới", "dialog_new_order_popup.xml", "app-internal (Merchant)", "#FEF3C7", "#B45309"),

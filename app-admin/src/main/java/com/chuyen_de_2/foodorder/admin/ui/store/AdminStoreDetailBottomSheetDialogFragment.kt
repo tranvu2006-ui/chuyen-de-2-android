@@ -1,18 +1,14 @@
 package com.chuyen_de_2.foodorder.admin.ui.store
 
-import android.app.Dialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.RadioButton
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import com.bumptech.glide.Glide
 import com.chuyen_de_2.foodorder.admin.R
 import com.chuyen_de_2.foodorder.admin.databinding.BottomSheetAdminStoreDetailBinding
-import com.chuyen_de_2.foodorder.admin.databinding.DialogApplyStorePenaltyBinding
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
@@ -138,11 +134,6 @@ class AdminStoreDetailBottomSheetDialogFragment(
     }
 
     private fun setupActions() {
-        binding.btnEditAllStoreDetails.setOnClickListener {
-            dismiss()
-            onEditAll?.invoke(store)
-        }
-
         binding.btnApproveStore.setOnClickListener {
             onApprove(store)
             dismiss()
@@ -165,44 +156,6 @@ class AdminStoreDetailBottomSheetDialogFragment(
                 .setNegativeButton("Hủy", null)
                 .show()
         }
-
-        binding.btnLockStore.setOnClickListener {
-            onLock(store)
-            dismiss()
-        }
-
-        binding.btnApplyPenalty.setOnClickListener {
-            showPenaltyDialog()
-        }
-    }
-
-    private fun showPenaltyDialog() {
-        val dialogBinding = DialogApplyStorePenaltyBinding.inflate(layoutInflater)
-        val dialog = AlertDialog.Builder(requireContext())
-            .setView(dialogBinding.root)
-            .create()
-
-        dialogBinding.btnCancelPenalty.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialogBinding.btnConfirmPenalty.setOnClickListener {
-            val selectedTier = when (dialogBinding.rgPenaltyTiers.checkedRadioButtonId) {
-                R.id.rbWarn -> Store.PenaltyTier.WARN
-                R.id.rbHide -> Store.PenaltyTier.HIDE
-                R.id.rbLock -> Store.PenaltyTier.LOCK
-                else -> Store.PenaltyTier.WARN
-            }
-            val reason = dialogBinding.etPenaltyReason.text?.toString().orEmpty().ifBlank {
-                "Quản trị viên xử lý chế tài kiểm duyệt"
-            }
-
-            onApplyPenalty(store.id, selectedTier, reason)
-            dialog.dismiss()
-            dismiss()
-        }
-
-        dialog.show()
     }
 
     override fun onDestroyView() {

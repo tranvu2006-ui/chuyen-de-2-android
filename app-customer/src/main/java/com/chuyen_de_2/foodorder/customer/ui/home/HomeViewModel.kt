@@ -469,18 +469,15 @@ class HomeViewModel @Inject constructor(
     private fun applyFilters() {
         var filtered = masterDishList
 
-        // 1. Lọc theo cự ly gần
+        // 1. Lọc theo cự ly gần (chuẩn xác theo bán kính tối đa)
         if (currentNearbyOnly) {
             val maxDist = currentNearbyMaxDistanceKm
             filtered = if (maxDist >= 999.0) {
                 filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
             } else {
-                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
-                if (nearbyDishes.isNotEmpty()) {
-                    nearbyDishes.sortedBy { it.distanceKm }
-                } else {
-                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
-                }
+                // CHỈ GIỮ LẠI MÓN CÓ KHOẢNG CÁCH THỰC TẾ <= maxDist (không tự tiện fallback nhả toàn bộ 16 món)
+                filtered.filter { it.distanceKm in 0.001..maxDist }
+                    .sortedBy { it.distanceKm }
             }
         }
 

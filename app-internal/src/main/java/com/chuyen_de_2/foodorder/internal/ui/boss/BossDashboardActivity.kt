@@ -131,7 +131,7 @@ class BossDashboardActivity : AppCompatActivity() {
         val email = authRepository.currentUser?.email.orEmpty()
         val displayName = authRepository.currentUser?.displayName.orEmpty()
         binding.tvBossSubtitle.text = buildString {
-            append("BOSSMERCHANT • ")
+            append("Chuỗi Cửa Hàng • ")
             append(displayName.ifBlank { email })
         }
 

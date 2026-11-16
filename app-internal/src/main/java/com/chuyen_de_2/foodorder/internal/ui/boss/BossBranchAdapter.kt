@@ -7,6 +7,8 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.chuyen_de_2.foodorder.core.data.model.Store
 import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.ImageLoadUtils
+import com.chuyen_de_2.foodorder.internal.R
 import com.chuyen_de_2.foodorder.internal.databinding.ItemBossBranchBinding
 
 /**
@@ -41,6 +43,12 @@ class BossBranchAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(store: Store) {
+            ImageLoadUtils.loadStoreImage(
+                binding.ivBranchIcon,
+                store.effectiveImageUrl,
+                placeholderResId = R.drawable.ic_store,
+                cornerDp = 12
+            )
             binding.tvBranchName.text = store.name.ifBlank { "Chi nhánh không tên" }
             
             val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)

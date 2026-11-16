@@ -224,6 +224,12 @@ class OrderListFragment : Fragment() {
         }
 
         currentB.ivShopHeaderLogo.setImageResource(R.drawable.ic_app_logo)
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+            currentB.ivStoreAvatar,
+            store.effectiveImageUrl,
+            placeholderResId = R.drawable.ic_store,
+            cornerDp = 12
+        )
 
         val st = store.storeStatus.uppercase()
         val canOperate = canOperateCurrentStore()

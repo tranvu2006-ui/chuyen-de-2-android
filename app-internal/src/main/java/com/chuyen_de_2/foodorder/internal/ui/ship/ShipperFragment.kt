@@ -85,8 +85,23 @@ class ShipperFragment : Fragment() {
     }
 
     private fun startLocationService() {
+        val activeIds = arrayListOf<String>()
+        val currentUid = authRepository.currentUser?.uid ?: ""
+        viewModel.assignedOrders.value?.filter {
+            (it.status == Order.Status.DELIVERING ||
+             it.status == Order.Status.ASSIGNED ||
+             it.status == Order.Status.ARRIVED_AT_SHOP ||
+             it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+             it.status == Order.Status.RETURNING_TO_STORE) &&
+            it.shipperId == currentUid
+        }?.forEach { ord ->
+            if (ord.orderId.isNotBlank()) activeIds.add(ord.orderId)
+        }
+
+        val firstId = activeIds.firstOrNull() ?: "DRIVER_ACTIVE_DUTY"
         val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
-            putExtra(LocationForegroundService.EXTRA_ORDER_ID, "DRIVER_ACTIVE_DUTY")
+            putExtra(LocationForegroundService.EXTRA_ORDER_ID, firstId)
+            putStringArrayListExtra(LocationForegroundService.EXTRA_ORDER_IDS, activeIds)
         }
         try {
             ContextCompat.startForegroundService(requireContext(), intent)
@@ -233,6 +248,9 @@ class ShipperFragment : Fragment() {
             }
 
             val hasActive = activeOrders.isNotEmpty()
+            if (hasActive) {
+                startLocationService()
+            }
             activeAdapter.submitList(activeOrders)
             binding.lblActiveBadge.text = "${activeOrders.size} đơn"
             binding.tvStatActiveCount.text = "${activeOrders.size} đơn"

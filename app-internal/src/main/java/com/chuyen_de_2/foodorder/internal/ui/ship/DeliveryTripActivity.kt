@@ -730,6 +730,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                             needsRebindStep2 = true
                         }
                     }
+                    syncActiveOrdersToLocationService()
 
                     // Đồng bộ các đơn đã hoàn tất
                     orders.filter { it.status == Order.Status.COMPLETED }.forEach { done ->
@@ -1422,8 +1423,86 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
     }
 
+    private var continuousLocationCallback: com.google.android.gms.location.LocationCallback? = null
+
+    private fun syncActiveOrdersToLocationService() {
+        val allOrderIds = arrayListOf<String>()
+        if (currentOrderId.isNotBlank()) {
+            allOrderIds.add(currentOrderId)
+        }
+        bundleOrders.forEach { bOrder ->
+            if (bOrder.orderId.isNotBlank() && !allOrderIds.contains(bOrder.orderId)) {
+                allOrderIds.add(bOrder.orderId)
+            }
+        }
+        val serviceIntent = Intent(this, com.chuyen_de_2.foodorder.internal.service.LocationForegroundService::class.java).apply {
+            putExtra(com.chuyen_de_2.foodorder.internal.service.LocationForegroundService.EXTRA_ORDER_ID, currentOrderId)
+            putStringArrayListExtra(com.chuyen_de_2.foodorder.internal.service.LocationForegroundService.EXTRA_ORDER_IDS, allOrderIds)
+        }
+        try {
+            ContextCompat.startForegroundService(this, serviceIntent)
+        } catch (e: Exception) {
+            android.util.Log.e("DeliveryTripActivity", "Cannot sync orders to LocationForegroundService: ${e.message}")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startContinuousLocationUpdates() {
+        if (continuousLocationCallback != null) return
+
+        val locationRequest = com.google.android.gms.location.LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            3000L
+        )
+            .setMinUpdateIntervalMillis(1500L)
+            .setMinUpdateDistanceMeters(2f)
+            .build()
+
+        continuousLocationCallback = object : com.google.android.gms.location.LocationCallback() {
+            override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
+                val loc = result.lastLocation ?: return
+                driverLat = loc.latitude
+                driverLng = loc.longitude
+
+                binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+
+                // Đồng bộ vị trí realtime lên Firebase tracking cho Khách hàng
+                val tracking = com.chuyen_de_2.foodorder.core.data.model.TrackingLocation(
+                    lat = driverLat,
+                    lng = driverLng,
+                    updatedAt = System.currentTimeMillis()
+                )
+                try {
+                    val db = com.google.firebase.database.FirebaseDatabase.getInstance(com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL).getReference("tracking")
+                    if (currentOrderId.isNotBlank()) {
+                        db.child(currentOrderId).setValue(tracking)
+                    }
+                    bundleOrders.forEach { bOrder ->
+                        if (bOrder.orderId.isNotBlank()) {
+                            db.child(bOrder.orderId).setValue(tracking)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        try {
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                continuousLocationCallback!!,
+                Looper.getMainLooper()
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("DeliveryTripActivity", "requestLocationUpdates failed: ${e.message}")
+        }
+    }
+
     @SuppressLint("MissingPermission")
     private fun fetchRealShipperLocation() {
+        syncActiveOrdersToLocationService()
+        startContinuousLocationUpdates()
+
         try {
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener { location ->
@@ -1432,6 +1511,18 @@ class DeliveryTripActivity : AppCompatActivity() {
                         driverLng = location.longitude
                         binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
                         binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+
+                        try {
+                            val tracking = com.chuyen_de_2.foodorder.core.data.model.TrackingLocation(
+                                lat = driverLat,
+                                lng = driverLng,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            val db = com.google.firebase.database.FirebaseDatabase.getInstance(com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL).getReference("tracking")
+                            if (currentOrderId.isNotBlank()) {
+                                db.child(currentOrderId).setValue(tracking)
+                            }
+                        } catch (_: Exception) {}
                     }
                 }
                 .addOnFailureListener {
@@ -3158,6 +3249,12 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        continuousLocationCallback?.let {
+            try {
+                fusedLocationClient.removeLocationUpdates(it)
+            } catch (_: Exception) {}
+            continuousLocationCallback = null
+        }
         countdownTimer?.cancel()
         activeIncidentDialog?.dismiss()
         activeIncidentDialog = null

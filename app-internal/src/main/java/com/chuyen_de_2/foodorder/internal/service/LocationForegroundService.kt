@@ -32,12 +32,14 @@ class LocationForegroundService : Service() {
 
     companion object {
         const val EXTRA_ORDER_ID = "extra_order_id"
+        const val EXTRA_ORDER_IDS = "extra_order_ids"
         var isRunning: Boolean = false
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private var orderId: String = ""
+    private var activeOrderIds: ArrayList<String> = arrayListOf()
 
     override fun onCreate() {
         super.onCreate()
@@ -50,19 +52,29 @@ class LocationForegroundService : Service() {
      * Luồng hướng tới: Bắt đầu phát tọa độ vị trí.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        orderId = intent?.getStringExtra(EXTRA_ORDER_ID) ?: ""
+        val newOrderId = intent?.getStringExtra(EXTRA_ORDER_ID).orEmpty()
+        val newOrderIds = intent?.getStringArrayListExtra(EXTRA_ORDER_IDS)
 
-        if (orderId.isEmpty()) {
-            stopSelf()
-            return START_NOT_STICKY
+        if (newOrderId.isNotBlank()) {
+            orderId = newOrderId
+        }
+        if (!newOrderIds.isNullOrEmpty()) {
+            activeOrderIds.clear()
+            activeOrderIds.addAll(newOrderIds)
         }
 
-        // Bắt đầu Foreground Service với Notification
+        if (orderId.isEmpty() && activeOrderIds.isEmpty()) {
+            orderId = "DRIVER_ACTIVE_DUTY"
+        }
+
+        // Bắt đầu hoặc cập nhật Foreground Service với Notification
         startForeground(Constants.FOREGROUND_SERVICE_ID, createNotification())
 
-        // Bắt đầu lắng nghe GPS
-        startLocationUpdates()
-        isRunning = true
+        // Bắt đầu lắng nghe GPS nếu chưa chạy
+        if (!isRunning) {
+            startLocationUpdates()
+            isRunning = true
+        }
 
         return START_STICKY
     }
@@ -79,9 +91,15 @@ class LocationForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val displayText = if (orderId.isNotBlank() && orderId != "DRIVER_ACTIVE_DUTY") {
+            "GPS đang hoạt động — Đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}"
+        } else {
+            "Sẵn sàng nhận đơn & Phát vị trí GPS trực tuyến"
+        }
+
         return NotificationCompat.Builder(this, Constants.CHANNEL_ID_TRACKING)
             .setContentTitle("🛵 Đang giao hàng")
-            .setContentText("GPS đang hoạt động — Đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}")
+            .setContentText(displayText)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -113,10 +131,23 @@ class LocationForegroundService : Service() {
                         updatedAt = System.currentTimeMillis()
                     )
 
-                    FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL)
-                        .getReference("tracking")
-                        .child(orderId)
-                        .setValue(tracking)
+                    val targets = mutableSetOf<String>()
+                    if (orderId.isNotBlank() && orderId != "DRIVER_ACTIVE_DUTY") {
+                        targets.add(orderId)
+                    }
+                    activeOrderIds.forEach { id ->
+                        if (id.isNotBlank() && id != "DRIVER_ACTIVE_DUTY") {
+                            targets.add(id)
+                        }
+                    }
+
+                    val trackingRef = FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).getReference("tracking")
+                    targets.forEach { targetId ->
+                        trackingRef.child(targetId).setValue(tracking)
+                    }
+
+                    // Luôn cập nhật vị trí chung của tài xế
+                    trackingRef.child("DRIVER_ACTIVE_DUTY").setValue(tracking)
                 }
             }
         }

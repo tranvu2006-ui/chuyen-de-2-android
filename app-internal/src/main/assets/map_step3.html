@@ -53,8 +53,11 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    let driverCoords = [10.8548, 106.7720];
-    let customerCoords = [10.8580, 106.7765];
+    // Tọa độ trung tâm TP.HCM làm điểm neo mặc định
+    let driverCoords = [10.7769, 106.7009];
+    let customerCoords = [10.7769, 106.7009];
+    let hasRealDriverCoords = false;
+    let hasRealCustomerCoords = false;
 
     const map = L.map('realMap', {
       zoomControl: false,
@@ -163,12 +166,20 @@
     }
 
     function updateDriverLocation(lat, lng) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealDriverCoords = true;
       driverCoords = [lat, lng];
       driverMarker.setLatLng(driverCoords);
-      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+      if (hasRealCustomerCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+      } else {
+        map.setView(driverCoords, 16);
+      }
     }
 
     function setDestination(lat, lng, customerName) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealCustomerCoords = true;
       customerCoords = [lat, lng];
       customerMarker.setLatLng(customerCoords);
       if (customerName) {
@@ -179,7 +190,11 @@
           iconAnchor: [75, 16]
         }));
       }
-      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+      if (hasRealDriverCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+      } else {
+        map.setView(customerCoords, 16);
+      }
     }
 
     function focusCustomer() {
@@ -188,8 +203,6 @@
     function focusDriver() {
       map.flyTo(driverCoords, 17, { duration: 1 });
     }
-
-    fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(

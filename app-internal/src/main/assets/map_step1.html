@@ -52,8 +52,11 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    let driverCoords = [10.8522, 106.7685];
-    let shopCoords = [10.8548, 106.7720];
+    // Tọa độ trung tâm TP.HCM làm điểm neo mặc định
+    let driverCoords = [10.7769, 106.7009];
+    let shopCoords = [10.7769, 106.7009];
+    let hasRealDriverCoords = false;
+    let hasRealShopCoords = false;
 
     const map = L.map('realMap', {
       zoomControl: false,
@@ -180,16 +183,28 @@
 
     // Hàm nhận tọa độ GPS thực tế của Shipper từ Android
     function updateDriverLocation(lat, lng) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealDriverCoords = true;
       driverCoords = [lat, lng];
       driverMarker.setLatLng(driverCoords);
-      fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
+      if (hasRealShopCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
+      } else {
+        map.setView(driverCoords, 16);
+      }
     }
 
     // Hàm cập nhật điểm quán và lộ trình
     function setDestination(lat, lng) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealShopCoords = true;
       shopCoords = [lat, lng];
       shopMarker.setLatLng(shopCoords);
-      fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
+      if (hasRealDriverCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
+      } else {
+        map.setView(shopCoords, 16);
+      }
     }
 
     function focusShop() {
@@ -198,9 +213,6 @@
     function focusDriver() {
       map.flyTo(driverCoords, 17, { duration: 1 });
     }
-
-    // Khởi động lộ trình ban đầu
-    fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
 
     // Tự động nhận diện GPS nếu mở trên web
     if (navigator.geolocation) {

@@ -228,6 +228,7 @@
 
             <!-- Toggle Switch Đang Bán / Tạm Đóng -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardShopStatusToggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 app:cardBackgroundColor="@color/background"
@@ -259,8 +260,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:checked="true"
-                        app:thumbTint="@color/white"
-                        app:trackTint="@color/brand_green" />
+                        app:thumbTint="@color/switch_thumb_status_selector"
+                        app:trackTint="@color/switch_track_status_selector" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

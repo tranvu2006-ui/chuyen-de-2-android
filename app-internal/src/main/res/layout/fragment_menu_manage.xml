@@ -65,32 +65,6 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
             </LinearLayout>
-
-            <!-- Nút Check-in Mở Ca / Đóng Cửa -->
-            <LinearLayout
-                android:id="@+id/btnCheckin"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:background="@drawable/bg_btn_checkin_on"
-                android:gravity="center_vertical"
-                android:paddingHorizontal="12dp">
-
-                <View
-                    android:id="@+id/dotCheckinStatus"
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/bg_badge_green" />
-
-                <TextView
-                    android:id="@+id/tvCheckinText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:text="ĐÃ CHECK-IN (MỞ CỬA)"
-                    android:textColor="@color/brand_green"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
         </LinearLayout>
 
         <!-- Divider line -->
@@ -178,71 +152,6 @@
                 android:ellipsize="end" />
         </LinearLayout>
     </LinearLayout>
-
-    <!-- 2. Banner Nhận Đơn Hàng Mới Của Quán -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/bannerNewOrderIncoming"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="14dp"
-        android:layout_marginTop="12dp"
-        app:cardBackgroundColor="@color/primary"
-        app:cardCornerRadius="14dp"
-        app:cardElevation="2dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="12dp">
-
-            <ImageView
-                android:importantForAccessibility="no"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                app:srcCompat="@drawable/ic_notification"
-                app:tint="@color/white" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/tvBannerNewOrderTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="ĐƠN HÀNG MỚI ĐẾN (#88291)"
-                    android:textColor="@color/white"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="1dp"
-                    android:text="Chờ quán xác nhận đơn của khách"
-                    android:textColor="#FED7AA"
-                    android:textSize="11sp" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/btnBannerGoToOrders"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_card_rounded"
-                android:backgroundTint="#40FFFFFF"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="6dp"
-                android:text="Xem Đơn ➔"
-                android:textColor="@color/white"
-                android:textSize="11.5sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
 
     <!-- 3. Thanh Tiêu Đề Thực Đơn & Thêm Món -->
     <LinearLayout

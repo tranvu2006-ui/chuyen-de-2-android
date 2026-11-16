@@ -443,19 +443,21 @@
                             android:orientation="vertical">
 
                             <TextView
+                                android:id="@+id/tvSatisfactionRate"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Tỷ lệ hài lòng: 98%"
+                                android:text="Tỷ lệ hài lòng: —"
                                 android:textColor="@color/brand_green"
                                 android:textSize="12.5sp"
                                 android:textStyle="bold" />
 
                             <TextView
+                                android:id="@+id/tvSatisfactionDesc"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
                                 android:lineSpacingExtra="2dp"
-                                android:text="• Đồ ăn chuẩn vị &amp; đóng gói cẩn thận\n• Thời gian chuẩn bị đúng hẹn (15p)"
+                                android:text="• Quán chưa có đánh giá nào từ khách hàng"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="11sp" />
                         </LinearLayout>

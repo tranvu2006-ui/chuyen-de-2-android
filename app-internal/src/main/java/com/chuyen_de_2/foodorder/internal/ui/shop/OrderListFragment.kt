@@ -231,6 +231,7 @@ class OrderListFragment : Fragment() {
         )
 
         val st = store.storeStatus.uppercase()
+        val canOperate = canOperateCurrentStore()
         currentB.switchShopStatus.setOnCheckedChangeListener(null)
         when (st) {
             com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
@@ -246,16 +247,27 @@ class OrderListFragment : Fragment() {
                 currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
             }
             com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
-                currentB.switchShopStatus.isEnabled = true
                 currentB.switchShopStatus.isChecked = false
+                currentB.switchShopStatus.isEnabled = canOperate
                 currentB.tvShopStatusTxt.text = "Tạm Đóng"
                 currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
             }
             else -> {
-                currentB.switchShopStatus.isEnabled = true
                 currentB.switchShopStatus.isChecked = true
+                currentB.switchShopStatus.isEnabled = canOperate
                 currentB.tvShopStatusTxt.text = "Đang Bán"
                 currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            }
+        }
+
+        currentB.cardShopStatusToggle.setOnClickListener {
+            if (!canOperateCurrentStore()) {
+                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
+                AlertDialog.Builder(requireContext())
+                    .setTitle("⛔ Quyền Quản Lý Chi Nhánh")
+                    .setMessage("Chi nhánh này đã được giao cho Trưởng chi nhánh ($managerName) trực tiếp vận hành.\n\nChủ chuỗi không thể đóng/mở quán ở chế độ giám sát.")
+                    .setPositiveButton("Đã hiểu", null)
+                    .show()
             }
         }
     }
@@ -266,15 +278,25 @@ class OrderListFragment : Fragment() {
      * Luồng hướng tới: Firebase cập nhật -> Màn hình Khách hàng cập nhật thẻ Quán đóng/mở cửa.
      */
     private fun bindShopStatusSwitchListener() {
-        binding.switchShopStatus.setOnCheckedChangeListener { compoundButton, isChecked ->
+        val b = _binding ?: return
+        b.switchShopStatus.setOnCheckedChangeListener { compoundButton, isChecked ->
             if (!canOperateCurrentStore()) {
-                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
+                compoundButton.setOnCheckedChangeListener(null)
                 compoundButton.isChecked = !isChecked
+                bindShopStatusSwitchListener()
+                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
                 Toast.makeText(
                     requireContext(),
                     "⚠️ Chi nhánh đã bàn giao cho $managerName phụ trách vận hành. Chủ chuỗi không thể đóng/mở quán!",
                     Toast.LENGTH_LONG
                 ).show()
+                return@setOnCheckedChangeListener
+            }
+            if (currentStoreId.isBlank()) {
+                compoundButton.setOnCheckedChangeListener(null)
+                compoundButton.isChecked = !isChecked
+                bindShopStatusSwitchListener()
+                Toast.makeText(requireContext(), "Đang tải thông tin quán, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
                 return@setOnCheckedChangeListener
             }
             val newStatus = if (isChecked) {
@@ -283,16 +305,24 @@ class OrderListFragment : Fragment() {
                 com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED
             }
             if (isChecked) {
-                binding.tvShopStatusTxt.text = "Đang Bán"
-                binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-                Toast.makeText(requireContext(), "Quán đã mở cửa nhận đơn hàng mới!", Toast.LENGTH_SHORT).show()
+                b.tvShopStatusTxt.text = "Đang Bán"
+                b.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
             } else {
-                binding.tvShopStatusTxt.text = "Tạm Đóng"
-                binding.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                Toast.makeText(requireContext(), "Quán tạm đóng cửa ngưng nhận đơn mới.", Toast.LENGTH_SHORT).show()
+                b.tvShopStatusTxt.text = "Tạm Đóng"
+                b.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
             }
             viewLifecycleOwner.lifecycleScope.launch {
-                firebaseRepository.updateStoreStatus(currentStoreId, newStatus)
+                val result = firebaseRepository.updateStoreStatus(currentStoreId, newStatus)
+                if (result.isSuccess) {
+                    if (isChecked) {
+                        Toast.makeText(requireContext(), "Quán đã mở cửa nhận đơn hàng mới!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Quán tạm đóng cửa ngưng nhận đơn mới.", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "Không thể cập nhật trạng thái, vui lòng kiểm tra kết nối!", Toast.LENGTH_SHORT).show()
+                    cachedStore?.let { renderStoreHeader(it) }
+                }
             }
         }
     }

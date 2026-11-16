@@ -76,49 +76,70 @@
             tools:visibility="visible" />
     </LinearLayout>
 
-    <!-- Switcher giữa Tài xế và Đầu bếp -->
+    <!-- Switcher giữa Tài xế và Đầu bếp (Segmented Control hiện đại) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/white"
-        android:elevation="2dp"
-        android:orientation="horizontal"
         android:paddingHorizontal="16dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="12dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTabDrivers"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_marginEnd="6dp"
-            android:layout_weight="1"
-            android:backgroundTint="@color/brand_blue"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:text="🛵 Đội Tài Xế"
-            android:textColor="@color/white"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="8dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_card_rounded"
+            android:backgroundTint="#F8FAFC"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="3dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTabChefs"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_marginStart="6dp"
-            android:layout_weight="1"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:text="👨‍🍳 Đội Đầu Bếp"
-            android:textColor="@color/text_secondary"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="8dp"
-            app:strokeColor="@color/border" />
+            <!-- Tab 1: Đội Tài Xế -->
+            <LinearLayout
+                android:id="@+id/btnTabDrivers"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_order_tab_active"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvTabDriversTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛵 Đội Tài Xế"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Tab 2: Đội Đầu Bếp -->
+            <LinearLayout
+                android:id="@+id/btnTabChefs"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_order_tab_idle"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvTabChefsTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="👨‍🍳 Đội Đầu Bếp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView

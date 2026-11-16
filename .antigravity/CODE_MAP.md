@@ -14105,147 +14105,6 @@ class SelectLocationActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.driver
-
-import android.graphics.Color
-import android.view.LayoutInflater
-import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverBinding
-
-class DriverAdapter(
-    private val onCallClick: (String) -> Unit,
-    private val onDeleteClick: (Driver) -> Unit = {}
-) : ListAdapter<Driver, DriverAdapter.DriverViewHolder>(DriverDiffCallback()) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DriverViewHolder {
-        val binding = ItemDriverBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return DriverViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: DriverViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class DriverViewHolder(
-        private val binding: ItemDriverBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(driver: Driver) {
-            binding.tvDriverName.text = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
-            binding.tvDriverCode.text = driver.driverCode.ifBlank { "TX" }
-            binding.tvDriverPhone.text = "📞 ${driver.phone.ifBlank { "Chưa cập nhật" }}"
-
-            // Load avatar
-            if (driver.avatarUrl.isNotBlank()) {
-                Glide.with(binding.root.context)
-                    .load(driver.avatarUrl)
-                    .placeholder(R.drawable.bg_badge_offline)
-                    .error(R.drawable.bg_badge_offline)
-                    .into(binding.ivDriverAvatar)
-            } else {
-                binding.ivDriverAvatar.setImageResource(android.R.drawable.ic_menu_myplaces)
-            }
-
-            // Status Badge & Styling
-            when (driver.dutyStatus) {
-                Driver.DutyStatus.AVAILABLE -> {
-                    binding.tvStatusBadge.text = "🟢 Đang trực (Sẵn sàng)"
-                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_free)
-                    binding.tvStatusBadge.setTextColor(Color.parseColor("#10B981"))
-
-                    binding.tvActionNote.text = "✓ Sẵn sàng nhận đơn"
-                    binding.tvActionNote.setBackgroundResource(R.drawable.bg_badge_free)
-                    binding.tvActionNote.setTextColor(Color.parseColor("#10B981"))
-                }
-                Driver.DutyStatus.DELIVERING -> {
-                    val isReturning = driver.currentOrderCode.contains("Trả hàng", ignoreCase = true) ||
-                            driver.currentOrderCode.contains("Trả món", ignoreCase = true)
-                    if (isReturning) {
-                        binding.tvStatusBadge.text = "🚨 Đang trả món về quán"
-                        binding.tvActionNote.text = "Quay về quán trả món"
-                    } else {
-                        binding.tvStatusBadge.text = "🚚 Đang giao đơn"
-                        binding.tvActionNote.text = "Đang giao trên đường"
-                    }
-                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_busy)
-                    binding.tvStatusBadge.setTextColor(Color.parseColor("#EE4D2D"))
-                    binding.tvActionNote.background = null
-                    binding.tvActionNote.setTextColor(Color.parseColor("#EE4D2D"))
-                }
-                else -> {
-                    binding.tvStatusBadge.text = "⏸️ Nghỉ ca (OFF)"
-                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_offline)
-                    binding.tvStatusBadge.setTextColor(Color.parseColor("#64748B"))
-
-                    val noteText = driver.note.ifBlank { "Tài xế đang ngắt kết nối" }
-                    binding.tvActionNote.text = noteText
-                    binding.tvActionNote.background = null
-                    binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
-                }
-            }
-
-            // Xe máy
-            val vehicleModelStr = if (driver.vehicleModel.isNotBlank()) driver.vehicleModel else "Yamaha Sirius"
-            val vehiclePlateStr = if (driver.vehiclePlate.isNotBlank()) " (${driver.vehiclePlate})" else ""
-            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleModelStr$vehiclePlateStr"
-
-            // Đơn giao
-            if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {
-                val ordCode = driver.currentOrderCode.ifBlank { "Đang giao đơn của quán" }
-                binding.tvOrderStats.text = "📦 Đang giao đơn: $ordCode"
-                binding.tvOrderStats.setTextColor(Color.parseColor("#DC2626"))
-            } else if (driver.dutyStatus == Driver.DutyStatus.AVAILABLE) {
-                val today = driver.todayOrdersCount
-                val total = driver.totalOrdersCount
-                binding.tvOrderStats.text = "📦 Sẵn sàng • Đã giao $today đơn hôm nay ($total đơn tổng)"
-                binding.tvOrderStats.setTextColor(Color.parseColor("#059669"))
-            } else {
-                binding.tvOrderStats.text = "📦 Tài xế đang tắt ca, không nhận đơn"
-                binding.tvOrderStats.setTextColor(Color.parseColor("#64748B"))
-            }
-
-            // Đánh giá
-            val ratingStr = String.format("%.1f", if (driver.ratingAvg > 0) driver.ratingAvg else 5.0f)
-            binding.tvRating.text = "⭐ Đánh giá uy tín: $ratingStr / 5.0 (Tài xế trực thuộc quán)"
-
-            // Gọi điện
-            binding.btnCall.setOnClickListener {
-                if (driver.phone.isNotBlank()) {
-                    onCallClick(driver.phone)
-                }
-            }
-
-            // Xóa tài xế
-            binding.btnDeleteDriver.setOnClickListener {
-                onDeleteClick(driver)
-            }
-        }
-    }
-
-    private class DriverDiffCallback : DiffUtil.ItemCallback<Driver>() {
-        override fun areItemsTheSame(oldItem: Driver, newItem: Driver): Boolean {
-            return oldItem.driverId == newItem.driverId
-        }
-
-        override fun areContentsTheSame(oldItem: Driver, newItem: Driver): Boolean {
-            return oldItem == newItem
-        }
-    }
-}
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperIncomeFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -36267,6 +36126,147 @@ class ChefViewModel @Inject constructor(
 
         firebaseRepository.markCookingDoneByChef(orderId, chefId) { success, msg ->
             onResult(success, msg)
+        }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.driver
+
+import android.graphics.Color
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverBinding
+
+class DriverAdapter(
+    private val onCallClick: (String) -> Unit,
+    private val onDeleteClick: (Driver) -> Unit = {}
+) : ListAdapter<Driver, DriverAdapter.DriverViewHolder>(DriverDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DriverViewHolder {
+        val binding = ItemDriverBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return DriverViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: DriverViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class DriverViewHolder(
+        private val binding: ItemDriverBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(driver: Driver) {
+            binding.tvDriverName.text = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
+            binding.tvDriverCode.text = driver.driverCode.ifBlank { "TX" }
+            binding.tvDriverPhone.text = "📞 ${driver.phone.ifBlank { "Chưa cập nhật" }}"
+
+            // Load avatar
+            if (driver.avatarUrl.isNotBlank()) {
+                Glide.with(binding.root.context)
+                    .load(driver.avatarUrl)
+                    .placeholder(R.drawable.bg_badge_offline)
+                    .error(R.drawable.bg_badge_offline)
+                    .into(binding.ivDriverAvatar)
+            } else {
+                binding.ivDriverAvatar.setImageResource(android.R.drawable.ic_menu_myplaces)
+            }
+
+            // Status Badge & Styling
+            when (driver.dutyStatus) {
+                Driver.DutyStatus.AVAILABLE -> {
+                    binding.tvStatusBadge.text = "🟢 Đang trực (Sẵn sàng)"
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_free)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#10B981"))
+
+                    binding.tvActionNote.text = "✓ Sẵn sàng nhận đơn"
+                    binding.tvActionNote.setBackgroundResource(R.drawable.bg_badge_free)
+                    binding.tvActionNote.setTextColor(Color.parseColor("#10B981"))
+                }
+                Driver.DutyStatus.DELIVERING -> {
+                    val isReturning = driver.currentOrderCode.contains("Trả hàng", ignoreCase = true) ||
+                            driver.currentOrderCode.contains("Trả món", ignoreCase = true)
+                    if (isReturning) {
+                        binding.tvStatusBadge.text = "🚨 Đang trả món về quán"
+                        binding.tvActionNote.text = "Quay về quán trả món"
+                    } else {
+                        binding.tvStatusBadge.text = "🚚 Đang giao đơn"
+                        binding.tvActionNote.text = "Đang giao trên đường"
+                    }
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_busy)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#EE4D2D"))
+                    binding.tvActionNote.background = null
+                    binding.tvActionNote.setTextColor(Color.parseColor("#EE4D2D"))
+                }
+                else -> {
+                    binding.tvStatusBadge.text = "⏸️ Nghỉ ca (OFF)"
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_offline)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#64748B"))
+
+                    val noteText = driver.note.ifBlank { "Tài xế đang ngắt kết nối" }
+                    binding.tvActionNote.text = noteText
+                    binding.tvActionNote.background = null
+                    binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
+                }
+            }
+
+            // Xe máy
+            val vehicleModelStr = if (driver.vehicleModel.isNotBlank()) driver.vehicleModel else "Yamaha Sirius"
+            val vehiclePlateStr = if (driver.vehiclePlate.isNotBlank()) " (${driver.vehiclePlate})" else ""
+            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleModelStr$vehiclePlateStr"
+
+            // Đơn giao
+            if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {
+                val ordCode = driver.currentOrderCode.ifBlank { "Đang giao đơn của quán" }
+                binding.tvOrderStats.text = "📦 Đang giao đơn: $ordCode"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#DC2626"))
+            } else if (driver.dutyStatus == Driver.DutyStatus.AVAILABLE) {
+                val today = driver.todayOrdersCount
+                val total = driver.totalOrdersCount
+                binding.tvOrderStats.text = "📦 Sẵn sàng • Đã giao $today đơn hôm nay ($total đơn tổng)"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#059669"))
+            } else {
+                binding.tvOrderStats.text = "📦 Tài xế đang tắt ca, không nhận đơn"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#64748B"))
+            }
+
+            // Đánh giá
+            val ratingStr = String.format("%.1f", if (driver.ratingAvg > 0) driver.ratingAvg else 5.0f)
+            binding.tvRating.text = "⭐ Đánh giá uy tín: $ratingStr / 5.0 (Tài xế trực thuộc quán)"
+
+            // Gọi điện
+            binding.btnCall.setOnClickListener {
+                if (driver.phone.isNotBlank()) {
+                    onCallClick(driver.phone)
+                }
+            }
+
+            // Xóa tài xế
+            binding.btnDeleteDriver.setOnClickListener {
+                onDeleteClick(driver)
+            }
+        }
+    }
+
+    private class DriverDiffCallback : DiffUtil.ItemCallback<Driver>() {
+        override fun areItemsTheSame(oldItem: Driver, newItem: Driver): Boolean {
+            return oldItem.driverId == newItem.driverId
+        }
+
+        override fun areContentsTheSame(oldItem: Driver, newItem: Driver): Boolean {
+            return oldItem == newItem
         }
     }
 }
@@ -71485,216 +71485,6 @@ class DriverActiveOrdersAdapter(
 </com.google.android.material.card.MaterialCardView>
 ````
 
-## File: app-internal/src/main/res/layout/item_driver.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="12dp"
-    app:cardBackgroundColor="@color/white"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="0dp"
-    app:strokeColor="@color/border"
-    app:strokeWidth="1dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <!-- Driver Head -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/ivDriverAvatar"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:scaleType="centerCrop"
-                android:src="@mipmap/ic_launcher"
-                app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
-                app:strokeColor="@color/border"
-                app:strokeWidth="2dp" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvDriverName"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        tools:text="Tên tài xế" />
-
-                    <TextView
-                        android:id="@+id/tvDriverCode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:background="@color/divider"
-                        android:paddingHorizontal="6dp"
-                        android:paddingVertical="1dp"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        tools:text="TX-14" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvDriverPhone"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp"
-                    tools:text="📞 0903.882.910" />
-            </LinearLayout>
-
-            <!-- Status Badge -->
-            <TextView
-                android:id="@+id/tvStatusBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                tools:background="#ECFDF5"
-                tools:text="🟢 Đang trực"
-                tools:textColor="#10B981" />
-        </LinearLayout>
-
-        <!-- Driver Details Box -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:background="@color/background"
-            android:orientation="vertical"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="10dp">
-
-            <TextView
-                android:id="@+id/tvVehicleInfo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="11.5sp"
-                tools:text="🏍️ Xe máy: Yamaha Sirius Fi (59-T1 882.91)" />
-
-            <TextView
-                android:id="@+id/tvOrderStats"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="11.5sp"
-                tools:text="📦 Đã giao cho quán: 12 đơn hôm nay • 1.240 đơn tổng" />
-
-            <TextView
-                android:id="@+id/tvRating"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="11.5sp"
-                tools:text="⭐ Đánh giá uy tín: 4.9 / 5.0 (Tài xế trực thuộc quán)" />
-        </LinearLayout>
-
-        <!-- Actions Row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnCall"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:backgroundTint="@color/brand_green_bg"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingHorizontal="12dp"
-                android:text="Liên hệ"
-                android:textColor="@color/brand_green"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp"
-                app:strokeColor="#A7F3D0"
-                app:strokeWidth="1dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnDeleteDriver"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="6dp"
-                android:backgroundTint="@color/danger_bg"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingHorizontal="10dp"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp"
-                android:text="Xóa"
-                android:textColor="#DC2626"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:id="@+id/tvActionNote"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="4dp"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                tools:text="✓ Tự nhận đơn của quán"
-                tools:textColor="#10B981" />
-        </LinearLayout>
-
-    </LinearLayout>
-
-</com.google.android.material.card.MaterialCardView>
-````
-
 ## File: app-internal/src/main/res/layout/item_manage_dish.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -77566,554 +77356,6 @@ class OrderHistoryFragment : Fragment() {
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverListFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.driver
-
-import android.app.Dialog
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.net.Uri
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.view.Window
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Chef
-import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentDriverListBinding
-import com.chuyen_de_2.foodorder.internal.ui.chef.ChefAdapter
-import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Quản lý Đội ngũ Nhân sự Của Quán (Staff Management):
- * - Tab 1: Đội Tài Xế (Drivers): Thống kê, giám sát tình trạng trực/giao đơn, tạo tài khoản tài xế.
- * - Tab 2: Đội Đầu Bếp (Chefs): Thống kê, giám sát tình trạng nấu món, tạo tài khoản đầu bếp trực thuộc quán.
- */
-@AndroidEntryPoint
-class DriverListFragment : Fragment() {
-
-    private var _binding: FragmentDriverListBinding? = null
-    private val binding get() = _binding!!
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    @Inject
-    lateinit var auth: FirebaseAuth
-
-    private lateinit var driverAdapter: DriverAdapter
-    private lateinit var chefAdapter: ChefAdapter
-
-    private var currentStoreId = ""
-    private var allDriversList: List<Driver> = emptyList()
-    private var currentFilter: String = "ALL"
-    private var isChefTabSelected = false
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentDriverListBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupRecyclerViews()
-        setupTabs()
-        setupListeners()
-        resolveCurrentStoreIdAndObserve()
-    }
-
-    private fun resolveCurrentStoreIdAndObserve() {
-        val uid = auth.currentUser?.uid.orEmpty()
-        viewLifecycleOwner.lifecycleScope.launch {
-            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-            observeDrivers()
-            observeChefs()
-        }
-    }
-
-    private fun setupRecyclerViews() {
-        // 1. Adapter Tài Xế
-        driverAdapter = DriverAdapter(
-            onCallClick = { phone ->
-                try {
-                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                        data = Uri.parse("tel:$phone")
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
-                }
-            },
-            onDeleteClick = { driver ->
-                showDeleteDriverDialog(driver)
-            }
-        )
-        binding.rvDrivers.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvDrivers.adapter = driverAdapter
-
-        // 2. Adapter Đầu Bếp
-        chefAdapter = ChefAdapter(
-            onCallClick = { phone ->
-                try {
-                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                        data = Uri.parse("tel:$phone")
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
-                }
-            },
-            onDeleteClick = { chef ->
-                showDeleteChefDialog(chef)
-            }
-        )
-        binding.rvChefs.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvChefs.adapter = chefAdapter
-    }
-
-    private fun setupTabs() {
-        binding.btnTabDrivers.setOnClickListener {
-            if (isChefTabSelected) {
-                isChefTabSelected = false
-                updateTabUI()
-            }
-        }
-
-        binding.btnTabChefs.setOnClickListener {
-            if (!isChefTabSelected) {
-                isChefTabSelected = true
-                updateTabUI()
-            }
-        }
-    }
-
-    private fun updateTabUI() {
-        if (!isChefTabSelected) {
-            // Hiển thị Tab Tài Xế
-            binding.tvStaffHeaderTitle.text = "Đội Tài Xế Của Quán"
-            binding.btnAddDriver.visibility = View.VISIBLE
-            binding.btnAddChef.visibility = View.GONE
-            binding.layoutDriverSection.visibility = View.VISIBLE
-            binding.layoutChefSection.visibility = View.GONE
-
-            binding.btnTabDrivers.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_blue)
-                setTextColor(Color.WHITE)
-                strokeWidth = 0
-            }
-            binding.btnTabChefs.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                setStrokeColorResource(R.color.border)
-                strokeWidth = 2
-            }
-        } else {
-            // Hiển thị Tab Đầu Bếp
-            binding.tvStaffHeaderTitle.text = "Đội Đầu Bếp Của Quán"
-            binding.btnAddDriver.visibility = View.GONE
-            binding.btnAddChef.visibility = View.VISIBLE
-            binding.layoutDriverSection.visibility = View.GONE
-            binding.layoutChefSection.visibility = View.VISIBLE
-
-            binding.btnTabChefs.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_orange)
-                setTextColor(Color.WHITE)
-                strokeWidth = 0
-            }
-            binding.btnTabDrivers.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                setStrokeColorResource(R.color.border)
-                strokeWidth = 2
-            }
-        }
-    }
-
-    private fun setupListeners() {
-        binding.btnAddDriver.setOnClickListener {
-            showAddDriverDialog()
-        }
-        binding.btnAddChef.setOnClickListener {
-            showAddChefDialog()
-        }
-
-        binding.layoutStatTotal.setOnClickListener {
-            currentFilter = "ALL"
-            applyFilter()
-            Toast.makeText(requireContext(), "Hiển thị: Tất cả tài xế", Toast.LENGTH_SHORT).show()
-        }
-        binding.layoutStatAvailable.setOnClickListener {
-            currentFilter = Driver.DutyStatus.AVAILABLE
-            applyFilter()
-            Toast.makeText(requireContext(), "Lọc: Tài xế Đang trực (Sẵn sàng)", Toast.LENGTH_SHORT).show()
-        }
-        binding.layoutStatDelivering.setOnClickListener {
-            currentFilter = Driver.DutyStatus.DELIVERING
-            applyFilter()
-            Toast.makeText(requireContext(), "Lọc: Tài xế Đang đi giao đơn", Toast.LENGTH_SHORT).show()
-        }
-        binding.layoutStatOffDuty.setOnClickListener {
-            currentFilter = Driver.DutyStatus.OFF_DUTY
-            applyFilter()
-            Toast.makeText(requireContext(), "Lọc: Tài xế Nghỉ ca (OFF)", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // ==================== OBSERVERS ====================
-
-    private fun observeDrivers() {
-        binding.progressBar.visibility = View.VISIBLE
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            combine(
-                firebaseRepository.observeStoreDrivers(currentStoreId),
-                firebaseRepository.observeAllOrders()
-            ) { drivers, orders ->
-                val activeOrders = orders.filter { order ->
-                    !order.shipperId.isNullOrBlank() && (
-                        order.status == Order.Status.ASSIGNED ||
-                        order.status == Order.Status.ARRIVED_AT_SHOP ||
-                        order.status == Order.Status.DELIVERING ||
-                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                        order.status == Order.Status.RETURNING_TO_STORE
-                    )
-                }
-                val activeOrdersByDriver = activeOrders.groupBy { it.shipperId }
-
-                drivers.map { driver ->
-                    val deliveringOrders = activeOrdersByDriver[driver.driverId].orEmpty()
-                    if (deliveringOrders.isNotEmpty()) {
-                        val primaryOrder = deliveringOrders.first()
-                        val shortCode = QRCodeUtils.getShortOrderCode(primaryOrder.orderId)
-                        val info = if (primaryOrder.status == Order.Status.RETURNING_TO_STORE) {
-                            "#$shortCode • Trả hàng về quán"
-                        } else if (deliveringOrders.size > 1) {
-                            "#$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
-                        } else {
-                            "#$shortCode • ${primaryOrder.customerName}"
-                        }
-                        driver.copy(
-                            dutyStatus = Driver.DutyStatus.DELIVERING,
-                            currentOrderCode = info
-                        )
-                    } else if (driver.dutyStatus == Driver.DutyStatus.OFF_DUTY ||
-                        driver.dutyStatus?.equals("OFFLINE", ignoreCase = true) == true ||
-                        driver.dutyStatus.isNullOrBlank()
-                    ) {
-                        driver.copy(dutyStatus = Driver.DutyStatus.OFF_DUTY)
-                    } else {
-                        driver.copy(dutyStatus = Driver.DutyStatus.AVAILABLE)
-                    }
-                }
-            }.collectLatest { syncedDrivers ->
-                binding.progressBar.visibility = View.GONE
-                allDriversList = syncedDrivers
-
-                val total = syncedDrivers.size
-                val available = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
-                val delivering = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.DELIVERING }
-                val offDuty = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
-
-                binding.tvTotalDrivers.text = total.toString()
-                binding.tvAvailableDrivers.text = available.toString()
-                binding.tvDeliveringDrivers.text = delivering.toString()
-                binding.tvOffDutyDrivers.text = offDuty.toString()
-
-                applyFilter()
-            }
-        }
-    }
-
-    private fun observeChefs() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            combine(
-                firebaseRepository.observeStoreChefs(currentStoreId),
-                firebaseRepository.observeAllOrders()
-            ) { chefs, orders ->
-                // Đếm số đơn PREPARING mà từng đầu bếp đang nấu
-                val preparingOrders = orders.filter { it.status == Order.Status.PREPARING && !it.chefId.isNullOrBlank() }
-                val cookingCounts = preparingOrders.groupBy { it.chefId }.mapValues { it.value.size }
-
-                chefs.map { chef ->
-                    val activeCount = cookingCounts[chef.chefId] ?: 0
-                    chef.copy(activeOrdersCount = activeCount)
-                }
-            }.collectLatest { syncedChefs ->
-                if (syncedChefs.isEmpty()) {
-                    binding.layoutEmptyChefs.visibility = View.VISIBLE
-                    binding.rvChefs.visibility = View.GONE
-                } else {
-                    binding.layoutEmptyChefs.visibility = View.GONE
-                    binding.rvChefs.visibility = View.VISIBLE
-                    chefAdapter.submitList(syncedChefs)
-                }
-            }
-        }
-    }
-
-    private fun applyFilter() {
-        val filtered = when (currentFilter) {
-            Driver.DutyStatus.AVAILABLE -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
-            Driver.DutyStatus.DELIVERING -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.DELIVERING }
-            Driver.DutyStatus.OFF_DUTY -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
-            else -> allDriversList
-        }
-
-        if (filtered.isEmpty()) {
-            binding.layoutEmpty.visibility = View.VISIBLE
-            binding.rvDrivers.visibility = View.GONE
-        } else {
-            binding.layoutEmpty.visibility = View.GONE
-            binding.rvDrivers.visibility = View.VISIBLE
-            driverAdapter.submitList(filtered)
-        }
-    }
-
-    // ==================== DIALOGS ====================
-
-    private fun showAddChefDialog() {
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_add_chef)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etName = dialog.findViewById<EditText>(R.id.etChefName)
-        val etPhone = dialog.findViewById<EditText>(R.id.etChefPhone)
-        val etTitle = dialog.findViewById<EditText>(R.id.etChefTitle)
-        val etEmail = dialog.findViewById<EditText>(R.id.etChefEmail)
-        val etPassword = dialog.findViewById<EditText>(R.id.etChefPassword)
-        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
-        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
-        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitChef)
-
-        btnClose.setOnClickListener { dialog.dismiss() }
-        btnCancel.setOnClickListener { dialog.dismiss() }
-
-        btnSubmit.setOnClickListener {
-            val name = etName.text.toString().trim()
-            val phone = etPhone.text.toString().trim()
-            val title = etTitle.text.toString().trim().ifBlank { "Đầu Bếp" }
-            val email = etEmail.text.toString().trim()
-            val pass = etPassword.text.toString().trim()
-
-            if (name.isBlank()) {
-                etName.error = "Vui lòng nhập họ và tên đầu bếp"
-                return@setOnClickListener
-            }
-            if (phone.isBlank()) {
-                etPhone.error = "Vui lòng nhập số điện thoại"
-                return@setOnClickListener
-            }
-            if (email.isBlank() || !email.contains("@")) {
-                etEmail.error = "Vui lòng nhập email hợp lệ"
-                return@setOnClickListener
-            }
-            if (pass.length < 6) {
-                etPassword.error = "Mật khẩu tối thiểu 6 ký tự"
-                return@setOnClickListener
-            }
-
-            btnSubmit.isEnabled = false
-            btnSubmit.text = "Đang tạo tài khoản..."
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val result = firebaseRepository.createChefAccount(
-                    context = requireContext(),
-                    storeId = currentStoreId,
-                    name = name,
-                    phone = phone,
-                    email = email,
-                    pass = pass,
-                    title = title
-                )
-
-                if (result.isSuccess) {
-                    Toast.makeText(
-                        requireContext(),
-                        "✓ Đã tạo tài khoản Đầu Bếp [$name] thành công!\nEmail: $email",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    btnSubmit.isEnabled = true
-                    btnSubmit.text = "Tạo tài khoản bếp"
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    private fun showDeleteDriverDialog(driver: Driver) {
-        val driverName = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
-        AlertDialog.Builder(requireContext())
-            .setTitle("Xóa tài khoản tài xế")
-            .setMessage("Bạn có chắc chắn muốn xóa tài xế $driverName (${driver.driverCode}) khỏi quán không?\n\nTài khoản sẽ bị gỡ bỏ và các đơn đang giao (nếu có) sẽ được chuyển về trạng thái sẵn sàng cho tài xế khác nhận.")
-            .setPositiveButton("Xóa") { _, _ ->
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val result = firebaseRepository.deleteDriver(driver.driverId)
-                    if (result.isSuccess) {
-                        Toast.makeText(requireContext(), "Đã xóa tài xế $driverName", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    private fun showDeleteChefDialog(chef: Chef) {
-        AlertDialog.Builder(requireContext())
-            .setTitle("Xóa tài khoản đầu bếp")
-            .setMessage("Bạn có chắc chắn muốn xóa đầu bếp ${chef.name} khỏi danh sách nhân sự của quán không?")
-            .setPositiveButton("Xóa") { _, _ ->
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val result = firebaseRepository.deleteChef(chef.chefId)
-                    if (result.isSuccess) {
-                        Toast.makeText(requireContext(), "Đã xóa đầu bếp ${chef.name}", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    private fun showAddDriverDialog() {
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_add_driver)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etName = dialog.findViewById<EditText>(R.id.etDriverName)
-        val etPhone = dialog.findViewById<EditText>(R.id.etDriverPhone)
-        val etCode = dialog.findViewById<EditText>(R.id.etDriverCode)
-        val etPlate = dialog.findViewById<EditText>(R.id.etDriverPlate)
-        val etModel = dialog.findViewById<EditText>(R.id.etVehicleModel)
-        val etEmail = dialog.findViewById<EditText>(R.id.etDriverEmail)
-        val etPassword = dialog.findViewById<EditText>(R.id.etDriverPassword)
-        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
-        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
-        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitDriver)
-
-        btnClose.setOnClickListener { dialog.dismiss() }
-        btnCancel.setOnClickListener { dialog.dismiss() }
-
-        btnSubmit.setOnClickListener {
-            val name = etName.text.toString().trim()
-            val phone = etPhone.text.toString().trim()
-            val code = etCode.text.toString().trim()
-            val plate = etPlate.text.toString().trim()
-            val model = etModel.text.toString().trim()
-            val email = etEmail.text.toString().trim()
-            val pass = etPassword.text.toString().trim()
-
-            if (name.isBlank()) {
-                etName.error = "Vui lòng nhập họ và tên tài xế"
-                return@setOnClickListener
-            }
-            if (phone.isBlank()) {
-                etPhone.error = "Vui lòng nhập số điện thoại"
-                return@setOnClickListener
-            }
-            if (plate.isBlank()) {
-                etPlate.error = "Vui lòng nhập biển số xe"
-                return@setOnClickListener
-            }
-            if (email.isBlank() || !email.contains("@")) {
-                etEmail.error = "Vui lòng nhập email hợp lệ"
-                return@setOnClickListener
-            }
-            if (pass.length < 6) {
-                etPassword.error = "Mật khẩu đăng nhập tối thiểu 6 ký tự"
-                return@setOnClickListener
-            }
-
-            btnSubmit.isEnabled = false
-            btnSubmit.text = "Đang tạo..."
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val result = firebaseRepository.createDriverAccount(
-                    context = requireContext(),
-                    storeId = currentStoreId,
-                    name = name,
-                    phone = phone,
-                    driverCode = code,
-                    vehiclePlate = plate,
-                    vehicleModel = model,
-                    email = email,
-                    pass = pass
-                )
-
-                if (result.isSuccess) {
-                    Toast.makeText(
-                        requireContext(),
-                        "✓ Đã tạo tài khoản tài xế [$name - $code] thành công!\nEmail: $email",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    btnSubmit.isEnabled = true
-                    btnSubmit.text = "Tạo tài khoản"
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperFragment.kt
@@ -84833,6 +84075,216 @@ class StoreProfileFragment : Fragment() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-internal/src/main/res/layout/item_driver.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="@color/white"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/border"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Driver Head -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/ivDriverAvatar"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:scaleType="centerCrop"
+                android:src="@mipmap/ic_launcher"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+                app:strokeColor="@color/border"
+                app:strokeWidth="2dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvDriverName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        tools:text="Tên tài xế" />
+
+                    <TextView
+                        android:id="@+id/tvDriverCode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@color/divider"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="1dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        tools:text="TX-14" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvDriverPhone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    tools:text="📞 0903.882.910" />
+            </LinearLayout>
+
+            <!-- Status Badge -->
+            <TextView
+                android:id="@+id/tvStatusBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                tools:background="#ECFDF5"
+                tools:text="🟢 Đang trực"
+                tools:textColor="#10B981" />
+        </LinearLayout>
+
+        <!-- Driver Details Box -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@color/background"
+            android:orientation="vertical"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="10dp">
+
+            <TextView
+                android:id="@+id/tvVehicleInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                tools:text="🏍️ Xe máy: Yamaha Sirius Fi (59-T1 882.91)" />
+
+            <TextView
+                android:id="@+id/tvOrderStats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                tools:text="📦 Đã giao cho quán: 12 đơn hôm nay • 1.240 đơn tổng" />
+
+            <TextView
+                android:id="@+id/tvRating"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="11.5sp"
+                tools:text="⭐ Đánh giá uy tín: 4.9 / 5.0 (Tài xế trực thuộc quán)" />
+        </LinearLayout>
+
+        <!-- Actions Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCall"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:backgroundTint="@color/brand_green_bg"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="12dp"
+                android:text="Liên hệ"
+                android:textColor="@color/brand_green"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp"
+                app:strokeColor="#A7F3D0"
+                app:strokeWidth="1dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDeleteDriver"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="@color/danger_bg"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="10dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:text="Xóa"
+                android:textColor="#DC2626"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:cornerRadius="8dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tvActionNote"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="✓ Tự nhận đơn của quán"
+                tools:textColor="#10B981" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/firebase/AuthRepository.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.firebase
@@ -91257,6 +90709,543 @@ class OtpVerificationActivity : AppCompatActivity() {
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverListFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.driver
+
+import android.app.Dialog
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.net.Uri
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.Window
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Chef
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.QRCodeUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentDriverListBinding
+import com.chuyen_de_2.foodorder.internal.ui.chef.ChefAdapter
+import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Quản lý Đội ngũ Nhân sự Của Quán (Staff Management):
+ * - Tab 1: Đội Tài Xế (Drivers): Thống kê, giám sát tình trạng trực/giao đơn, tạo tài khoản tài xế.
+ * - Tab 2: Đội Đầu Bếp (Chefs): Thống kê, giám sát tình trạng nấu món, tạo tài khoản đầu bếp trực thuộc quán.
+ */
+@AndroidEntryPoint
+class DriverListFragment : Fragment() {
+
+    private var _binding: FragmentDriverListBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
+    private lateinit var driverAdapter: DriverAdapter
+    private lateinit var chefAdapter: ChefAdapter
+
+    private var currentStoreId = ""
+    private var allDriversList: List<Driver> = emptyList()
+    private var currentFilter: String = "ALL"
+    private var isChefTabSelected = false
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentDriverListBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupRecyclerViews()
+        setupTabs()
+        setupListeners()
+        resolveCurrentStoreIdAndObserve()
+    }
+
+    private fun resolveCurrentStoreIdAndObserve() {
+        val uid = auth.currentUser?.uid.orEmpty()
+        viewLifecycleOwner.lifecycleScope.launch {
+            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            observeDrivers()
+            observeChefs()
+        }
+    }
+
+    private fun setupRecyclerViews() {
+        // 1. Adapter Tài Xế
+        driverAdapter = DriverAdapter(
+            onCallClick = { phone ->
+                try {
+                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:$phone")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDeleteClick = { driver ->
+                showDeleteDriverDialog(driver)
+            }
+        )
+        binding.rvDrivers.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvDrivers.adapter = driverAdapter
+
+        // 2. Adapter Đầu Bếp
+        chefAdapter = ChefAdapter(
+            onCallClick = { phone ->
+                try {
+                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:$phone")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Không thể mở ứng dụng gọi điện", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDeleteClick = { chef ->
+                showDeleteChefDialog(chef)
+            }
+        )
+        binding.rvChefs.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvChefs.adapter = chefAdapter
+    }
+
+    private fun setupTabs() {
+        binding.btnTabDrivers.setOnClickListener {
+            if (isChefTabSelected) {
+                isChefTabSelected = false
+                updateTabUI()
+            }
+        }
+
+        binding.btnTabChefs.setOnClickListener {
+            if (!isChefTabSelected) {
+                isChefTabSelected = true
+                updateTabUI()
+            }
+        }
+        updateTabUI()
+    }
+
+    private fun updateTabUI() {
+        if (!isChefTabSelected) {
+            // Hiển thị Tab Tài Xế
+            binding.tvStaffHeaderTitle.text = "Đội Tài Xế Của Quán"
+            binding.btnAddDriver.visibility = View.VISIBLE
+            binding.btnAddChef.visibility = View.GONE
+            binding.layoutDriverSection.visibility = View.VISIBLE
+            binding.layoutChefSection.visibility = View.GONE
+
+            binding.btnTabDrivers.setBackgroundResource(R.drawable.bg_order_tab_active)
+            binding.tvTabDriversTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.white))
+
+            binding.btnTabChefs.setBackgroundResource(R.drawable.bg_order_tab_idle)
+            binding.tvTabChefsTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        } else {
+            // Hiển thị Tab Đầu Bếp
+            binding.tvStaffHeaderTitle.text = "Đội Đầu Bếp Của Quán"
+            binding.btnAddDriver.visibility = View.GONE
+            binding.btnAddChef.visibility = View.VISIBLE
+            binding.layoutDriverSection.visibility = View.GONE
+            binding.layoutChefSection.visibility = View.VISIBLE
+
+            binding.btnTabChefs.setBackgroundResource(R.drawable.bg_order_tab_active)
+            binding.tvTabChefsTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.white))
+
+            binding.btnTabDrivers.setBackgroundResource(R.drawable.bg_order_tab_idle)
+            binding.tvTabDriversTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        }
+    }
+
+    private fun setupListeners() {
+        binding.btnAddDriver.setOnClickListener {
+            showAddDriverDialog()
+        }
+        binding.btnAddChef.setOnClickListener {
+            showAddChefDialog()
+        }
+
+        binding.layoutStatTotal.setOnClickListener {
+            currentFilter = "ALL"
+            applyFilter()
+            Toast.makeText(requireContext(), "Hiển thị: Tất cả tài xế", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatAvailable.setOnClickListener {
+            currentFilter = Driver.DutyStatus.AVAILABLE
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Đang trực (Sẵn sàng)", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatDelivering.setOnClickListener {
+            currentFilter = Driver.DutyStatus.DELIVERING
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Đang đi giao đơn", Toast.LENGTH_SHORT).show()
+        }
+        binding.layoutStatOffDuty.setOnClickListener {
+            currentFilter = Driver.DutyStatus.OFF_DUTY
+            applyFilter()
+            Toast.makeText(requireContext(), "Lọc: Tài xế Nghỉ ca (OFF)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ==================== OBSERVERS ====================
+
+    private fun observeDrivers() {
+        binding.progressBar.visibility = View.VISIBLE
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            combine(
+                firebaseRepository.observeStoreDrivers(currentStoreId),
+                firebaseRepository.observeAllOrders()
+            ) { drivers, orders ->
+                val activeOrders = orders.filter { order ->
+                    !order.shipperId.isNullOrBlank() && (
+                        order.status == Order.Status.ASSIGNED ||
+                        order.status == Order.Status.ARRIVED_AT_SHOP ||
+                        order.status == Order.Status.DELIVERING ||
+                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        order.status == Order.Status.RETURNING_TO_STORE
+                    )
+                }
+                val activeOrdersByDriver = activeOrders.groupBy { it.shipperId }
+
+                drivers.map { driver ->
+                    val deliveringOrders = activeOrdersByDriver[driver.driverId].orEmpty()
+                    if (deliveringOrders.isNotEmpty()) {
+                        val primaryOrder = deliveringOrders.first()
+                        val shortCode = QRCodeUtils.getShortOrderCode(primaryOrder.orderId)
+                        val info = if (primaryOrder.status == Order.Status.RETURNING_TO_STORE) {
+                            "#$shortCode • Trả hàng về quán"
+                        } else if (deliveringOrders.size > 1) {
+                            "#$shortCode (+${deliveringOrders.size - 1} đơn ghép)"
+                        } else {
+                            "#$shortCode • ${primaryOrder.customerName}"
+                        }
+                        driver.copy(
+                            dutyStatus = Driver.DutyStatus.DELIVERING,
+                            currentOrderCode = info
+                        )
+                    } else if (driver.dutyStatus == Driver.DutyStatus.OFF_DUTY ||
+                        driver.dutyStatus?.equals("OFFLINE", ignoreCase = true) == true ||
+                        driver.dutyStatus.isNullOrBlank()
+                    ) {
+                        driver.copy(dutyStatus = Driver.DutyStatus.OFF_DUTY)
+                    } else {
+                        driver.copy(dutyStatus = Driver.DutyStatus.AVAILABLE)
+                    }
+                }
+            }.collectLatest { syncedDrivers ->
+                binding.progressBar.visibility = View.GONE
+                allDriversList = syncedDrivers
+
+                val total = syncedDrivers.size
+                val available = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
+                val delivering = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.DELIVERING }
+                val offDuty = syncedDrivers.count { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
+
+                binding.tvTotalDrivers.text = total.toString()
+                binding.tvAvailableDrivers.text = available.toString()
+                binding.tvDeliveringDrivers.text = delivering.toString()
+                binding.tvOffDutyDrivers.text = offDuty.toString()
+
+                applyFilter()
+            }
+        }
+    }
+
+    private fun observeChefs() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            combine(
+                firebaseRepository.observeStoreChefs(currentStoreId),
+                firebaseRepository.observeAllOrders()
+            ) { chefs, orders ->
+                // Đếm số đơn PREPARING mà từng đầu bếp đang nấu
+                val preparingOrders = orders.filter { it.status == Order.Status.PREPARING && !it.chefId.isNullOrBlank() }
+                val cookingCounts = preparingOrders.groupBy { it.chefId }.mapValues { it.value.size }
+
+                chefs.map { chef ->
+                    val activeCount = cookingCounts[chef.chefId] ?: 0
+                    chef.copy(activeOrdersCount = activeCount)
+                }
+            }.collectLatest { syncedChefs ->
+                if (syncedChefs.isEmpty()) {
+                    binding.layoutEmptyChefs.visibility = View.VISIBLE
+                    binding.rvChefs.visibility = View.GONE
+                } else {
+                    binding.layoutEmptyChefs.visibility = View.GONE
+                    binding.rvChefs.visibility = View.VISIBLE
+                    chefAdapter.submitList(syncedChefs)
+                }
+            }
+        }
+    }
+
+    private fun applyFilter() {
+        val filtered = when (currentFilter) {
+            Driver.DutyStatus.AVAILABLE -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.AVAILABLE }
+            Driver.DutyStatus.DELIVERING -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.DELIVERING }
+            Driver.DutyStatus.OFF_DUTY -> allDriversList.filter { it.dutyStatus == Driver.DutyStatus.OFF_DUTY }
+            else -> allDriversList
+        }
+
+        if (filtered.isEmpty()) {
+            binding.layoutEmpty.visibility = View.VISIBLE
+            binding.rvDrivers.visibility = View.GONE
+        } else {
+            binding.layoutEmpty.visibility = View.GONE
+            binding.rvDrivers.visibility = View.VISIBLE
+            driverAdapter.submitList(filtered)
+        }
+    }
+
+    // ==================== DIALOGS ====================
+
+    private fun showAddChefDialog() {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_add_chef)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etName = dialog.findViewById<EditText>(R.id.etChefName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etChefPhone)
+        val etTitle = dialog.findViewById<EditText>(R.id.etChefTitle)
+        val etEmail = dialog.findViewById<EditText>(R.id.etChefEmail)
+        val etPassword = dialog.findViewById<EditText>(R.id.etChefPassword)
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
+        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitChef)
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSubmit.setOnClickListener {
+            val name = etName.text.toString().trim()
+            val phone = etPhone.text.toString().trim()
+            val title = etTitle.text.toString().trim().ifBlank { "Đầu Bếp" }
+            val email = etEmail.text.toString().trim()
+            val pass = etPassword.text.toString().trim()
+
+            if (name.isBlank()) {
+                etName.error = "Vui lòng nhập họ và tên đầu bếp"
+                return@setOnClickListener
+            }
+            if (phone.isBlank()) {
+                etPhone.error = "Vui lòng nhập số điện thoại"
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !email.contains("@")) {
+                etEmail.error = "Vui lòng nhập email hợp lệ"
+                return@setOnClickListener
+            }
+            if (pass.length < 6) {
+                etPassword.error = "Mật khẩu tối thiểu 6 ký tự"
+                return@setOnClickListener
+            }
+
+            btnSubmit.isEnabled = false
+            btnSubmit.text = "Đang tạo tài khoản..."
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.createChefAccount(
+                    context = requireContext(),
+                    storeId = currentStoreId,
+                    name = name,
+                    phone = phone,
+                    email = email,
+                    pass = pass,
+                    title = title
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(
+                        requireContext(),
+                        "✓ Đã tạo tài khoản Đầu Bếp [$name] thành công!\nEmail: $email",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    btnSubmit.isEnabled = true
+                    btnSubmit.text = "Tạo tài khoản bếp"
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun showDeleteDriverDialog(driver: Driver) {
+        val driverName = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xóa tài khoản tài xế")
+            .setMessage("Bạn có chắc chắn muốn xóa tài xế $driverName (${driver.driverCode}) khỏi quán không?\n\nTài khoản sẽ bị gỡ bỏ và các đơn đang giao (nếu có) sẽ được chuyển về trạng thái sẵn sàng cho tài xế khác nhận.")
+            .setPositiveButton("Xóa") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val result = firebaseRepository.deleteDriver(driver.driverId)
+                    if (result.isSuccess) {
+                        Toast.makeText(requireContext(), "Đã xóa tài xế $driverName", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    private fun showDeleteChefDialog(chef: Chef) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xóa tài khoản đầu bếp")
+            .setMessage("Bạn có chắc chắn muốn xóa đầu bếp ${chef.name} khỏi danh sách nhân sự của quán không?")
+            .setPositiveButton("Xóa") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val result = firebaseRepository.deleteChef(chef.chefId)
+                    if (result.isSuccess) {
+                        Toast.makeText(requireContext(), "Đã xóa đầu bếp ${chef.name}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Lỗi xóa: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    private fun showAddDriverDialog() {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_add_driver)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etName = dialog.findViewById<EditText>(R.id.etDriverName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etDriverPhone)
+        val etCode = dialog.findViewById<EditText>(R.id.etDriverCode)
+        val etPlate = dialog.findViewById<EditText>(R.id.etDriverPlate)
+        val etModel = dialog.findViewById<EditText>(R.id.etVehicleModel)
+        val etEmail = dialog.findViewById<EditText>(R.id.etDriverEmail)
+        val etPassword = dialog.findViewById<EditText>(R.id.etDriverPassword)
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
+        val btnSubmit = dialog.findViewById<MaterialButton>(R.id.btnSubmitDriver)
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSubmit.setOnClickListener {
+            val name = etName.text.toString().trim()
+            val phone = etPhone.text.toString().trim()
+            val code = etCode.text.toString().trim()
+            val plate = etPlate.text.toString().trim()
+            val model = etModel.text.toString().trim()
+            val email = etEmail.text.toString().trim()
+            val pass = etPassword.text.toString().trim()
+
+            if (name.isBlank()) {
+                etName.error = "Vui lòng nhập họ và tên tài xế"
+                return@setOnClickListener
+            }
+            if (phone.isBlank()) {
+                etPhone.error = "Vui lòng nhập số điện thoại"
+                return@setOnClickListener
+            }
+            if (plate.isBlank()) {
+                etPlate.error = "Vui lòng nhập biển số xe"
+                return@setOnClickListener
+            }
+            if (email.isBlank() || !email.contains("@")) {
+                etEmail.error = "Vui lòng nhập email hợp lệ"
+                return@setOnClickListener
+            }
+            if (pass.length < 6) {
+                etPassword.error = "Mật khẩu đăng nhập tối thiểu 6 ký tự"
+                return@setOnClickListener
+            }
+
+            btnSubmit.isEnabled = false
+            btnSubmit.text = "Đang tạo..."
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.createDriverAccount(
+                    context = requireContext(),
+                    storeId = currentStoreId,
+                    name = name,
+                    phone = phone,
+                    driverCode = code,
+                    vehiclePlate = plate,
+                    vehicleModel = model,
+                    email = email,
+                    pass = pass
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(
+                        requireContext(),
+                        "✓ Đã tạo tài khoản tài xế [$name - $code] thành công!\nEmail: $email",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Lỗi tạo tài khoản: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    btnSubmit.isEnabled = true
+                    btnSubmit.text = "Tạo tài khoản"
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
 ## File: app-internal/src/main/res/layout/activity_boss_dashboard.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -91832,49 +91821,70 @@ class OtpVerificationActivity : AppCompatActivity() {
             tools:visibility="visible" />
     </LinearLayout>
 
-    <!-- Switcher giữa Tài xế và Đầu bếp -->
+    <!-- Switcher giữa Tài xế và Đầu bếp (Segmented Control hiện đại) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/white"
-        android:elevation="2dp"
-        android:orientation="horizontal"
         android:paddingHorizontal="16dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="4dp"
+        android:paddingBottom="12dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTabDrivers"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_marginEnd="6dp"
-            android:layout_weight="1"
-            android:backgroundTint="@color/brand_blue"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:text="🛵 Đội Tài Xế"
-            android:textColor="@color/white"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="8dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_card_rounded"
+            android:backgroundTint="#F8FAFC"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="3dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTabChefs"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="38dp"
-            android:layout_marginStart="6dp"
-            android:layout_weight="1"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:text="👨‍🍳 Đội Đầu Bếp"
-            android:textColor="@color/text_secondary"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            app:cornerRadius="8dp"
-            app:strokeColor="@color/border" />
+            <!-- Tab 1: Đội Tài Xế -->
+            <LinearLayout
+                android:id="@+id/btnTabDrivers"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_order_tab_active"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvTabDriversTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛵 Đội Tài Xế"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Tab 2: Đội Đầu Bếp -->
+            <LinearLayout
+                android:id="@+id/btnTabChefs"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_order_tab_idle"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvTabChefsTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="👨‍🍳 Đội Đầu Bếp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView

@@ -140,6 +140,7 @@ class DriverListFragment : Fragment() {
                 updateTabUI()
             }
         }
+        updateTabUI()
     }
 
     private fun updateTabUI() {
@@ -151,17 +152,11 @@ class DriverListFragment : Fragment() {
             binding.layoutDriverSection.visibility = View.VISIBLE
             binding.layoutChefSection.visibility = View.GONE
 
-            binding.btnTabDrivers.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_blue)
-                setTextColor(Color.WHITE)
-                strokeWidth = 0
-            }
-            binding.btnTabChefs.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                setStrokeColorResource(R.color.border)
-                strokeWidth = 2
-            }
+            binding.btnTabDrivers.setBackgroundResource(R.drawable.bg_order_tab_active)
+            binding.tvTabDriversTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.white))
+
+            binding.btnTabChefs.setBackgroundResource(R.drawable.bg_order_tab_idle)
+            binding.tvTabChefsTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
         } else {
             // Hiển thị Tab Đầu Bếp
             binding.tvStaffHeaderTitle.text = "Đội Đầu Bếp Của Quán"
@@ -170,17 +165,11 @@ class DriverListFragment : Fragment() {
             binding.layoutDriverSection.visibility = View.GONE
             binding.layoutChefSection.visibility = View.VISIBLE
 
-            binding.btnTabChefs.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), R.color.brand_orange)
-                setTextColor(Color.WHITE)
-                strokeWidth = 0
-            }
-            binding.btnTabDrivers.apply {
-                backgroundTintList = ContextCompat.getColorStateList(requireContext(), android.R.color.transparent)
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                setStrokeColorResource(R.color.border)
-                strokeWidth = 2
-            }
+            binding.btnTabChefs.setBackgroundResource(R.drawable.bg_order_tab_active)
+            binding.tvTabChefsTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.white))
+
+            binding.btnTabDrivers.setBackgroundResource(R.drawable.bg_order_tab_idle)
+            binding.tvTabDriversTitle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
         }
     }
 

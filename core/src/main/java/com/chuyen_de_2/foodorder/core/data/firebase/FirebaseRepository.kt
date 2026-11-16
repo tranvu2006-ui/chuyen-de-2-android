@@ -527,10 +527,16 @@ class FirebaseRepository @Inject constructor(
         val orderRef = database.getReference("orders").child(orderId)
         val orderSnap = try { readCacheFirst(orderRef) } catch (_: Exception) { null }
 
-        val currentStatus = orderSnap?.child("status")?.getValue(String::class.java).orEmpty().uppercase()
-        // Khi shipper đang chạy trên đường chở món đi giao (DELIVERING) mà khách hủy đơn:
+        val statusVal = orderSnap?.child("status")?.getValue(String::class.java).orEmpty().uppercase()
+        val orderStatusVal = orderSnap?.child("orderStatus")?.getValue(String::class.java).orEmpty().uppercase()
+        val currentStatus = statusVal.ifBlank { orderStatusVal }
+
+        // Khi shipper đang chạy trên đường chở món đi giao (DELIVERING) hoặc đã đến trước nhà khách mà khách hủy đơn:
         // Chuyển sang RETURNING_TO_STORE để shipper mang món quay về quán, không hủy ngay lập tức
-        val isDeliveringFlow = currentStatus == Order.Status.DELIVERING
+        val isDeliveringFlow = currentStatus == Order.Status.DELIVERING ||
+                currentStatus == Order.Status.ARRIVED_AT_CUSTOMER ||
+                orderStatusVal == Order.Status.DELIVERING ||
+                orderStatusVal == Order.Status.ARRIVED_AT_CUSTOMER
         val targetStatus = if (isDeliveringFlow) Order.Status.RETURNING_TO_STORE else Order.Status.CANCELLED
 
         val updates = mutableMapOf<String, Any>(

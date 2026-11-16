@@ -103002,14 +103002,21 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
 
+        val isDeliveringFlow = status == Order.Status.DELIVERING ||
+                status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                order.status.equals(Order.Status.DELIVERING, ignoreCase = true) ||
+                order.status.equals(Order.Status.ARRIVED_AT_CUSTOMER, ignoreCase = true) ||
+                order.orderStatus.equals(Order.Status.DELIVERING, ignoreCase = true) ||
+                order.orderStatus.equals(Order.Status.ARRIVED_AT_CUSTOMER, ignoreCase = true)
+
         when {
-            // Khi tài xế đang trên đường chở món đi giao (DELIVERING, chưa đến nhà khách):
+            // Khi tài xế đang trên đường chở món đi giao (DELIVERING) hoặc đã đến trước nhà khách:
             // Kích hoạt luồng tài xế mang món quay về quán
-            status == Order.Status.DELIVERING -> {
+            isDeliveringFlow -> {
                 showDeliveringCancelDialog(order)
             }
-            // Khi tài xế đã được gán hoặc đang đến quán lấy món
-            !order.shipperId.isNullOrBlank() || status == Order.Status.ASSIGNED || status == Order.Status.ARRIVED_AT_SHOP || status == Order.Status.ARRIVED_AT_CUSTOMER -> {
+            // Khi tài xế mới được gán hoặc đang đến quán lấy món (chưa lấy món rời khỏi quán)
+            !order.shipperId.isNullOrBlank() || status == Order.Status.ASSIGNED || status == Order.Status.ARRIVED_AT_SHOP -> {
                 showAssignedDriverCancelDialog(order)
             }
             status == Order.Status.PREPARING || status == Order.Status.READY -> {
@@ -104777,6 +104784,42 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun handleOrderCancelledRealtime(order: Order) {
         if (hasShownCancelledDialog || isFinishing || isDestroyed) return
+
+        // Nếu tài xế đã lấy món từ quán (bước 3 trở đi hoặc đã nhận món):
+        // KHÔNG kết thúc chuyến giao mà phải chuyển sang luồng mang món về quán
+        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+        if (hasPickedUp) {
+            if (!bomReturnOrders.any { it.orderId == order.orderId }) {
+                bomReturnOrders.add(order)
+            }
+            lifecycleScope.launch {
+                try {
+                    val fullReason = order.cancelReason.ifBlank { "Khách hủy khi tài xế đang giao" }
+                    firebaseRepository.updateOrderStatus(
+                        order.orderId,
+                        Order.Status.RETURNING_TO_STORE,
+                        fullReason
+                    )
+                    com.google.firebase.database.FirebaseDatabase.getInstance()
+                        .getReference("orders")
+                        .child(order.orderId)
+                        .updateChildren(
+                            mapOf(
+                                "status" to Order.Status.RETURNING_TO_STORE,
+                                "orderStatus" to Order.Status.RETURNING_TO_STORE,
+                                "bomStatus" to "RETURNING_TO_STORE"
+                            )
+                        )
+                } catch (_: Exception) {}
+            }
+            if (!hasShownReturningDialog) {
+                hasShownReturningDialog = true
+                showReturningOrderAlertDialog(order)
+            }
+            switchToReturningToStoreScreen(order)
+            return
+        }
+
         hasShownCancelledDialog = true
 
         countdownTimer?.cancel()
@@ -104866,7 +104909,19 @@ class DeliveryTripActivity : AppCompatActivity() {
                         bindOrderData(order)
                     }
                     if (order.status == Order.Status.CANCELLED || order.status == Order.Status.BOOM) {
-                        handleOrderCancelledRealtime(order)
+                        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+                        if (hasPickedUp) {
+                            if (!bomReturnOrders.any { it.orderId == order.orderId }) {
+                                bomReturnOrders.add(order)
+                            }
+                            if (!hasShownReturningDialog) {
+                                hasShownReturningDialog = true
+                                showReturningOrderAlertDialog(order)
+                            }
+                            switchToReturningToStoreScreen(order)
+                        } else {
+                            handleOrderCancelledRealtime(order)
+                        }
                     } else if (order.status == Order.Status.RETURNING_TO_STORE) {
                         if (!hasShownReturningDialog) {
                             hasShownReturningDialog = true
@@ -108939,10 +108994,16 @@ class FirebaseRepository @Inject constructor(
         val orderRef = database.getReference("orders").child(orderId)
         val orderSnap = try { readCacheFirst(orderRef) } catch (_: Exception) { null }
 
-        val currentStatus = orderSnap?.child("status")?.getValue(String::class.java).orEmpty().uppercase()
-        // Khi shipper đang chạy trên đường chở món đi giao (DELIVERING) mà khách hủy đơn:
+        val statusVal = orderSnap?.child("status")?.getValue(String::class.java).orEmpty().uppercase()
+        val orderStatusVal = orderSnap?.child("orderStatus")?.getValue(String::class.java).orEmpty().uppercase()
+        val currentStatus = statusVal.ifBlank { orderStatusVal }
+
+        // Khi shipper đang chạy trên đường chở món đi giao (DELIVERING) hoặc đã đến trước nhà khách mà khách hủy đơn:
         // Chuyển sang RETURNING_TO_STORE để shipper mang món quay về quán, không hủy ngay lập tức
-        val isDeliveringFlow = currentStatus == Order.Status.DELIVERING
+        val isDeliveringFlow = currentStatus == Order.Status.DELIVERING ||
+                currentStatus == Order.Status.ARRIVED_AT_CUSTOMER ||
+                orderStatusVal == Order.Status.DELIVERING ||
+                orderStatusVal == Order.Status.ARRIVED_AT_CUSTOMER
         val targetStatus = if (isDeliveringFlow) Order.Status.RETURNING_TO_STORE else Order.Status.CANCELLED
 
         val updates = mutableMapOf<String, Any>(

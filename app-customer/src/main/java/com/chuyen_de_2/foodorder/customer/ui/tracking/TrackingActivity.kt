@@ -254,14 +254,21 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
 
+        val isDeliveringFlow = status == Order.Status.DELIVERING ||
+                status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                order.status.equals(Order.Status.DELIVERING, ignoreCase = true) ||
+                order.status.equals(Order.Status.ARRIVED_AT_CUSTOMER, ignoreCase = true) ||
+                order.orderStatus.equals(Order.Status.DELIVERING, ignoreCase = true) ||
+                order.orderStatus.equals(Order.Status.ARRIVED_AT_CUSTOMER, ignoreCase = true)
+
         when {
-            // Khi tài xế đang trên đường chở món đi giao (DELIVERING, chưa đến nhà khách):
+            // Khi tài xế đang trên đường chở món đi giao (DELIVERING) hoặc đã đến trước nhà khách:
             // Kích hoạt luồng tài xế mang món quay về quán
-            status == Order.Status.DELIVERING -> {
+            isDeliveringFlow -> {
                 showDeliveringCancelDialog(order)
             }
-            // Khi tài xế đã được gán hoặc đang đến quán lấy món
-            !order.shipperId.isNullOrBlank() || status == Order.Status.ASSIGNED || status == Order.Status.ARRIVED_AT_SHOP || status == Order.Status.ARRIVED_AT_CUSTOMER -> {
+            // Khi tài xế mới được gán hoặc đang đến quán lấy món (chưa lấy món rời khỏi quán)
+            !order.shipperId.isNullOrBlank() || status == Order.Status.ASSIGNED || status == Order.Status.ARRIVED_AT_SHOP -> {
                 showAssignedDriverCancelDialog(order)
             }
             status == Order.Status.PREPARING || status == Order.Status.READY -> {

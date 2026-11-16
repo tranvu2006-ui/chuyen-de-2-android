@@ -581,6 +581,42 @@ class DeliveryTripActivity : AppCompatActivity() {
 
     private fun handleOrderCancelledRealtime(order: Order) {
         if (hasShownCancelledDialog || isFinishing || isDestroyed) return
+
+        // Nếu tài xế đã lấy món từ quán (bước 3 trở đi hoặc đã nhận món):
+        // KHÔNG kết thúc chuyến giao mà phải chuyển sang luồng mang món về quán
+        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+        if (hasPickedUp) {
+            if (!bomReturnOrders.any { it.orderId == order.orderId }) {
+                bomReturnOrders.add(order)
+            }
+            lifecycleScope.launch {
+                try {
+                    val fullReason = order.cancelReason.ifBlank { "Khách hủy khi tài xế đang giao" }
+                    firebaseRepository.updateOrderStatus(
+                        order.orderId,
+                        Order.Status.RETURNING_TO_STORE,
+                        fullReason
+                    )
+                    com.google.firebase.database.FirebaseDatabase.getInstance()
+                        .getReference("orders")
+                        .child(order.orderId)
+                        .updateChildren(
+                            mapOf(
+                                "status" to Order.Status.RETURNING_TO_STORE,
+                                "orderStatus" to Order.Status.RETURNING_TO_STORE,
+                                "bomStatus" to "RETURNING_TO_STORE"
+                            )
+                        )
+                } catch (_: Exception) {}
+            }
+            if (!hasShownReturningDialog) {
+                hasShownReturningDialog = true
+                showReturningOrderAlertDialog(order)
+            }
+            switchToReturningToStoreScreen(order)
+            return
+        }
+
         hasShownCancelledDialog = true
 
         countdownTimer?.cancel()
@@ -670,7 +706,19 @@ class DeliveryTripActivity : AppCompatActivity() {
                         bindOrderData(order)
                     }
                     if (order.status == Order.Status.CANCELLED || order.status == Order.Status.BOOM) {
-                        handleOrderCancelledRealtime(order)
+                        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+                        if (hasPickedUp) {
+                            if (!bomReturnOrders.any { it.orderId == order.orderId }) {
+                                bomReturnOrders.add(order)
+                            }
+                            if (!hasShownReturningDialog) {
+                                hasShownReturningDialog = true
+                                showReturningOrderAlertDialog(order)
+                            }
+                            switchToReturningToStoreScreen(order)
+                        } else {
+                            handleOrderCancelledRealtime(order)
+                        }
                     } else if (order.status == Order.Status.RETURNING_TO_STORE) {
                         if (!hasShownReturningDialog) {
                             hasShownReturningDialog = true

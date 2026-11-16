@@ -272,9 +272,14 @@ class DeliveryTripActivity : AppCompatActivity() {
                                     } else {
                                         listOfNotNull(currentOrder).filter { !isOrderAlreadyPickedUp(it) }
                                     }
-                                    ordersToPickup.forEach { o ->
-                                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                                        saveStep(o.orderId, 3)
+                                    if (ordersToPickup.isNotEmpty()) {
+                                        ordersToPickup.forEach { o ->
+                                            firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                                            saveStep(o.orderId, 3)
+                                        }
+                                    } else if (currentOrderId.isNotBlank()) {
+                                        firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
+                                        saveStep(currentOrderId, 3)
                                     }
                                 }
                             }
@@ -542,11 +547,13 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     private fun isOrderAlreadyPickedUp(order: Order): Boolean {
-        return order.status == Order.Status.DELIVERING ||
+        return order.isPickedUp ||
+            order.status == Order.Status.DELIVERING ||
             order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
             order.status == Order.Status.COMPLETED ||
             order.status == Order.Status.RETURNING_TO_STORE ||
-            getSavedStep(order.orderId) >= 3
+            getSavedStep(order.orderId) >= 3 ||
+            getSavedStep(currentOrderId) >= 3
     }
 
     private fun getEffectiveStepForOrder(order: Order): Int {
@@ -582,9 +589,14 @@ class DeliveryTripActivity : AppCompatActivity() {
     private fun handleOrderCancelledRealtime(order: Order) {
         if (hasShownCancelledDialog || isFinishing || isDestroyed) return
 
-        // Nếu tài xế đã lấy món từ quán (bước 3 trở đi hoặc đã nhận món):
+        // Nếu tài xế đã lấy món từ quán (bước 3 trở đi hoặc đang hiển thị màn hình giao khách):
         // KHÔNG kết thúc chuyến giao mà phải chuyển sang luồng mang món về quán
-        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+        val hasPickedUp = currentStep >= 3 ||
+                binding.layoutStep3.visibility == View.VISIBLE ||
+                binding.layoutStep4.visibility == View.VISIBLE ||
+                getSavedStep(order.orderId) >= 3 ||
+                getSavedStep(currentOrderId) >= 3 ||
+                isOrderAlreadyPickedUp(order)
         if (hasPickedUp) {
             if (!bomReturnOrders.any { it.orderId == order.orderId }) {
                 bomReturnOrders.add(order)
@@ -706,7 +718,12 @@ class DeliveryTripActivity : AppCompatActivity() {
                         bindOrderData(order)
                     }
                     if (order.status == Order.Status.CANCELLED || order.status == Order.Status.BOOM) {
-                        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+                        val hasPickedUp = currentStep >= 3 ||
+                                binding.layoutStep3.visibility == View.VISIBLE ||
+                                binding.layoutStep4.visibility == View.VISIBLE ||
+                                getSavedStep(order.orderId) >= 3 ||
+                                getSavedStep(currentOrderId) >= 3 ||
+                                isOrderAlreadyPickedUp(order)
                         if (hasPickedUp) {
                             if (!bomReturnOrders.any { it.orderId == order.orderId }) {
                                 bomReturnOrders.add(order)
@@ -1707,9 +1724,14 @@ class DeliveryTripActivity : AppCompatActivity() {
                 } else {
                     listOfNotNull(currentOrder).filter { !isOrderAlreadyPickedUp(it) }
                 }
-                ordersToPickup.forEach { o ->
-                    firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                    saveStep(o.orderId, 3)
+                if (ordersToPickup.isNotEmpty()) {
+                    ordersToPickup.forEach { o ->
+                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                        saveStep(o.orderId, 3)
+                    }
+                } else if (currentOrderId.isNotBlank()) {
+                    firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
+                    saveStep(currentOrderId, 3)
                 }
             }
         }

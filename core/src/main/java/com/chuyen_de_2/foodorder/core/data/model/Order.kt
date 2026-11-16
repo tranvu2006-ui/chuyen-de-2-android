@@ -49,6 +49,9 @@ data class Order(
     @SerializedName("shipperPhone")
     var shipperPhone: String = "",
 
+    @SerializedName("isPickedUp", alternate = ["pickedUp"])
+    var isPickedUp: Boolean = false,
+
     @SerializedName("chefId")
     var chefId: String? = null,
 

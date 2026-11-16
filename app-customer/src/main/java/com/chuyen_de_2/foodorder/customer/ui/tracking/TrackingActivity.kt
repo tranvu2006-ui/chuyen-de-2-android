@@ -256,6 +256,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val isDeliveringFlow = status == Order.Status.DELIVERING ||
                 status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                order.isPickedUp ||
                 order.status.equals(Order.Status.DELIVERING, ignoreCase = true) ||
                 order.status.equals(Order.Status.ARRIVED_AT_CUSTOMER, ignoreCase = true) ||
                 order.orderStatus.equals(Order.Status.DELIVERING, ignoreCase = true) ||

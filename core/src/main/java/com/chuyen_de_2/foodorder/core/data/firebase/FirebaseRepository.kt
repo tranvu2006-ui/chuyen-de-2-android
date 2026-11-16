@@ -531,10 +531,13 @@ class FirebaseRepository @Inject constructor(
 
         // Khi shipper đang chạy trên đường chở món đi giao (DELIVERING) hoặc đã đến trước nhà khách mà khách hủy đơn:
         // Chuyển sang RETURNING_TO_STORE để shipper mang món quay về quán, không hủy ngay lập tức
+        val isPickedUp = orderSnap?.child("isPickedUp")?.getValue(Boolean::class.java) == true ||
+                orderSnap?.child("pickedUp")?.getValue(Boolean::class.java) == true
         val isDeliveringFlow = currentStatus == Order.Status.DELIVERING ||
                 currentStatus == Order.Status.ARRIVED_AT_CUSTOMER ||
                 orderStatusVal == Order.Status.DELIVERING ||
-                orderStatusVal == Order.Status.ARRIVED_AT_CUSTOMER
+                orderStatusVal == Order.Status.ARRIVED_AT_CUSTOMER ||
+                isPickedUp
         val targetStatus = if (isDeliveringFlow) Order.Status.RETURNING_TO_STORE else Order.Status.CANCELLED
 
         val updates = mutableMapOf<String, Any>(
@@ -761,6 +764,10 @@ class FirebaseRepository @Inject constructor(
             "orderStatus" to status,
             "updatedAt" to System.currentTimeMillis()
         )
+        if (normalizedStatus == Order.Status.DELIVERING || normalizedStatus == Order.Status.ARRIVED_AT_CUSTOMER) {
+            updates["isPickedUp"] = true
+            updates["pickedUp"] = true
+        }
         if (reason.isNotBlank()) updates["cancelReason"] = reason
 
         // Cập nhật trạng thái đơn hàng NGAY LẬP TỨC vào cache + đẩy socket realtime (không chờ .await() chặn luồng)

@@ -27847,59 +27847,6 @@ zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
 ````
 
-## File: scripts/migrate_orders_driver_to_shipper.py
-````python
-# -*- coding: utf-8 -*-
-"""
-Script chuẩn hóa toàn bộ node 'orders' trên Firebase Realtime Database:
-- Chuyển toàn bộ key 'driverId' sang 'shipperId'
-- Xóa bỏ hoàn toàn key 'driverId' dư thừa trên từng đơn hàng
-"""
-⋮----
-API_KEY = "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE"
-DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
-ADMIN_EMAIL = "admin@gmail.com"
-ADMIN_PASSWORD = "123456"
-⋮----
-def make_request(url, method="GET", data=None)
-⋮----
-headers = {"Content-Type": "application/json"}
-body = json.dumps(data).encode("utf-8") if data is not None else None
-req = urllib.request.Request(url, data=body, headers=headers, method=method)
-⋮----
-content = resp.read().decode("utf-8")
-⋮----
-def main()
-⋮----
-auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
-⋮----
-auth_res = make_request(auth_url, method="POST", data={
-id_token = auth_res.get("idToken")
-⋮----
-orders_url = f"{DATABASE_URL}/orders.json?auth={id_token}"
-⋮----
-all_orders = make_request(orders_url, method="GET") or {}
-⋮----
-total_orders = len(all_orders)
-⋮----
-migrated_count = 0
-cleaned_count = 0
-⋮----
-has_driver_id = "driverId" in order_data
-driver_id_val = order_data.get("driverId")
-shipper_id_val = order_data.get("shipperId")
-⋮----
-# Cần chuẩn hóa nếu có driverId
-⋮----
-# 1. Đảm bảo shipperId có giá trị hợp lệ nếu driverId tồn tại
-target_shipper_id = shipper_id_val or driver_id_val
-⋮----
-patch_url = f"{DATABASE_URL}/orders/{order_id}.json?auth={id_token}"
-⋮----
-# 2. Xóa bỏ trường driverId khỏi đơn hàng
-delete_driver_id_url = f"{DATABASE_URL}/orders/{order_id}/driverId.json?auth={id_token}"
-````
-
 ## File: .firebaserc
 ````
 {
@@ -40180,280 +40127,6 @@ class ShipperProfileFragment : Fragment() {
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.ship
-
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
-
-@HiltViewModel
-class ShipperViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository,
-    private val auth: FirebaseAuth
-) : ViewModel() {
-
-    private val _assignedOrders = MutableLiveData<List<Order>>()
-    val assignedOrders: LiveData<List<Order>> = _assignedOrders
-
-    private val _storePendingOrders = MutableLiveData<List<Order>>()
-    val storePendingOrders: LiveData<List<Order>> = _storePendingOrders
-
-    private val _currentDeliveryOrderId = MutableLiveData<String?>()
-    val currentDeliveryOrderId: LiveData<String?> = _currentDeliveryOrderId
-
-    private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
-    val shipperStore: LiveData<Pair<String, String>> = _shipperStore
-
-    private val _isOnline = MutableLiveData(true)
-    val isOnline: LiveData<Boolean> = _isOnline
-
-    private val _messageEvent = MutableLiveData<String>()
-    val messageEvent: LiveData<String> = _messageEvent
-
-    private var cachedShipperName: String = ""
-    private var cachedShipperPhone: String = ""
-
-    init {
-        loadShipperStoreAndOrders()
-    }
-
-    private fun loadShipperStoreAndOrders() {
-        val shipperId = auth.currentUser?.uid.orEmpty()
-        viewModelScope.launch {
-            if (shipperId.isNotBlank()) {
-                firebaseRepository.setupDriverPresence(shipperId)
-                val isCurrentlyOnline = _isOnline.value ?: true
-                val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
-                try {
-                    val userSnap = firebaseRepository.readCacheFirst(firebaseRepository.database.getReference("users").child(shipperId))
-                    cachedShipperPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
-                    cachedShipperName = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
-                } catch (_: Exception) {}
-            }
-            val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
-            _shipperStore.value = storeInfo
-            observeShipperOrders()
-            observePendingStoreOrders(storeInfo.first)
-        }
-    }
-
-    private fun observeShipperOrders() {
-        val shipperId = auth.currentUser?.uid
-        if (shipperId.isNullOrBlank()) {
-            _assignedOrders.value = emptyList()
-            return
-        }
-        viewModelScope.launch {
-            firebaseRepository.observeOrdersByShipper(shipperId).collectLatest { orders ->
-                // Chỉ nhận những đơn có đúng shipperId của tài xế này
-                val myOrders = orders.filter { it.shipperId == shipperId }
-                _assignedOrders.value = myOrders
-
-                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER, RETURNING_TO_STORE)
-                val delivering = myOrders.find {
-                    it.status == Order.Status.DELIVERING ||
-                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                    it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED ||
-                    it.status == Order.Status.RETURNING_TO_STORE
-                }
-                _currentDeliveryOrderId.value = delivering?.orderId
-
-                // Đồng bộ trạng thái thật (DELIVERING / AVAILABLE / OFF_DUTY) lên Firebase cho Quán thấy
-                val isCurrentlyOnline = _isOnline.value ?: true
-                if (delivering != null) {
-                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
-                    val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
-                        "#$shortCode (Trả hàng về quán)"
-                    } else {
-                        "#$shortCode (${delivering.customerName})"
-                    }
-                    firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
-                } else {
-                    val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                    firebaseRepository.updateDriverDutyStatus(shipperId, status, "")
-                }
-            }
-        }
-    }
-
-    private fun observePendingStoreOrders(storeId: String) {
-        viewModelScope.launch {
-            firebaseRepository.observeAllOrders().collectLatest { allOrders ->
-                // Phân quyền chuẩn: Chỉ nhận đơn thuộc đúng QUÁN CỦA SHIPPER NÀY, đã READY và CHƯA có shipper nhận
-                if (storeId.isNotBlank()) {
-                    val pending = allOrders.filter { order ->
-                        (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
-                                order.status == Order.Status.READY &&
-                                order.storeId.isNotBlank() &&
-                                order.storeId == storeId
-                    }
-                    _storePendingOrders.value = pending
-                } else {
-                    // Tài xế chưa được gán vào quán ăn nào -> không nhận đơn của quán khác
-                    _storePendingOrders.value = emptyList()
-                }
-            }
-        }
-    }
-
-    fun toggleDuty(online: Boolean) {
-        _isOnline.value = online
-        val shipperId = auth.currentUser?.uid.orEmpty()
-        if (shipperId.isNotBlank()) {
-            viewModelScope.launch {
-                val hasDelivering = _assignedOrders.value?.any {
-                    it.status == Order.Status.DELIVERING ||
-                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                    it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED ||
-                    it.status == Order.Status.RETURNING_TO_STORE
-                } == true
-                val status = if (hasDelivering) {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
-                } else if (online) {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE
-                } else {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                }
-                firebaseRepository.updateDriverDutyStatus(shipperId, status)
-            }
-        }
-    }
-
-    /** Nhận đơn mới từ quán (ghép chuyến) */
-    fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
-        val currentActiveCount = _assignedOrders.value?.count {
-            it.status == Order.Status.DELIVERING ||
-            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-            it.status == Order.Status.ARRIVED_AT_SHOP ||
-            it.status == Order.Status.ASSIGNED ||
-            it.status == Order.Status.RETURNING_TO_STORE
-        } ?: 0
-
-        if (currentActiveCount >= 3) {
-            onResult(false, "Tài xế chỉ được nhận tối đa 3 đơn cùng lúc để đảm bảo thời gian giao!")
-            return
-        }
-
-        val shipperId = auth.currentUser?.uid ?: ""
-        if (shipperId.isBlank()) {
-            onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
-            return
-        }
-
-        val myStoreId = _shipperStore.value?.first.orEmpty()
-        val myStoreName = _shipperStore.value?.second.orEmpty()
-
-        if (myStoreId.isBlank()) {
-            onResult(false, "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Chủ quán để được thêm vào đội ngũ giao hàng!")
-            return
-        }
-
-        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
-        if (acceptedOrder != null && acceptedOrder.storeId.isNotBlank() && acceptedOrder.storeId != myStoreId) {
-            val storeDisplay = if (myStoreName.isNotBlank()) myStoreName else myStoreId
-            onResult(false, "Phân quyền: Bạn chỉ có thể nhận đơn từ quán của mình ($storeDisplay)!")
-            return
-        }
-
-        val resolvedShipperName = cachedShipperName.ifBlank {
-            auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
-        }
-        val resolvedShipperPhone = cachedShipperPhone.ifBlank {
-            auth.currentUser?.phoneNumber.orEmpty()
-        }
-
-        // Optimistic UI: Cập nhật ngay lập tức trên luồng chính (0ms) không chờ mạng
-        if (acceptedOrder != null) {
-            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
-            val updatedOrder = acceptedOrder.copy(
-                shipperId = shipperId,
-                shipperName = resolvedShipperName,
-                shipperPhone = resolvedShipperPhone,
-                status = Order.Status.ASSIGNED,
-                orderStatus = Order.Status.ASSIGNED
-            )
-            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
-            if (currentAssigned.none { it.orderId == orderId }) {
-                currentAssigned.add(0, updatedOrder)
-                _assignedOrders.value = currentAssigned
-            }
-            _currentDeliveryOrderId.value = orderId
-        }
-
-        firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
-            if (success) {
-                _currentDeliveryOrderId.value = orderId
-            } else {
-                if (acceptedOrder != null) {
-                    _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
-                }
-            }
-            onResult(success, msg)
-        }
-    }
-
-    /** Hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán) */
-    fun cancelAssignedOrder(orderId: String, reason: String, onResult: (Boolean, String) -> Unit) {
-        val removedOrder = _assignedOrders.value?.find { it.orderId == orderId }
-        // Optimistic UI: Xóa khỏi danh sách nhận ngay lập tức
-        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
-
-        viewModelScope.launch {
-            firebaseRepository.unassignShipper(orderId, reason) { success, msg ->
-                if (!success && removedOrder != null) {
-                    val current = _assignedOrders.value.orEmpty().toMutableList()
-                    current.add(removedOrder)
-                    _assignedOrders.value = current
-                }
-                onResult(success, msg)
-            }
-        }
-    }
-
-    /** Shipper xác nhận lấy hàng thành công tại quán */
-    fun confirmPickedUpAtShop(orderId: String) {
-        // Optimistic UI
-        _assignedOrders.value = _assignedOrders.value?.map {
-            if (it.orderId == orderId) it.copy(status = Order.Status.DELIVERING, orderStatus = Order.Status.DELIVERING) else it
-        }
-        viewModelScope.launch {
-            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
-        }
-    }
-
-    /** Shipper xác nhận hoàn thành giao hàng */
-    fun completeDelivery(orderId: String, onResult: ((Boolean) -> Unit)? = null) {
-        // Optimistic UI
-        _assignedOrders.value = _assignedOrders.value?.map {
-            if (it.orderId == orderId) it.copy(status = Order.Status.COMPLETED, orderStatus = Order.Status.COMPLETED) else it
-        }
-        viewModelScope.launch {
-            try {
-                firebaseRepository.updateOrderStatus(orderId, Order.Status.COMPLETED)
-                firebaseRepository.clearTracking(orderId)
-                onResult?.invoke(true)
-            } catch (e: Exception) {
-                onResult?.invoke(false)
-            }
-        }
-    }
-}
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreReportFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.shop
@@ -44360,6 +44033,59 @@ google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 google-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 google-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleCrashlytics" }
+````
+
+## File: scripts/migrate_orders_driver_to_shipper.py
+````python
+# -*- coding: utf-8 -*-
+"""
+Script chuẩn hóa toàn bộ node 'orders' trên Firebase Realtime Database:
+- Chuyển toàn bộ key 'driverId' sang 'shipperId'
+- Xóa bỏ hoàn toàn key 'driverId' dư thừa trên từng đơn hàng
+"""
+⋮----
+API_KEY = "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE"
+DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
+ADMIN_EMAIL = "admin@gmail.com"
+ADMIN_PASSWORD = "123456"
+⋮----
+def make_request(url, method="GET", data=None)
+⋮----
+headers = {"Content-Type": "application/json"}
+body = json.dumps(data).encode("utf-8") if data is not None else None
+req = urllib.request.Request(url, data=body, headers=headers, method=method)
+⋮----
+content = resp.read().decode("utf-8")
+⋮----
+def main()
+⋮----
+auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
+⋮----
+auth_res = make_request(auth_url, method="POST", data={
+id_token = auth_res.get("idToken")
+⋮----
+orders_url = f"{DATABASE_URL}/orders.json?auth={id_token}"
+⋮----
+all_orders = make_request(orders_url, method="GET") or {}
+⋮----
+total_orders = len(all_orders)
+⋮----
+migrated_count = 0
+cleaned_count = 0
+⋮----
+has_driver_id = "driverId" in order_data
+driver_id_val = order_data.get("driverId")
+shipper_id_val = order_data.get("shipperId")
+⋮----
+# Cần chuẩn hóa nếu có driverId
+⋮----
+# 1. Đảm bảo shipperId có giá trị hợp lệ nếu driverId tồn tại
+target_shipper_id = shipper_id_val or driver_id_val
+⋮----
+patch_url = f"{DATABASE_URL}/orders/{order_id}.json?auth={id_token}"
+⋮----
+# 2. Xóa bỏ trường driverId khỏi đơn hàng
+delete_driver_id_url = f"{DATABASE_URL}/orders/{order_id}/driverId.json?auth={id_token}"
 ````
 
 ## File: scripts/reset_firebase_data.py
@@ -68350,6 +68076,280 @@ class ShipperFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.ship
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+@HiltViewModel
+class ShipperViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository,
+    private val auth: FirebaseAuth
+) : ViewModel() {
+
+    private val _assignedOrders = MutableLiveData<List<Order>>()
+    val assignedOrders: LiveData<List<Order>> = _assignedOrders
+
+    private val _storePendingOrders = MutableLiveData<List<Order>>()
+    val storePendingOrders: LiveData<List<Order>> = _storePendingOrders
+
+    private val _currentDeliveryOrderId = MutableLiveData<String?>()
+    val currentDeliveryOrderId: LiveData<String?> = _currentDeliveryOrderId
+
+    private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
+    val shipperStore: LiveData<Pair<String, String>> = _shipperStore
+
+    private val _isOnline = MutableLiveData(true)
+    val isOnline: LiveData<Boolean> = _isOnline
+
+    private val _messageEvent = MutableLiveData<String>()
+    val messageEvent: LiveData<String> = _messageEvent
+
+    private var cachedShipperName: String = ""
+    private var cachedShipperPhone: String = ""
+
+    init {
+        loadShipperStoreAndOrders()
+    }
+
+    private fun loadShipperStoreAndOrders() {
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        viewModelScope.launch {
+            if (shipperId.isNotBlank()) {
+                firebaseRepository.setupDriverPresence(shipperId)
+                val isCurrentlyOnline = _isOnline.value ?: true
+                val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
+                try {
+                    val userSnap = firebaseRepository.readCacheFirst(firebaseRepository.database.getReference("users").child(shipperId))
+                    cachedShipperPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
+                    cachedShipperName = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
+                } catch (_: Exception) {}
+            }
+            val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
+            _shipperStore.value = storeInfo
+            observeShipperOrders()
+            observePendingStoreOrders(storeInfo.first)
+        }
+    }
+
+    private fun observeShipperOrders() {
+        val shipperId = auth.currentUser?.uid
+        if (shipperId.isNullOrBlank()) {
+            _assignedOrders.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            firebaseRepository.observeOrdersByShipper(shipperId).collectLatest { orders ->
+                // Chỉ nhận những đơn có đúng shipperId của tài xế này
+                val myOrders = orders.filter { it.shipperId == shipperId }
+                _assignedOrders.value = myOrders
+
+                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER, RETURNING_TO_STORE)
+                val delivering = myOrders.find {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
+                }
+                _currentDeliveryOrderId.value = delivering?.orderId
+
+                // Đồng bộ trạng thái thật (DELIVERING / AVAILABLE / OFF_DUTY) lên Firebase cho Quán thấy
+                val isCurrentlyOnline = _isOnline.value ?: true
+                if (delivering != null) {
+                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
+                    val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
+                        "#$shortCode (Trả hàng về quán)"
+                    } else {
+                        "#$shortCode (${delivering.customerName})"
+                    }
+                    firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
+                } else {
+                    val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                    firebaseRepository.updateDriverDutyStatus(shipperId, status, "")
+                }
+            }
+        }
+    }
+
+    private fun observePendingStoreOrders(storeId: String) {
+        viewModelScope.launch {
+            firebaseRepository.observeAllOrders().collectLatest { allOrders ->
+                // Phân quyền chuẩn: Chỉ nhận đơn thuộc đúng QUÁN CỦA SHIPPER NÀY, đã READY và CHƯA có shipper nhận
+                if (storeId.isNotBlank()) {
+                    val pending = allOrders.filter { order ->
+                        (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
+                                order.status == Order.Status.READY &&
+                                order.storeId.isNotBlank() &&
+                                order.storeId == storeId
+                    }
+                    _storePendingOrders.value = pending
+                } else {
+                    // Tài xế chưa được gán vào quán ăn nào -> không nhận đơn của quán khác
+                    _storePendingOrders.value = emptyList()
+                }
+            }
+        }
+    }
+
+    fun toggleDuty(online: Boolean) {
+        _isOnline.value = online
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        if (shipperId.isNotBlank()) {
+            viewModelScope.launch {
+                val hasDelivering = _assignedOrders.value?.any {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
+                } == true
+                val status = if (hasDelivering) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
+                } else if (online) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE
+                } else {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                }
+                firebaseRepository.updateDriverDutyStatus(shipperId, status)
+            }
+        }
+    }
+
+    /** Nhận đơn mới từ quán (ghép chuyến) */
+    fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
+        val currentActiveCount = _assignedOrders.value?.count {
+            it.status == Order.Status.DELIVERING ||
+            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+            it.status == Order.Status.ARRIVED_AT_SHOP ||
+            it.status == Order.Status.ASSIGNED ||
+            it.status == Order.Status.RETURNING_TO_STORE
+        } ?: 0
+
+        if (currentActiveCount >= 3) {
+            onResult(false, "Tài xế chỉ được nhận tối đa 3 đơn cùng lúc để đảm bảo thời gian giao!")
+            return
+        }
+
+        val shipperId = auth.currentUser?.uid ?: ""
+        if (shipperId.isBlank()) {
+            onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
+            return
+        }
+
+        val myStoreId = _shipperStore.value?.first.orEmpty()
+        val myStoreName = _shipperStore.value?.second.orEmpty()
+
+        if (myStoreId.isBlank()) {
+            onResult(false, "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Chủ quán để được thêm vào đội ngũ giao hàng!")
+            return
+        }
+
+        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
+        if (acceptedOrder != null && acceptedOrder.storeId.isNotBlank() && acceptedOrder.storeId != myStoreId) {
+            val storeDisplay = if (myStoreName.isNotBlank()) myStoreName else myStoreId
+            onResult(false, "Phân quyền: Bạn chỉ có thể nhận đơn từ quán của mình ($storeDisplay)!")
+            return
+        }
+
+        val resolvedShipperName = cachedShipperName.ifBlank {
+            auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
+        }
+        val resolvedShipperPhone = cachedShipperPhone.ifBlank {
+            auth.currentUser?.phoneNumber.orEmpty()
+        }
+
+        // Optimistic UI: Cập nhật ngay lập tức trên luồng chính (0ms) không chờ mạng
+        if (acceptedOrder != null) {
+            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
+            val updatedOrder = acceptedOrder.copy(
+                shipperId = shipperId,
+                shipperName = resolvedShipperName,
+                shipperPhone = resolvedShipperPhone,
+                status = Order.Status.ASSIGNED,
+                orderStatus = Order.Status.ASSIGNED
+            )
+            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
+            if (currentAssigned.none { it.orderId == orderId }) {
+                currentAssigned.add(0, updatedOrder)
+                _assignedOrders.value = currentAssigned
+            }
+            _currentDeliveryOrderId.value = orderId
+        }
+
+        firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
+            if (success) {
+                _currentDeliveryOrderId.value = orderId
+            } else {
+                if (acceptedOrder != null) {
+                    _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+                }
+            }
+            onResult(success, msg)
+        }
+    }
+
+    /** Hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán) */
+    fun cancelAssignedOrder(orderId: String, reason: String, onResult: (Boolean, String) -> Unit) {
+        val removedOrder = _assignedOrders.value?.find { it.orderId == orderId }
+        // Optimistic UI: Xóa khỏi danh sách nhận ngay lập tức
+        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+
+        viewModelScope.launch {
+            firebaseRepository.unassignShipper(orderId, reason) { success, msg ->
+                if (!success && removedOrder != null) {
+                    val current = _assignedOrders.value.orEmpty().toMutableList()
+                    current.add(removedOrder)
+                    _assignedOrders.value = current
+                }
+                onResult(success, msg)
+            }
+        }
+    }
+
+    /** Shipper xác nhận lấy hàng thành công tại quán */
+    fun confirmPickedUpAtShop(orderId: String) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.DELIVERING, orderStatus = Order.Status.DELIVERING) else it
+        }
+        viewModelScope.launch {
+            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
+        }
+    }
+
+    /** Shipper xác nhận hoàn thành giao hàng */
+    fun completeDelivery(orderId: String, onResult: ((Boolean) -> Unit)? = null) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.COMPLETED, orderStatus = Order.Status.COMPLETED) else it
+        }
+        viewModelScope.launch {
+            try {
+                firebaseRepository.updateOrderStatus(orderId, Order.Status.COMPLETED)
+                firebaseRepository.clearTracking(orderId)
+                onResult?.invoke(true)
+            } catch (e: Exception) {
+                onResult?.invoke(false)
+            }
+        }
     }
 }
 ````
@@ -99564,356 +99564,6 @@ class DashboardActivity : AppCompatActivity() {
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 ````
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Order.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.model
-
-import com.google.firebase.database.Exclude
-import com.google.firebase.database.IgnoreExtraProperties
-import com.google.gson.annotations.SerializedName
-
-/**
- * Đơn hàng — lưu tại: orders/{orderId}
- * Giao diện: khách/b9.html — Theo dõi đơn + Mã QR Token
- *            Quán/4.html — Tiếp nhận & Duyệt đơn
- * Vòng đời: PENDING → PREPARING → ASSIGNED → DELIVERING → COMPLETED / BOOM / CANCELLED
- * Mapping: Bảng 12 - orders (database_schema.sql)
- */
-@IgnoreExtraProperties
-data class Order(
-    @SerializedName("orderId")
-    val orderId: String = "",
-
-    @SerializedName("customerId")
-    val customerId: String = "",
-
-    @SerializedName("customerName")
-    val customerName: String = "",
-
-    @SerializedName("customerPhone")
-    val customerPhone: String = "",
-
-    @SerializedName("storeId")
-    val storeId: String = "",
-
-    @SerializedName("shopId")
-    val shopId: String = "",
-
-    @SerializedName("shopName")
-    val shopName: String = "",
-
-    @SerializedName("shopPhone")
-    val shopPhone: String = "",
-
-    @SerializedName("shopImageUrl", alternate = ["shopImage", "storeImageUrl", "storeImage"])
-    val shopImageUrl: String = "",
-
-    @SerializedName("shipperId")
-    var shipperId: String? = null,
-
-    @SerializedName("shipperName")
-    var shipperName: String = "",
-
-    @SerializedName("shipperPhone")
-    var shipperPhone: String = "",
-
-    @SerializedName("chefId")
-    var chefId: String? = null,
-
-    @SerializedName("chefName")
-    var chefName: String = "",
-
-    @SerializedName("chefPhone")
-    var chefPhone: String = "",
-
-    @SerializedName("address")
-    val address: String = "",
-
-    @SerializedName("deliveryAddress")
-    val deliveryAddress: String = "",
-
-    @SerializedName("total")
-    val total: Long = 0,
-
-    @SerializedName("subtotalAmount")
-    val subtotalAmount: Long = 0,
-
-    @SerializedName("shippingFee")
-    val shippingFee: Long = 0,
-
-    @SerializedName("discount")
-    val discount: Long = 0,
-
-    @SerializedName("totalPayment")
-    val totalPayment: Long = 0,
-
-    @SerializedName("paymentMethod")
-    val paymentMethod: String = PaymentMethod.COD,
-
-    @SerializedName("paymentMode")
-    val paymentMode: String = PaymentMode.FULL,
-
-    @SerializedName("depositAmount")
-    val depositAmount: Long = 0,
-
-    @SerializedName("remainAmount")
-    val remainAmount: Long = 0,
-
-    @SerializedName("isDepositPaid")
-    val isDepositPaid: Boolean = false,
-
-    @SerializedName("isPaid")
-    val isPaid: Boolean = false,
-
-    @SerializedName("paymentStatus")
-    var paymentStatus: String = PaymentStatus.UNPAID,
-
-    @SerializedName("paidAt")
-    var paidAt: Long? = null,
-
-    @SerializedName("status")
-    var status: String = Status.PENDING,
-
-    @SerializedName("orderStatus")
-    var orderStatus: String = Status.PENDING,
-
-    @SerializedName("deliveryToken")
-    val deliveryToken: String = "",
-
-    @SerializedName("items")
-    val items: Map<String, OrderItem> = emptyMap(),
-
-    @SerializedName("note")
-    val note: String = "",
-
-    @SerializedName("timestamp")
-    val timestamp: Long = 0,
-
-    @SerializedName("createdAt")
-    val createdAt: Long = 0,
-
-    @SerializedName("updatedAt")
-    val updatedAt: Long? = null,
-
-    @SerializedName("completedAt")
-    val completedAt: Long? = null,
-
-    @SerializedName("hasIncidentWarning")
-    val hasIncidentWarning: Boolean = false,
-
-    @SerializedName("incidentWarningTime")
-    val incidentWarningTime: Long = 0L,
-
-    @SerializedName("countdownRound")
-    val countdownRound: Int = 1,
-
-    @SerializedName("incidentWarningText")
-    val incidentWarningText: String = "",
-
-    @SerializedName("cancelReason")
-    val cancelReason: String = "",
-
-    @SerializedName("cancelledBy")
-    val cancelledBy: String = "",
-
-    @SerializedName("riskReason")
-    val riskReason: String = "",
-
-    @SerializedName("riskStatus")
-    val riskStatus: String = "",
-
-    @SerializedName("isRiskOrder")
-    val isRiskOrder: Boolean = false,
-
-    @SerializedName("incidentCallProofImage")
-    val incidentCallProofImage: String = "",
-
-    @SerializedName("incidentMessageProofImage")
-    val incidentMessageProofImage: String = "",
-
-    @SerializedName("cancelRequested")
-    val cancelRequested: Boolean = false,
-
-    @SerializedName("cancelRequestReason")
-    val cancelRequestReason: String = "",
-
-    @SerializedName("cancelRequestTime")
-    val cancelRequestTime: Long = 0L,
-
-    @SerializedName("cancelRequestStatus")
-    val cancelRequestStatus: String = "",
-
-    @SerializedName("cancelRejectReason")
-    val cancelRejectReason: String = "",
-
-    @SerializedName("customerConfirmed")
-    val customerConfirmed: Boolean = false,
-
-    @SerializedName("customerConfirmedAt")
-    val customerConfirmedAt: Long? = null
-) {
-    @get:Exclude
-    val effectiveStoreId: String
-        get() = storeId.ifBlank { shopId }
-
-    @get:Exclude
-    val effectiveShopName: String
-        get() = shopName.ifBlank { storeId }
-
-    @get:Exclude
-    val effectiveDriverId: String
-        get() = shipperId ?: ""
-
-    @get:Exclude
-    val effectiveShipperId: String
-        get() = shipperId ?: ""
-
-    @get:Exclude
-    val effectiveDriverName: String
-        get() = shipperName
-
-    @get:Exclude
-    val effectiveStatus: String
-        get() = status.ifBlank { orderStatus }
-
-    @get:Exclude
-    val effectiveAddress: String
-        get() = deliveryAddress.ifBlank { address }
-
-    @get:Exclude
-    val effectiveTotal: Long
-        get() = if (totalPayment > 0) totalPayment else total
-
-    @get:Exclude
-    val totalPrice: Long
-        get() = effectiveTotal
-
-    @get:Exclude
-    val effectiveTimestamp: Long
-        get() = if (createdAt > 0) createdAt else timestamp
-
-    @get:Exclude
-    val orderCode: String
-        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
-
-    @get:Exclude
-    val displayCode: String
-        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
-
-    /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
-    object CancelRequestStatus {
-        const val PENDING = "PENDING"
-        const val APPROVED = "APPROVED"
-        const val REJECTED = "REJECTED"
-        const val WITHDRAWN = "WITHDRAWN"
-    }
-
-    object Status {
-        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
-        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
-        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
-        const val PENDING = "PENDING"
-        const val PREPARING = "PREPARING"
-        const val READY = "READY"
-        const val ASSIGNED = "ASSIGNED"
-        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
-        const val DELIVERING = "DELIVERING"
-        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
-        const val COMPLETED = "COMPLETED"
-        const val BOOM = "BOOM"
-        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
-        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
-        const val CANCELLED = "CANCELLED"
-    }
-
-    object OrderStatus {
-        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
-        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
-        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
-        const val PENDING = "PENDING"
-        const val PREPARING = "PREPARING"
-        const val READY = "READY"
-        const val ASSIGNED = "ASSIGNED"
-        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
-        const val DELIVERING = "DELIVERING"
-        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
-        const val COMPLETED = "COMPLETED"
-        const val BOOM = "BOOM"
-        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
-        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
-        const val CANCELLED = "CANCELLED"
-    }
-
-    /** Chế độ thanh toán: Trả thẳng 100%, Cọc 20%, hoặc COD (chuẩn b8.html) */
-    object PaymentMode {
-        const val FULL = "FULL"
-        const val DEPOSIT = "DEPOSIT"
-        const val COD = "COD"
-    }
-
-    /** Phương thức thanh toán */
-    object PaymentMethod {
-        const val COD = "COD"
-        const val BANKING = "BANKING"
-        const val DEPOSIT = "DEPOSIT"
-    }
-
-    /** Trạng thái thanh toán chuyển khoản ngân hàng */
-    object PaymentStatus {
-        const val UNPAID = "UNPAID"
-        const val PAID = "PAID"
-    }
-}
-
-/**
- * Chi tiết món trong đơn hàng
- * Giao diện: khách/b7.html — Giỏ hàng
- * Mapping: Bảng 13 - order_items (database_schema.sql)
- */
-@IgnoreExtraProperties
-data class OrderItem(
-    @SerializedName("itemId")
-    val itemId: String = "",
-
-    @SerializedName("orderItemId")
-    val orderItemId: String = "",
-
-    @SerializedName("dishId")
-    val dishId: String = "",
-
-    @SerializedName("name")
-    val name: String = "",
-
-    @SerializedName("price")
-    val price: Long = 0,
-
-    @SerializedName("quantity")
-    val quantity: Int = 0,
-
-    @SerializedName("unitPrice")
-    val unitPrice: Long = 0,
-
-    @SerializedName("selectedOptions")
-    val selectedOptions: Map<String, Any>? = null,
-
-    @SerializedName("imageUrl", alternate = ["image", "photoUrl", "dishImage"])
-    val imageUrl: String = "",
-
-    @SerializedName("image")
-    val image: String = "",
-
-    @SerializedName("itemSubtotal")
-    val itemSubtotal: Long = 0
-) {
-    @get:Exclude
-    val effectiveImageUrl: String
-        get() = imageUrl.ifBlank { image }
-
-    @get:Exclude
-    val dishName: String get() = name
-}
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/order/OrderHistoryAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.order
@@ -102745,6 +102395,359 @@ class OrderAdapter(
 </LinearLayout>
 ````
 
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Order.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.data.model
+
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
+import com.google.gson.annotations.SerializedName
+
+/**
+ * Đơn hàng — lưu tại: orders/{orderId}
+ * Giao diện: khách/b9.html — Theo dõi đơn + Mã QR Token
+ *            Quán/4.html — Tiếp nhận & Duyệt đơn
+ * Vòng đời: PENDING → PREPARING → ASSIGNED → DELIVERING → COMPLETED / BOOM / CANCELLED
+ * Mapping: Bảng 12 - orders (database_schema.sql)
+ */
+@IgnoreExtraProperties
+data class Order(
+    @SerializedName("orderId")
+    val orderId: String = "",
+
+    @SerializedName("customerId")
+    val customerId: String = "",
+
+    @SerializedName("customerName")
+    val customerName: String = "",
+
+    @SerializedName("customerPhone")
+    val customerPhone: String = "",
+
+    @SerializedName("storeId")
+    val storeId: String = "",
+
+    @SerializedName("shopId")
+    val shopId: String = "",
+
+    @SerializedName("shopName")
+    val shopName: String = "",
+
+    @SerializedName("shopPhone")
+    val shopPhone: String = "",
+
+    @SerializedName("shopImageUrl", alternate = ["shopImage", "storeImageUrl", "storeImage"])
+    val shopImageUrl: String = "",
+
+    @SerializedName("shipperId")
+    var shipperId: String? = null,
+
+    @SerializedName("shipperName")
+    var shipperName: String = "",
+
+    @SerializedName("shipperPhone")
+    var shipperPhone: String = "",
+
+    @SerializedName("isPickedUp", alternate = ["pickedUp"])
+    var isPickedUp: Boolean = false,
+
+    @SerializedName("chefId")
+    var chefId: String? = null,
+
+    @SerializedName("chefName")
+    var chefName: String = "",
+
+    @SerializedName("chefPhone")
+    var chefPhone: String = "",
+
+    @SerializedName("address")
+    val address: String = "",
+
+    @SerializedName("deliveryAddress")
+    val deliveryAddress: String = "",
+
+    @SerializedName("total")
+    val total: Long = 0,
+
+    @SerializedName("subtotalAmount")
+    val subtotalAmount: Long = 0,
+
+    @SerializedName("shippingFee")
+    val shippingFee: Long = 0,
+
+    @SerializedName("discount")
+    val discount: Long = 0,
+
+    @SerializedName("totalPayment")
+    val totalPayment: Long = 0,
+
+    @SerializedName("paymentMethod")
+    val paymentMethod: String = PaymentMethod.COD,
+
+    @SerializedName("paymentMode")
+    val paymentMode: String = PaymentMode.FULL,
+
+    @SerializedName("depositAmount")
+    val depositAmount: Long = 0,
+
+    @SerializedName("remainAmount")
+    val remainAmount: Long = 0,
+
+    @SerializedName("isDepositPaid")
+    val isDepositPaid: Boolean = false,
+
+    @SerializedName("isPaid")
+    val isPaid: Boolean = false,
+
+    @SerializedName("paymentStatus")
+    var paymentStatus: String = PaymentStatus.UNPAID,
+
+    @SerializedName("paidAt")
+    var paidAt: Long? = null,
+
+    @SerializedName("status")
+    var status: String = Status.PENDING,
+
+    @SerializedName("orderStatus")
+    var orderStatus: String = Status.PENDING,
+
+    @SerializedName("deliveryToken")
+    val deliveryToken: String = "",
+
+    @SerializedName("items")
+    val items: Map<String, OrderItem> = emptyMap(),
+
+    @SerializedName("note")
+    val note: String = "",
+
+    @SerializedName("timestamp")
+    val timestamp: Long = 0,
+
+    @SerializedName("createdAt")
+    val createdAt: Long = 0,
+
+    @SerializedName("updatedAt")
+    val updatedAt: Long? = null,
+
+    @SerializedName("completedAt")
+    val completedAt: Long? = null,
+
+    @SerializedName("hasIncidentWarning")
+    val hasIncidentWarning: Boolean = false,
+
+    @SerializedName("incidentWarningTime")
+    val incidentWarningTime: Long = 0L,
+
+    @SerializedName("countdownRound")
+    val countdownRound: Int = 1,
+
+    @SerializedName("incidentWarningText")
+    val incidentWarningText: String = "",
+
+    @SerializedName("cancelReason")
+    val cancelReason: String = "",
+
+    @SerializedName("cancelledBy")
+    val cancelledBy: String = "",
+
+    @SerializedName("riskReason")
+    val riskReason: String = "",
+
+    @SerializedName("riskStatus")
+    val riskStatus: String = "",
+
+    @SerializedName("isRiskOrder")
+    val isRiskOrder: Boolean = false,
+
+    @SerializedName("incidentCallProofImage")
+    val incidentCallProofImage: String = "",
+
+    @SerializedName("incidentMessageProofImage")
+    val incidentMessageProofImage: String = "",
+
+    @SerializedName("cancelRequested")
+    val cancelRequested: Boolean = false,
+
+    @SerializedName("cancelRequestReason")
+    val cancelRequestReason: String = "",
+
+    @SerializedName("cancelRequestTime")
+    val cancelRequestTime: Long = 0L,
+
+    @SerializedName("cancelRequestStatus")
+    val cancelRequestStatus: String = "",
+
+    @SerializedName("cancelRejectReason")
+    val cancelRejectReason: String = "",
+
+    @SerializedName("customerConfirmed")
+    val customerConfirmed: Boolean = false,
+
+    @SerializedName("customerConfirmedAt")
+    val customerConfirmedAt: Long? = null
+) {
+    @get:Exclude
+    val effectiveStoreId: String
+        get() = storeId.ifBlank { shopId }
+
+    @get:Exclude
+    val effectiveShopName: String
+        get() = shopName.ifBlank { storeId }
+
+    @get:Exclude
+    val effectiveDriverId: String
+        get() = shipperId ?: ""
+
+    @get:Exclude
+    val effectiveShipperId: String
+        get() = shipperId ?: ""
+
+    @get:Exclude
+    val effectiveDriverName: String
+        get() = shipperName
+
+    @get:Exclude
+    val effectiveStatus: String
+        get() = status.ifBlank { orderStatus }
+
+    @get:Exclude
+    val effectiveAddress: String
+        get() = deliveryAddress.ifBlank { address }
+
+    @get:Exclude
+    val effectiveTotal: Long
+        get() = if (totalPayment > 0) totalPayment else total
+
+    @get:Exclude
+    val totalPrice: Long
+        get() = effectiveTotal
+
+    @get:Exclude
+    val effectiveTimestamp: Long
+        get() = if (createdAt > 0) createdAt else timestamp
+
+    @get:Exclude
+    val orderCode: String
+        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
+
+    @get:Exclude
+    val displayCode: String
+        get() = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(orderId)
+
+    /** Trạng thái đơn hàng — Vòng đời đầy đủ các trạng thái */
+    object CancelRequestStatus {
+        const val PENDING = "PENDING"
+        const val APPROVED = "APPROVED"
+        const val REJECTED = "REJECTED"
+        const val WITHDRAWN = "WITHDRAWN"
+    }
+
+    object Status {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
+        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
+        const val PENDING = "PENDING"
+        const val PREPARING = "PREPARING"
+        const val READY = "READY"
+        const val ASSIGNED = "ASSIGNED"
+        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
+        const val DELIVERING = "DELIVERING"
+        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
+        const val COMPLETED = "COMPLETED"
+        const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
+        const val CANCELLED = "CANCELLED"
+    }
+
+    object OrderStatus {
+        const val AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
+        const val AWAITING_PAYMENT = "AWAITING_PAYMENT"
+        const val PAID = "PAID" // Đã thanh toán chuyển khoản thành công
+        const val PENDING = "PENDING"
+        const val PREPARING = "PREPARING"
+        const val READY = "READY"
+        const val ASSIGNED = "ASSIGNED"
+        const val ARRIVED_AT_SHOP = "ARRIVED_AT_SHOP"
+        const val DELIVERING = "DELIVERING"
+        const val ARRIVED_AT_CUSTOMER = "ARRIVED_AT_CUSTOMER"
+        const val COMPLETED = "COMPLETED"
+        const val BOOM = "BOOM"
+        const val RETURNING_TO_STORE = "RETURNING_TO_STORE"
+        const val RETURNED_TO_STORE = "RETURNED_TO_STORE"
+        const val CANCELLED = "CANCELLED"
+    }
+
+    /** Chế độ thanh toán: Trả thẳng 100%, Cọc 20%, hoặc COD (chuẩn b8.html) */
+    object PaymentMode {
+        const val FULL = "FULL"
+        const val DEPOSIT = "DEPOSIT"
+        const val COD = "COD"
+    }
+
+    /** Phương thức thanh toán */
+    object PaymentMethod {
+        const val COD = "COD"
+        const val BANKING = "BANKING"
+        const val DEPOSIT = "DEPOSIT"
+    }
+
+    /** Trạng thái thanh toán chuyển khoản ngân hàng */
+    object PaymentStatus {
+        const val UNPAID = "UNPAID"
+        const val PAID = "PAID"
+    }
+}
+
+/**
+ * Chi tiết món trong đơn hàng
+ * Giao diện: khách/b7.html — Giỏ hàng
+ * Mapping: Bảng 13 - order_items (database_schema.sql)
+ */
+@IgnoreExtraProperties
+data class OrderItem(
+    @SerializedName("itemId")
+    val itemId: String = "",
+
+    @SerializedName("orderItemId")
+    val orderItemId: String = "",
+
+    @SerializedName("dishId")
+    val dishId: String = "",
+
+    @SerializedName("name")
+    val name: String = "",
+
+    @SerializedName("price")
+    val price: Long = 0,
+
+    @SerializedName("quantity")
+    val quantity: Int = 0,
+
+    @SerializedName("unitPrice")
+    val unitPrice: Long = 0,
+
+    @SerializedName("selectedOptions")
+    val selectedOptions: Map<String, Any>? = null,
+
+    @SerializedName("imageUrl", alternate = ["image", "photoUrl", "dishImage"])
+    val imageUrl: String = "",
+
+    @SerializedName("image")
+    val image: String = "",
+
+    @SerializedName("itemSubtotal")
+    val itemSubtotal: Long = 0
+) {
+    @get:Exclude
+    val effectiveImageUrl: String
+        get() = imageUrl.ifBlank { image }
+
+    @get:Exclude
+    val dishName: String get() = name
+}
+````
+
 ## File: GEMINI.md
 ````markdown
 # WORKSPACE RULES & TOKEN OPTIMIZATION DIRECTIVE
@@ -103058,6 +103061,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val isDeliveringFlow = status == Order.Status.DELIVERING ||
                 status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                order.isPickedUp ||
                 order.status.equals(Order.Status.DELIVERING, ignoreCase = true) ||
                 order.status.equals(Order.Status.ARRIVED_AT_CUSTOMER, ignoreCase = true) ||
                 order.orderStatus.equals(Order.Status.DELIVERING, ignoreCase = true) ||
@@ -104529,9 +104533,14 @@ class DeliveryTripActivity : AppCompatActivity() {
                                     } else {
                                         listOfNotNull(currentOrder).filter { !isOrderAlreadyPickedUp(it) }
                                     }
-                                    ordersToPickup.forEach { o ->
-                                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                                        saveStep(o.orderId, 3)
+                                    if (ordersToPickup.isNotEmpty()) {
+                                        ordersToPickup.forEach { o ->
+                                            firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                                            saveStep(o.orderId, 3)
+                                        }
+                                    } else if (currentOrderId.isNotBlank()) {
+                                        firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
+                                        saveStep(currentOrderId, 3)
                                     }
                                 }
                             }
@@ -104799,11 +104808,13 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     private fun isOrderAlreadyPickedUp(order: Order): Boolean {
-        return order.status == Order.Status.DELIVERING ||
+        return order.isPickedUp ||
+            order.status == Order.Status.DELIVERING ||
             order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
             order.status == Order.Status.COMPLETED ||
             order.status == Order.Status.RETURNING_TO_STORE ||
-            getSavedStep(order.orderId) >= 3
+            getSavedStep(order.orderId) >= 3 ||
+            getSavedStep(currentOrderId) >= 3
     }
 
     private fun getEffectiveStepForOrder(order: Order): Int {
@@ -104839,9 +104850,14 @@ class DeliveryTripActivity : AppCompatActivity() {
     private fun handleOrderCancelledRealtime(order: Order) {
         if (hasShownCancelledDialog || isFinishing || isDestroyed) return
 
-        // Nếu tài xế đã lấy món từ quán (bước 3 trở đi hoặc đã nhận món):
+        // Nếu tài xế đã lấy món từ quán (bước 3 trở đi hoặc đang hiển thị màn hình giao khách):
         // KHÔNG kết thúc chuyến giao mà phải chuyển sang luồng mang món về quán
-        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+        val hasPickedUp = currentStep >= 3 ||
+                binding.layoutStep3.visibility == View.VISIBLE ||
+                binding.layoutStep4.visibility == View.VISIBLE ||
+                getSavedStep(order.orderId) >= 3 ||
+                getSavedStep(currentOrderId) >= 3 ||
+                isOrderAlreadyPickedUp(order)
         if (hasPickedUp) {
             if (!bomReturnOrders.any { it.orderId == order.orderId }) {
                 bomReturnOrders.add(order)
@@ -104963,7 +104979,12 @@ class DeliveryTripActivity : AppCompatActivity() {
                         bindOrderData(order)
                     }
                     if (order.status == Order.Status.CANCELLED || order.status == Order.Status.BOOM) {
-                        val hasPickedUp = currentStep >= 3 || isOrderAlreadyPickedUp(order)
+                        val hasPickedUp = currentStep >= 3 ||
+                                binding.layoutStep3.visibility == View.VISIBLE ||
+                                binding.layoutStep4.visibility == View.VISIBLE ||
+                                getSavedStep(order.orderId) >= 3 ||
+                                getSavedStep(currentOrderId) >= 3 ||
+                                isOrderAlreadyPickedUp(order)
                         if (hasPickedUp) {
                             if (!bomReturnOrders.any { it.orderId == order.orderId }) {
                                 bomReturnOrders.add(order)
@@ -105964,9 +105985,14 @@ class DeliveryTripActivity : AppCompatActivity() {
                 } else {
                     listOfNotNull(currentOrder).filter { !isOrderAlreadyPickedUp(it) }
                 }
-                ordersToPickup.forEach { o ->
-                    firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
-                    saveStep(o.orderId, 3)
+                if (ordersToPickup.isNotEmpty()) {
+                    ordersToPickup.forEach { o ->
+                        firebaseRepository.updateOrderStatus(o.orderId, Order.Status.DELIVERING)
+                        saveStep(o.orderId, 3)
+                    }
+                } else if (currentOrderId.isNotBlank()) {
+                    firebaseRepository.updateOrderStatus(currentOrderId, Order.Status.DELIVERING)
+                    saveStep(currentOrderId, 3)
                 }
             }
         }
@@ -109052,10 +109078,13 @@ class FirebaseRepository @Inject constructor(
 
         // Khi shipper đang chạy trên đường chở món đi giao (DELIVERING) hoặc đã đến trước nhà khách mà khách hủy đơn:
         // Chuyển sang RETURNING_TO_STORE để shipper mang món quay về quán, không hủy ngay lập tức
+        val isPickedUp = orderSnap?.child("isPickedUp")?.getValue(Boolean::class.java) == true ||
+                orderSnap?.child("pickedUp")?.getValue(Boolean::class.java) == true
         val isDeliveringFlow = currentStatus == Order.Status.DELIVERING ||
                 currentStatus == Order.Status.ARRIVED_AT_CUSTOMER ||
                 orderStatusVal == Order.Status.DELIVERING ||
-                orderStatusVal == Order.Status.ARRIVED_AT_CUSTOMER
+                orderStatusVal == Order.Status.ARRIVED_AT_CUSTOMER ||
+                isPickedUp
         val targetStatus = if (isDeliveringFlow) Order.Status.RETURNING_TO_STORE else Order.Status.CANCELLED
 
         val updates = mutableMapOf<String, Any>(
@@ -109282,6 +109311,10 @@ class FirebaseRepository @Inject constructor(
             "orderStatus" to status,
             "updatedAt" to System.currentTimeMillis()
         )
+        if (normalizedStatus == Order.Status.DELIVERING || normalizedStatus == Order.Status.ARRIVED_AT_CUSTOMER) {
+            updates["isPickedUp"] = true
+            updates["pickedUp"] = true
+        }
         if (reason.isNotBlank()) updates["cancelReason"] = reason
 
         // Cập nhật trạng thái đơn hàng NGAY LẬP TỨC vào cache + đẩy socket realtime (không chờ .await() chặn luồng)

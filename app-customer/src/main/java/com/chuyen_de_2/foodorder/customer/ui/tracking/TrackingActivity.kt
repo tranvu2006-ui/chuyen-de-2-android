@@ -253,14 +253,15 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun handleCancelOrderClick() {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
-        val isShipperAssigned = !order.shipperId.isNullOrBlank() ||
-                status == Order.Status.ASSIGNED ||
-                status == Order.Status.ARRIVED_AT_SHOP ||
-                status == Order.Status.DELIVERING ||
-                status == Order.Status.ARRIVED_AT_CUSTOMER
 
         when {
-            isShipperAssigned -> {
+            // Khi tài xế đang trên đường chở món đi giao (DELIVERING, chưa đến nhà khách):
+            // Kích hoạt luồng tài xế mang món quay về quán
+            status == Order.Status.DELIVERING -> {
+                showDeliveringCancelDialog(order)
+            }
+            // Khi tài xế đã được gán hoặc đang đến quán lấy món
+            !order.shipperId.isNullOrBlank() || status == Order.Status.ASSIGNED || status == Order.Status.ARRIVED_AT_SHOP || status == Order.Status.ARRIVED_AT_CUSTOMER -> {
                 showAssignedDriverCancelDialog(order)
             }
             status == Order.Status.PREPARING || status == Order.Status.READY -> {
@@ -437,10 +438,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun showDeliveringCancelDialog(order: Order) {
-        val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
-                order.paymentMode == Order.PaymentMode.COD ||
-                order.remainAmount > 0L ||
-                order.paymentStatus != Order.PaymentStatus.PAID
+        val isFullPaid = isOrderFullPaid(order)
+        val isCodOrDeposit = !isFullPaid
 
         val reasons = arrayOf(
             "Đổi ý, không còn nhu cầu ăn nữa",
@@ -461,20 +460,19 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             addView(input)
         }
 
-        val title = if (isCod) "✕ HỦY ĐƠN COD ĐANG GIAO (-30 ĐIỂM)" else "✕ HỦY ĐƠN HÀNG ĐANG GIAO"
-        val message = if (isCod) {
-            "⚠️ CẢNH BÁO MẤT ĐIỂM UY TÍN:\n\n" +
-            "Đơn hàng đang trên đường giao tới bạn. Nếu bạn chọn hủy đơn không nhận món:\n" +
-            "• Tài xế sẽ nhận được thông báo mang món quay về quán.\n" +
-            "• Vì đây là đơn thanh toán tiền mặt (COD), việc từ chối nhận hàng sẽ bị tính là BOM HÀNG và TRỪ 30 ĐIỂM UY TÍN!\n" +
-            "(Nếu điểm uy tín dưới 90 điểm sẽ bị khóa tính năng đặt COD).\n\n" +
-            "Bạn có chắc chắn muốn hủy nhận đơn không?"
+        val title = if (isCodOrDeposit) "✕ HỦY ĐƠN ĐANG GIAO (-10 ĐIỂM)" else "✕ HỦY ĐƠN HÀNG ĐANG GIAO"
+        val message = if (isCodOrDeposit) {
+            "⚠️ CẢNH BÁO HỦY ĐƠN KHI ĐANG GIAO:\n\n" +
+            "Tài xế đang trên đường chở món ăn tới địa chỉ của bạn. Nếu bạn chọn hủy đơn lúc này:\n" +
+            "• Hệ thống sẽ gửi thông báo yêu cầu tài xế mang món ăn quay trở về quán.\n" +
+            "• Do đơn thanh toán khi nhận (COD) hoặc tiền cọc, việc hủy đơn khi tài xế đang giao sẽ bị TRỪ 10 ĐIỂM UY TÍN!\n\n" +
+            "Bạn có chắc chắn muốn hủy đơn không?"
         } else {
-            "⚠️ LƯU Ý HỦY ĐƠN ĐANG GIAO:\n\n" +
-            "Đơn hàng đang trên đường giao tới bạn. Nếu bạn chọn hủy đơn không nhận món:\n" +
-            "• Tài xế sẽ nhận được thông báo mang món quay về quán.\n" +
-            "• Vì đơn đã thanh toán Online đủ, bạn KHÔNG bị trừ điểm uy tín. Tiền món sẽ được xử lý hoàn trả theo chính sách của quán ăn.\n\n" +
-            "Bạn có chắc chắn muốn hủy nhận đơn không?"
+            "💡 THÔNG BÁO HỦY ĐƠN ĐANG GIAO:\n\n" +
+            "Tài xế đang trên đường chở món ăn tới địa chỉ của bạn. Nếu bạn chọn hủy đơn lúc này:\n" +
+            "• Hệ thống sẽ gửi thông báo yêu cầu tài xế mang món ăn quay trở về quán.\n" +
+            "• Do đơn đã thanh toán 100%, bạn KHÔNG bị trừ điểm uy tín.\n\n" +
+            "Bạn có chắc chắn muốn hủy đơn không?"
         }
 
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -488,11 +486,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             .setPositiveButton("Xác Nhận Hủy") { _, _ ->
                 val reason = if (selectedIndex == reasons.size - 1) {
                     val custom = input.text.toString().trim()
-                    if (custom.isNotBlank()) custom else "Khách không nhận món khi đang giao"
+                    if (custom.isNotBlank()) custom else "Khách hủy khi đang giao"
                 } else {
                     reasons[selectedIndex]
                 }
-                executeDeliveringCancel(order, reason, isCod)
+                executeDeliveringCancel(order, reason, isCodOrDeposit)
             }
             .setNegativeButton("Giữ Lại Đơn", null)
             .show()
@@ -508,9 +506,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                     "cancelReason" to fullReason,
                     "riskReason" to fullReason,
                     "bomStatus" to "RETURNING_TO_STORE",
-                    "isRiskOrder" to true,
-                    "riskStatus" to "RISK_CONFIRMED",
-                    "hasIncidentWarning" to false,
                     "cancelledBy" to "CUSTOMER",
                     "cancelledAt" to System.currentTimeMillis(),
                     "updatedAt" to System.currentTimeMillis()
@@ -528,9 +523,9 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 )
 
                 val toastMsg = if (isCod) {
-                    "✓ Đã hủy đơn hàng! Shipper sẽ trả món về quán. Bạn bị trừ 30 điểm uy tín do hủy đơn COD."
+                    "✓ Đã hủy đơn hàng! Shipper nhận thông báo mang món quay về quán (-10 điểm uy tín)."
                 } else {
-                    "✓ Đã hủy đơn hàng! Shipper sẽ nhận thông báo mang món quay về quán."
+                    "✓ Đã hủy đơn hàng! Shipper nhận thông báo mang món quay về quán (Không trừ điểm uy tín)."
                 }
                 Toast.makeText(this@TrackingActivity, toastMsg, Toast.LENGTH_LONG).show()
             } catch (e: Exception) {

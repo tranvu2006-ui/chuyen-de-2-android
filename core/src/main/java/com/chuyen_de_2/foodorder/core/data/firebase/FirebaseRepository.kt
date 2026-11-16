@@ -519,9 +519,15 @@ class FirebaseRepository @Inject constructor(
         val orderRef = database.getReference("orders").child(orderId)
         val orderSnap = try { readCacheFirst(orderRef) } catch (_: Exception) { null }
 
-        val updates = mapOf<String, Any>(
-            "status" to Order.Status.CANCELLED,
-            "orderStatus" to Order.Status.CANCELLED,
+        val currentStatus = orderSnap?.child("status")?.getValue(String::class.java).orEmpty().uppercase()
+        // Khi shipper đang chạy trên đường chở món đi giao (DELIVERING) mà khách hủy đơn:
+        // Chuyển sang RETURNING_TO_STORE để shipper mang món quay về quán, không hủy ngay lập tức
+        val isDeliveringFlow = currentStatus == Order.Status.DELIVERING
+        val targetStatus = if (isDeliveringFlow) Order.Status.RETURNING_TO_STORE else Order.Status.CANCELLED
+
+        val updates = mutableMapOf<String, Any>(
+            "status" to targetStatus,
+            "orderStatus" to targetStatus,
             "cancelReason" to finalReason,
             "cancelRequested" to false,
             "cancelRequestStatus" to "",
@@ -529,21 +535,28 @@ class FirebaseRepository @Inject constructor(
             "cancelledAt" to now,
             "updatedAt" to now
         )
-        orderRef.updateChildren(updates).await()
-        try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+        if (isDeliveringFlow) {
+            updates["bomStatus"] = "RETURNING_TO_STORE"
+        }
 
-        // Giải phóng tài xế nếu đơn đã được gán shipper
-        val shipperId = orderSnap?.child("shipperId")?.getValue(String::class.java).orEmpty()
-        if (shipperId.isNotBlank() && shipperId != "null") {
-            try {
-                database.getReference("drivers").child(shipperId).updateChildren(
-                    mapOf(
-                        "isDelivering" to false,
-                        "hasActiveOrder" to false,
-                        "currentOrderId" to ""
+        orderRef.updateChildren(updates).await()
+
+        if (!isDeliveringFlow) {
+            try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+
+            // Giải phóng tài xế nếu đơn bị hủy trước khi tài xế lấy món đi giao
+            val shipperId = orderSnap?.child("shipperId")?.getValue(String::class.java).orEmpty()
+            if (shipperId.isNotBlank() && shipperId != "null") {
+                try {
+                    database.getReference("drivers").child(shipperId).updateChildren(
+                        mapOf(
+                            "isDelivering" to false,
+                            "hasActiveOrder" to false,
+                            "currentOrderId" to ""
+                        )
                     )
-                )
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
+            }
         }
 
         // Quy tắc điểm uy tín khi khách hủy đơn: COD và Cọc trừ 10 điểm uy tín, Trả hết không trừ
@@ -594,7 +607,8 @@ class FirebaseRepository @Inject constructor(
                             val scoreChange = (newScore - currentScore).toInt()
                             val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
                             val penaltyType = if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) || paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)) "đơn COD" else "đơn cọc"
-                            val logReason = "Khách hủy $penaltyType #$shortCode: $finalReason (-10 điểm)"
+                            val flowType = if (isDeliveringFlow) "khi đang giao (mang về quán)" else ""
+                            val logReason = "Khách hủy $penaltyType $flowType #$shortCode: $finalReason (-10 điểm)"
 
                             val statsUpdates = mutableMapOf<String, Any>(
                                 "trustScore" to newScore,
@@ -801,32 +815,54 @@ class FirebaseRepository @Inject constructor(
                             statsUpdates["trustScore"] = newScore
                         }
                         Order.Status.BOOM, Order.Status.RETURNING_TO_STORE -> {
-                            if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
-                                newScore = maxOf(0L, currentScore - 30L)
+                            val isPaid = prevOrderSnap?.child("isPaid")?.getValue(Boolean::class.java) ?: false
+                            val paymentStatus = prevOrderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty()
+                            val paymentMethod = prevOrderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                            val paymentMode = prevOrderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+                            val isFullPaid = (isPaid || paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) &&
+                                    !paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+
+                            // Trả hết không trừ uy tín, COD và Cọc trừ điểm
+                            if (!isFullPaid && prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
+                                newScore = maxOf(0L, currentScore - 10L)
                                 scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Bom hàng đơn #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #$shortCode (-30 điểm)"
+                                val penaltyType = if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) || paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)) "đơn COD" else "đơn cọc"
+                                logReason = if (reason.isNotBlank()) "Hủy $penaltyType khi đang giao (trả về quán) #$shortCode: $reason (-10 điểm)" else "Hủy $penaltyType khi đang giao #$shortCode (-10 điểm)"
                                 statsUpdates["boomOrders"] = currentBoom + 1
                                 statsUpdates["totalOrders"] = currentTotal + 1
                                 statsUpdates["trustScore"] = newScore
                                 if (newScore < 20L) {
                                     statsUpdates["status"] = "LOCKED"
                                     statsUpdates["isActive"] = false
-                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do hủy đơn COD/Cọc"
                                 }
                             }
                         }
                         Order.Status.RETURNED_TO_STORE -> {
-                            if (prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
-                                newScore = maxOf(0L, currentScore - 30L)
+                            val isPaid = prevOrderSnap?.child("isPaid")?.getValue(Boolean::class.java) ?: false
+                            val paymentStatus = prevOrderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty()
+                            val paymentMethod = prevOrderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                            val paymentMode = prevOrderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+                            val isFullPaid = (isPaid || paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) &&
+                                    !paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+
+                            // Trả hết không trừ uy tín, COD và Cọc trừ điểm
+                            if (!isFullPaid && prevStatus != Order.Status.BOOM && prevStatus != Order.Status.RETURNING_TO_STORE && prevStatus != Order.Status.RETURNED_TO_STORE) {
+                                newScore = maxOf(0L, currentScore - 10L)
                                 scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Bom hàng trả về quán #$shortCode: $reason (-30 điểm)" else "Không nhận hàng / Bom đơn #$shortCode (-30 điểm)"
+                                val penaltyType = if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) || paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)) "đơn COD" else "đơn cọc"
+                                logReason = if (reason.isNotBlank()) "Hủy $penaltyType trả món về quán #$shortCode: $reason (-10 điểm)" else "Hủy $penaltyType trả món về quán #$shortCode (-10 điểm)"
                                 statsUpdates["boomOrders"] = currentBoom + 1
                                 statsUpdates["totalOrders"] = currentTotal + 1
                                 statsUpdates["trustScore"] = newScore
                                 if (newScore < 20L) {
                                     statsUpdates["status"] = "LOCKED"
                                     statsUpdates["isActive"] = false
-                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do bom hàng"
+                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do hủy đơn COD/Cọc"
                                 }
                             }
                         }

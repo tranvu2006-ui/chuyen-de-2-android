@@ -10,12 +10,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityLoginBinding
 import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -43,6 +48,7 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
+        syncBypassOtpConfig()
 
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
         if (isLogout) {
@@ -123,6 +129,20 @@ class LoginActivity : AppCompatActivity() {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)
         }
+    }
+
+    private fun syncBypassOtpConfig() {
+        try {
+            FirebaseDatabase.getInstance().getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
+                .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val bypass = snapshot.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                        OtpSessionManager.updateBypassOtpConfig(this@LoginActivity, bypass)
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+        } catch (_: Exception) {}
     }
 
     private fun observeViewModel() {

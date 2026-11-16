@@ -19,6 +19,10 @@ import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -62,6 +66,7 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
+        syncBypassOtpConfig()
     }
 
     override fun onResume() {
@@ -138,6 +143,20 @@ class LoginActivity : AppCompatActivity() {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)
         }
+    }
+
+    private fun syncBypassOtpConfig() {
+        try {
+            FirebaseDatabase.getInstance().getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
+                .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val bypass = snapshot.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                        OtpSessionManager.updateBypassOtpConfig(this@LoginActivity, bypass)
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+        } catch (_: Exception) {}
     }
 
     private fun observeViewModel() {

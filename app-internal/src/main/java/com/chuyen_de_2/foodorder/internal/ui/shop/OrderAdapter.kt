@@ -96,6 +96,13 @@ class OrderAdapter(
             val total = if (order.totalPayment > 0) order.totalPayment else order.total
             binding.tvOrderDishes.text = "$dishesSummary\nTổng bill: ${total.toVndCurrency()} ($payText)"
 
+            if (order.note.isNotBlank()) {
+                binding.tvOrderNote.visibility = View.VISIBLE
+                binding.tvOrderNote.text = "📝 Ghi chú: ${order.note}"
+            } else {
+                binding.tvOrderNote.visibility = View.GONE
+            }
+
             // 2. Địa chỉ & Khách
             val customerName = order.customerName.ifBlank { "Khách Hàng" }
             val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Địa chỉ nhận món" } }
@@ -132,6 +139,8 @@ class OrderAdapter(
             binding.btnMainAction.setOnClickListener { onActionClick(order) }
             binding.btnDetail.setOnClickListener { onDetailClick(order) }
             binding.btnChatCustomer.text = "Nhắn Khách"
+            binding.btnChatCustomer.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
+            binding.viewChatRedDot.visibility = View.GONE
             binding.btnChatCustomer.tag = order.orderId
             binding.btnChatCustomer.setOnClickListener { onChatCustomerClick(order) }
 
@@ -145,13 +154,7 @@ class OrderAdapter(
                             if (binding.btnChatCustomer.tag != order.orderId) return
                             val lastChild = snapshot.children.lastOrNull()
                             val sender = lastChild?.child("sender")?.getValue(String::class.java)
-                            if (sender == "customer") {
-                                binding.btnChatCustomer.text = "Tin nhắn Khách (1)"
-                                binding.btnChatCustomer.setTextColor(Color.parseColor("#EA580C"))
-                            } else {
-                                binding.btnChatCustomer.text = "Nhắn Khách"
-                                binding.btnChatCustomer.setTextColor(ContextCompat.getColor(context, R.color.brand_blue))
-                            }
+                            binding.viewChatRedDot.visibility = if (sender == "customer") View.VISIBLE else View.GONE
                         }
                         override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
                     })

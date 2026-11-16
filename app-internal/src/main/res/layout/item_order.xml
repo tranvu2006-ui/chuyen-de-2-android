@@ -133,6 +133,20 @@
                     android:textColor="@color/text_primary"
                     android:textSize="12.5sp"
                     tools:text="• 1x Trà Xí Muội\nTổng bill: 78.000 đ (Đã thanh toán VietQR)" />
+
+                <TextView
+                    android:id="@+id/tvOrderNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:padding="6dp"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:text="📝 Ghi chú: Không hành, nước mắm ngọt"
+                    tools:visibility="visible" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -163,32 +177,52 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="11.5sp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnChatCustomer"
-                style="@style/Widget.Material3.Button.TonalButton"
+            <FrameLayout
                 android:layout_width="wrap_content"
-                android:layout_height="32dp"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:backgroundTint="@color/brand_blue_bg"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingHorizontal="10dp"
-                android:text="Nhắn Khách"
-                android:textColor="@color/brand_blue"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp"
-                app:icon="@drawable/ic_message_circle"
-                app:iconSize="13dp"
-                app:iconTint="@color/brand_blue"
-                app:strokeColor="#BFDBFE"
-                app:strokeWidth="1dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp" />
+                android:clipChildren="false"
+                android:clipToPadding="false">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnChatCustomer"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="3dp"
+                    android:layout_marginEnd="3dp"
+                    android:backgroundTint="@color/brand_blue_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="10dp"
+                    android:paddingStart="10dp"
+                    android:paddingTop="0dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="0dp"
+                    android:text="Nhắn Khách"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="8dp"
+                    app:icon="@drawable/ic_message_circle"
+                    app:iconSize="13dp"
+                    app:iconTint="@color/brand_blue"
+                    app:strokeColor="#BFDBFE"
+                    app:strokeWidth="1dp" />
+
+                <View
+                    android:id="@+id/viewChatRedDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_gravity="top|end"
+                    android:background="@drawable/bg_dot_online"
+                    android:backgroundTint="#EF4444"
+                    android:elevation="4dp"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+            </FrameLayout>
         </LinearLayout>
 
         <!-- Trạng thái Shipper hiển thị tự động -->

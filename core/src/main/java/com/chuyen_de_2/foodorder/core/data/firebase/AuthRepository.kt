@@ -796,7 +796,6 @@ class AuthRepository @Inject constructor(
                         "roleId" to 1,
                         "status" to User.Status.ACTIVE,
                         "isActive" to true,
-                        "active" to true,
                         "lockReason" to null,
                         "suspendedReason" to null
                     )

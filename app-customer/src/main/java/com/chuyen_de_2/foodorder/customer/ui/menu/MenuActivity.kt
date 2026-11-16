@@ -1,6 +1,7 @@
 package com.chuyen_de_2.foodorder.customer.ui.menu
 
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Paint
 import android.os.Bundle
 import android.view.View
@@ -166,6 +167,11 @@ class MenuActivity : AppCompatActivity() {
      */
     private fun setupBottomCheckoutBar() {
         binding.btnCheckoutNow.setOnClickListener {
+            val isClosed = viewModel.store.value?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+            if (isClosed) {
+                Toast.makeText(this, "⚠️ Quán đang tạm đóng cửa ngưng nhận đơn mới!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
             viewModel.flushCart()
             startActivity(Intent(this, CartActivity::class.java))
         }
@@ -248,6 +254,15 @@ class MenuActivity : AppCompatActivity() {
                     placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
                     cornerDp = 14
                 )
+                val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+                if (isClosed) {
+                    binding.tvShopNavTitle.text = "${store.name.ifBlank { shopName }} (Tạm đóng)"
+                    binding.tvShopNavTitle.setTextColor(Color.parseColor("#EF4444"))
+                    binding.layoutBottomCheckoutBar.visibility = View.GONE
+                } else {
+                    binding.tvShopNavTitle.text = store.name.ifBlank { shopName }
+                    binding.tvShopNavTitle.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.text_primary))
+                }
             }
         }
     }
@@ -332,6 +347,13 @@ class MenuActivity : AppCompatActivity() {
      * Luồng hướng tới: Thêm món vào [CartViewModel].
      */
     private fun handleDishSelection(dish: Dish) {
+        val currentStore = viewModel.store.value
+        val isClosed = currentStore?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+        if (isClosed) {
+            Toast.makeText(this, "⚠️ Quán đang tạm đóng cửa ngưng nhận đơn mới. Vui lòng quay lại sau!", Toast.LENGTH_LONG).show()
+            return
+        }
+
         viewModel.selectDish(dish)
         adapter.setSelectedDishId(dish.id)
 

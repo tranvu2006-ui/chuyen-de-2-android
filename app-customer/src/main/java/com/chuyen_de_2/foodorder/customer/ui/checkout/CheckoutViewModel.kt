@@ -154,6 +154,12 @@ class CheckoutViewModel @Inject constructor(
                     val resolvedShopName = targetStore?.name?.ifBlank { cart.shopName } ?: cart.shopName
                     val resolvedShopImage = targetStore?.effectiveImageUrl.orEmpty().trim()
 
+                    if (targetStore != null && targetStore.storeStatus.equals(com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED, ignoreCase = true)) {
+                        _isLoading.value = false
+                        _orderResult.value = Result.failure(Exception("Quán '$resolvedShopName' hiện đang tạm đóng cửa ngưng nhận đơn mới. Vui lòng quay lại sau!"))
+                        return@launch
+                    }
+
                     val initialStatus = if (paymentMode == Order.PaymentMode.COD) {
                         Order.Status.PENDING
                     } else {

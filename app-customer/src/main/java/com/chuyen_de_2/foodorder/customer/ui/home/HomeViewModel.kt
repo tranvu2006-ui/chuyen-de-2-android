@@ -123,8 +123,9 @@ class HomeViewModel @Inject constructor(
             pt != Store.PenaltyTier.HIDE
         }
 
-        // 1. Quán gần đây (Sắp xếp theo thứ tự khoảng cách từ gần đến xa)
+        // 1. Quán gần đây (Sắp xếp theo thứ tự: Quán đang mở trước, khoảng cách từ gần đến xa)
         val nearbyList = activeStores.map { store ->
+            val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
             val storeLatLng = resolveStoreLatLng(store)
             val roundedDist = calculateDistanceForStore(storeLatLng)
             val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
@@ -147,20 +148,24 @@ class HomeViewModel @Inject constructor(
                 rating = store.ratingAvg,
                 imageUrl = store.imageUrl,
                 emoji = emoji,
-                originalStore = store
+                originalStore = store,
+                isClosed = isClosed
             )
         }
 
         val sortedNearbyList = nearbyList.sortedWith(
-            compareBy<NearbyStoreItem> { if (it.distanceKm > 0.0) 0 else 1 }
+            compareBy<NearbyStoreItem> { if (it.isClosed) 1 else 0 }
+                .thenBy { if (it.distanceKm > 0.0) 0 else 1 }
                 .thenBy { it.distanceKm }
         )
         _nearbyStores.value = sortedNearbyList
 
-        // 2. Thu thập các món ăn của quán
+        // 2. Thu thập các món ăn của quán - CHỈ HIỂN THỊ MÓN CỦA CÁC QUÁN ĐANG MỞ CỬA (OPEN)
+        // Khi quán tạm đóng, ẩn toàn bộ món khỏi danh sách gợi ý trang chủ
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
         val allDishes = mutableListOf<HomeDishItem>()
 
-        activeStores.forEach { store ->
+        openStores.forEach { store ->
             val storeLatLng = resolveStoreLatLng(store)
             val roundedDist = calculateDistanceForStore(storeLatLng)
 
@@ -240,9 +245,12 @@ class HomeViewModel @Inject constructor(
             }
         }
 
+        // Chỉ tính món hot từ các quán ĐANG MỞ CỬA (OPEN)
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
+
         // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
         val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
-        activeStores.forEach { store ->
+        openStores.forEach { store ->
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
             if (availableDishes.isNotEmpty()) {
                 val bestDish = availableDishes.maxWithOrNull(
@@ -277,7 +285,7 @@ class HomeViewModel @Inject constructor(
 
         // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
         val favoriteList = mutableListOf<Pair<HotDish, Float>>()
-        activeStores.forEach { store ->
+        openStores.forEach { store ->
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
             if (availableDishes.isNotEmpty()) {
                 val topRatedDish = availableDishes.maxWithOrNull(

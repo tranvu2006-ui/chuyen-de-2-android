@@ -925,6 +925,10 @@ class FirebaseRepository @Inject constructor(
                                 }
                             }
                         }
+                        val rawStatus = child.child("storeStatus").getValue(String::class.java)
+                            ?: child.child("status").getValue(String::class.java)
+                            ?: (if (child.child("open").getValue(Boolean::class.java) == true) "OPEN" else if (child.child("open").getValue(Boolean::class.java) == false) "CLOSED" else null)
+                            ?: store.storeStatus
                         val rawImg = child.child("imageUrl").getValue(String::class.java)
                             ?: child.child("avatarUrl").getValue(String::class.java)
                             ?: child.child("avatar").getValue(String::class.java)
@@ -934,6 +938,7 @@ class FirebaseRepository @Inject constructor(
                         val finalDishes = if (dishesMap.isNotEmpty()) dishesMap else store.dishes
                         val finalStore = store.copy(
                             id = storeId,
+                            storeStatus = rawStatus,
                             imageUrl = rawImg,
                             avatarUrl = rawImg,
                             avatar = rawImg,

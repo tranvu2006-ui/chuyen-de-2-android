@@ -1,5 +1,6 @@
 package com.chuyen_de_2.foodorder.customer.ui.home
 
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,7 +21,8 @@ data class NearbyStoreItem(
     val rating: Float,
     val imageUrl: String = "",
     val emoji: String = "🏪",
-    val originalStore: Store? = null
+    val originalStore: Store? = null,
+    val isClosed: Boolean = false
 )
 
 class NearbyStoreAdapter(
@@ -43,7 +45,19 @@ class NearbyStoreAdapter(
             binding.tvNearbyStoreName.text = store.name
             binding.tvNearbyStoreAddress.text = if (store.address.startsWith("📍")) store.address else "📍 ${store.address}"
             binding.tvNearbyDistance.text = if (store.distanceKm > 0.0) "📍 ${store.distanceKm} km" else "📍 Gần bạn"
-            binding.tvNearbyEta.text = "⏱ ${store.eta}"
+
+            val isStoreClosed = store.isClosed || store.originalStore?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+            if (isStoreClosed) {
+                binding.tvNearbyEta.text = "⛔ Tạm Đóng"
+                binding.tvNearbyEta.setBackgroundColor(Color.parseColor("#FEE2E2"))
+                binding.tvNearbyEta.setTextColor(Color.parseColor("#EF4444"))
+                binding.cardNearbyStore.alpha = 0.7f
+            } else {
+                binding.tvNearbyEta.text = "⏱ ${store.eta}"
+                binding.tvNearbyEta.setBackgroundColor(Color.parseColor("#FEF3C7"))
+                binding.tvNearbyEta.setTextColor(Color.parseColor("#B45309"))
+                binding.cardNearbyStore.alpha = 1.0f
+            }
             binding.tvNearbyRating.text = "⭐ ${store.rating}"
 
             val displayImg = store.imageUrl.ifBlank { store.originalStore?.effectiveImageUrl.orEmpty() }

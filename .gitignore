@@ -33,3 +33,6 @@ graphify-out/
 
 # Database backups
 backup_*.json
+
+# Office temp lock files
+~$*

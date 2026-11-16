@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -58,6 +59,7 @@ class PaymentActivity : AppCompatActivity() {
     private var orderRef: DatabaseReference? = null
     private var orderPaymentListener: ValueEventListener? = null
     private var hasNavigatedSuccess = false
+    private var hasHandledCancelled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -155,6 +157,16 @@ class PaymentActivity : AppCompatActivity() {
         // 2. Thiết lập bộ lắng nghe ValueEventListener
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
+                // Kiểm tra nếu đơn hàng đã bị hủy (do quán hủy hoặc hệ thống hủy)
+                val orderStatus = snapshot.child("orderStatus").getValue(String::class.java)
+                    ?: snapshot.child("status").getValue(String::class.java).orEmpty()
+                if (orderStatus.equals(Order.Status.CANCELLED, ignoreCase = true)) {
+                    val cancelReason = snapshot.child("cancelReason").getValue(String::class.java)
+                        ?: snapshot.child("note").getValue(String::class.java).orEmpty()
+                    handleOrderCancelled(cancelReason)
+                    return
+                }
+
                 // Đọc trạng thái xác nhận và thanh toán từ Firebase
                 val isConfirmed = snapshot.child("customerConfirmed").getValue(Boolean::class.java) ?: false
                 if (isConfirmed && binding.btnConfirmPaid.isEnabled) {
@@ -173,6 +185,27 @@ class PaymentActivity : AppCompatActivity() {
         }
         orderPaymentListener = listener
         ref.addValueEventListener(listener)
+    }
+
+    /**
+     * Tự động xử lý và điều hướng khi đơn hàng bị hủy trong lúc đang ở màn hình thanh toán
+     */
+    private fun handleOrderCancelled(reason: String) {
+        if (hasHandledCancelled || hasNavigatedSuccess || isFinishing || isDestroyed) return
+        hasHandledCancelled = true
+
+        countDownTimer?.cancel()
+        orderPaymentListener?.let { orderRef?.removeEventListener(it) }
+
+        val displayReason = if (reason.isNotBlank()) "\nLý do: $reason" else ""
+        AlertDialog.Builder(this)
+            .setTitle("Đơn hàng đã bị hủy")
+            .setMessage("Đơn hàng này đã bị hủy.$displayReason\n\nBạn sẽ được quay về trang chủ.")
+            .setCancelable(false)
+            .setPositiveButton("Đã hiểu") { _, _ ->
+                navigateHome()
+            }
+            .show()
     }
 
     /**

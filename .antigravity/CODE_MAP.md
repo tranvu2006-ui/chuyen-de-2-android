@@ -73414,179 +73414,6 @@ data class User(
 }
 ````
 
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreDetailBottomSheetDialogFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.store
-
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.BottomSheetAdminStoreDetailBinding
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-
-class AdminStoreDetailBottomSheetDialogFragment(
-    private val store: Store,
-    private val onApprove: (Store) -> Unit,
-    private val onLock: (Store) -> Unit,
-    private val onApplyPenalty: (storeId: String, tier: String, reason: String) -> Unit,
-    private val onReject: ((Store, String) -> Unit)? = null,
-    private val onEditAll: ((Store) -> Unit)? = null
-) : BottomSheetDialogFragment() {
-
-    private var _binding: BottomSheetAdminStoreDetailBinding? = null
-    private val binding get() = _binding!!
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = BottomSheetAdminStoreDetailBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        populateData()
-        setupActions()
-    }
-
-    private fun populateData() {
-        val context = requireContext()
-        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-            imageView = binding.ivDetailStoreAvatar,
-            imageUrl = store.effectiveImageUrl,
-            placeholderResId = R.drawable.ic_store,
-            cornerDp = 12
-        )
-        binding.tvDetailStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
-        binding.tvDetailStoreId.text = "Mã quán: ${store.id}"
-        binding.tvDetailAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật" }} (${store.district.ifBlank { "Quận chưa rõ" }})"
-        binding.tvDetailPhone.text = "Số điện thoại: ${store.phone.ifBlank { "Chưa cập nhật" }}"
-        if (store.openHours.isNotBlank() || store.prepTime.isNotBlank()) {
-            binding.tvDetailHours.visibility = View.VISIBLE
-            binding.tvDetailHours.text = "Giờ mở cửa: ${store.openHours} (Thời gian làm món: ${store.prepTime})"
-        } else {
-            binding.tvDetailHours.visibility = View.GONE
-        }
-
-        // Chain & Manager info
-        if (store.bossId.isNotBlank()) {
-            val managerText = if (store.merchantName.isNotBlank()) " • Quản lý chi nhánh: ${store.merchantName}" else " • Boss trực tiếp quản lý"
-            binding.tvDetailChainInfo.text = "Mô hình: Chuỗi cửa hàng (Boss #${store.bossId.takeLast(6)})$managerText"
-            binding.tvDetailChainInfo.visibility = View.VISIBLE
-        } else {
-            binding.tvDetailChainInfo.text = "Mô hình: Cửa hàng độc lập (Chưa tham gia chuỗi)"
-            binding.tvDetailChainInfo.visibility = View.VISIBLE
-        }
-
-        // Food Categories
-        val cats = if (store.storeCategories.isNotEmpty()) {
-            store.storeCategories.joinToString(", ")
-        } else {
-            store.category.ifBlank { "Chưa phân loại" }
-        }
-        binding.tvDetailCategories.text = "Danh mục ẩm thực: $cats"
-        binding.tvDetailCategories.visibility = View.VISIBLE
-
-        // Bank
-        val bankInfo = StringBuilder()
-        if (store.bankName.isNotBlank()) bankInfo.append(store.bankName).append(" • ")
-        if (store.bankAccountNumber.isNotBlank()) bankInfo.append(store.bankAccountNumber).append(" • ")
-        bankInfo.append(store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa đăng ký" } })
-        binding.tvDetailBank.text = bankInfo.toString()
-
-        val ownerName = store.ownerName.ifBlank { "Chưa cập nhật" }
-        val bankAccountName = store.bankAccountName.ifBlank { "Chưa đăng ký" }
-        binding.tvDetailBankCompare.text = "Hộ kinh doanh: $ownerName • Chủ thẻ NH: $bankAccountName"
-
-        // CCCD
-        binding.tvDetailCccdInfo.text = "Họ tên chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • Số CCCD: ${store.cccdNumber.ifBlank { "Chưa cập nhật" }}"
-
-        // Status badge
-        val roleHint = if (store.bossId.isNotBlank()) "BOSSMERCHANT" else "QUÁN"
-        if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "CHỜ DUYỆT CCCD ($roleHint)"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
-        } else if (store.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "BỊ TỪ CHỐI HỒ SƠ"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-        } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "BỊ KHÓA"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
-        } else if (store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)) {
-            binding.tvDetailStatusBadge.text = "ĐANG MỞ CỬA ($roleHint)"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
-        } else {
-            binding.tvDetailStatusBadge.text = "TẠM ĐÓNG CỬA"
-            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_duty_off)
-            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
-        }
-
-        // CCCD Photos
-        val cccdFront = store.cccdFrontUrl.ifBlank { store.cccdHoldUrl }
-        if (cccdFront.isNotBlank()) {
-            Glide.with(this).load(cccdFront).placeholder(R.drawable.ic_image).into(binding.ivCccdFront)
-        }
-        if (store.cccdBackUrl.isNotBlank()) {
-            Glide.with(this).load(store.cccdBackUrl).placeholder(R.drawable.ic_image).into(binding.ivCccdBack)
-        }
-
-        // Current Penalty
-        if (store.penaltyTier != Store.PenaltyTier.NONE && store.penaltyTier.isNotBlank()) {
-            binding.tvCurrentPenalty.visibility = View.VISIBLE
-            binding.tvCurrentPenalty.text = "Chế tài đang hiệu lực: ${store.penaltyTier}\nLý do: ${store.penaltyReason.ifBlank { "Vi phạm quy định sàn" }}"
-        } else {
-            binding.tvCurrentPenalty.visibility = View.GONE
-        }
-    }
-
-    private fun setupActions() {
-        binding.btnApproveStore.setOnClickListener {
-            onApprove(store)
-            dismiss()
-        }
-
-        binding.btnRejectStore.setOnClickListener {
-            val input = android.widget.EditText(requireContext()).apply {
-                hint = "Nhập lý do từ chối hồ sơ..."
-                setText("Ảnh CCCD chưa rõ hoặc thông tin chưa chính xác")
-            }
-            AlertDialog.Builder(requireContext())
-                .setTitle("Từ chối hồ sơ đối tác")
-                .setMessage("Nhập lý do từ chối hồ sơ của '${store.name}':")
-                .setView(input)
-                .setPositiveButton("Xác nhận từ chối") { _, _ ->
-                    val reason = input.text.toString().trim().ifBlank { "Hồ sơ chưa đạt yêu cầu" }
-                    onReject?.invoke(store, reason)
-                    dismiss()
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    companion object {
-        const val TAG = "AdminStoreDetailBottomSheet"
-    }
-}
-````
-
 ## File: app-admin/src/main/res/layout/dialog_edit_order.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -80812,6 +80639,560 @@ class MenuManageFragment : Fragment() {
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreProfileFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.shop
+
+import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.Window
+import android.content.Intent
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentStoreProfileBinding
+import com.chuyen_de_2.foodorder.internal.ui.auth.SelectLocationActivity
+import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.contract.ActivityResultContracts
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import java.io.ByteArrayOutputStream
+
+/**
+ * Tên chức năng: Quản Lý Hồ Sơ & Cài Đặt Quán Ăn (Merchant Profile & Store Settings)
+ * Cách hoạt động:
+ *  - Hiển thị đầy đủ thông tin pháp lý và nhận diện của quán: Tên, địa chỉ, số điện thoại, chủ hộ kinh doanh, CCCD, ảnh đại diện.
+ *  - Cung cấp cấu hình vận hành: Giờ mở cửa, thời gian chuẩn bị món ăn trung bình.
+ *  - Quản lý thông tin tài khoản ngân hàng thụ hưởng (VietQR / Napas) để hệ thống đối soát doanh thu.
+ *  - Cho phép chủ quán mở hộp thoại chỉnh sửa trực tiếp và đồng bộ lên Firebase.
+ * Luồng hướng tới:
+ *  - Lưu thông tin vào Firestore -> Dữ liệu cập nhật ngay lập tức trên app Khách hàng và app Tài xế.
+ *  - Bấm vào badge xác minh -> Mở màn hình [StoreVerificationActivity] để bổ sung thông tin nếu thiếu.
+ */
+@AndroidEntryPoint
+class StoreProfileFragment : Fragment() {
+
+    private var _binding: FragmentStoreProfileBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
+    @Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
+    private var currentStoreId = ""
+    private var currentStore: Store? = null
+
+    private var editingLat: Double? = null
+    private var editingLng: Double? = null
+    private var currentDialogEtAddress: EditText? = null
+    private var currentDialogEtDistrict: EditText? = null
+
+    private var pendingAvatarBase64: String? = null
+    private var currentDialogAvatarPreview: ImageView? = null
+    private var canEditStore: Boolean = false
+    private var currentDialogAvatarPlaceholder: View? = null
+
+    private val pickAvatarLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processAndPreviewAvatar(uri)
+        }
+    }
+
+    private val selectLocationLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == AppCompatActivity.RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            if (!streetAddress.isNullOrBlank()) {
+                currentDialogEtAddress?.setText(streetAddress)
+            } else if (!fullAddress.isNullOrBlank()) {
+                currentDialogEtAddress?.setText(fullAddress)
+            }
+
+            if (!district.isNullOrBlank()) {
+                currentDialogEtDistrict?.setText(district)
+            }
+
+            if (lat != 0.0 && lng != 0.0) {
+                editingLat = lat
+                editingLng = lng
+            }
+        }
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentStoreProfileBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo View hồ sơ quán
+     * Cách hoạt động: Thiết lập các sự kiện nút bấm (Quay lại, Sửa, Đăng xuất) và nạp dữ liệu quán từ Firebase.
+     * Luồng hướng tới: Chuẩn bị hiển thị thông tin chi tiết.
+     */
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupListeners()
+        checkRoleAndSetupUI()
+        resolveCurrentStoreIdAndObserve()
+    }
+
+    private fun checkRoleAndSetupUI() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val role = authRepository.getUserRole()?.uppercase()
+            canEditStore = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT ||
+                           role == com.chuyen_de_2.foodorder.core.data.model.User.Role.ADMIN
+            if (canEditStore) {
+                binding.btnTopEdit.visibility = View.VISIBLE
+                binding.btnMainEdit.visibility = View.VISIBLE
+            } else {
+                binding.btnTopEdit.visibility = View.GONE
+                binding.btnMainEdit.visibility = View.GONE
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Xác định storeId của người dùng đăng nhập
+     * Cách hoạt động: Lấy UID của Merchant hiện tại để tra cứu document store trên Firestore.
+     * Luồng hướng tới: Gọi [observeStoreProfile].
+     */
+    private fun resolveCurrentStoreIdAndObserve() {
+        val uid = auth.currentUser?.uid.orEmpty()
+        viewLifecycleOwner.lifecycleScope.launch {
+            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            observeStoreProfile()
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập các sự kiện tương tác trên màn hình hồ sơ
+     * Cách hoạt động: Bắt sự kiện quay lại trang trước, mở modal sửa thông tin, và xác nhận đăng xuất tài khoản.
+     * Luồng hướng tới: Điều hướng giao diện tương ứng.
+     */
+    private fun setupListeners() {
+        binding.btnBackToOrders.setOnClickListener {
+            parentFragmentManager.popBackStack()
+        }
+        binding.btnTopEdit.setOnClickListener {
+            showEditStoreDialog()
+        }
+        binding.btnMainEdit.setOnClickListener {
+            showEditStoreDialog()
+        }
+        binding.btnLogoutStore.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    authRepository.logout()
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe thông tin hồ sơ quán theo thời gian thực (Realtime Store Profile)
+     * Cách hoạt động: Theo dõi document `stores/{storeId}` từ Firestore và cập nhật giao diện khi có thay đổi.
+     * Luồng hướng tới: Gọi [bindStoreData].
+     */
+    private fun observeStoreProfile() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            if (currentStoreId.isBlank()) {
+                val activeStore = getDefaultStore()
+                currentStore = activeStore
+                bindStoreData(activeStore)
+                return@launch
+            }
+            firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
+                val activeStore = store ?: getDefaultStore()
+                currentStore = activeStore
+                bindStoreData(activeStore)
+            }
+        }
+    }
+
+    private val supportedBanks = com.chuyen_de_2.foodorder.core.util.BankData.SUPPORTED_BANKS
+
+    private fun processAndPreviewAvatar(uri: Uri) {
+        try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap != null) {
+                val maxDim = 300
+                val width = originalBitmap.width
+                val height = originalBitmap.height
+                val ratio = width.toFloat() / height.toFloat()
+                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
+                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
+
+                val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, maxOf(1, targetWidth), maxOf(1, targetHeight), true)
+                val outputStream = ByteArrayOutputStream()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                val byteArray = outputStream.toByteArray()
+
+                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                pendingAvatarBase64 = base64String
+
+                currentDialogAvatarPreview?.let { iv ->
+                    iv.visibility = View.VISIBLE
+                    currentDialogAvatarPlaceholder?.visibility = View.GONE
+                    Glide.with(this)
+                        .load(scaledBitmap)
+                        .transform(CenterCrop(), RoundedCorners(24))
+                        .into(iv)
+                }
+                Toast.makeText(requireContext(), "📷 Đã chọn ảnh đại diện quán!", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun displayStoreAvatar(avatarUrl: String) {
+        if (avatarUrl.isNotBlank()) {
+            binding.ivProfileStoreAvatar.visibility = View.VISIBLE
+            binding.tvProfileStoreEmoji.visibility = View.GONE
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivProfileStoreAvatar,
+                imageUrl = avatarUrl,
+                placeholderResId = R.drawable.bg_badge_orange,
+                cornerDp = 24
+            )
+        } else {
+            binding.ivProfileStoreAvatar.visibility = View.GONE
+            binding.tvProfileStoreEmoji.visibility = View.VISIBLE
+        }
+    }
+
+    /**
+     * Tên chức năng: Đổ dữ liệu thông tin quán lên giao diện
+     * Cách hoạt động: Render tên quán, địa chỉ, chủ sở hữu, CCCD, thông tin ngân hàng thụ hưởng và badge trạng thái xác minh hồ sơ.
+     * Luồng hướng tới: Hiển thị trực quan cho chủ quán.
+     */
+    private fun bindStoreData(store: Store) {
+        displayStoreAvatar(store.effectiveImageUrl)
+        binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
+        binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
+        binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileCccd.text = store.cccdNumber.ifBlank { "Chưa cập nhật" }
+        binding.tvProfilePhone.text = store.phone.ifBlank { "Chưa cập nhật" }
+
+        if (store.openHours.isNotBlank() || store.prepTime.isNotBlank()) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                firebaseRepository.removeStoreHoursAndPrepTime(store.id)
+            }
+        }
+
+        // Tài khoản ngân hàng VietQR
+        binding.tvProfileBankName.text = store.bankName.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileBankAccountNumber.text = store.bankAccountNumber.ifBlank { "Chưa cập nhật" }
+        binding.tvProfileBankAccountName.text = store.bankAccountName.ifBlank { "Chưa cập nhật" }
+
+        if (store.isOpen) {
+            binding.tvProfileStatus.text = "🟢 ĐANG HOẠT ĐỘNG (OPEN)"
+            binding.tvProfileStatus.setTextColor(Color.parseColor("#10B981"))
+        } else {
+            binding.tvProfileStatus.text = "⚪ TẠM ĐÓNG CỬA (CLOSED)"
+            binding.tvProfileStatus.setTextColor(Color.parseColor("#64748B"))
+        }
+
+        if ((store.isVerified || store.bossId.isNotBlank()) && store.address.isNotBlank()) {
+            binding.tvProfileVerifiedBadge.text = "✓ ĐÃ XÁC MINH HỒ SƠ"
+            binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#10B981"))
+            binding.tvProfileVerifiedBadge.setBackgroundResource(R.drawable.bg_badge_free)
+        } else {
+            binding.tvProfileVerifiedBadge.text = "⚠️ CHỜ BỔ SUNG ĐỊA CHỈ & XÁC MINH"
+            binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#D97706"))
+            binding.tvProfileVerifiedBadge.setBackgroundColor(Color.parseColor("#FEF3C7"))
+        }
+
+        binding.tvProfileVerifiedBadge.setOnClickListener {
+            viewLifecycleOwner.lifecycleScope.launch {
+                val role = authRepository.getUserRole()?.uppercase()
+                val isMerchantOnly = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT ||
+                    role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER
+                if (!isMerchantOnly) {
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
+                        putExtra("STORE_ID", currentStoreId)
+                    }
+                    startActivity(intent)
+                }
+            }
+        }
+    }
+
+    private fun getDefaultStore(): Store {
+        val user = authRepository.currentUser
+        return Store(
+            id = currentStoreId,
+            name = user?.displayName?.ifBlank { "Quán của bạn" } ?: "Quán của bạn",
+            phone = user?.phoneNumber ?: "",
+            address = "",
+            district = "",
+            ownerName = user?.displayName ?: "",
+            openHours = "",
+            prepTime = "",
+            isVerified = false,
+            cccdNumber = "",
+            storeStatus = Store.StoreStatus.OPEN
+        )
+    }
+
+    /**
+     * Tên chức năng: Hiển thị Dialog chỉnh sửa thông tin quán
+     * Cách hoạt động: Cho phép sửa tên, địa chỉ, quận huyện, tên chủ quán, giờ mở cửa, thời gian chuẩn bị món và tài khoản ngân hàng.
+     * Luồng hướng tới: Gọi [FirebaseRepository.updateStoreProfile] để lưu Firestore và cập nhật giao diện ngay lập tức.
+     */
+    private fun showEditStoreDialog() {
+        if (!canEditStore) {
+            Toast.makeText(
+                requireContext(),
+                "ℹ️ Thông tin chi nhánh & tài khoản ngân hàng do Chủ thương hiệu (Boss) quản lý. Bạn không có quyền chỉnh sửa.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_edit_store_profile)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val store = currentStore ?: getDefaultStore()
+        editingLat = store.latitude.takeIf { it != 0.0 }
+        editingLng = store.longitude.takeIf { it != 0.0 }
+
+        pendingAvatarBase64 = null
+
+        val ivAvatarPreview = dialog.findViewById<ImageView>(R.id.ivEditStoreAvatarPreview)
+        val tvAvatarPlaceholder = dialog.findViewById<View>(R.id.tvEditStoreAvatarPlaceholder)
+        val cardAvatar = dialog.findViewById<View>(R.id.cardEditStoreAvatar)
+        val btnPickAvatar = dialog.findViewById<View>(R.id.btnPickStoreAvatar)
+
+        currentDialogAvatarPreview = ivAvatarPreview
+        currentDialogAvatarPlaceholder = tvAvatarPlaceholder
+
+        val currentAvatarUrl = store.effectiveImageUrl
+        if (currentAvatarUrl.isNotBlank()) {
+            ivAvatarPreview?.visibility = View.VISIBLE
+            tvAvatarPlaceholder?.visibility = View.GONE
+            ivAvatarPreview?.let {
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = it,
+                    imageUrl = currentAvatarUrl,
+                    placeholderResId = R.drawable.bg_badge_orange,
+                    cornerDp = 24
+                )
+            }
+        } else {
+            ivAvatarPreview?.visibility = View.GONE
+            tvAvatarPlaceholder?.visibility = View.VISIBLE
+        }
+
+        val openImagePickerAction = {
+            pickAvatarLauncher.launch("image/*")
+        }
+        btnPickAvatar?.setOnClickListener { openImagePickerAction() }
+        cardAvatar?.setOnClickListener { openImagePickerAction() }
+
+        val etName = dialog.findViewById<EditText>(R.id.etStoreName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etStorePhone)
+        val etAddress = dialog.findViewById<EditText>(R.id.etStoreAddress)
+        val etDistrict = dialog.findViewById<EditText>(R.id.etStoreDistrict)
+        val etOwner = dialog.findViewById<EditText>(R.id.etOwnerName)
+
+        currentDialogEtAddress = etAddress
+        currentDialogEtDistrict = etDistrict
+
+        val openMapAction = {
+            val intent = Intent(requireContext(), SelectLocationActivity::class.java).apply {
+                val addr = etAddress.text.toString().trim()
+                if (addr.isNotBlank()) putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, addr)
+                val dist = etDistrict.text.toString().trim()
+                if (dist.isNotBlank()) putExtra(SelectLocationActivity.EXTRA_DISTRICT, dist)
+                editingLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                editingLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectLocationLauncher.launch(intent)
+        }
+
+        val btnPickLocation = dialog.findViewById<MaterialButton>(R.id.btnPickStoreLocationMap)
+        btnPickLocation?.setOnClickListener { openMapAction() }
+        etAddress.setOnClickListener { openMapAction() }
+        dialog.findViewById<View>(R.id.tilStoreAddress)?.setOnClickListener { openMapAction() }
+
+        // Các view tài khoản ngân hàng
+        val spBank = dialog.findViewById<android.widget.Spinner>(R.id.spBankName)
+        val etBankNo = dialog.findViewById<EditText>(R.id.etBankAccountNumber)
+        val etBankOwner = dialog.findViewById<EditText>(R.id.etBankAccountName)
+
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
+        val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveStoreProfile)
+
+        // Dropdown ngân hàng
+        val bankAdapter = android.widget.ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_dropdown_item,
+            supportedBanks.map { it.name }
+        )
+        spBank.adapter = bankAdapter
+
+        val currentBankIdx = supportedBanks.indexOfFirst {
+            it.name.contains(store.bankName, ignoreCase = true) ||
+            store.bankName.contains(it.name.substringBefore(" "), ignoreCase = true)
+        }
+        if (currentBankIdx != -1) {
+            spBank.setSelection(currentBankIdx)
+        }
+
+        // Điền dữ liệu hiện tại
+        etName.setText(store.name)
+        etPhone.setText(store.phone)
+        etAddress.setText(store.address)
+        etDistrict.setText(store.district)
+        etOwner.setText(store.ownerName)
+        etBankNo.setText(store.bankAccountNumber)
+        etBankOwner.setText(store.bankAccountName)
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSave.setOnClickListener {
+            val newName = etName.text.toString().trim()
+            val newPhone = etPhone.text.toString().trim()
+            val newAddress = etAddress.text.toString().trim()
+            val newDistrict = etDistrict.text.toString().trim()
+            val newOwner = etOwner.text.toString().trim()
+
+            val selectedBank = supportedBanks.getOrNull(spBank.selectedItemPosition) ?: supportedBanks[0]
+            val newBankName = selectedBank.name
+            val newBankBin = selectedBank.bin
+            val newBankNo = etBankNo.text.toString().trim()
+            val newBankOwnerName = etBankOwner.text.toString().trim().uppercase()
+
+            if (newName.isBlank()) {
+                etName.error = "Vui lòng nhập tên quán"
+                return@setOnClickListener
+            }
+            if (newAddress.isBlank()) {
+                etAddress.error = "Vui lòng nhập địa chỉ"
+                return@setOnClickListener
+            }
+
+            btnSave.isEnabled = false
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val (resolvedLat, resolvedLng) = if (editingLat != null && editingLng != null && editingLat != 0.0 && editingLng != 0.0) {
+                    editingLat!! to editingLng!!
+                } else {
+                    val fullAddress = if (newAddress.isNotBlank()) "$newAddress, $newDistrict, TP.HCM" else "$newDistrict, TP.HCM"
+                    val coords = try {
+                        val resolved = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.geocodeAddress(requireContext(), fullAddress)
+                        if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                        else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                    } catch (_: Exception) {
+                        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                    }
+                    coords.latitude to coords.longitude
+                }
+
+                val avatarToSave = pendingAvatarBase64 ?: store.effectiveImageUrl
+
+                val result = firebaseRepository.updateStoreProfile(
+                    storeId = currentStoreId,
+                    name = newName,
+                    phone = newPhone,
+                    address = newAddress,
+                    district = newDistrict,
+                    ownerName = newOwner,
+                    imageUrl = avatarToSave,
+                    bankName = newBankName,
+                    bankAccountNumber = newBankNo,
+                    bankAccountName = newBankOwnerName,
+                    bankBin = newBankBin,
+                    latitude = resolvedLat,
+                    longitude = resolvedLng
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(requireContext(), "✅ Đã cập nhật thông tin & ảnh quán thành công!", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    btnSave.isEnabled = true
+                }
+            }
+        }
+
+        dialog.setOnDismissListener {
+            currentDialogEtAddress = null
+            currentDialogEtDistrict = null
+            currentDialogAvatarPreview = null
+            currentDialogAvatarPlaceholder = null
+            pendingAvatarBase64 = null
+        }
+        dialog.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
 ## File: app-internal/src/main/res/layout/activity_delivery_trip.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -85385,413 +85766,177 @@ r_val = p_meta.add_run(actors_files)
 p_step = doc.add_paragraph(step_line)
 ````
 
-## File: app-admin/src/main/res/layout/bottom_sheet_admin_store_detail.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="@drawable/bg_dialog_rounded">
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/store/AdminStoreDetailBottomSheetDialogFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.store
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="20dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="32dp">
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.BottomSheetAdminStoreDetailBinding
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-        <!-- Drag Handle -->
-        <View
-            android:layout_width="48dp"
-            android:layout_height="5dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="18dp"
-            android:background="@drawable/bg_choice_card_idle" />
+class AdminStoreDetailBottomSheetDialogFragment(
+    private val store: Store,
+    private val onApprove: (Store) -> Unit,
+    private val onLock: (Store) -> Unit,
+    private val onApplyPenalty: (storeId: String, tier: String, reason: String) -> Unit,
+    private val onReject: ((Store, String) -> Unit)? = null,
+    private val onEditAll: ((Store) -> Unit)? = null
+) : BottomSheetDialogFragment() {
 
-        <!-- Executive Store Header -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+    private var _binding: BottomSheetAdminStoreDetailBinding? = null
+    private val binding get() = _binding!!
 
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = BottomSheetAdminStoreDetailBinding.inflate(inflater, container, false)
+        return binding.root
+    }
 
-                <ImageView
-                    android:id="@+id/ivDetailStoreAvatar"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_store"
-                    android:contentDescription="Avatar quán" />
-            </com.google.android.material.card.MaterialCardView>
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        populateData()
+        setupActions()
+    }
 
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
+    private fun populateData() {
+        val context = requireContext()
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+            imageView = binding.ivDetailStoreAvatar,
+            imageUrl = store.effectiveImageUrl,
+            placeholderResId = R.drawable.ic_store,
+            cornerDp = 12
+        )
+        binding.tvDetailStoreName.text = store.name.ifBlank { "Quán ăn #${store.id.takeLast(6)}" }
+        binding.tvDetailStoreId.text = "Mã quán: ${store.id}"
+        binding.tvDetailAddress.text = "Địa chỉ: ${store.address.ifBlank { "Chưa cập nhật" }} (${store.district.ifBlank { "Quận chưa rõ" }})"
+        binding.tvDetailPhone.text = "Số điện thoại: ${store.phone.ifBlank { "Chưa cập nhật" }}"
+        if (store.openHours.isNotBlank() || store.prepTime.isNotBlank()) {
+            binding.tvDetailHours.visibility = View.VISIBLE
+            binding.tvDetailHours.text = "Giờ mở cửa: ${store.openHours} (Thời gian làm món: ${store.prepTime})"
+        } else {
+            binding.tvDetailHours.visibility = View.GONE
+        }
 
-                <TextView
-                    android:id="@+id/tvDetailStoreName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="2"
-                    android:textColor="@color/text_primary"
-                    android:textSize="19sp"
-                    android:textStyle="bold"
-                    tools:text="Cơm Tấm Cali Sài Gòn" />
+        // Chain & Manager info
+        if (store.bossId.isNotBlank()) {
+            val managerText = if (store.merchantName.isNotBlank()) " • Quản lý chi nhánh: ${store.merchantName}" else " • Boss trực tiếp quản lý"
+            binding.tvDetailChainInfo.text = "Mô hình: Chuỗi cửa hàng (Boss #${store.bossId.takeLast(6)})$managerText"
+            binding.tvDetailChainInfo.visibility = View.VISIBLE
+        } else {
+            binding.tvDetailChainInfo.text = "Mô hình: Cửa hàng độc lập (Chưa tham gia chuỗi)"
+            binding.tvDetailChainInfo.visibility = View.VISIBLE
+        }
 
-                <TextView
-                    android:id="@+id/tvDetailStoreId"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/text_muted"
-                    android:textSize="12sp"
-                    tools:text="Mã quán: store_12345" />
+        // Food Categories
+        val cats = if (store.storeCategories.isNotEmpty()) {
+            store.storeCategories.joinToString(", ")
+        } else {
+            store.category.ifBlank { "Chưa phân loại" }
+        }
+        binding.tvDetailCategories.text = "Danh mục ẩm thực: $cats"
+        binding.tvDetailCategories.visibility = View.VISIBLE
 
-                <TextView
-                    android:id="@+id/tvDetailStatusBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:background="@drawable/bg_badge_orange"
-                    android:ellipsize="end"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="5dp"
-                    android:singleLine="true"
-                    android:textColor="@color/brand_orange"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    tools:text="CHỜ DUYỆT CCCD" />
-            </LinearLayout>
-        </LinearLayout>
+        // Bank
+        val bankInfo = StringBuilder()
+        if (store.bankName.isNotBlank()) bankInfo.append(store.bankName).append(" • ")
+        if (store.bankAccountNumber.isNotBlank()) bankInfo.append(store.bankAccountNumber).append(" • ")
+        bankInfo.append(store.bankAccountName.ifBlank { store.ownerName.ifBlank { "Chưa đăng ký" } })
+        binding.tvDetailBank.text = bankInfo.toString()
 
-        <!-- Current Penalty Alert Banner -->
-        <TextView
-            android:id="@+id/tvCurrentPenalty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:background="@drawable/bg_card_warning"
-            android:padding="12dp"
-            android:textColor="@color/danger"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            android:visibility="gone"
-            tools:text="⚠️ Đang bị chế tài: HIDE - Lý do: Vi phạm chất lượng vệ sinh"
-            tools:visibility="visible" />
+        val ownerName = store.ownerName.ifBlank { "Chưa cập nhật" }
+        val bankAccountName = store.bankAccountName.ifBlank { "Chưa đăng ký" }
+        binding.tvDetailBankCompare.text = "Hộ kinh doanh: $ownerName • Chủ thẻ NH: $bankAccountName"
 
-        <!-- Section 1: Store Operation Info Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/surface_elevated"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+        // CCCD
+        binding.tvDetailCccdInfo.text = "Họ tên chủ: ${store.ownerName.ifBlank { "Chưa cập nhật" }} • Số CCCD: ${store.cccdNumber.ifBlank { "Chưa cập nhật" }}"
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="15dp">
+        // Status badge
+        val roleHint = if (store.bossId.isNotBlank()) "BOSSMERCHANT" else "QUÁN"
+        if (!store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "CHỜ DUYỆT CCCD ($roleHint)"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
+        } else if (store.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "BỊ TỪ CHỐI HỒ SƠ"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+        } else if (store.storeStatus.equals(Store.StoreStatus.LOCKED, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "BỊ KHÓA"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
+        } else if (store.storeStatus.equals(Store.StoreStatus.OPEN, ignoreCase = true)) {
+            binding.tvDetailStatusBadge.text = "ĐANG MỞ CỬA ($roleHint)"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_green))
+        } else {
+            binding.tvDetailStatusBadge.text = "TẠM ĐÓNG CỬA"
+            binding.tvDetailStatusBadge.setBackgroundResource(R.drawable.bg_badge_duty_off)
+            binding.tvDetailStatusBadge.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+        }
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.04"
-                    android:text="🏢 HỒ SƠ VẬN HÀNH QUÁN"
-                    android:textColor="@color/secondary"
-                    android:textSize="11.5sp"
-                    android:textStyle="bold" />
+        // CCCD Photos
+        val cccdFront = store.cccdFrontUrl.ifBlank { store.cccdHoldUrl }
+        if (cccdFront.isNotBlank()) {
+            Glide.with(this).load(cccdFront).placeholder(R.drawable.ic_image).into(binding.ivCccdFront)
+        }
+        if (store.cccdBackUrl.isNotBlank()) {
+            Glide.with(this).load(store.cccdBackUrl).placeholder(R.drawable.ic_image).into(binding.ivCccdBack)
+        }
 
-                <TextView
-                    android:id="@+id/tvDetailAddress"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13.5sp"
-                    tools:text="Địa chỉ: 123 Võ Văn Ngân, TP. Thủ Đức" />
+        // Current Penalty
+        if (store.penaltyTier != Store.PenaltyTier.NONE && store.penaltyTier.isNotBlank()) {
+            binding.tvCurrentPenalty.visibility = View.VISIBLE
+            binding.tvCurrentPenalty.text = "Chế tài đang hiệu lực: ${store.penaltyTier}\nLý do: ${store.penaltyReason.ifBlank { "Vi phạm quy định sàn" }}"
+        } else {
+            binding.tvCurrentPenalty.visibility = View.GONE
+        }
+    }
 
-                <TextView
-                    android:id="@+id/tvDetailPhone"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13.5sp"
-                    tools:text="Số điện thoại: 0987654321" />
+    private fun setupActions() {
+        binding.btnApproveStore.setOnClickListener {
+            onApprove(store)
+            dismiss()
+        }
 
-                <TextView
-                    android:id="@+id/tvDetailHours"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    tools:text="Giờ mở cửa: 08:00 - 22:00 (Chuẩn bị: 15 phút)" />
+        binding.btnRejectStore.setOnClickListener {
+            val input = android.widget.EditText(requireContext()).apply {
+                hint = "Nhập lý do từ chối hồ sơ..."
+                setText("Ảnh CCCD chưa rõ hoặc thông tin chưa chính xác")
+            }
+            AlertDialog.Builder(requireContext())
+                .setTitle("Từ chối hồ sơ đối tác")
+                .setMessage("Nhập lý do từ chối hồ sơ của '${store.name}':")
+                .setView(input)
+                .setPositiveButton("Xác nhận từ chối") { _, _ ->
+                    val reason = input.text.toString().trim().ifBlank { "Hồ sơ chưa đạt yêu cầu" }
+                    onReject?.invoke(store, reason)
+                    dismiss()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
 
-                <TextView
-                    android:id="@+id/tvDetailChainInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/primary"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    tools:text="Mô hình: Chuỗi cửa hàng • Quản lý: Nguyễn Văn A" />
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
 
-                <TextView
-                    android:id="@+id/tvDetailCategories"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12.5sp"
-                    tools:text="Danh mục ẩm thực: Cơm, Phở, Trà sữa" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Section 2: Bank Settlement Account Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/surface_elevated"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="15dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.04"
-                    android:text="💳 TÀI KHOẢN NGÂN HÀNG ĐỐI SOÁT"
-                    android:textColor="@color/brand_green"
-                    android:textSize="11.5sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvDetailBank"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    tools:text="MB Bank • 01234567899 • NGUYEN VAN A" />
-
-                <TextView
-                    android:id="@+id/tvDetailBankCompare"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    tools:text="Chủ hộ KD: Nguyễn Văn A • Tên chủ TK: NGUYEN VAN A" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Section 3: KYC CCCD Verification Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardBackgroundColor="@color/surface_elevated"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="15dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.04"
-                    android:text="🪪 HỒ SƠ ĐỊNH DANH CCCD CHỦ HỘ"
-                    android:textColor="@color/brand_orange"
-                    android:textSize="11.5sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvDetailCccdInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13.5sp"
-                    android:textStyle="bold"
-                    tools:text="Họ tên: Nguyễn Văn A • Số CCCD: 079123456789" />
-
-                <!-- CCCD Photos Row -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
-
-                    <!-- Front -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="6dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="6dp"
-                            android:text="Mặt trước CCCD"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="match_parent"
-                            android:layout_height="114dp"
-                            app:cardBackgroundColor="@color/white"
-                            app:cardCornerRadius="12dp"
-                            app:cardElevation="0dp"
-                            app:strokeColor="@color/border"
-                            app:strokeWidth="1dp">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:id="@+id/ivCccdFront"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:scaleType="centerCrop"
-                                android:src="@drawable/ic_image" />
-                        </com.google.android.material.card.MaterialCardView>
-                    </LinearLayout>
-
-                    <!-- Back -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="6dp"
-                            android:text="Mặt sau CCCD"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.card.MaterialCardView
-                            android:layout_width="match_parent"
-                            android:layout_height="114dp"
-                            app:cardBackgroundColor="@color/white"
-                            app:cardCornerRadius="12dp"
-                            app:cardElevation="0dp"
-                            app:strokeColor="@color/border"
-                            app:strokeWidth="1dp">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:id="@+id/ivCccdBack"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:scaleType="centerCrop"
-                                android:src="@drawable/ic_image" />
-                        </com.google.android.material.card.MaterialCardView>
-                    </LinearLayout>
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Executive Command Buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:orientation="vertical">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnApproveStore"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:backgroundTint="@color/brand_green"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minHeight="48dp"
-                android:paddingStart="12dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="8dp"
-                android:text="Phê Duyệt Mở Quán &amp; Xác Thực KYC"
-                android:textColor="@color/white"
-                android:textSize="13.5sp"
-                android:textStyle="bold"
-                app:cornerRadius="14dp"
-                app:icon="@drawable/ic_check_circle"
-                app:iconGravity="textStart"
-                app:iconTint="@color/white"
-                android:minWidth="0dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnRejectStore"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minHeight="48dp"
-                android:paddingStart="12dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="8dp"
-                android:text="Từ Chối Hồ Sơ Đăng Ký / KYC"
-                android:textColor="@color/danger"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                app:cornerRadius="14dp"
-                app:icon="@drawable/ic_trash"
-                app:iconGravity="textStart"
-                app:iconTint="@color/danger"
-                app:strokeColor="@color/danger"
-                app:strokeWidth="1.5dp"
-                android:minWidth="0dp" />
-        </LinearLayout>
-
-    </LinearLayout>
-</androidx.core.widget.NestedScrollView>
+    companion object {
+        const val TAG = "AdminStoreDetailBottomSheet"
+    }
+}
 ````
 
 ## File: app-admin/src/main/res/layout/fragment_admin_dashboard.xml
@@ -89657,560 +89802,6 @@ class ShopViewModel @Inject constructor(
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreProfileFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.shop
-
-import android.app.Dialog
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.view.Window
-import android.content.Intent
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentStoreProfileBinding
-import com.chuyen_de_2.foodorder.internal.ui.auth.SelectLocationActivity
-import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
-import android.util.Base64
-import androidx.activity.result.contract.ActivityResultContracts
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners
-import java.io.ByteArrayOutputStream
-
-/**
- * Tên chức năng: Quản Lý Hồ Sơ & Cài Đặt Quán Ăn (Merchant Profile & Store Settings)
- * Cách hoạt động:
- *  - Hiển thị đầy đủ thông tin pháp lý và nhận diện của quán: Tên, địa chỉ, số điện thoại, chủ hộ kinh doanh, CCCD, ảnh đại diện.
- *  - Cung cấp cấu hình vận hành: Giờ mở cửa, thời gian chuẩn bị món ăn trung bình.
- *  - Quản lý thông tin tài khoản ngân hàng thụ hưởng (VietQR / Napas) để hệ thống đối soát doanh thu.
- *  - Cho phép chủ quán mở hộp thoại chỉnh sửa trực tiếp và đồng bộ lên Firebase.
- * Luồng hướng tới:
- *  - Lưu thông tin vào Firestore -> Dữ liệu cập nhật ngay lập tức trên app Khách hàng và app Tài xế.
- *  - Bấm vào badge xác minh -> Mở màn hình [StoreVerificationActivity] để bổ sung thông tin nếu thiếu.
- */
-@AndroidEntryPoint
-class StoreProfileFragment : Fragment() {
-
-    private var _binding: FragmentStoreProfileBinding? = null
-    private val binding get() = _binding!!
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    @Inject
-    lateinit var auth: FirebaseAuth
-
-    @Inject
-    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-
-    private var currentStoreId = ""
-    private var currentStore: Store? = null
-
-    private var editingLat: Double? = null
-    private var editingLng: Double? = null
-    private var currentDialogEtAddress: EditText? = null
-    private var currentDialogEtDistrict: EditText? = null
-
-    private var pendingAvatarBase64: String? = null
-    private var currentDialogAvatarPreview: ImageView? = null
-    private var canEditStore: Boolean = false
-    private var currentDialogAvatarPlaceholder: View? = null
-
-    private val pickAvatarLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            processAndPreviewAvatar(uri)
-        }
-    }
-
-    private val selectLocationLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == AppCompatActivity.RESULT_OK) {
-            val data = result.data ?: return@registerForActivityResult
-            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
-            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
-            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
-            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
-            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
-
-            if (!streetAddress.isNullOrBlank()) {
-                currentDialogEtAddress?.setText(streetAddress)
-            } else if (!fullAddress.isNullOrBlank()) {
-                currentDialogEtAddress?.setText(fullAddress)
-            }
-
-            if (!district.isNullOrBlank()) {
-                currentDialogEtDistrict?.setText(district)
-            }
-
-            if (lat != 0.0 && lng != 0.0) {
-                editingLat = lat
-                editingLng = lng
-            }
-        }
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentStoreProfileBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo View hồ sơ quán
-     * Cách hoạt động: Thiết lập các sự kiện nút bấm (Quay lại, Sửa, Đăng xuất) và nạp dữ liệu quán từ Firebase.
-     * Luồng hướng tới: Chuẩn bị hiển thị thông tin chi tiết.
-     */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupListeners()
-        checkRoleAndSetupUI()
-        resolveCurrentStoreIdAndObserve()
-    }
-
-    private fun checkRoleAndSetupUI() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val role = authRepository.getUserRole()?.uppercase()
-            canEditStore = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT ||
-                           role == com.chuyen_de_2.foodorder.core.data.model.User.Role.ADMIN
-            if (canEditStore) {
-                binding.btnTopEdit.visibility = View.VISIBLE
-                binding.btnMainEdit.visibility = View.VISIBLE
-            } else {
-                binding.btnTopEdit.visibility = View.GONE
-                binding.btnMainEdit.visibility = View.GONE
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Xác định storeId của người dùng đăng nhập
-     * Cách hoạt động: Lấy UID của Merchant hiện tại để tra cứu document store trên Firestore.
-     * Luồng hướng tới: Gọi [observeStoreProfile].
-     */
-    private fun resolveCurrentStoreIdAndObserve() {
-        val uid = auth.currentUser?.uid.orEmpty()
-        viewLifecycleOwner.lifecycleScope.launch {
-            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-            observeStoreProfile()
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập các sự kiện tương tác trên màn hình hồ sơ
-     * Cách hoạt động: Bắt sự kiện quay lại trang trước, mở modal sửa thông tin, và xác nhận đăng xuất tài khoản.
-     * Luồng hướng tới: Điều hướng giao diện tương ứng.
-     */
-    private fun setupListeners() {
-        binding.btnBackToOrders.setOnClickListener {
-            parentFragmentManager.popBackStack()
-        }
-        binding.btnTopEdit.setOnClickListener {
-            showEditStoreDialog()
-        }
-        binding.btnMainEdit.setOnClickListener {
-            showEditStoreDialog()
-        }
-        binding.btnLogoutStore.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle("🚪 Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    authRepository.logout()
-                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
-                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
-                    }
-                    startActivity(intent)
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe thông tin hồ sơ quán theo thời gian thực (Realtime Store Profile)
-     * Cách hoạt động: Theo dõi document `stores/{storeId}` từ Firestore và cập nhật giao diện khi có thay đổi.
-     * Luồng hướng tới: Gọi [bindStoreData].
-     */
-    private fun observeStoreProfile() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            if (currentStoreId.isBlank()) {
-                val activeStore = getDefaultStore()
-                currentStore = activeStore
-                bindStoreData(activeStore)
-                return@launch
-            }
-            firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
-                val activeStore = store ?: getDefaultStore()
-                currentStore = activeStore
-                bindStoreData(activeStore)
-            }
-        }
-    }
-
-    private val supportedBanks = com.chuyen_de_2.foodorder.core.util.BankData.SUPPORTED_BANKS
-
-    private fun processAndPreviewAvatar(uri: Uri) {
-        try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            if (originalBitmap != null) {
-                val maxDim = 300
-                val width = originalBitmap.width
-                val height = originalBitmap.height
-                val ratio = width.toFloat() / height.toFloat()
-                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
-                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
-
-                val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, maxOf(1, targetWidth), maxOf(1, targetHeight), true)
-                val outputStream = ByteArrayOutputStream()
-                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
-                val byteArray = outputStream.toByteArray()
-
-                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-                pendingAvatarBase64 = base64String
-
-                currentDialogAvatarPreview?.let { iv ->
-                    iv.visibility = View.VISIBLE
-                    currentDialogAvatarPlaceholder?.visibility = View.GONE
-                    Glide.with(this)
-                        .load(scaledBitmap)
-                        .transform(CenterCrop(), RoundedCorners(24))
-                        .into(iv)
-                }
-                Toast.makeText(requireContext(), "📷 Đã chọn ảnh đại diện quán!", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(requireContext(), "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun displayStoreAvatar(avatarUrl: String) {
-        if (avatarUrl.isNotBlank()) {
-            binding.ivProfileStoreAvatar.visibility = View.VISIBLE
-            binding.tvProfileStoreEmoji.visibility = View.GONE
-            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                imageView = binding.ivProfileStoreAvatar,
-                imageUrl = avatarUrl,
-                placeholderResId = R.drawable.bg_badge_orange,
-                cornerDp = 24
-            )
-        } else {
-            binding.ivProfileStoreAvatar.visibility = View.GONE
-            binding.tvProfileStoreEmoji.visibility = View.VISIBLE
-        }
-    }
-
-    /**
-     * Tên chức năng: Đổ dữ liệu thông tin quán lên giao diện
-     * Cách hoạt động: Render tên quán, địa chỉ, chủ sở hữu, CCCD, thông tin ngân hàng thụ hưởng và badge trạng thái xác minh hồ sơ.
-     * Luồng hướng tới: Hiển thị trực quan cho chủ quán.
-     */
-    private fun bindStoreData(store: Store) {
-        displayStoreAvatar(store.effectiveImageUrl)
-        binding.tvProfileStoreName.text = store.name.ifBlank { "Quán của bạn" }
-        binding.tvProfileStoreAddress.text = if (store.address.isNotBlank()) "📍 ${store.address}" else "📍 Chưa cập nhật địa chỉ"
-        binding.tvProfileOwnerName.text = store.ownerName.ifBlank { "Chưa cập nhật" }
-        binding.tvProfileCccd.text = store.cccdNumber.ifBlank { "Chưa cập nhật" }
-        binding.tvProfilePhone.text = store.phone.ifBlank { "Chưa cập nhật" }
-
-        if (store.openHours.isNotBlank() || store.prepTime.isNotBlank()) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                firebaseRepository.removeStoreHoursAndPrepTime(store.id)
-            }
-        }
-
-        // Tài khoản ngân hàng VietQR
-        binding.tvProfileBankName.text = store.bankName.ifBlank { "Chưa cập nhật" }
-        binding.tvProfileBankAccountNumber.text = store.bankAccountNumber.ifBlank { "Chưa cập nhật" }
-        binding.tvProfileBankAccountName.text = store.bankAccountName.ifBlank { "Chưa cập nhật" }
-
-        if (store.isOpen) {
-            binding.tvProfileStatus.text = "🟢 ĐANG HOẠT ĐỘNG (OPEN)"
-            binding.tvProfileStatus.setTextColor(Color.parseColor("#10B981"))
-        } else {
-            binding.tvProfileStatus.text = "⚪ TẠM ĐÓNG CỬA (CLOSED)"
-            binding.tvProfileStatus.setTextColor(Color.parseColor("#64748B"))
-        }
-
-        if ((store.isVerified || store.bossId.isNotBlank()) && store.address.isNotBlank()) {
-            binding.tvProfileVerifiedBadge.text = "✓ ĐÃ XÁC MINH HỒ SƠ"
-            binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#10B981"))
-            binding.tvProfileVerifiedBadge.setBackgroundResource(R.drawable.bg_badge_free)
-        } else {
-            binding.tvProfileVerifiedBadge.text = "⚠️ CHỜ BỔ SUNG ĐỊA CHỈ & XÁC MINH"
-            binding.tvProfileVerifiedBadge.setTextColor(Color.parseColor("#D97706"))
-            binding.tvProfileVerifiedBadge.setBackgroundColor(Color.parseColor("#FEF3C7"))
-        }
-
-        binding.tvProfileVerifiedBadge.setOnClickListener {
-            viewLifecycleOwner.lifecycleScope.launch {
-                val role = authRepository.getUserRole()?.uppercase()
-                val isMerchantOnly = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MERCHANT ||
-                    role == com.chuyen_de_2.foodorder.core.data.model.User.Role.MANAGER
-                if (!isMerchantOnly) {
-                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
-                        putExtra("STORE_ID", currentStoreId)
-                    }
-                    startActivity(intent)
-                }
-            }
-        }
-    }
-
-    private fun getDefaultStore(): Store {
-        val user = authRepository.currentUser
-        return Store(
-            id = currentStoreId,
-            name = user?.displayName?.ifBlank { "Quán của bạn" } ?: "Quán của bạn",
-            phone = user?.phoneNumber ?: "",
-            address = "",
-            district = "",
-            ownerName = user?.displayName ?: "",
-            openHours = "",
-            prepTime = "",
-            isVerified = false,
-            cccdNumber = "",
-            storeStatus = Store.StoreStatus.OPEN
-        )
-    }
-
-    /**
-     * Tên chức năng: Hiển thị Dialog chỉnh sửa thông tin quán
-     * Cách hoạt động: Cho phép sửa tên, địa chỉ, quận huyện, tên chủ quán, giờ mở cửa, thời gian chuẩn bị món và tài khoản ngân hàng.
-     * Luồng hướng tới: Gọi [FirebaseRepository.updateStoreProfile] để lưu Firestore và cập nhật giao diện ngay lập tức.
-     */
-    private fun showEditStoreDialog() {
-        if (!canEditStore) {
-            Toast.makeText(
-                requireContext(),
-                "ℹ️ Thông tin chi nhánh & tài khoản ngân hàng do Chủ thương hiệu (Boss) quản lý. Bạn không có quyền chỉnh sửa.",
-                Toast.LENGTH_LONG
-            ).show()
-            return
-        }
-
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_edit_store_profile)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val store = currentStore ?: getDefaultStore()
-        editingLat = store.latitude.takeIf { it != 0.0 }
-        editingLng = store.longitude.takeIf { it != 0.0 }
-
-        pendingAvatarBase64 = null
-
-        val ivAvatarPreview = dialog.findViewById<ImageView>(R.id.ivEditStoreAvatarPreview)
-        val tvAvatarPlaceholder = dialog.findViewById<View>(R.id.tvEditStoreAvatarPlaceholder)
-        val cardAvatar = dialog.findViewById<View>(R.id.cardEditStoreAvatar)
-        val btnPickAvatar = dialog.findViewById<View>(R.id.btnPickStoreAvatar)
-
-        currentDialogAvatarPreview = ivAvatarPreview
-        currentDialogAvatarPlaceholder = tvAvatarPlaceholder
-
-        val currentAvatarUrl = store.effectiveImageUrl
-        if (currentAvatarUrl.isNotBlank()) {
-            ivAvatarPreview?.visibility = View.VISIBLE
-            tvAvatarPlaceholder?.visibility = View.GONE
-            ivAvatarPreview?.let {
-                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                    imageView = it,
-                    imageUrl = currentAvatarUrl,
-                    placeholderResId = R.drawable.bg_badge_orange,
-                    cornerDp = 24
-                )
-            }
-        } else {
-            ivAvatarPreview?.visibility = View.GONE
-            tvAvatarPlaceholder?.visibility = View.VISIBLE
-        }
-
-        val openImagePickerAction = {
-            pickAvatarLauncher.launch("image/*")
-        }
-        btnPickAvatar?.setOnClickListener { openImagePickerAction() }
-        cardAvatar?.setOnClickListener { openImagePickerAction() }
-
-        val etName = dialog.findViewById<EditText>(R.id.etStoreName)
-        val etPhone = dialog.findViewById<EditText>(R.id.etStorePhone)
-        val etAddress = dialog.findViewById<EditText>(R.id.etStoreAddress)
-        val etDistrict = dialog.findViewById<EditText>(R.id.etStoreDistrict)
-        val etOwner = dialog.findViewById<EditText>(R.id.etOwnerName)
-
-        currentDialogEtAddress = etAddress
-        currentDialogEtDistrict = etDistrict
-
-        val openMapAction = {
-            val intent = Intent(requireContext(), SelectLocationActivity::class.java).apply {
-                val addr = etAddress.text.toString().trim()
-                if (addr.isNotBlank()) putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, addr)
-                val dist = etDistrict.text.toString().trim()
-                if (dist.isNotBlank()) putExtra(SelectLocationActivity.EXTRA_DISTRICT, dist)
-                editingLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
-                editingLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
-            }
-            selectLocationLauncher.launch(intent)
-        }
-
-        val btnPickLocation = dialog.findViewById<MaterialButton>(R.id.btnPickStoreLocationMap)
-        btnPickLocation?.setOnClickListener { openMapAction() }
-        etAddress.setOnClickListener { openMapAction() }
-        dialog.findViewById<View>(R.id.tilStoreAddress)?.setOnClickListener { openMapAction() }
-
-        // Các view tài khoản ngân hàng
-        val spBank = dialog.findViewById<android.widget.Spinner>(R.id.spBankName)
-        val etBankNo = dialog.findViewById<EditText>(R.id.etBankAccountNumber)
-        val etBankOwner = dialog.findViewById<EditText>(R.id.etBankAccountName)
-
-        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseDialog)
-        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancel)
-        val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveStoreProfile)
-
-        // Dropdown ngân hàng
-        val bankAdapter = android.widget.ArrayAdapter(
-            requireContext(),
-            android.R.layout.simple_spinner_dropdown_item,
-            supportedBanks.map { it.name }
-        )
-        spBank.adapter = bankAdapter
-
-        val currentBankIdx = supportedBanks.indexOfFirst {
-            it.name.contains(store.bankName, ignoreCase = true) ||
-            store.bankName.contains(it.name.substringBefore(" "), ignoreCase = true)
-        }
-        if (currentBankIdx != -1) {
-            spBank.setSelection(currentBankIdx)
-        }
-
-        // Điền dữ liệu hiện tại
-        etName.setText(store.name)
-        etPhone.setText(store.phone)
-        etAddress.setText(store.address)
-        etDistrict.setText(store.district)
-        etOwner.setText(store.ownerName)
-        etBankNo.setText(store.bankAccountNumber)
-        etBankOwner.setText(store.bankAccountName)
-
-        btnClose.setOnClickListener { dialog.dismiss() }
-        btnCancel.setOnClickListener { dialog.dismiss() }
-
-        btnSave.setOnClickListener {
-            val newName = etName.text.toString().trim()
-            val newPhone = etPhone.text.toString().trim()
-            val newAddress = etAddress.text.toString().trim()
-            val newDistrict = etDistrict.text.toString().trim()
-            val newOwner = etOwner.text.toString().trim()
-
-            val selectedBank = supportedBanks.getOrNull(spBank.selectedItemPosition) ?: supportedBanks[0]
-            val newBankName = selectedBank.name
-            val newBankBin = selectedBank.bin
-            val newBankNo = etBankNo.text.toString().trim()
-            val newBankOwnerName = etBankOwner.text.toString().trim().uppercase()
-
-            if (newName.isBlank()) {
-                etName.error = "Vui lòng nhập tên quán"
-                return@setOnClickListener
-            }
-            if (newAddress.isBlank()) {
-                etAddress.error = "Vui lòng nhập địa chỉ"
-                return@setOnClickListener
-            }
-
-            btnSave.isEnabled = false
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val (resolvedLat, resolvedLng) = if (editingLat != null && editingLng != null && editingLat != 0.0 && editingLng != 0.0) {
-                    editingLat!! to editingLng!!
-                } else {
-                    val fullAddress = if (newAddress.isNotBlank()) "$newAddress, $newDistrict, TP.HCM" else "$newDistrict, TP.HCM"
-                    val coords = try {
-                        val resolved = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.geocodeAddress(requireContext(), fullAddress)
-                        if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
-                        else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                    } catch (_: Exception) {
-                        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[newDistrict] ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                    }
-                    coords.latitude to coords.longitude
-                }
-
-                val avatarToSave = pendingAvatarBase64 ?: store.effectiveImageUrl
-
-                val result = firebaseRepository.updateStoreProfile(
-                    storeId = currentStoreId,
-                    name = newName,
-                    phone = newPhone,
-                    address = newAddress,
-                    district = newDistrict,
-                    ownerName = newOwner,
-                    imageUrl = avatarToSave,
-                    bankName = newBankName,
-                    bankAccountNumber = newBankNo,
-                    bankAccountName = newBankOwnerName,
-                    bankBin = newBankBin,
-                    latitude = resolvedLat,
-                    longitude = resolvedLng
-                )
-
-                if (result.isSuccess) {
-                    Toast.makeText(requireContext(), "✅ Đã cập nhật thông tin & ảnh quán thành công!", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
-                    btnSave.isEnabled = true
-                }
-            }
-        }
-
-        dialog.setOnDismissListener {
-            currentDialogEtAddress = null
-            currentDialogEtDistrict = null
-            currentDialogAvatarPreview = null
-            currentDialogAvatarPlaceholder = null
-            pendingAvatarBase64 = null
-        }
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
 ## File: app-internal/src/main/res/layout/activity_boss_dashboard.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -92772,6 +92363,415 @@ data class Store(
         const val LOCK = "LOCK"
     }
 }
+````
+
+## File: app-admin/src/main/res/layout/bottom_sheet_admin_store_detail.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_rounded">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="32dp">
+
+        <!-- Drag Handle -->
+        <View
+            android:layout_width="48dp"
+            android:layout_height="5dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="18dp"
+            android:background="@drawable/bg_choice_card_idle" />
+
+        <!-- Executive Store Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <ImageView
+                    android:id="@+id/ivDetailStoreAvatar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_store"
+                    android:contentDescription="Avatar quán" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvDetailStoreName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/text_primary"
+                    android:textSize="19sp"
+                    android:textStyle="bold"
+                    tools:text="Cơm Tấm Cali Sài Gòn" />
+
+                <TextView
+                    android:id="@+id/tvDetailStoreId"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:text="Mã quán: store_12345" />
+
+                <TextView
+                    android:id="@+id/tvDetailStatusBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:ellipsize="end"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="5dp"
+                    android:singleLine="true"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    tools:text="CHỜ DUYỆT CCCD" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Current Penalty Alert Banner -->
+        <TextView
+            android:id="@+id/tvCurrentPenalty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_card_warning"
+            android:padding="12dp"
+            android:textColor="@color/danger"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="⚠️ Đang bị chế tài: HIDE - Lý do: Vi phạm chất lượng vệ sinh"
+            tools:visibility="visible" />
+
+        <!-- Section 1: Store Operation Info Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="15dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.04"
+                    android:text="🏢 HỒ SƠ VẬN HÀNH QUÁN"
+                    android:textColor="@color/secondary"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDetailAddress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13.5sp"
+                    tools:text="Địa chỉ: 123 Võ Văn Ngân, TP. Thủ Đức" />
+
+                <TextView
+                    android:id="@+id/tvDetailPhone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13.5sp"
+                    tools:text="Số điện thoại: 0987654321" />
+
+                <TextView
+                    android:id="@+id/tvDetailHours"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    tools:text="Giờ mở cửa: 08:00 - 22:00 (Chuẩn bị: 15 phút)" />
+
+                <TextView
+                    android:id="@+id/tvDetailChainInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="Mô hình: Chuỗi cửa hàng • Quản lý: Nguyễn Văn A" />
+
+                <TextView
+                    android:id="@+id/tvDetailCategories"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12.5sp"
+                    tools:text="Danh mục ẩm thực: Cơm, Phở, Trà sữa" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Section 2: Bank Settlement Account Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="15dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.04"
+                    android:text="💳 TÀI KHOẢN NGÂN HÀNG ĐỐI SOÁT"
+                    android:textColor="@color/brand_green"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDetailBank"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    tools:text="MB Bank • 01234567899 • NGUYEN VAN A" />
+
+                <TextView
+                    android:id="@+id/tvDetailBankCompare"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    tools:text="Chủ hộ KD: Nguyễn Văn A • Tên chủ TK: NGUYEN VAN A" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Section 3: KYC CCCD Verification Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="15dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.04"
+                    android:text="🪪 HỒ SƠ ĐỊNH DANH CCCD CHỦ HỘ"
+                    android:textColor="@color/brand_orange"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDetailCccdInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold"
+                    tools:text="Họ tên: Nguyễn Văn A • Số CCCD: 079123456789" />
+
+                <!-- CCCD Photos Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <!-- Front -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="6dp"
+                            android:text="Mặt trước CCCD"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="match_parent"
+                            android:layout_height="114dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="@color/border"
+                            app:strokeWidth="1dp">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:id="@+id/ivCccdFront"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_image" />
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <!-- Back -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="6dp"
+                            android:text="Mặt sau CCCD"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="match_parent"
+                            android:layout_height="114dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="@color/border"
+                            app:strokeWidth="1dp">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:id="@+id/ivCccdBack"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="centerCrop"
+                                android:src="@drawable/ic_image" />
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Executive Command Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnApproveStore"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="@color/brand_green"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
+                android:text="Phê Duyệt Mở Quán &amp; Xác Thực KYC"
+                android:textColor="@color/white"
+                android:textSize="13.5sp"
+                android:textStyle="bold"
+                app:cornerRadius="14dp"
+                app:icon="@drawable/ic_check_circle"
+                app:iconGravity="textStart"
+                app:iconTint="@color/white"
+                android:minWidth="0dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRejectStore"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="48dp"
+                android:paddingStart="12dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="8dp"
+                android:text="Từ Chối Hồ Sơ Đăng Ký / KYC"
+                android:textColor="@color/danger"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                app:cornerRadius="14dp"
+                app:icon="@drawable/ic_trash"
+                app:iconGravity="textStart"
+                app:iconTint="@color/danger"
+                app:strokeColor="@color/danger"
+                app:strokeWidth="1.5dp"
+                android:minWidth="0dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossDashboardActivity.kt
@@ -109071,14 +109071,81 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Xóa hoàn toàn các trường giờ mở cửa và thời gian làm món khỏi node quán trên Firebase */
+    /** Xóa hoàn toàn các trường dư thừa/đã bỏ khỏi node quán trên Firebase */
     suspend fun removeStoreHoursAndPrepTime(storeId: String) {
         if (storeId.isBlank()) return
         try {
-            database.getReference("stores").child(storeId).child("openHours").removeValue().await()
-            database.getReference("stores").child(storeId).child("prepTime").removeValue().await()
+            val cleanups = mapOf<String, Any?>(
+                "openHours" to null,
+                "prepTime" to null,
+                "deliveryTime" to null,
+                "deliveryTimeFrameId" to null,
+                "verified" to null,
+                "status" to null,
+                "open" to null
+            )
+            database.getReference("stores").child(storeId).updateChildren(cleanups).await()
         } catch (_: Exception) {}
     }
+
+    /** Cấu trúc trường chuẩn dùng chung khi ghi node stores/{storeId} (tránh lệch giữa luồng KYC và Tạo chi nhánh) */
+    private fun buildStandardStoreFields(
+        storeId: String,
+        bossId: String = "",
+        merchantId: String = "",
+        merchantName: String = "",
+        name: String,
+        phone: String,
+        address: String,
+        district: String,
+        ownerName: String,
+        cccdNumber: String,
+        cccdFrontUrl: String,
+        cccdBackUrl: String,
+        bankName: String,
+        bankAccountNumber: String,
+        bankAccountName: String,
+        bankBin: String,
+        latitude: Double,
+        longitude: Double,
+        storeStatus: String,
+        isVerified: Boolean,
+        imageUrl: String,
+        category: String,
+        ratingAvg: Float = 5.0f,
+        reviewCount: Int = 0,
+        penaltyTier: String = com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.NONE,
+        penaltyReason: String = ""
+    ): MutableMap<String, Any> = mutableMapOf(
+        "id" to storeId,
+        "bossId" to bossId,
+        "merchantId" to merchantId,
+        "merchantName" to merchantName,
+        "name" to name.trim(),
+        "phone" to phone.trim(),
+        "address" to address.trim(),
+        "district" to district.trim(),
+        "ownerName" to ownerName.trim(),
+        "cccdNumber" to cccdNumber.trim(),
+        "cccdFrontUrl" to cccdFrontUrl,
+        "cccdBackUrl" to cccdBackUrl,
+        "bankName" to bankName.trim().ifBlank { AppConstants.Defaults.DEFAULT_BANK_NAME },
+        "bankAccountNumber" to bankAccountNumber.trim(),
+        "bankAccountName" to bankAccountName.trim().uppercase(),
+        "bankBin" to bankBin.trim().ifBlank { AppConstants.Defaults.DEFAULT_BANK_BIN },
+        "latitude" to latitude,
+        "longitude" to longitude,
+        "lat" to latitude,
+        "lng" to longitude,
+        "isVerified" to isVerified,
+        "storeStatus" to storeStatus,
+        "ratingAvg" to ratingAvg,
+        "reviewCount" to reviewCount,
+        "penaltyTier" to penaltyTier,
+        "penaltyReason" to penaltyReason,
+        "category" to category.ifBlank { AppConstants.Defaults.DEFAULT_STORE_CATEGORY },
+        "imageUrl" to imageUrl.ifBlank { AppConstants.Defaults.DEFAULT_STORE_IMAGE_URL }
+    )
 
     /** Cập nhật thông tin hồ sơ quán ăn lên Firebase (bao gồm tài khoản ngân hàng) */
     suspend fun updateStoreProfile(
@@ -109192,6 +109259,22 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Chuẩn hóa tọa độ GPS quán ăn kèm fallback theo quận/TP.HCM */
+    private fun resolveStoreCoordinates(
+        address: String,
+        district: String,
+        latitude: Double,
+        longitude: Double
+    ): Pair<Double, Double> {
+        if (latitude != 0.0 && longitude != 0.0) return latitude to longitude
+        val fullAddr = listOf(address.trim(), district.trim(), "TP.HCM").filter { it.isNotBlank() }.joinToString(", ")
+        val coords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[district.trim()]
+            ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict(fullAddr)
+        val lat = if (coords.latitude != 0.0) coords.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
+        val lng = if (coords.longitude != 0.0) coords.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
+        return lat to lng
+    }
+
     /** Xác minh danh tính và cập nhật đầy đủ phiếu thông tin địa chỉ quán */
     suspend fun verifyAndCompleteStoreProfile(
         storeId: String,
@@ -109214,42 +109297,70 @@ class FirebaseRepository @Inject constructor(
         prepTime: String = ""
     ): Result<Unit> {
         return try {
-            val updates = mutableMapOf<String, Any>(
-                "id" to storeId,
-                "name" to name.trim(),
-                "phone" to phone.trim(),
-                "address" to address.trim(),
-                "district" to district.trim(),
-                "ownerName" to ownerName.trim(),
-                "cccdNumber" to cccdNumber.trim(),
-                "bankName" to bankName.trim(),
-                "bankAccountNumber" to bankAccountNumber.trim(),
-                "bankAccountName" to bankAccountName.trim().uppercase(),
-                "isVerified" to false,
-                "verified" to false,
-                "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
-                "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
-                "open" to false
-            )
-            // Xóa triệt để các trường openHours và prepTime khỏi Firebase
-            removeStoreHoursAndPrepTime(storeId)
+            val existingStore = getStoreOnce(storeId)
+            val (finalLat, finalLng) = resolveStoreCoordinates(address, district, latitude, longitude)
+
+            var bossId = ""
+            var resolvedMerchantId = existingStore?.merchantId.orEmpty()
+            var resolvedMerchantName = existingStore?.merchantName.orEmpty()
+            var isBoss = false
+
             if (merchantUid.isNotBlank()) {
                 val userSnap = try { database.getReference("users").child(merchantUid).get().await() } catch (_: Exception) { null }
                 val userRole = userSnap?.child("role")?.getValue(String::class.java).orEmpty().uppercase()
-                val isBoss = userRole == User.Role.BOSSMERCHANT || userRole == "BOSS"
+                isBoss = userRole == User.Role.BOSSMERCHANT || userRole == "BOSS"
                 if (isBoss) {
-                    updates["bossId"] = merchantUid
-                    val storeSnap = try { database.getReference("stores").child(storeId).get().await() } catch (_: Exception) { null }
-                    val existingMerchantId = storeSnap?.child("merchantId")?.getValue(String::class.java).orEmpty()
-                    if (existingMerchantId == merchantUid) {
-                        updates["merchantId"] = ""
-                        updates["ownerId"] = ""
-                        updates["merchantName"] = ""
+                    bossId = merchantUid
+                    if (resolvedMerchantId == merchantUid) {
+                        resolvedMerchantId = ""
+                        resolvedMerchantName = ""
                     }
                 } else {
-                    updates["merchantId"] = merchantUid
-                    updates["ownerId"] = merchantUid
+                    resolvedMerchantId = merchantUid
                 }
+            }
+
+            val updates = buildStandardStoreFields(
+                storeId = storeId,
+                bossId = bossId.ifBlank { existingStore?.bossId.orEmpty() },
+                merchantId = resolvedMerchantId,
+                merchantName = resolvedMerchantName,
+                name = name,
+                phone = phone,
+                address = address,
+                district = district,
+                ownerName = ownerName,
+                cccdNumber = cccdNumber,
+                cccdFrontUrl = cccdFrontUrl.ifBlank { existingStore?.cccdFrontUrl.orEmpty() },
+                cccdBackUrl = cccdBackUrl.ifBlank { existingStore?.cccdBackUrl.orEmpty() },
+                bankName = bankName,
+                bankAccountNumber = bankAccountNumber,
+                bankAccountName = bankAccountName,
+                bankBin = bankBin.ifBlank { existingStore?.bankBin.orEmpty() },
+                latitude = finalLat,
+                longitude = finalLng,
+                storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
+                isVerified = false,
+                imageUrl = existingStore?.effectiveImageUrl.orEmpty(),
+                category = existingStore?.category.orEmpty(),
+                ratingAvg = if ((existingStore?.ratingAvg ?: 0f) > 0f) existingStore!!.ratingAvg else 5.0f,
+                reviewCount = existingStore?.reviewCount ?: 0,
+                penaltyTier = existingStore?.penaltyTier?.ifBlank { com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.NONE }
+                    ?: com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.NONE,
+                penaltyReason = existingStore?.penaltyReason.orEmpty()
+            )
+            if (!isBoss && resolvedMerchantId.isNotBlank()) {
+                updates["ownerId"] = resolvedMerchantId
+            }
+
+            // Xóa triệt để các trường dư thừa/đã bỏ khỏi node quán
+            removeStoreHoursAndPrepTime(storeId)
+            if (isBoss) {
+                try { database.getReference("stores").child(storeId).child("ownerId").removeValue().await() } catch (_: Exception) {}
+            }
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+
+            if (merchantUid.isNotBlank()) {
                 try {
                     val userUpdates = mapOf<String, Any>(
                         "storeId" to storeId,
@@ -109272,28 +109383,11 @@ class FirebaseRepository @Inject constructor(
                     database.getReference("merchants").child(merchantUid).updateChildren(merchantData).await()
                 } catch (_: Exception) {}
             }
-            if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
-            if (cccdFrontUrl.isNotBlank()) updates["cccdFrontUrl"] = cccdFrontUrl
-            if (cccdBackUrl.isNotBlank()) updates["cccdBackUrl"] = cccdBackUrl
-            val finalLat = if (latitude != 0.0) latitude else {
-                val fb = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict("$address, $district")
-                if (fb.latitude != 0.0) fb.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
-            }
-            val finalLng = if (longitude != 0.0) longitude else {
-                val fb = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict("$address, $district")
-                if (fb.longitude != 0.0) fb.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
-            }
-            updates["latitude"] = finalLat
-            updates["longitude"] = finalLng
-            updates["lat"] = finalLat
-            updates["lng"] = finalLng
 
-            database.getReference("stores").child(storeId).updateChildren(updates).await()
-
-            // Nếu là Boss, đồng bộ thông tin định danh sang các chi nhánh của Boss
-            if (updates.containsKey("bossId")) {
-                val bossUid = updates["bossId"] as String
+            // Nếu là Boss, ghi nhận vào boss_stores và đồng bộ thông tin định danh sang các chi nhánh của Boss
+            if (bossId.isNotBlank()) {
                 try {
+                    database.getReference("boss_stores").child(bossId).child(storeId).setValue(true).await()
                     val allStoresSnap = database.getReference("stores").get().await()
                     val legalUpdates = mutableMapOf<String, Any>(
                         "ownerName" to ownerName.trim(),
@@ -109308,7 +109402,7 @@ class FirebaseRepository @Inject constructor(
                     for (child in allStoresSnap.children) {
                         val bId = child.child("bossId").getValue(String::class.java).orEmpty()
                         val cKey = child.key.orEmpty()
-                        if (bId == bossUid && cKey.isNotBlank()) {
+                        if (bId == bossId && cKey.isNotBlank()) {
                             removeStoreHoursAndPrepTime(cKey)
                             if (cKey != storeId) {
                                 database.getReference("stores").child(cKey).updateChildren(legalUpdates).await()
@@ -110673,13 +110767,13 @@ class FirebaseRepository @Inject constructor(
         return try {
             val status = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN 
                          else com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED
-            val updates = mapOf<String, Any>(
+            val updates = mapOf<String, Any?>(
                 "isVerified" to isApproved,
-                "verified" to isApproved,
                 "storeStatus" to status,
-                "status" to status,
-                "open" to isApproved,
-                "penaltyReason" to if (isApproved) "" else "Admin khóa hoặc từ chối"
+                "penaltyReason" to if (isApproved) "" else "Admin khóa hoặc từ chối",
+                "verified" to null,
+                "status" to null,
+                "open" to null
             )
             database.getReference("stores").child(storeId).updateChildren(updates).await()
 
@@ -111497,6 +111591,26 @@ class FirebaseRepository @Inject constructor(
         awaitClose { storesRef.removeEventListener(listener) }
     }
 
+    /** Tìm hồ sơ quán gốc của Boss chứa đầy đủ CCCD & Tài khoản ngân hàng */
+    private suspend fun resolveBossPrimaryStore(bossUid: String): Store? {
+        if (bossUid.isBlank()) return null
+        val directPrimary = getStoreOnce("store_$bossUid")
+        if (directPrimary != null && (directPrimary.cccdNumber.isNotBlank() || directPrimary.bankAccountNumber.isNotBlank())) {
+            return directPrimary
+        }
+        return try {
+            val byBoss = database.getReference("stores").orderByChild("bossId").equalTo(bossUid).get().await()
+            val candidates = byBoss.children.mapNotNull { child ->
+                child.getValue(Store::class.java)?.copy(id = child.key.orEmpty())
+            }
+            candidates.firstOrNull {
+                it.cccdNumber.isNotBlank() || it.bankAccountNumber.isNotBlank() || it.cccdFrontUrl.isNotBlank()
+            } ?: directPrimary ?: candidates.firstOrNull()
+        } catch (_: Exception) {
+            directPrimary
+        }
+    }
+
     /** Tạo chi nhánh mới cho BOSSMERCHANT */
     suspend fun createBranchStore(
         bossUid: String,
@@ -111508,59 +111622,60 @@ class FirebaseRepository @Inject constructor(
         longitude: Double = 0.0
     ): Result<String> {
         return try {
-            val primaryStoreId = resolveStoreIdForUser(bossUid)
-            val primaryStore = if (primaryStoreId.isNotBlank()) getStoreOnce(primaryStoreId) else null
+            val primaryStore = resolveBossPrimaryStore(bossUid)
+            val merchantSnap = try { database.getReference("merchants").child(bossUid).get().await() } catch (_: Exception) { null }
+            val userSnap = try { database.getReference("users").child(bossUid).get().await() } catch (_: Exception) { null }
 
-            // Fallback GPS nếu chưa có tọa độ từ map picker
-            val (resolvedLat, resolvedLng) = if (latitude != 0.0 && longitude != 0.0) {
-                latitude to longitude
-            } else {
-                val fullAddr = "$address, $district, TP.HCM"
-                val coords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[district.trim()]
-                    ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict(fullAddr)
-                val finalLat = if (coords.latitude != 0.0) coords.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
-                val finalLng = if (coords.longitude != 0.0) coords.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
-                finalLat to finalLng
-            }
+            val resolvedOwnerName = primaryStore?.ownerName?.ifBlank {
+                userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+            } ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+            val resolvedCccd = primaryStore?.cccdNumber?.ifBlank {
+                merchantSnap?.child("cccdNumber")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("cccdNumber")?.getValue(String::class.java).orEmpty()
+            val resolvedCccdFront = primaryStore?.cccdFrontUrl?.ifBlank {
+                merchantSnap?.child("cccdFrontUrl")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("cccdFrontUrl")?.getValue(String::class.java).orEmpty()
+            val resolvedCccdBack = primaryStore?.cccdBackUrl?.ifBlank {
+                merchantSnap?.child("cccdBackUrl")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("cccdBackUrl")?.getValue(String::class.java).orEmpty()
+            val resolvedBankName = primaryStore?.bankName?.ifBlank {
+                merchantSnap?.child("bankName")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("bankName")?.getValue(String::class.java).orEmpty()
+            val resolvedBankAcc = primaryStore?.bankAccountNumber?.ifBlank {
+                merchantSnap?.child("bankAccount")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("bankAccount")?.getValue(String::class.java).orEmpty()
+            val resolvedBankAccName = primaryStore?.bankAccountName.orEmpty().ifBlank { resolvedOwnerName }
+            val resolvedBankBin = primaryStore?.bankBin.orEmpty()
+
+            val (resolvedLat, resolvedLng) = resolveStoreCoordinates(address, district, latitude, longitude)
 
             val storeRef = database.getReference("stores").push()
             val newStoreId = storeRef.key ?: "store_${System.currentTimeMillis()}"
-            val newStore = Store(
-                id = newStoreId,
+            val branchFields = buildStandardStoreFields(
+                storeId = newStoreId,
                 bossId = bossUid,
                 merchantId = "",
                 merchantName = "",
-                name = storeName.trim(),
-                address = address.trim(),
-                district = district.trim(),
-                phone = phone.trim(),
+                name = storeName,
+                phone = phone,
+                address = address,
+                district = district,
+                ownerName = resolvedOwnerName,
+                cccdNumber = resolvedCccd,
+                cccdFrontUrl = resolvedCccdFront,
+                cccdBackUrl = resolvedCccdBack,
+                bankName = resolvedBankName,
+                bankAccountNumber = resolvedBankAcc,
+                bankAccountName = resolvedBankAccName,
+                bankBin = resolvedBankBin,
                 latitude = resolvedLat,
                 longitude = resolvedLng,
-                lat = resolvedLat,
-                lng = resolvedLng,
-                ownerName = primaryStore?.ownerName.orEmpty(),
-                cccdNumber = primaryStore?.cccdNumber.orEmpty(),
-                bankName = primaryStore?.bankName?.ifBlank { "MB Bank" } ?: "MB Bank",
-                bankAccountNumber = primaryStore?.bankAccountNumber.orEmpty(),
-                bankAccountName = primaryStore?.bankAccountName.orEmpty(),
-                bankBin = primaryStore?.bankBin?.ifBlank { "970422" } ?: "970422",
                 storeStatus = Store.StoreStatus.OPEN,
                 isVerified = true,
-                ratingAvg = 5.0f,
-                deliveryTime = "20-30 phút",
-                category = "Món chính",
-                imageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400"
+                imageUrl = primaryStore?.effectiveImageUrl.orEmpty(),
+                category = primaryStore?.category.orEmpty()
             )
-            storeRef.setValue(newStore).await()
-
-            // Đảm bảo ghi nhận tường minh tọa độ trên Firebase RTDB tránh lỗi bỏ sót field
-            val coordMap = mapOf<String, Any>(
-                "latitude" to resolvedLat,
-                "longitude" to resolvedLng,
-                "lat" to resolvedLat,
-                "lng" to resolvedLng
-            )
-            storeRef.updateChildren(coordMap).await()
+            storeRef.setValue(branchFields).await()
 
             database.getReference("boss_stores").child(bossUid).child(newStoreId).setValue(true).await()
             Result.success(newStoreId)

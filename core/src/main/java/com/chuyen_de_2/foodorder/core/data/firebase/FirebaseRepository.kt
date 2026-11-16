@@ -1115,14 +1115,81 @@ class FirebaseRepository @Inject constructor(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    /** Xóa hoàn toàn các trường giờ mở cửa và thời gian làm món khỏi node quán trên Firebase */
+    /** Xóa hoàn toàn các trường dư thừa/đã bỏ khỏi node quán trên Firebase */
     suspend fun removeStoreHoursAndPrepTime(storeId: String) {
         if (storeId.isBlank()) return
         try {
-            database.getReference("stores").child(storeId).child("openHours").removeValue().await()
-            database.getReference("stores").child(storeId).child("prepTime").removeValue().await()
+            val cleanups = mapOf<String, Any?>(
+                "openHours" to null,
+                "prepTime" to null,
+                "deliveryTime" to null,
+                "deliveryTimeFrameId" to null,
+                "verified" to null,
+                "status" to null,
+                "open" to null
+            )
+            database.getReference("stores").child(storeId).updateChildren(cleanups).await()
         } catch (_: Exception) {}
     }
+
+    /** Cấu trúc trường chuẩn dùng chung khi ghi node stores/{storeId} (tránh lệch giữa luồng KYC và Tạo chi nhánh) */
+    private fun buildStandardStoreFields(
+        storeId: String,
+        bossId: String = "",
+        merchantId: String = "",
+        merchantName: String = "",
+        name: String,
+        phone: String,
+        address: String,
+        district: String,
+        ownerName: String,
+        cccdNumber: String,
+        cccdFrontUrl: String,
+        cccdBackUrl: String,
+        bankName: String,
+        bankAccountNumber: String,
+        bankAccountName: String,
+        bankBin: String,
+        latitude: Double,
+        longitude: Double,
+        storeStatus: String,
+        isVerified: Boolean,
+        imageUrl: String,
+        category: String,
+        ratingAvg: Float = 5.0f,
+        reviewCount: Int = 0,
+        penaltyTier: String = com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.NONE,
+        penaltyReason: String = ""
+    ): MutableMap<String, Any> = mutableMapOf(
+        "id" to storeId,
+        "bossId" to bossId,
+        "merchantId" to merchantId,
+        "merchantName" to merchantName,
+        "name" to name.trim(),
+        "phone" to phone.trim(),
+        "address" to address.trim(),
+        "district" to district.trim(),
+        "ownerName" to ownerName.trim(),
+        "cccdNumber" to cccdNumber.trim(),
+        "cccdFrontUrl" to cccdFrontUrl,
+        "cccdBackUrl" to cccdBackUrl,
+        "bankName" to bankName.trim().ifBlank { AppConstants.Defaults.DEFAULT_BANK_NAME },
+        "bankAccountNumber" to bankAccountNumber.trim(),
+        "bankAccountName" to bankAccountName.trim().uppercase(),
+        "bankBin" to bankBin.trim().ifBlank { AppConstants.Defaults.DEFAULT_BANK_BIN },
+        "latitude" to latitude,
+        "longitude" to longitude,
+        "lat" to latitude,
+        "lng" to longitude,
+        "isVerified" to isVerified,
+        "storeStatus" to storeStatus,
+        "ratingAvg" to ratingAvg,
+        "reviewCount" to reviewCount,
+        "penaltyTier" to penaltyTier,
+        "penaltyReason" to penaltyReason,
+        "category" to category.ifBlank { AppConstants.Defaults.DEFAULT_STORE_CATEGORY },
+        "imageUrl" to imageUrl.ifBlank { AppConstants.Defaults.DEFAULT_STORE_IMAGE_URL }
+    )
 
     /** Cập nhật thông tin hồ sơ quán ăn lên Firebase (bao gồm tài khoản ngân hàng) */
     suspend fun updateStoreProfile(
@@ -1236,6 +1303,22 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Chuẩn hóa tọa độ GPS quán ăn kèm fallback theo quận/TP.HCM */
+    private fun resolveStoreCoordinates(
+        address: String,
+        district: String,
+        latitude: Double,
+        longitude: Double
+    ): Pair<Double, Double> {
+        if (latitude != 0.0 && longitude != 0.0) return latitude to longitude
+        val fullAddr = listOf(address.trim(), district.trim(), "TP.HCM").filter { it.isNotBlank() }.joinToString(", ")
+        val coords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[district.trim()]
+            ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict(fullAddr)
+        val lat = if (coords.latitude != 0.0) coords.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
+        val lng = if (coords.longitude != 0.0) coords.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
+        return lat to lng
+    }
+
     /** Xác minh danh tính và cập nhật đầy đủ phiếu thông tin địa chỉ quán */
     suspend fun verifyAndCompleteStoreProfile(
         storeId: String,
@@ -1258,42 +1341,70 @@ class FirebaseRepository @Inject constructor(
         prepTime: String = ""
     ): Result<Unit> {
         return try {
-            val updates = mutableMapOf<String, Any>(
-                "id" to storeId,
-                "name" to name.trim(),
-                "phone" to phone.trim(),
-                "address" to address.trim(),
-                "district" to district.trim(),
-                "ownerName" to ownerName.trim(),
-                "cccdNumber" to cccdNumber.trim(),
-                "bankName" to bankName.trim(),
-                "bankAccountNumber" to bankAccountNumber.trim(),
-                "bankAccountName" to bankAccountName.trim().uppercase(),
-                "isVerified" to false,
-                "verified" to false,
-                "storeStatus" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
-                "status" to com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
-                "open" to false
-            )
-            // Xóa triệt để các trường openHours và prepTime khỏi Firebase
-            removeStoreHoursAndPrepTime(storeId)
+            val existingStore = getStoreOnce(storeId)
+            val (finalLat, finalLng) = resolveStoreCoordinates(address, district, latitude, longitude)
+
+            var bossId = ""
+            var resolvedMerchantId = existingStore?.merchantId.orEmpty()
+            var resolvedMerchantName = existingStore?.merchantName.orEmpty()
+            var isBoss = false
+
             if (merchantUid.isNotBlank()) {
                 val userSnap = try { database.getReference("users").child(merchantUid).get().await() } catch (_: Exception) { null }
                 val userRole = userSnap?.child("role")?.getValue(String::class.java).orEmpty().uppercase()
-                val isBoss = userRole == User.Role.BOSSMERCHANT || userRole == "BOSS"
+                isBoss = userRole == User.Role.BOSSMERCHANT || userRole == "BOSS"
                 if (isBoss) {
-                    updates["bossId"] = merchantUid
-                    val storeSnap = try { database.getReference("stores").child(storeId).get().await() } catch (_: Exception) { null }
-                    val existingMerchantId = storeSnap?.child("merchantId")?.getValue(String::class.java).orEmpty()
-                    if (existingMerchantId == merchantUid) {
-                        updates["merchantId"] = ""
-                        updates["ownerId"] = ""
-                        updates["merchantName"] = ""
+                    bossId = merchantUid
+                    if (resolvedMerchantId == merchantUid) {
+                        resolvedMerchantId = ""
+                        resolvedMerchantName = ""
                     }
                 } else {
-                    updates["merchantId"] = merchantUid
-                    updates["ownerId"] = merchantUid
+                    resolvedMerchantId = merchantUid
                 }
+            }
+
+            val updates = buildStandardStoreFields(
+                storeId = storeId,
+                bossId = bossId.ifBlank { existingStore?.bossId.orEmpty() },
+                merchantId = resolvedMerchantId,
+                merchantName = resolvedMerchantName,
+                name = name,
+                phone = phone,
+                address = address,
+                district = district,
+                ownerName = ownerName,
+                cccdNumber = cccdNumber,
+                cccdFrontUrl = cccdFrontUrl.ifBlank { existingStore?.cccdFrontUrl.orEmpty() },
+                cccdBackUrl = cccdBackUrl.ifBlank { existingStore?.cccdBackUrl.orEmpty() },
+                bankName = bankName,
+                bankAccountNumber = bankAccountNumber,
+                bankAccountName = bankAccountName,
+                bankBin = bankBin.ifBlank { existingStore?.bankBin.orEmpty() },
+                latitude = finalLat,
+                longitude = finalLng,
+                storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
+                isVerified = false,
+                imageUrl = existingStore?.effectiveImageUrl.orEmpty(),
+                category = existingStore?.category.orEmpty(),
+                ratingAvg = if ((existingStore?.ratingAvg ?: 0f) > 0f) existingStore!!.ratingAvg else 5.0f,
+                reviewCount = existingStore?.reviewCount ?: 0,
+                penaltyTier = existingStore?.penaltyTier?.ifBlank { com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.NONE }
+                    ?: com.chuyen_de_2.foodorder.core.data.model.Store.PenaltyTier.NONE,
+                penaltyReason = existingStore?.penaltyReason.orEmpty()
+            )
+            if (!isBoss && resolvedMerchantId.isNotBlank()) {
+                updates["ownerId"] = resolvedMerchantId
+            }
+
+            // Xóa triệt để các trường dư thừa/đã bỏ khỏi node quán
+            removeStoreHoursAndPrepTime(storeId)
+            if (isBoss) {
+                try { database.getReference("stores").child(storeId).child("ownerId").removeValue().await() } catch (_: Exception) {}
+            }
+            database.getReference("stores").child(storeId).updateChildren(updates).await()
+
+            if (merchantUid.isNotBlank()) {
                 try {
                     val userUpdates = mapOf<String, Any>(
                         "storeId" to storeId,
@@ -1316,28 +1427,11 @@ class FirebaseRepository @Inject constructor(
                     database.getReference("merchants").child(merchantUid).updateChildren(merchantData).await()
                 } catch (_: Exception) {}
             }
-            if (bankBin.isNotBlank()) updates["bankBin"] = bankBin.trim()
-            if (cccdFrontUrl.isNotBlank()) updates["cccdFrontUrl"] = cccdFrontUrl
-            if (cccdBackUrl.isNotBlank()) updates["cccdBackUrl"] = cccdBackUrl
-            val finalLat = if (latitude != 0.0) latitude else {
-                val fb = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict("$address, $district")
-                if (fb.latitude != 0.0) fb.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
-            }
-            val finalLng = if (longitude != 0.0) longitude else {
-                val fb = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict("$address, $district")
-                if (fb.longitude != 0.0) fb.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
-            }
-            updates["latitude"] = finalLat
-            updates["longitude"] = finalLng
-            updates["lat"] = finalLat
-            updates["lng"] = finalLng
 
-            database.getReference("stores").child(storeId).updateChildren(updates).await()
-
-            // Nếu là Boss, đồng bộ thông tin định danh sang các chi nhánh của Boss
-            if (updates.containsKey("bossId")) {
-                val bossUid = updates["bossId"] as String
+            // Nếu là Boss, ghi nhận vào boss_stores và đồng bộ thông tin định danh sang các chi nhánh của Boss
+            if (bossId.isNotBlank()) {
                 try {
+                    database.getReference("boss_stores").child(bossId).child(storeId).setValue(true).await()
                     val allStoresSnap = database.getReference("stores").get().await()
                     val legalUpdates = mutableMapOf<String, Any>(
                         "ownerName" to ownerName.trim(),
@@ -1352,7 +1446,7 @@ class FirebaseRepository @Inject constructor(
                     for (child in allStoresSnap.children) {
                         val bId = child.child("bossId").getValue(String::class.java).orEmpty()
                         val cKey = child.key.orEmpty()
-                        if (bId == bossUid && cKey.isNotBlank()) {
+                        if (bId == bossId && cKey.isNotBlank()) {
                             removeStoreHoursAndPrepTime(cKey)
                             if (cKey != storeId) {
                                 database.getReference("stores").child(cKey).updateChildren(legalUpdates).await()
@@ -2717,13 +2811,13 @@ class FirebaseRepository @Inject constructor(
         return try {
             val status = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN 
                          else com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED
-            val updates = mapOf<String, Any>(
+            val updates = mapOf<String, Any?>(
                 "isVerified" to isApproved,
-                "verified" to isApproved,
                 "storeStatus" to status,
-                "status" to status,
-                "open" to isApproved,
-                "penaltyReason" to if (isApproved) "" else "Admin khóa hoặc từ chối"
+                "penaltyReason" to if (isApproved) "" else "Admin khóa hoặc từ chối",
+                "verified" to null,
+                "status" to null,
+                "open" to null
             )
             database.getReference("stores").child(storeId).updateChildren(updates).await()
 
@@ -3541,6 +3635,26 @@ class FirebaseRepository @Inject constructor(
         awaitClose { storesRef.removeEventListener(listener) }
     }
 
+    /** Tìm hồ sơ quán gốc của Boss chứa đầy đủ CCCD & Tài khoản ngân hàng */
+    private suspend fun resolveBossPrimaryStore(bossUid: String): Store? {
+        if (bossUid.isBlank()) return null
+        val directPrimary = getStoreOnce("store_$bossUid")
+        if (directPrimary != null && (directPrimary.cccdNumber.isNotBlank() || directPrimary.bankAccountNumber.isNotBlank())) {
+            return directPrimary
+        }
+        return try {
+            val byBoss = database.getReference("stores").orderByChild("bossId").equalTo(bossUid).get().await()
+            val candidates = byBoss.children.mapNotNull { child ->
+                child.getValue(Store::class.java)?.copy(id = child.key.orEmpty())
+            }
+            candidates.firstOrNull {
+                it.cccdNumber.isNotBlank() || it.bankAccountNumber.isNotBlank() || it.cccdFrontUrl.isNotBlank()
+            } ?: directPrimary ?: candidates.firstOrNull()
+        } catch (_: Exception) {
+            directPrimary
+        }
+    }
+
     /** Tạo chi nhánh mới cho BOSSMERCHANT */
     suspend fun createBranchStore(
         bossUid: String,
@@ -3552,59 +3666,60 @@ class FirebaseRepository @Inject constructor(
         longitude: Double = 0.0
     ): Result<String> {
         return try {
-            val primaryStoreId = resolveStoreIdForUser(bossUid)
-            val primaryStore = if (primaryStoreId.isNotBlank()) getStoreOnce(primaryStoreId) else null
+            val primaryStore = resolveBossPrimaryStore(bossUid)
+            val merchantSnap = try { database.getReference("merchants").child(bossUid).get().await() } catch (_: Exception) { null }
+            val userSnap = try { database.getReference("users").child(bossUid).get().await() } catch (_: Exception) { null }
 
-            // Fallback GPS nếu chưa có tọa độ từ map picker
-            val (resolvedLat, resolvedLng) = if (latitude != 0.0 && longitude != 0.0) {
-                latitude to longitude
-            } else {
-                val fullAddr = "$address, $district, TP.HCM"
-                val coords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[district.trim()]
-                    ?: com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.findFallbackDistrict(fullAddr)
-                val finalLat = if (coords.latitude != 0.0) coords.latitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
-                val finalLng = if (coords.longitude != 0.0) coords.longitude else com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
-                finalLat to finalLng
-            }
+            val resolvedOwnerName = primaryStore?.ownerName?.ifBlank {
+                userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+            } ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+            val resolvedCccd = primaryStore?.cccdNumber?.ifBlank {
+                merchantSnap?.child("cccdNumber")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("cccdNumber")?.getValue(String::class.java).orEmpty()
+            val resolvedCccdFront = primaryStore?.cccdFrontUrl?.ifBlank {
+                merchantSnap?.child("cccdFrontUrl")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("cccdFrontUrl")?.getValue(String::class.java).orEmpty()
+            val resolvedCccdBack = primaryStore?.cccdBackUrl?.ifBlank {
+                merchantSnap?.child("cccdBackUrl")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("cccdBackUrl")?.getValue(String::class.java).orEmpty()
+            val resolvedBankName = primaryStore?.bankName?.ifBlank {
+                merchantSnap?.child("bankName")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("bankName")?.getValue(String::class.java).orEmpty()
+            val resolvedBankAcc = primaryStore?.bankAccountNumber?.ifBlank {
+                merchantSnap?.child("bankAccount")?.getValue(String::class.java).orEmpty()
+            } ?: merchantSnap?.child("bankAccount")?.getValue(String::class.java).orEmpty()
+            val resolvedBankAccName = primaryStore?.bankAccountName.orEmpty().ifBlank { resolvedOwnerName }
+            val resolvedBankBin = primaryStore?.bankBin.orEmpty()
+
+            val (resolvedLat, resolvedLng) = resolveStoreCoordinates(address, district, latitude, longitude)
 
             val storeRef = database.getReference("stores").push()
             val newStoreId = storeRef.key ?: "store_${System.currentTimeMillis()}"
-            val newStore = Store(
-                id = newStoreId,
+            val branchFields = buildStandardStoreFields(
+                storeId = newStoreId,
                 bossId = bossUid,
                 merchantId = "",
                 merchantName = "",
-                name = storeName.trim(),
-                address = address.trim(),
-                district = district.trim(),
-                phone = phone.trim(),
+                name = storeName,
+                phone = phone,
+                address = address,
+                district = district,
+                ownerName = resolvedOwnerName,
+                cccdNumber = resolvedCccd,
+                cccdFrontUrl = resolvedCccdFront,
+                cccdBackUrl = resolvedCccdBack,
+                bankName = resolvedBankName,
+                bankAccountNumber = resolvedBankAcc,
+                bankAccountName = resolvedBankAccName,
+                bankBin = resolvedBankBin,
                 latitude = resolvedLat,
                 longitude = resolvedLng,
-                lat = resolvedLat,
-                lng = resolvedLng,
-                ownerName = primaryStore?.ownerName.orEmpty(),
-                cccdNumber = primaryStore?.cccdNumber.orEmpty(),
-                bankName = primaryStore?.bankName?.ifBlank { "MB Bank" } ?: "MB Bank",
-                bankAccountNumber = primaryStore?.bankAccountNumber.orEmpty(),
-                bankAccountName = primaryStore?.bankAccountName.orEmpty(),
-                bankBin = primaryStore?.bankBin?.ifBlank { "970422" } ?: "970422",
                 storeStatus = Store.StoreStatus.OPEN,
                 isVerified = true,
-                ratingAvg = 5.0f,
-                deliveryTime = "20-30 phút",
-                category = "Món chính",
-                imageUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400"
+                imageUrl = primaryStore?.effectiveImageUrl.orEmpty(),
+                category = primaryStore?.category.orEmpty()
             )
-            storeRef.setValue(newStore).await()
-
-            // Đảm bảo ghi nhận tường minh tọa độ trên Firebase RTDB tránh lỗi bỏ sót field
-            val coordMap = mapOf<String, Any>(
-                "latitude" to resolvedLat,
-                "longitude" to resolvedLng,
-                "lat" to resolvedLat,
-                "lng" to resolvedLng
-            )
-            storeRef.updateChildren(coordMap).await()
+            storeRef.setValue(branchFields).await()
 
             database.getReference("boss_stores").child(bossUid).child(newStoreId).setValue(true).await()
             Result.success(newStoreId)

@@ -7814,113 +7814,6 @@ class HotDishAdapter(
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/NearbyStoreAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
-
-import android.graphics.Color
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.resource.bitmap.CenterCrop
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ItemNearbyStoreBinding
-
-data class NearbyStoreItem(
-    val id: String,
-    val name: String,
-    val address: String,
-    val distanceKm: Double,
-    val eta: String,
-    val rating: Float,
-    val imageUrl: String = "",
-    val emoji: String = "🏪",
-    val originalStore: Store? = null,
-    val isClosed: Boolean = false
-)
-
-class NearbyStoreAdapter(
-    private val onStoreClick: (NearbyStoreItem) -> Unit
-) : RecyclerView.Adapter<NearbyStoreAdapter.ViewHolder>() {
-
-    private val items = mutableListOf<NearbyStoreItem>()
-
-    fun submitList(newItems: List<NearbyStoreItem>) {
-        items.clear()
-        items.addAll(newItems)
-        notifyDataSetChanged()
-    }
-
-    inner class ViewHolder(private val binding: ItemNearbyStoreBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(store: NearbyStoreItem) {
-            val context = binding.root.context
-            binding.tvNearbyStoreName.text = store.name
-            binding.tvNearbyStoreAddress.text = if (store.address.startsWith("📍")) store.address else "📍 ${store.address}"
-            binding.tvNearbyDistance.text = if (store.distanceKm > 0.0) "📍 ${store.distanceKm} km" else "📍 Gần bạn"
-
-            val isStoreClosed = store.isClosed || store.originalStore?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
-            if (isStoreClosed) {
-                binding.tvNearbyEta.text = "⛔ Tạm Đóng"
-                binding.tvNearbyEta.setBackgroundColor(Color.parseColor("#FEE2E2"))
-                binding.tvNearbyEta.setTextColor(Color.parseColor("#EF4444"))
-                binding.cardNearbyStore.alpha = 0.7f
-            } else {
-                binding.tvNearbyEta.text = "⏱ ${store.eta}"
-                binding.tvNearbyEta.setBackgroundColor(Color.parseColor("#FEF3C7"))
-                binding.tvNearbyEta.setTextColor(Color.parseColor("#B45309"))
-                binding.cardNearbyStore.alpha = 1.0f
-            }
-            binding.tvNearbyRating.text = "⭐ ${store.rating}"
-
-            val displayImg = store.imageUrl.ifBlank { store.originalStore?.effectiveImageUrl.orEmpty() }
-            if (displayImg.isNotBlank()) {
-                binding.ivNearbyStore.visibility = View.VISIBLE
-                binding.tvNearbyStoreEmoji.visibility = View.GONE
-                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                    imageView = binding.ivNearbyStore,
-                    imageUrl = displayImg,
-                    placeholderResId = R.drawable.placeholder_restaurant,
-                    cornerDp = 10
-                )
-            } else {
-                binding.ivNearbyStore.visibility = View.VISIBLE
-                binding.ivNearbyStore.setImageResource(R.drawable.placeholder_restaurant)
-                binding.tvNearbyStoreEmoji.text = store.emoji
-                binding.tvNearbyStoreEmoji.visibility = View.VISIBLE
-            }
-
-            binding.root.setOnClickListener {
-                it.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).withEndAction {
-                    it.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
-                    onStoreClick(store)
-                }.start()
-            }
-        }
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = ItemNearbyStoreBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return ViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(items[position])
-    }
-
-    override fun getItemCount(): Int = items.size
-}
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/RestaurantAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.home
@@ -13282,436 +13175,6 @@ class FoodOrderCustomerApp : Application() {
 # Glide
 -keep public class * implements com.bumptech.glide.module.GlideModule
 -keep class * extends com.bumptech.glide.module.AppGlideModule { <init>(...); }
-````
-
-## File: app-internal/src/main/assets/map_step1.html
-````html
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    #realMap { width: 100%; height: 100%; }
-
-    .driver-marker-wrap {
-      position: relative; width: 48px; height: 48px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .driver-pulse-ring {
-      position: absolute; width: 48px; height: 48px; border-radius: 50%;
-      background: rgba(238, 77, 45, 0.22);
-      animation: driverRadar 2s infinite ease-out;
-    }
-    .driver-marker-card {
-      position: relative; width: 40px; height: 40px; background: #FFFFFF;
-      border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      border: 3px solid #EE4D2D;
-      box-shadow: 0 4px 14px rgba(238, 77, 45, 0.45), 0 2px 6px rgba(0,0,0,0.12);
-      z-index: 2;
-    }
-    .shop-marker-box {
-      width: 42px; height: 42px; background: #1A73E8; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center; font-size: 22px;
-      color: #FFF; border: 3.5px solid #FFF; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-    }
-    @keyframes driverRadar {
-      0% { transform: scale(0.85); opacity: 0.9; }
-      100% { transform: scale(1.6); opacity: 0; }
-    }
-    .route-info-badge {
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
-      padding: 6px 14px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 1000; font-size: 12px; font-weight: 700; color: #1E293B; display: flex;
-      align-items: center; gap: 6px; border: 1px solid #E2E8F0;
-    }
-    .route-info-badge span { color: #1A73E8; }
-  </style>
-</head>
-<body>
-  <div id="routeBadge" class="route-info-badge" style="display:none;">
-    <span>🛵</span> <span id="routeDistance">Đang tải lộ trình...</span>
-  </div>
-  <div id="realMap"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    let driverCoords = [10.8522, 106.7685];
-    let shopCoords = [10.8548, 106.7720];
-
-    const map = L.map('realMap', {
-      zoomControl: false,
-      attributionControl: false
-    }).setView(driverCoords, 16);
-
-    // Google Maps Roadmap Tiles sắc nét, tiếng Việt, không watermark
-    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-      maxZoom: 20,
-      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-    }).addTo(map);
-
-    const driverIcon = L.divIcon({
-      className: 'driver-div-icon',
-      html: `
-        <div class="driver-marker-wrap">
-          <div class="driver-pulse-ring"></div>
-          <div class="driver-marker-card">
-            <svg viewBox="0 0 32 32" width="25" height="25" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <!-- Bánh sau xe -->
-              <circle cx="7" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
-              <circle cx="7" cy="22" r="1.4" fill="#FFFFFF"/>
-              <!-- Bánh trước xe -->
-              <circle cx="24" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
-              <circle cx="24" cy="22" r="1.4" fill="#FFFFFF"/>
-              <!-- Thùng hàng thức ăn giao sau lưng màu cam -->
-              <rect x="3.5" y="10" width="7" height="7.5" rx="1.8" fill="#EE4D2D" stroke="#FFFFFF" stroke-width="0.8"/>
-              <line x1="7" y1="11" x2="7" y2="16.5" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
-              <!-- Khung sườn xe máy -->
-              <path d="M7 22l3.8-7.5h5.8l2.8 7.5" stroke="#EE4D2D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-              <!-- Cổ xe & Ghi đông tay lái -->
-              <path d="M16.6 14.5l3.5-6h3.2" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              <!-- Người lái & Nón bảo hiểm -->
-              <circle cx="15.8" cy="7" r="2.8" fill="#EE4D2D" stroke="#FFFFFF" stroke-width="0.8"/>
-              <path d="M13.5 10.5l2.8 4h3.5" stroke="#1E293B" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </div>
-        </div>
-      `,
-      iconSize: [48, 48],
-      iconAnchor: [24, 24]
-    });
-    const driverMarker = L.marker(driverCoords, { icon: driverIcon }).addTo(map);
-
-    const shopIcon = L.divIcon({
-      className: 'shop-marker-box',
-      html: '🏪',
-      iconSize: [42, 42],
-      iconAnchor: [21, 21]
-    });
-    const shopMarker = L.marker(shopCoords, { icon: shopIcon }).addTo(map);
-
-    let routeBorder = null;
-    let routeLine = null;
-
-    // Hàm gọi API OSRM chỉ đường thật 100% bám theo đường xá thực tế giống Google Maps
-    async function fetchRealRoute(dLat, dLng, sLat, sLng) {
-      if (!dLat || !dLng || !sLat || !sLng || (dLat === 0 && dLng === 0) || (sLat === 0 && sLng === 0)) {
-        return;
-      }
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${sLng},${sLat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.routes && data.routes.length > 0) {
-          const route = data.routes[0];
-          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
-          
-          if (routeBorder) map.removeLayer(routeBorder);
-          if (routeLine) map.removeLayer(routeLine);
-
-          // Lớp viền xanh đậm Google Maps
-          routeBorder = L.polyline(coords, {
-            color: '#1557B0',
-            weight: 8,
-            opacity: 0.9,
-            lineCap: 'round',
-            lineJoin: 'round'
-          }).addTo(map);
-
-          // Lớp đường xanh sáng Google Maps
-          routeLine = L.polyline(coords, {
-            color: '#1A73E8',
-            weight: 5,
-            opacity: 1,
-            lineCap: 'round',
-            lineJoin: 'round'
-          }).addTo(map);
-
-          map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
-
-          const distKm = (route.distance / 1000).toFixed(1);
-          const durationMin = Math.round(route.duration / 60);
-          const badge = document.getElementById('routeBadge');
-          const distSpan = document.getElementById('routeDistance');
-          if (badge && distSpan) {
-            badge.style.display = 'flex';
-            distSpan.innerHTML = `Đến quán: <b>${distKm} km</b> (~${durationMin} phút)`;
-          }
-          return;
-        }
-      } catch (e) {
-        console.warn('Lỗi tải tuyến đường thực tế, chuyển fallback:', e);
-      }
-
-      // Fallback nếu mất mạng internet
-      fallbackStraightRoute(dLat, dLng, sLat, sLng);
-    }
-
-    function fallbackStraightRoute(dLat, dLng, sLat, sLng) {
-      if (routeBorder) map.removeLayer(routeBorder);
-      if (routeLine) map.removeLayer(routeLine);
-
-      const midLat = (dLat + sLat) / 2;
-      const midLng = (dLng + sLng) / 2;
-      const points = [[dLat, dLng], [midLat, midLng], [sLat, sLng]];
-
-      routeLine = L.polyline(points, {
-        color: '#1A73E8', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
-      }).addTo(map);
-      map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
-    }
-
-    // Hàm nhận tọa độ GPS thực tế của Shipper từ Android
-    function updateDriverLocation(lat, lng) {
-      driverCoords = [lat, lng];
-      driverMarker.setLatLng(driverCoords);
-      fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
-    }
-
-    // Hàm cập nhật điểm quán và lộ trình
-    function setDestination(lat, lng) {
-      shopCoords = [lat, lng];
-      shopMarker.setLatLng(shopCoords);
-      fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
-    }
-
-    function focusShop() {
-      map.flyTo(shopCoords, 17, { duration: 1 });
-    }
-    function focusDriver() {
-      map.flyTo(driverCoords, 17, { duration: 1 });
-    }
-
-    // Khởi động lộ trình ban đầu
-    fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
-
-    // Tự động nhận diện GPS nếu mở trên web
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
-        },
-        (err) => console.log('Chưa cấp quyền GPS trình duyệt:', err),
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    }
-  </script>
-</body>
-</html>
-````
-
-## File: app-internal/src/main/assets/map_step3.html
-````html
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    #realMap { width: 100%; height: 100%; }
-
-    .driver-marker-wrap {
-      position: relative; width: 48px; height: 48px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .driver-pulse-ring {
-      position: absolute; width: 48px; height: 48px; border-radius: 50%;
-      background: rgba(5, 150, 105, 0.25);
-      animation: driverRadar 2s infinite ease-out;
-    }
-    .driver-marker-card {
-      position: relative; width: 40px; height: 40px; background: #FFFFFF;
-      border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      border: 3px solid #059669;
-      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45), 0 2px 6px rgba(0,0,0,0.12);
-      z-index: 2;
-    }
-    .customer-marker-box {
-      padding: 6px 12px; background: #EE4D2D; border-radius: 14px;
-      display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800;
-      color: #FFF; border: 2.5px solid #FFF; box-shadow: 0 4px 14px rgba(238, 77, 45, 0.4);
-      white-space: nowrap;
-    }
-    @keyframes driverRadar {
-      0% { transform: scale(0.85); opacity: 0.9; }
-      100% { transform: scale(1.6); opacity: 0; }
-    }
-    .route-info-badge {
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
-      padding: 6px 14px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 1000; font-size: 12px; font-weight: 700; color: #1E293B; display: flex;
-      align-items: center; gap: 6px; border: 1px solid #E2E8F0;
-    }
-    .route-info-badge span { color: #059669; }
-  </style>
-</head>
-<body>
-  <div id="routeBadge" class="route-info-badge" style="display:none;">
-    <span>🛵</span> <span id="routeDistance">Đang tải lộ trình...</span>
-  </div>
-  <div id="realMap"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    let driverCoords = [10.8548, 106.7720];
-    let customerCoords = [10.8580, 106.7765];
-
-    const map = L.map('realMap', {
-      zoomControl: false,
-      attributionControl: false
-    }).setView(driverCoords, 16);
-
-    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-      maxZoom: 20,
-      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-    }).addTo(map);
-
-    const driverIcon = L.divIcon({
-      className: 'driver-div-icon',
-      html: `
-        <div class="driver-marker-wrap">
-          <div class="driver-pulse-ring"></div>
-          <div class="driver-marker-card">
-            <svg viewBox="0 0 32 32" width="25" height="25" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="7" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
-              <circle cx="7" cy="22" r="1.4" fill="#FFFFFF"/>
-              <circle cx="24" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
-              <circle cx="24" cy="22" r="1.4" fill="#FFFFFF"/>
-              <rect x="3.5" y="10" width="7" height="7.5" rx="1.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
-              <line x1="7" y1="11" x2="7" y2="16.5" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
-              <path d="M7 22l3.8-7.5h5.8l2.8 7.5" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M16.6 14.5l3.5-6h3.2" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="15.8" cy="7" r="2.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
-              <path d="M13.5 10.5l2.8 4h3.5" stroke="#1E293B" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </div>
-        </div>
-      `,
-      iconSize: [48, 48],
-      iconAnchor: [24, 24]
-    });
-    const driverMarker = L.marker(driverCoords, { icon: driverIcon }).addTo(map);
-
-    const customerIcon = L.divIcon({
-      className: 'customer-marker-box',
-      html: '📍 Điểm giao khách',
-      iconSize: [140, 32],
-      iconAnchor: [70, 16]
-    });
-    const customerMarker = L.marker(customerCoords, { icon: customerIcon }).addTo(map);
-
-    let routeBorder = null;
-    let routeLine = null;
-
-    async function fetchRealRoute(dLat, dLng, cLat, cLng) {
-      if (!dLat || !dLng || !cLat || !cLng || (dLat === 0 && dLng === 0) || (cLat === 0 && cLng === 0)) {
-        return;
-      }
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${cLng},${cLat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.routes && data.routes.length > 0) {
-          const route = data.routes[0];
-          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
-          
-          if (routeBorder) map.removeLayer(routeBorder);
-          if (routeLine) map.removeLayer(routeLine);
-
-          // Lớp viền xanh lục đậm
-          routeBorder = L.polyline(coords, {
-            color: '#047857', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
-          }).addTo(map);
-
-          // Lớp tuyến đường xanh lá cây
-          routeLine = L.polyline(coords, {
-            color: '#059669', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round'
-          }).addTo(map);
-
-          map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
-
-          const distKm = (route.distance / 1000).toFixed(1);
-          const durationMin = Math.round(route.duration / 60);
-          const badge = document.getElementById('routeBadge');
-          const distSpan = document.getElementById('routeDistance');
-          if (badge && distSpan) {
-            badge.style.display = 'flex';
-            distSpan.innerHTML = `Đến nhà khách: <b>${distKm} km</b> (~${durationMin} phút)`;
-          }
-          return;
-        }
-      } catch (e) {
-        console.warn('Lỗi tải tuyến đường thực tế bước 3:', e);
-      }
-
-      fallbackStraightRoute(dLat, dLng, cLat, cLng);
-    }
-
-    function fallbackStraightRoute(dLat, dLng, cLat, cLng) {
-      if (routeBorder) map.removeLayer(routeBorder);
-      if (routeLine) map.removeLayer(routeLine);
-
-      const midLat = (dLat + cLat) / 2;
-      const midLng = (dLng + cLng) / 2;
-      const points = [[dLat, dLng], [midLat, midLng], [cLat, cLng]];
-
-      routeLine = L.polyline(points, {
-        color: '#059669', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
-      }).addTo(map);
-      map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
-    }
-
-    function updateDriverLocation(lat, lng) {
-      driverCoords = [lat, lng];
-      driverMarker.setLatLng(driverCoords);
-      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
-    }
-
-    function setDestination(lat, lng, customerName) {
-      customerCoords = [lat, lng];
-      customerMarker.setLatLng(customerCoords);
-      if (customerName) {
-        customerMarker.setIcon(L.divIcon({
-          className: 'customer-marker-box',
-          html: `📍 ${customerName}`,
-          iconSize: [150, 32],
-          iconAnchor: [75, 16]
-        }));
-      }
-      fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
-    }
-
-    function focusCustomer() {
-      map.flyTo(customerCoords, 17, { duration: 1 });
-    }
-    function focusDriver() {
-      map.flyTo(driverCoords, 17, { duration: 1 });
-    }
-
-    fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
-        },
-        (err) => console.log('Chưa cấp quyền GPS trình duyệt:', err),
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    }
-  </script>
-</body>
-</html>
 ````
 
 ## File: app-internal/src/main/assets/select_map.html
@@ -32153,386 +31616,110 @@ class HomeCategoryAdapter(
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/menu/MenuActivity.kt
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/NearbyStoreAdapter.kt
 ````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.menu
+package com.chuyen_de_2.foodorder.customer.ui.home
 
-import android.content.Intent
 import android.graphics.Color
-import android.graphics.Paint
-import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.LinearLayoutManager
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
-import com.chuyen_de_2.foodorder.core.data.model.Dish
 import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.util.Constants
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
 import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ActivityMenuBinding
-import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
-import com.google.android.material.chip.Chip
-import dagger.hilt.android.AndroidEntryPoint
+import com.chuyen_de_2.foodorder.customer.databinding.ItemNearbyStoreBinding
 
-/**
- * Tên chức năng: Chi Tiết Thực Đơn Quán & Đặt Món (Store Menu & Item Detail Screen)
- * Cách hoạt động:
- *  - Lấy danh sách món ăn từ Cửa hàng tương ứng theo `shopId` từ Firestore.
- *  - Khu vực phía trên (Top Detail Section): Hiển thị hình ảnh lớn, tên món, giá gốc gạch ngang, giá khuyến mãi, điểm đánh giá sao ⭐ và bình luận của khách hàng.
- *  - Khu vực phía dưới: Phân loại món ăn theo Chip danh mục (Mới, Combo, Cà phê, Trà, v.v.) và danh sách món dạng RecyclerView.
- *  - Bấm chọn món sẽ tự động thêm vào giỏ hàng hoặc mở modal tùy chọn Size/Topping [DishOptionBottomSheetDialogFragment].
- *  - Thanh đặt hàng cố định (Bottom Checkout Bar): Hiển thị tổng số lượng món, tổng số tiền và nút "Xem Giỏ Hàng".
- * Luồng hướng tới:
- *  - Bấm "Xem Giỏ Hàng" -> Chuyển sang màn hình giỏ hàng [CartActivity].
- *  - Bấm "Đánh giá" -> Mở BottomSheet xem chi tiết đánh giá [DishReviewsBottomSheetDialogFragment].
- */
-@AndroidEntryPoint
-class MenuActivity : AppCompatActivity() {
+data class NearbyStoreItem(
+    val id: String,
+    val name: String,
+    val address: String,
+    val distanceKm: Double,
+    val eta: String,
+    val rating: Float,
+    val imageUrl: String = "",
+    val emoji: String = "🏪",
+    val originalStore: Store? = null,
+    val isClosed: Boolean = false
+)
 
-    private lateinit var binding: ActivityMenuBinding
-    private val viewModel: MenuViewModel by viewModels()
-    private lateinit var adapter: MenuAdapter
-    private var shopName: String = "Nhà hàng"
-    private var currentShopId: String = ""
+class NearbyStoreAdapter(
+    private val onStoreClick: (NearbyStoreItem) -> Unit
+) : RecyclerView.Adapter<NearbyStoreAdapter.ViewHolder>() {
 
-    /**
-     * Tên chức năng: Khởi tạo màn hình thực đơn quán
-     * Cách hoạt động: Nhận `shopId`, `shopName` từ Intent, nạp dữ liệu menu từ ViewModel và thiết lập giao diện.
-     * Luồng hướng tới: Chuẩn bị hiển thị danh sách món ăn của quán.
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityMenuBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+    private val items = mutableListOf<NearbyStoreItem>()
 
-        InsetUtils.setLightStatusBar(this, true)
-        InsetUtils.applyToolbarInsets(binding.layoutTopNav)
-        InsetUtils.applyNavigationBarPadding(binding.layoutBottomCheckoutBar)
-
-        val shopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: run {
-            Toast.makeText(this, "Lỗi: không tìm thấy nhà hàng", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-        currentShopId = shopId
-        shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Nhà hàng"
-        val initialDishId = intent.getStringExtra(Constants.EXTRA_DISH_ID)
-        val initialDishName = intent.getStringExtra(Constants.EXTRA_DISH_NAME)
-        val initialDishPrice = intent.getLongExtra(Constants.EXTRA_DISH_PRICE, 0L)
-        val initialDishImage = intent.getStringExtra(Constants.EXTRA_DISH_IMAGE) ?: ""
-        val initialDishCategory = intent.getStringExtra(Constants.EXTRA_DISH_CATEGORY) ?: ""
-
-        val initialDish = if (!initialDishId.isNullOrEmpty() && !initialDishName.isNullOrEmpty()) {
-            Dish(
-                id = initialDishId,
-                storeId = shopId,
-                name = initialDishName,
-                basePrice = initialDishPrice,
-                imageUrl = initialDishImage,
-                category = initialDishCategory
-            )
-        } else null
-
-        viewModel.setShopInfo(shopId, shopName, initialDishId, initialDish)
-
-        setupTopNav()
-        setupCategoryChips()
-        setupRecyclerView()
-        setupBottomCheckoutBar()
-        observeViewModel()
+    fun submitList(newItems: List<NearbyStoreItem>) {
+        items.clear()
+        items.addAll(newItems)
+        notifyDataSetChanged()
     }
 
-    /**
-     * Tên chức năng: Thiết lập thanh điều hướng đỉnh (Top Navigation Bar)
-     * Cách hoạt động: Bắt sự kiện nút quay lại, chia sẻ liên kết quán và thêm quán vào danh sách yêu thích.
-     * Luồng hướng tới: Tương tác người dùng.
-     */
-    private fun setupTopNav() {
-        binding.btnNavBack.setOnClickListener {
-            onBackPressedDispatcher.onBackPressed()
-        }
-        binding.tvShopNavTitle.text = shopName
+    inner class ViewHolder(private val binding: ItemNearbyStoreBinding) :
+        RecyclerView.ViewHolder(binding.root) {
 
-        val initialShopImage = intent.getStringExtra(Constants.EXTRA_SHOP_IMAGE).orEmpty()
-        if (initialShopImage.isNotBlank()) {
-            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                imageView = binding.ivShopNavAvatar,
-                imageUrl = initialShopImage,
-                placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
-                cornerDp = 14
-            )
-        }
-    }
+        fun bind(store: NearbyStoreItem) {
+            val context = binding.root.context
+            binding.tvNearbyStoreName.text = store.name
+            binding.tvNearbyStoreAddress.text = if (store.address.startsWith("📍")) store.address else "📍 ${store.address}"
+            binding.tvNearbyDistance.text = if (store.distanceKm > 0.0) "📍 ${store.distanceKm} km" else "📍 Gần bạn"
 
-    /**
-     * Tên chức năng: Bộ lọc danh mục món ăn (Category Filter Chips)
-     * Cách hoạt động: Lắng nghe sự kiện chọn Chip để lọc danh sách món: Món mới, Combo, Cà phê, Trà hoặc Tất cả.
-     * Luồng hướng tới: Gọi [MenuViewModel.filterByCategory].
-     */
-    private fun setupCategoryChips() {
-        binding.chipGroupCategory.setOnCheckedStateChangeListener { _, checkedIds ->
-            if (checkedIds.isEmpty()) return@setOnCheckedStateChangeListener
-            val selectedId = checkedIds.first()
-            val category = when (selectedId) {
-                R.id.chipNewDrink -> "mới"
-                R.id.chipCombo -> "Combo"
-                R.id.chipCoffee -> "Cà phê"
-                R.id.chipTea -> "Trà"
-                else -> "ALL"
-            }
-            viewModel.filterByCategory(category)
-        }
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo RecyclerView thực đơn món ăn
-     * Cách hoạt động: Cấu hình [MenuAdapter] với các hành động thêm/bớt món, lấy số lượng đã chọn trong giỏ và xem chi tiết món.
-     * Luồng hướng tới: Render từng món ăn trong menu.
-     */
-    private fun setupRecyclerView() {
-        adapter = MenuAdapter(
-            onAddClick = { dish ->
-                handleDishSelection(dish)
-            },
-            onRemoveClick = { itemId ->
-                viewModel.removeFromCart(itemId)
-            },
-            getQuantity = { itemId ->
-                viewModel.getItemQuantity(itemId)
-            },
-            onItemClick = { dish ->
-                handleDishSelection(dish)
-            }
-        )
-
-        binding.rvMenu.apply {
-            layoutManager = LinearLayoutManager(this@MenuActivity)
-            adapter = this@MenuActivity.adapter
-        }
-    }
-
-    /**
-     * Tên chức năng: Cấu hình thanh Đặt Món / Xem Giỏ Hàng phía dưới
-     * Cách hoạt động: Đồng bộ dữ liệu giỏ hàng vào Room/Shared ViewModel và chuyển hướng sang [CartActivity].
-     * Luồng hướng tới: [CartActivity].
-     */
-    private fun setupBottomCheckoutBar() {
-        binding.btnCheckoutNow.setOnClickListener {
-            val isClosed = viewModel.store.value?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
-            if (isClosed) {
-                Toast.makeText(this, "⚠️ Quán đang tạm đóng cửa ngưng nhận đơn mới!", Toast.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
-            viewModel.flushCart()
-            startActivity(Intent(this, CartActivity::class.java))
-        }
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ MenuViewModel
-     * Cách hoạt động:
-     *  - Cập nhật danh sách món ăn hiển thị.
-     *  - Cập nhật thông tin món ăn đang chọn ở phần chi tiết đỉnh.
-     *  - Hiển thị hoặc ẩn thanh đặt hàng dưới cùng kèm tổng tiền.
-     * Luồng hướng tới: Đồng bộ giao diện tức thời.
-     */
-    private fun observeViewModel() {
-        viewModel.dishes.observe(this) { items ->
-            adapter.submitList(items)
-            binding.tvEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
-            binding.tvDishesCountBadge.text = "${items.size} MÓN"
-        }
-
-        viewModel.categories.observe(this) { cats ->
-            if (cats.isNotEmpty()) {
-                binding.chipGroupCategory.removeAllViews()
-
-                val allChip = Chip(this).apply {
-                    id = View.generateViewId()
-                    text = "Tất cả"
-                    isCheckable = true
-                    isChecked = (viewModel.currentCategoryName == "ALL" || viewModel.currentCategoryName.isEmpty())
-                    setOnClickListener { viewModel.filterByCategory("ALL") }
-                }
-                binding.chipGroupCategory.addView(allChip)
-
-                cats.forEach { catName ->
-                    val chip = Chip(this).apply {
-                        id = View.generateViewId()
-                        text = catName
-                        isCheckable = true
-                        isChecked = (viewModel.currentCategoryName == catName)
-                        setOnClickListener { viewModel.filterByCategory(catName) }
-                    }
-                    binding.chipGroupCategory.addView(chip)
-                }
-            }
-        }
-
-        viewModel.selectedDish.observe(this) { dish ->
-            if (dish != null) {
-                bindTopDetailSection(dish)
-                adapter.setSelectedDishId(dish.id)
-            }
-        }
-
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-        }
-
-        viewModel.cartCount.observe(this) { count ->
-            if (count > 0) {
-                binding.layoutBottomCheckoutBar.visibility = View.VISIBLE
-                binding.tvCheckoutCartSub.text = "Đã chọn $count món • $shopName"
+            val isStoreClosed = store.isClosed || store.originalStore?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+            if (isStoreClosed) {
+                binding.tvNearbyEta.text = "⛔ Tạm Đóng"
+                binding.tvNearbyEta.setBackgroundColor(Color.parseColor("#FEE2E2"))
+                binding.tvNearbyEta.setTextColor(Color.parseColor("#EF4444"))
+                binding.cardNearbyStore.alpha = 0.7f
             } else {
-                binding.layoutBottomCheckoutBar.visibility = View.GONE
+                binding.tvNearbyEta.text = "⏱ ${store.eta}"
+                binding.tvNearbyEta.setBackgroundColor(Color.parseColor("#FEF3C7"))
+                binding.tvNearbyEta.setTextColor(Color.parseColor("#B45309"))
+                binding.cardNearbyStore.alpha = 1.0f
             }
-        }
+            binding.tvNearbyRating.text = "⭐ ${store.rating}"
 
-        viewModel.cartTotalPrice.observe(this) { total ->
-            binding.tvCheckoutTotalPrice.text = total.toVndCurrency()
-        }
-
-        viewModel.cartItems.observe(this) {
-            adapter.notifyDataSetChanged()
-        }
-
-        viewModel.store.observe(this) { store ->
-            if (store != null) {
+            val displayImg = store.imageUrl.ifBlank { store.originalStore?.effectiveImageUrl.orEmpty() }
+            if (displayImg.isNotBlank()) {
+                binding.ivNearbyStore.visibility = View.VISIBLE
+                binding.tvNearbyStoreEmoji.visibility = View.GONE
                 com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                    imageView = binding.ivShopNavAvatar,
-                    imageUrl = store.effectiveImageUrl,
-                    placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
-                    cornerDp = 14
+                    imageView = binding.ivNearbyStore,
+                    imageUrl = displayImg,
+                    placeholderResId = R.drawable.placeholder_restaurant,
+                    cornerDp = 10
                 )
-                val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
-                if (isClosed) {
-                    binding.tvShopNavTitle.text = "${store.name.ifBlank { shopName }} (Tạm đóng)"
-                    binding.tvShopNavTitle.setTextColor(Color.parseColor("#EF4444"))
-                    binding.layoutBottomCheckoutBar.visibility = View.GONE
-                } else {
-                    binding.tvShopNavTitle.text = store.name.ifBlank { shopName }
-                    binding.tvShopNavTitle.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.text_primary))
-                }
+            } else {
+                binding.ivNearbyStore.visibility = View.VISIBLE
+                binding.ivNearbyStore.setImageResource(R.drawable.placeholder_restaurant)
+                binding.tvNearbyStoreEmoji.text = store.emoji
+                binding.tvNearbyStoreEmoji.visibility = View.VISIBLE
+            }
+
+            binding.root.setOnClickListener {
+                it.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).withEndAction {
+                    it.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
+                    onStoreClick(store)
+                }.start()
             }
         }
     }
 
-    /**
-     * Tên chức năng: Hiển thị chi tiết món ăn ở khung nổi bật phía trên (Top Detail Card)
-     * Cách hoạt động: Render tên, giá, ảnh món ăn, mô tả, huy hiệu khuyến mãi và điểm sao đánh giá.
-     * Luồng hướng tới: Cung cấp thông tin cận cảnh về món ăn.
-     */
-    private fun bindTopDetailSection(dish: Dish) {
-        binding.tvDetailDishTitle.text = dish.name
-        binding.tvDetailDishStore.text = "Quán $shopName"
-        binding.tvDetailPriceMain.text = dish.price.toVndCurrency()
-
-        binding.tvDetailPriceOld.visibility = View.GONE
-
-        val rating = if (dish.ratingAvg > 0f) dish.ratingAvg else 5.0f
-        val reviewCount = dish.reviewCount
-
-        // Luôn hiển thị đánh giá & nút xem/viết đánh giá theo chuẩn b5.html
-        binding.tvDetailRatingText.visibility = View.VISIBLE
-        binding.btnViewDishReviews.visibility = View.VISIBLE
-        binding.btnHeaderDishReviews.visibility = View.VISIBLE
-
-        if (reviewCount > 0) {
-            binding.tvDetailRatingText.text = "⭐ $rating ($reviewCount đánh giá)"
-            binding.btnViewDishReviews.text = "⭐ Xem đánh giá ($reviewCount) ➔"
-            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ($reviewCount) ➔"
-        } else {
-            binding.tvDetailRatingText.text = "⭐ 5.0 (Chưa có đánh giá)"
-            binding.btnViewDishReviews.text = "💬 Xem đánh giá ➔"
-            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ➔"
-        }
-
-        binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {
-            dish.description
-        } else {
-            "Món ngon thơm lừng chế biến từ nguyên liệu tươi sạch, giữ trọn hương vị đặc trưng truyền thống."
-        }
-
-        if (dish.soldCount > 500) {
-            binding.tvDetailPromoBadge.visibility = View.VISIBLE
-            binding.tvDetailPromoBadge.text = "HOT"
-        } else {
-            binding.tvDetailPromoBadge.visibility = View.GONE
-        }
-
-        Glide.with(this)
-            .load(dish.imageUrl)
-            .transform(CenterCrop(), RoundedCorners(28))
-            .placeholder(R.drawable.placeholder_food)
-            .error(R.drawable.placeholder_food)
-            .into(binding.ivDetailFood)
-
-        binding.btnViewDishReviews.setOnClickListener {
-            val sheet = DishReviewsBottomSheetDialogFragment.newInstance(
-                dishId = dish.id,
-                dishName = dish.name,
-                dishRating = rating,
-                reviewCount = reviewCount,
-                storeId = dish.storeId.ifBlank { currentShopId }
-            )
-            sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
-        }
-
-        binding.tvDetailRatingText.setOnClickListener {
-            binding.btnViewDishReviews.performClick()
-        }
-
-        binding.btnHeaderDishReviews.setOnClickListener {
-            binding.btnViewDishReviews.performClick()
-        }
-
-        binding.cardTopDetail.setOnClickListener {
-            handleDishSelection(dish)
-        }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = ItemNearbyStoreBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return ViewHolder(binding)
     }
 
-    /**
-     * Tên chức năng: Xử lý sự kiện chọn món và thêm vào giỏ hàng
-     * Cách hoạt động: Cập nhật món đang chọn lên ViewModel, tự động cộng thêm số lượng vào giỏ và thông báo cho người dùng.
-     * Luồng hướng tới: Thêm món vào [CartViewModel].
-     */
-    private fun handleDishSelection(dish: Dish) {
-        val currentStore = viewModel.store.value
-        val isClosed = currentStore?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
-        if (isClosed) {
-            Toast.makeText(this, "⚠️ Quán đang tạm đóng cửa ngưng nhận đơn mới. Vui lòng quay lại sau!", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        viewModel.selectDish(dish)
-        adapter.setSelectedDishId(dish.id)
-
-        viewModel.addToCart(dish)
-        adapter.notifyDataSetChanged()
-
-        val currentQty = viewModel.getItemQuantity(dish.id)
-        Toast.makeText(this, "Đã chọn: ${dish.name} (x$currentQty)", Toast.LENGTH_SHORT).show()
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.bind(items[position])
     }
 
-    private fun showDishOptionBottomSheet(dish: Dish) {
-        val bottomSheet = DishOptionBottomSheetDialogFragment(dish) { cartItem ->
-            viewModel.addCustomCartItem(cartItem)
-            adapter.notifyDataSetChanged()
-        }
-        bottomSheet.show(supportFragmentManager, DishOptionBottomSheetDialogFragment.TAG)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        viewModel.flushCart()
-    }
+    override fun getItemCount(): Int = items.size
 }
 ````
 
@@ -35854,153 +35041,459 @@ dependencies {
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/service/LocationForegroundService.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.service
+## File: app-internal/src/main/assets/map_step1.html
+````html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #realMap { width: 100%; height: 100%; }
 
-import android.app.Notification
-import android.app.PendingIntent
-import android.app.Service
-import android.content.Intent
-import android.os.IBinder
-import android.os.Looper
-import androidx.core.app.NotificationCompat
-import com.chuyen_de_2.foodorder.core.data.model.TrackingLocation
-import com.chuyen_de_2.foodorder.core.util.Constants
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.firebase.database.FirebaseDatabase
-
-/**
- * Tên chức năng: Dịch Vụ Chạy Ngầm Theo Dõi Vị Trí GPS Tài Xế (Android Foreground Location Service)
- * Cách hoạt động:
- *  - Chạy dưới dạng Foreground Service với Notification thường trực (Ongoing) để chống bị Android OS tắt khi khóa màn hình (Doze Mode).
- *  - Dùng FusedLocationProviderClient lấy tọa độ GPS chính xác cao mỗi 5 giây (`GPS_UPDATE_INTERVAL_MS`).
- *  - Đẩy trực tiếp tọa độ (Latitude, Longitude, Timestamp) lên nút Firebase Realtime Database `tracking/{orderId}`.
- * Luồng hướng tới:
- *  - Ứng dụng Khách hàng [TrackingActivity] lắng nghe realtime nút này để vẽ biểu tượng xe máy di chuyển trực tiếp trên bản đồ.
- */
-class LocationForegroundService : Service() {
-
-    companion object {
-        const val EXTRA_ORDER_ID = "extra_order_id"
-        var isRunning: Boolean = false
+    .driver-marker-wrap {
+      position: relative; width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
     }
-
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationCallback: LocationCallback
-    private var orderId: String = ""
-
-    override fun onCreate() {
-        super.onCreate()
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+    .driver-pulse-ring {
+      position: absolute; width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(238, 77, 45, 0.22);
+      animation: driverRadar 2s infinite ease-out;
     }
+    .driver-marker-card {
+      position: relative; width: 40px; height: 40px; background: #FFFFFF;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      border: 3px solid #EE4D2D;
+      box-shadow: 0 4px 14px rgba(238, 77, 45, 0.45), 0 2px 6px rgba(0,0,0,0.12);
+      z-index: 2;
+    }
+    .shop-marker-box {
+      width: 42px; height: 42px; background: #1A73E8; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+      color: #FFF; border: 3.5px solid #FFF; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    }
+    @keyframes driverRadar {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+    .route-info-badge {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+      padding: 6px 14px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 1000; font-size: 12px; font-weight: 700; color: #1E293B; display: flex;
+      align-items: center; gap: 6px; border: 1px solid #E2E8F0;
+    }
+    .route-info-badge span { color: #1A73E8; }
+  </style>
+</head>
+<body>
+  <div id="routeBadge" class="route-info-badge" style="display:none;">
+    <span>🛵</span> <span id="routeDistance">Đang tải lộ trình...</span>
+  </div>
+  <div id="realMap"></div>
 
-    /**
-     * Tên chức năng: Tiếp nhận lệnh khởi động dịch vụ (Start Command)
-     * Cách hoạt động: Lấy orderId từ Intent, gọi [startForeground] hiển thị notification và kích hoạt luồng GPS.
-     * Luồng hướng tới: Bắt đầu phát tọa độ vị trí.
-     */
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        orderId = intent?.getStringExtra(EXTRA_ORDER_ID) ?: ""
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Tọa độ trung tâm TP.HCM làm điểm neo mặc định
+    let driverCoords = [10.7769, 106.7009];
+    let shopCoords = [10.7769, 106.7009];
+    let hasRealDriverCoords = false;
+    let hasRealShopCoords = false;
 
-        if (orderId.isEmpty()) {
-            stopSelf()
-            return START_NOT_STICKY
+    const map = L.map('realMap', {
+      zoomControl: false,
+      attributionControl: false
+    }).setView(driverCoords, 16);
+
+    // Google Maps Roadmap Tiles sắc nét, tiếng Việt, không watermark
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    }).addTo(map);
+
+    const driverIcon = L.divIcon({
+      className: 'driver-div-icon',
+      html: `
+        <div class="driver-marker-wrap">
+          <div class="driver-pulse-ring"></div>
+          <div class="driver-marker-card">
+            <svg viewBox="0 0 32 32" width="25" height="25" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Bánh sau xe -->
+              <circle cx="7" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="7" cy="22" r="1.4" fill="#FFFFFF"/>
+              <!-- Bánh trước xe -->
+              <circle cx="24" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="24" cy="22" r="1.4" fill="#FFFFFF"/>
+              <!-- Thùng hàng thức ăn giao sau lưng màu cam -->
+              <rect x="3.5" y="10" width="7" height="7.5" rx="1.8" fill="#EE4D2D" stroke="#FFFFFF" stroke-width="0.8"/>
+              <line x1="7" y1="11" x2="7" y2="16.5" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+              <!-- Khung sườn xe máy -->
+              <path d="M7 22l3.8-7.5h5.8l2.8 7.5" stroke="#EE4D2D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- Cổ xe & Ghi đông tay lái -->
+              <path d="M16.6 14.5l3.5-6h3.2" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- Người lái & Nón bảo hiểm -->
+              <circle cx="15.8" cy="7" r="2.8" fill="#EE4D2D" stroke="#FFFFFF" stroke-width="0.8"/>
+              <path d="M13.5 10.5l2.8 4h3.5" stroke="#1E293B" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      `,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24]
+    });
+    const driverMarker = L.marker(driverCoords, { icon: driverIcon }).addTo(map);
+
+    const shopIcon = L.divIcon({
+      className: 'shop-marker-box',
+      html: '🏪',
+      iconSize: [42, 42],
+      iconAnchor: [21, 21]
+    });
+    const shopMarker = L.marker(shopCoords, { icon: shopIcon }).addTo(map);
+
+    let routeBorder = null;
+    let routeLine = null;
+
+    // Hàm gọi API OSRM chỉ đường thật 100% bám theo đường xá thực tế giống Google Maps
+    async function fetchRealRoute(dLat, dLng, sLat, sLng) {
+      if (!dLat || !dLng || !sLat || !sLng || (dLat === 0 && dLng === 0) || (sLat === 0 && sLng === 0)) {
+        return;
+      }
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${sLng},${sLat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+          
+          if (routeBorder) map.removeLayer(routeBorder);
+          if (routeLine) map.removeLayer(routeLine);
+
+          // Lớp viền xanh đậm Google Maps
+          routeBorder = L.polyline(coords, {
+            color: '#1557B0',
+            weight: 8,
+            opacity: 0.9,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(map);
+
+          // Lớp đường xanh sáng Google Maps
+          routeLine = L.polyline(coords, {
+            color: '#1A73E8',
+            weight: 5,
+            opacity: 1,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }).addTo(map);
+
+          map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+          const distKm = (route.distance / 1000).toFixed(1);
+          const durationMin = Math.round(route.duration / 60);
+          const badge = document.getElementById('routeBadge');
+          const distSpan = document.getElementById('routeDistance');
+          if (badge && distSpan) {
+            badge.style.display = 'flex';
+            distSpan.innerHTML = `Đến quán: <b>${distKm} km</b> (~${durationMin} phút)`;
+          }
+          return;
         }
+      } catch (e) {
+        console.warn('Lỗi tải tuyến đường thực tế, chuyển fallback:', e);
+      }
 
-        // Bắt đầu Foreground Service với Notification
-        startForeground(Constants.FOREGROUND_SERVICE_ID, createNotification())
-
-        // Bắt đầu lắng nghe GPS
-        startLocationUpdates()
-        isRunning = true
-
-        return START_STICKY
+      // Fallback nếu mất mạng internet
+      fallbackStraightRoute(dLat, dLng, sLat, sLng);
     }
 
-    /**
-     * Tên chức năng: Tạo Notification thông báo trạng thái giao hàng
-     * Cách hoạt động: Tạo thông báo thường trực trên khay hệ thống, gắn PendingIntent mở lại [DashboardActivity].
-     * Luồng hướng tới: Hiển thị thông báo cố định cho người dùng.
-     */
-    private fun createNotification(): Notification {
-        val intent = Intent(this, DashboardActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+    function fallbackStraightRoute(dLat, dLng, sLat, sLng) {
+      if (routeBorder) map.removeLayer(routeBorder);
+      if (routeLine) map.removeLayer(routeLine);
 
-        return NotificationCompat.Builder(this, Constants.CHANNEL_ID_TRACKING)
-            .setContentTitle("🛵 Đang giao hàng")
-            .setContentText("GPS đang hoạt động — Đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}")
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .build()
+      const midLat = (dLat + sLat) / 2;
+      const midLng = (dLng + sLng) / 2;
+      const points = [[dLat, dLng], [midLat, midLng], [sLat, sLng]];
+
+      routeLine = L.polyline(points, {
+        color: '#1A73E8', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+      }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
     }
 
-    /**
-     * Tên chức năng: Kích hoạt lắng nghe cập nhật tọa độ GPS (Location Updates)
-     * Cách hoạt động: Đăng ký FusedLocationProviderClient với độ ưu tiên cao nhất PRIORITY_HIGH_ACCURACY, mỗi lần có tọa độ mới sẽ bắn lên Firebase Realtime Database.
-     * Luồng hướng tới: Ghi dữ liệu vào Firebase Realtime Database node `tracking/{orderId}`.
-     */
-    @Suppress("MissingPermission")
-    private fun startLocationUpdates() {
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            Constants.GPS_UPDATE_INTERVAL_MS
-        )
-            .setMinUpdateIntervalMillis(Constants.GPS_FASTEST_INTERVAL_MS)
-            .build()
+    // Hàm nhận tọa độ GPS thực tế của Shipper từ Android
+    function updateDriverLocation(lat, lng) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealDriverCoords = true;
+      driverCoords = [lat, lng];
+      driverMarker.setLatLng(driverCoords);
+      if (hasRealShopCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
+      } else {
+        map.setView(driverCoords, 16);
+      }
+    }
 
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { location ->
-                    val tracking = TrackingLocation(
-                        lat = location.latitude,
-                        lng = location.longitude,
-                        updatedAt = System.currentTimeMillis()
-                    )
+    // Hàm cập nhật điểm quán và lộ trình
+    function setDestination(lat, lng) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealShopCoords = true;
+      shopCoords = [lat, lng];
+      shopMarker.setLatLng(shopCoords);
+      if (hasRealDriverCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], shopCoords[0], shopCoords[1]);
+      } else {
+        map.setView(shopCoords, 16);
+      }
+    }
 
-                    FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL)
-                        .getReference("tracking")
-                        .child(orderId)
-                        .setValue(tracking)
-                }
-            }
+    function focusShop() {
+      map.flyTo(shopCoords, 17, { duration: 1 });
+    }
+    function focusDriver() {
+      map.flyTo(driverCoords, 17, { duration: 1 });
+    }
+
+    // Tự động nhận diện GPS nếu mở trên web
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => console.log('Chưa cấp quyền GPS trình duyệt:', err),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+  </script>
+</body>
+</html>
+````
+
+## File: app-internal/src/main/assets/map_step3.html
+````html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #F4F6F8; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #realMap { width: 100%; height: 100%; }
+
+    .driver-marker-wrap {
+      position: relative; width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .driver-pulse-ring {
+      position: absolute; width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(5, 150, 105, 0.25);
+      animation: driverRadar 2s infinite ease-out;
+    }
+    .driver-marker-card {
+      position: relative; width: 40px; height: 40px; background: #FFFFFF;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      border: 3px solid #059669;
+      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.45), 0 2px 6px rgba(0,0,0,0.12);
+      z-index: 2;
+    }
+    .customer-marker-box {
+      padding: 6px 12px; background: #EE4D2D; border-radius: 14px;
+      display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800;
+      color: #FFF; border: 2.5px solid #FFF; box-shadow: 0 4px 14px rgba(238, 77, 45, 0.4);
+      white-space: nowrap;
+    }
+    @keyframes driverRadar {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+    .route-info-badge {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+      padding: 6px 14px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 1000; font-size: 12px; font-weight: 700; color: #1E293B; display: flex;
+      align-items: center; gap: 6px; border: 1px solid #E2E8F0;
+    }
+    .route-info-badge span { color: #059669; }
+  </style>
+</head>
+<body>
+  <div id="routeBadge" class="route-info-badge" style="display:none;">
+    <span>🛵</span> <span id="routeDistance">Đang tải lộ trình...</span>
+  </div>
+  <div id="realMap"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Tọa độ trung tâm TP.HCM làm điểm neo mặc định
+    let driverCoords = [10.7769, 106.7009];
+    let customerCoords = [10.7769, 106.7009];
+    let hasRealDriverCoords = false;
+    let hasRealCustomerCoords = false;
+
+    const map = L.map('realMap', {
+      zoomControl: false,
+      attributionControl: false
+    }).setView(driverCoords, 16);
+
+    L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    }).addTo(map);
+
+    const driverIcon = L.divIcon({
+      className: 'driver-div-icon',
+      html: `
+        <div class="driver-marker-wrap">
+          <div class="driver-pulse-ring"></div>
+          <div class="driver-marker-card">
+            <svg viewBox="0 0 32 32" width="25" height="25" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="7" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="7" cy="22" r="1.4" fill="#FFFFFF"/>
+              <circle cx="24" cy="22" r="3.8" fill="#334155" stroke="#FFFFFF" stroke-width="1.2"/>
+              <circle cx="24" cy="22" r="1.4" fill="#FFFFFF"/>
+              <rect x="3.5" y="10" width="7" height="7.5" rx="1.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
+              <line x1="7" y1="11" x2="7" y2="16.5" stroke="#FFFFFF" stroke-width="0.8" stroke-linecap="round"/>
+              <path d="M7 22l3.8-7.5h5.8l2.8 7.5" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16.6 14.5l3.5-6h3.2" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="15.8" cy="7" r="2.8" fill="#059669" stroke="#FFFFFF" stroke-width="0.8"/>
+              <path d="M13.5 10.5l2.8 4h3.5" stroke="#1E293B" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      `,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24]
+    });
+    const driverMarker = L.marker(driverCoords, { icon: driverIcon }).addTo(map);
+
+    const customerIcon = L.divIcon({
+      className: 'customer-marker-box',
+      html: '📍 Điểm giao khách',
+      iconSize: [140, 32],
+      iconAnchor: [70, 16]
+    });
+    const customerMarker = L.marker(customerCoords, { icon: customerIcon }).addTo(map);
+
+    let routeBorder = null;
+    let routeLine = null;
+
+    async function fetchRealRoute(dLat, dLng, cLat, cLng) {
+      if (!dLat || !dLng || !cLat || !cLng || (dLat === 0 && dLng === 0) || (cLat === 0 && cLng === 0)) {
+        return;
+      }
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${dLng},${dLat};${cLng},${cLat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+          
+          if (routeBorder) map.removeLayer(routeBorder);
+          if (routeLine) map.removeLayer(routeLine);
+
+          // Lớp viền xanh lục đậm
+          routeBorder = L.polyline(coords, {
+            color: '#047857', weight: 8, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+          }).addTo(map);
+
+          // Lớp tuyến đường xanh lá cây
+          routeLine = L.polyline(coords, {
+            color: '#059669', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round'
+          }).addTo(map);
+
+          map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+          const distKm = (route.distance / 1000).toFixed(1);
+          const durationMin = Math.round(route.duration / 60);
+          const badge = document.getElementById('routeBadge');
+          const distSpan = document.getElementById('routeDistance');
+          if (badge && distSpan) {
+            badge.style.display = 'flex';
+            distSpan.innerHTML = `Đến nhà khách: <b>${distKm} km</b> (~${durationMin} phút)`;
+          }
+          return;
         }
+      } catch (e) {
+        console.warn('Lỗi tải tuyến đường thực tế bước 3:', e);
+      }
 
-        fusedLocationClient.requestLocationUpdates(
-            locationRequest,
-            locationCallback,
-            Looper.getMainLooper()
-        )
+      fallbackStraightRoute(dLat, dLng, cLat, cLng);
     }
 
-    /**
-     * Tên chức năng: Giải phóng tài nguyên GPS khi dừng dịch vụ
-     * Cách hoạt động: Hủy đăng ký callback vị trí để ngắt phần cứng GPS giúp tiết kiệm pin.
-     * Luồng hướng tới: Dừng Service an toàn.
-     */
-    override fun onDestroy() {
-        super.onDestroy()
-        isRunning = false
-        if (::locationCallback.isInitialized) {
-            fusedLocationClient.removeLocationUpdates(locationCallback)
-        }
+    function fallbackStraightRoute(dLat, dLng, cLat, cLng) {
+      if (routeBorder) map.removeLayer(routeBorder);
+      if (routeLine) map.removeLayer(routeLine);
+
+      const midLat = (dLat + cLat) / 2;
+      const midLng = (dLng + cLng) / 2;
+      const points = [[dLat, dLng], [midLat, midLng], [cLat, cLng]];
+
+      routeLine = L.polyline(points, {
+        color: '#059669', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round'
+      }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
-}
+    function updateDriverLocation(lat, lng) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealDriverCoords = true;
+      driverCoords = [lat, lng];
+      driverMarker.setLatLng(driverCoords);
+      if (hasRealCustomerCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+      } else {
+        map.setView(driverCoords, 16);
+      }
+    }
+
+    function setDestination(lat, lng, customerName) {
+      if (!lat || !lng || (lat === 0 && lng === 0)) return;
+      hasRealCustomerCoords = true;
+      customerCoords = [lat, lng];
+      customerMarker.setLatLng(customerCoords);
+      if (customerName) {
+        customerMarker.setIcon(L.divIcon({
+          className: 'customer-marker-box',
+          html: `📍 ${customerName}`,
+          iconSize: [150, 32],
+          iconAnchor: [75, 16]
+        }));
+      }
+      if (hasRealDriverCoords) {
+        fetchRealRoute(driverCoords[0], driverCoords[1], customerCoords[0], customerCoords[1]);
+      } else {
+        map.setView(customerCoords, 16);
+      }
+    }
+
+    function focusCustomer() {
+      map.flyTo(customerCoords, 17, { duration: 1 });
+    }
+    function focusDriver() {
+      map.flyTo(driverCoords, 17, { duration: 1 });
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => console.log('Chưa cấp quyền GPS trình duyệt:', err),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+  </script>
+</body>
+</html>
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/service/MerchantKeepAliveService.kt
@@ -36107,6 +35600,125 @@ class MerchantKeepAliveService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossMerchantAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.boss
+
+import android.graphics.Color
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ItemBossMerchantBinding
+
+class BossMerchantAdapter(
+    private val onAssignBranchClick: (User) -> Unit,
+    private val onUnassignBranchClick: (User) -> Unit,
+    private val onToggleLockMerchantClick: (User) -> Unit
+) : ListAdapter<User, BossMerchantAdapter.MerchantViewHolder>(MerchantDiffCallback()) {
+
+    private var storesMap: Map<String, Store> = emptyMap()
+
+    fun setStores(stores: List<Store>) {
+        storesMap = stores.associateBy { it.id }
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MerchantViewHolder {
+        val binding = ItemBossMerchantBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return MerchantViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: MerchantViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class MerchantViewHolder(
+        private val binding: ItemBossMerchantBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(merchant: User) {
+            binding.tvMerchantItemName.text = merchant.name.ifBlank { "Quản lý chưa đặt tên" }
+            binding.tvMerchantItemEmail.text = merchant.email
+            binding.tvMerchantItemPhone.text = merchant.phone.ifBlank { "Chưa có SĐT" }
+
+            val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+
+            if (isLocked) {
+                binding.tvMerchantStatusBadge.text = "Đã khóa"
+                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
+                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#B91C1C"))
+
+                binding.btnToggleLockMerchant.text = "Mở khóa"
+                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#15803D"))
+
+                binding.tvMerchantAssignedBranch.text = "Tài khoản đang bị khóa"
+                binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EF4444"))
+                binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EF4444"))
+
+                binding.btnAssignMerchantItem.isEnabled = false
+                binding.btnAssignMerchantItem.alpha = 0.5f
+                binding.btnUnassignMerchantItem.visibility = View.GONE
+            } else {
+                binding.tvMerchantStatusBadge.text = "Hoạt động"
+                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
+                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#15803D"))
+
+                binding.btnToggleLockMerchant.text = "Khóa"
+                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#EF4444"))
+
+                binding.btnAssignMerchantItem.isEnabled = true
+                binding.btnAssignMerchantItem.alpha = 1.0f
+
+                val assignedStore = if (merchant.storeId.isNotBlank()) storesMap[merchant.storeId] else null
+                if (merchant.storeId.isNotBlank()) {
+                    val branchTitle = assignedStore?.name?.ifBlank { null } ?: "Chi nhánh (${merchant.storeId.take(6)}...)"
+                    binding.tvMerchantAssignedBranch.text = "Chi nhánh: $branchTitle"
+                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#2563EB"))
+                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#2563EB"))
+                    binding.btnAssignMerchantItem.text = "Đổi quán"
+                    binding.btnUnassignMerchantItem.visibility = View.VISIBLE
+                } else {
+                    binding.tvMerchantAssignedBranch.text = "Chưa phân công chi nhánh"
+                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EA580C"))
+                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EA580C"))
+                    binding.btnAssignMerchantItem.text = "Phân công"
+                    binding.btnUnassignMerchantItem.visibility = View.GONE
+                }
+            }
+
+            binding.btnAssignMerchantItem.setOnClickListener {
+                if (!isLocked) {
+                    onAssignBranchClick(merchant)
+                }
+            }
+
+            binding.btnUnassignMerchantItem.setOnClickListener {
+                onUnassignBranchClick(merchant)
+            }
+
+            binding.btnToggleLockMerchant.setOnClickListener {
+                onToggleLockMerchantClick(merchant)
+            }
+        }
+    }
+
+    class MerchantDiffCallback : DiffUtil.ItemCallback<User>() {
+        override fun areItemsTheSame(oldItem: User, newItem: User): Boolean = oldItem.uid == newItem.uid
+        override fun areContentsTheSame(oldItem: User, newItem: User): Boolean = oldItem == newItem
     }
 }
 ````
@@ -57799,596 +57411,386 @@ class HomeActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/menu/MenuActivity.kt
 ````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
+package com.chuyen_de_2.foodorder.customer.ui.menu
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.Paint
+import android.os.Bundle
+import android.view.View
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.CenterCrop
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
+import com.chuyen_de_2.foodorder.core.data.model.Dish
 import com.chuyen_de_2.foodorder.core.data.model.Store
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import javax.inject.Inject
+import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ActivityMenuBinding
+import com.chuyen_de_2.foodorder.customer.ui.cart.CartActivity
+import com.google.android.material.chip.Chip
+import dagger.hilt.android.AndroidEntryPoint
 
-@HiltViewModel
-class HomeViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository
-) : ViewModel() {
+/**
+ * Tên chức năng: Chi Tiết Thực Đơn Quán & Đặt Món (Store Menu & Item Detail Screen)
+ * Cách hoạt động:
+ *  - Lấy danh sách món ăn từ Cửa hàng tương ứng theo `shopId` từ Firestore.
+ *  - Khu vực phía trên (Top Detail Section): Hiển thị hình ảnh lớn, tên món, giá gốc gạch ngang, giá khuyến mãi, điểm đánh giá sao ⭐ và bình luận của khách hàng.
+ *  - Khu vực phía dưới: Phân loại món ăn theo Chip danh mục (Mới, Combo, Cà phê, Trà, v.v.) và danh sách món dạng RecyclerView.
+ *  - Bấm chọn món sẽ tự động thêm vào giỏ hàng hoặc mở modal tùy chọn Size/Topping [DishOptionBottomSheetDialogFragment].
+ *  - Thanh đặt hàng cố định (Bottom Checkout Bar): Hiển thị tổng số lượng món, tổng số tiền và nút "Xem Giỏ Hàng".
+ * Luồng hướng tới:
+ *  - Bấm "Xem Giỏ Hàng" -> Chuyển sang màn hình giỏ hàng [CartActivity].
+ *  - Bấm "Đánh giá" -> Mở BottomSheet xem chi tiết đánh giá [DishReviewsBottomSheetDialogFragment].
+ */
+@AndroidEntryPoint
+class MenuActivity : AppCompatActivity() {
 
-    private val _stores = MutableLiveData<List<Store>>(emptyList())
-    val stores: LiveData<List<Store>> = _stores
-    val restaurants: LiveData<List<Store>> get() = _stores
+    private lateinit var binding: ActivityMenuBinding
+    private val viewModel: MenuViewModel by viewModels()
+    private lateinit var adapter: MenuAdapter
+    private var shopName: String = "Nhà hàng"
+    private var currentShopId: String = ""
 
-    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
-    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
-    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
+    /**
+     * Tên chức năng: Khởi tạo màn hình thực đơn quán
+     * Cách hoạt động: Nhận `shopId`, `shopName` từ Intent, nạp dữ liệu menu từ ViewModel và thiết lập giao diện.
+     * Luồng hướng tới: Chuẩn bị hiển thị danh sách món ăn của quán.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMenuBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
-    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
-    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
+        InsetUtils.setLightStatusBar(this, true)
+        InsetUtils.applyToolbarInsets(binding.layoutTopNav)
+        InsetUtils.applyNavigationBarPadding(binding.layoutBottomCheckoutBar)
 
-    enum class HotTab {
-        BEST_SELLER,
-        FAVORITE
-    }
-
-    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
-    val currentHotTab: LiveData<HotTab> = _currentHotTab
-
-    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
-    private var topBestSellerDishes = listOf<HotDish>()
-    private var topFavoriteDishes = listOf<HotDish>()
-
-    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
-    val hotDishes: LiveData<List<HotDish>> = _hotDishes
-
-    // Danh sách danh mục nền tảng thời gian thực từ Firebase
-    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
-    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
-
-    private val _isLoading = MutableLiveData(false)
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>()
-    val error: LiveData<String?> = _error
-
-    private var masterDishList = listOf<HomeDishItem>()
-    private var currentQuery: String? = null
-    private var currentCategory: String? = null
-    private var currentNearbyOnly: Boolean = false
-    var currentNearbyMaxDistanceKm: Double = 1.5
-        private set
-    var currentMinPrice: Long? = null
-        private set
-    var currentMaxPrice: Long? = null
-        private set
-    var currentMinRating: Float = 1.0f
-        private set
-    var currentMaxRating: Float = 5.0f
-        private set
-    private var currentPriceSort: PriceSort = PriceSort.NONE
-    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
-        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-
-    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
-
-    fun setUserLocation(lat: Double, lng: Double) {
-        if (lat != 0.0 && lng != 0.0) {
-            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
-            _stores.value?.let { processStoresAndDishes(it) }
+        val shopId = intent.getStringExtra(Constants.EXTRA_SHOP_ID) ?: run {
+            Toast.makeText(this, "Lỗi: không tìm thấy nhà hàng", Toast.LENGTH_SHORT).show()
+            finish()
+            return
         }
-    }
+        currentShopId = shopId
+        shopName = intent.getStringExtra(Constants.EXTRA_SHOP_NAME) ?: "Nhà hàng"
+        val initialDishId = intent.getStringExtra(Constants.EXTRA_DISH_ID)
+        val initialDishName = intent.getStringExtra(Constants.EXTRA_DISH_NAME)
+        val initialDishPrice = intent.getLongExtra(Constants.EXTRA_DISH_PRICE, 0L)
+        val initialDishImage = intent.getStringExtra(Constants.EXTRA_DISH_IMAGE) ?: ""
+        val initialDishCategory = intent.getStringExtra(Constants.EXTRA_DISH_CATEGORY) ?: ""
 
-    init {
-        loadStores()
-    }
-
-    fun loadStores() {
-        _isLoading.value = true
-        _error.value = null
-
-        viewModelScope.launch {
-            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
-            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
-                _isLoading.value = false
-                _stores.value = firebaseStores
-                processStoresAndDishes(firebaseStores)
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
-            firebaseRepository.observeAllOrders().collectLatest { orders ->
-                cachedOrders = orders
-                _stores.value?.let { recalculateHotDishes(it) }
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
-            firebaseRepository.observeCategories().collectLatest { cats ->
-                _platformCategories.value = cats
-            }
-        }
-    }
-
-    private fun processStoresAndDishes(storeList: List<Store>) {
-        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // 1. Quán gần đây (Sắp xếp theo thứ tự: Quán đang mở trước, khoảng cách từ gần đến xa)
-        val nearbyList = activeStores.map { store ->
-            val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
-                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
-                "$baseTime-${baseTime + 10} phút"
-            } else "15-25 phút"
-            val emoji = when {
-                store.name.contains("Trà", true) -> "🍵"
-                store.name.contains("Cơm", true) -> "🍛"
-                store.name.contains("Gà", true) -> "🍗"
-                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
-                else -> "🍲"
-            }
-            NearbyStoreItem(
-                id = store.id,
-                name = store.name,
-                address = store.address.ifBlank { "TP.HCM" },
-                distanceKm = roundedDist,
-                eta = eta,
-                rating = store.ratingAvg,
-                imageUrl = store.imageUrl,
-                emoji = emoji,
-                originalStore = store,
-                isClosed = isClosed
+        val initialDish = if (!initialDishId.isNullOrEmpty() && !initialDishName.isNullOrEmpty()) {
+            Dish(
+                id = initialDishId,
+                storeId = shopId,
+                name = initialDishName,
+                basePrice = initialDishPrice,
+                imageUrl = initialDishImage,
+                category = initialDishCategory
             )
-        }
+        } else null
 
-        val sortedNearbyList = nearbyList.sortedWith(
-            compareBy<NearbyStoreItem> { if (it.isClosed) 1 else 0 }
-                .thenBy { if (it.distanceKm > 0.0) 0 else 1 }
-                .thenBy { it.distanceKm }
-        )
-        _nearbyStores.value = sortedNearbyList
+        viewModel.setShopInfo(shopId, shopName, initialDishId, initialDish)
 
-        // 2. Thu thập các món ăn của quán - CHỈ HIỂN THỊ MÓN CỦA CÁC QUÁN ĐANG MỞ CỬA (OPEN)
-        // Khi quán tạm đóng, ẩn toàn bộ món khỏi danh sách gợi ý trang chủ
-        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
-        val allDishes = mutableListOf<HomeDishItem>()
-
-        openStores.forEach { store ->
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-
-            availableDishes.forEach { dish ->
-                val platformCat = dish.platformCategory.ifBlank {
-                    inferPlatformCategory(dish.name, dish.category)
-                }
-                val emoji = when {
-                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
-                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
-                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
-                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
-                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
-                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
-                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
-                    platformCat.contains("Chay", true) -> "🥗"
-                    platformCat.contains("Hải sản", true) -> "🦐"
-                    platformCat.contains("Ăn vặt", true) -> "🍟"
-                    platformCat.contains("Tráng miệng", true) -> "🍰"
-                    platformCat.contains("Lẩu", true) -> "🍲"
-                    else -> "🍽️"
-                }
-                allDishes.add(
-                    HomeDishItem(
-                        id = dish.id,
-                        name = dish.name,
-                        price = dish.basePrice,
-                        originalPrice = dish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = emoji,
-                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
-                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
-                        distanceKm = roundedDist,
-                        promoBadge = "",
-                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
-                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
-                        category = dish.category.ifBlank { store.category },
-                        platformCategory = platformCat
-                    )
-                )
-            }
-        }
-
-        masterDishList = allDishes
-        applyFilters()
-
-        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
-        recalculateHotDishes(activeStores)
-    }
-
-    private fun recalculateHotDishes(storeList: List<Store>) {
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
-        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
-        val weeklyDishSales = mutableMapOf<String, Int>()
-        cachedOrders.filter { order ->
-            val ts = order.effectiveTimestamp
-            ts >= oneWeekAgo &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
-        }.forEach { order ->
-            order.items.values.forEach { item ->
-                if (item.dishId.isNotBlank()) {
-                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
-                }
-            }
-        }
-
-        // Chỉ tính món hot từ các quán ĐANG MỞ CỬA (OPEN)
-        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
-
-        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
-        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
-        openStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val bestDish = availableDishes.maxWithOrNull(
-                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
-                )
-                if (bestDish != null) {
-                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
-                    val totalCount = bestDish.soldCount
-                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
-                    val badgeText = when {
-                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
-                        totalCount > 0 -> "🔥 $totalCount đã bán"
-                        else -> "🔥 Bán chạy"
-                    }
-                    val hotDish = HotDish(
-                        id = bestDish.id,
-                        name = bestDish.name,
-                        price = bestDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    bestSellerList.add(Pair(hotDish, salesScore))
-                }
-            }
-        }
-        topBestSellerDishes = bestSellerList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
-        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
-        openStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val topRatedDish = availableDishes.maxWithOrNull(
-                    compareBy(
-                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
-                        { it.reviewCount },
-                        { it.soldCount }
-                    )
-                )
-                if (topRatedDish != null) {
-                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
-                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
-                        else 5.0f
-                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
-                    val badgeText = "⭐ $formattedRating"
-                    val hotDish = HotDish(
-                        id = topRatedDish.id,
-                        name = topRatedDish.name,
-                        price = topRatedDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    favoriteList.add(Pair(hotDish, rating))
-                }
-            }
-        }
-        topFavoriteDishes = favoriteList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    fun switchHotTab(tab: HotTab) {
-        if (_currentHotTab.value == tab) return
-        _currentHotTab.value = tab
-        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
-        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
-        return when {
-            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
-            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
-            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
-            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
-            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
-            else -> "🍽️"
-        }
-    }
-
-    enum class PriceSort {
-        NONE, ASC, DESC
-    }
-
-    /** Lọc danh sách món ăn */
-    fun filterDishes(
-        query: String? = null,
-        category: String? = null,
-        nearbyOnly: Boolean? = null,
-        maxDistanceKm: Double? = null,
-        minPrice: Long? = null,
-        maxPrice: Long? = null,
-        minRating: Float? = null,
-        maxRating: Float? = null,
-        resetPrice: Boolean = false,
-        resetRating: Boolean = false,
-        priceSort: PriceSort? = null
-    ) {
-        if (query != null) currentQuery = query
-        if (category != null) currentCategory = if (category == "ALL") null else category
-        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
-        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
-        if (resetPrice) {
-            currentMinPrice = null
-            currentMaxPrice = null
-            currentPriceSort = PriceSort.NONE
-        } else {
-            if (minPrice != null || maxPrice != null) {
-                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
-                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
-            }
-            if (priceSort != null) {
-                currentPriceSort = priceSort
-            }
-        }
-        if (resetRating) {
-            currentMinRating = 1.0f
-            currentMaxRating = 5.0f
-        } else {
-            if (minRating != null) currentMinRating = minRating
-            if (maxRating != null) currentMaxRating = maxRating
-        }
-        applyFilters()
-    }
-
-    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
-    fun getFilteredDishesCount(
-        minPrice: Long?,
-        maxPrice: Long?,
-        minRating: Float,
-        maxRating: Float
-    ): Int {
-        var list = masterDishList
-
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            list = list.filter { matchesCategory(it, cat) }
-        }
-
-        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
-            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
-        }
-
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            list = list.filter { matchesSearch(it, q) }
-        }
-
-        if (minPrice != null && minPrice > 0) {
-            list = list.filter { it.price >= minPrice }
-        }
-        if (maxPrice != null && maxPrice > 0) {
-            list = list.filter { it.price <= maxPrice }
-        }
-
-        if (minRating > 1.05f || maxRating < 4.95f) {
-            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
-        }
-
-        return list.size
+        setupTopNav()
+        setupCategoryChips()
+        setupRecyclerView()
+        setupBottomCheckoutBar()
+        observeViewModel()
     }
 
     /**
-     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     * Tên chức năng: Thiết lập thanh điều hướng đỉnh (Top Navigation Bar)
+     * Cách hoạt động: Bắt sự kiện nút quay lại, chia sẻ liên kết quán và thêm quán vào danh sách yêu thích.
+     * Luồng hướng tới: Tương tác người dùng.
      */
-    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
-        val qClean = query.trim().lowercase()
-        if (qClean.isBlank()) return true
-
-        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
-
-        val name = dish.name.lowercase()
-        val store = dish.storeName.lowercase()
-        val cat = dish.category.lowercase()
-        val platCat = dish.platformCategory.lowercase()
-
-        val fullWithAccent = "$name $store $cat $platCat"
-        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
-
-        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
-        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
-            return true
+    private fun setupTopNav() {
+        binding.btnNavBack.setOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
         }
+        binding.tvShopNavTitle.text = shopName
 
-        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
-        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
-        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
-            return true
+        val initialShopImage = intent.getStringExtra(Constants.EXTRA_SHOP_IMAGE).orEmpty()
+        if (initialShopImage.isNotBlank()) {
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                imageView = binding.ivShopNavAvatar,
+                imageUrl = initialShopImage,
+                placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+                cornerDp = 14
+            )
         }
-
-        return false
     }
 
-    private fun applyFilters() {
-        var filtered = masterDishList
+    /**
+     * Tên chức năng: Bộ lọc danh mục món ăn (Category Filter Chips)
+     * Cách hoạt động: Lắng nghe sự kiện chọn Chip để lọc danh sách món: Món mới, Combo, Cà phê, Trà hoặc Tất cả.
+     * Luồng hướng tới: Gọi [MenuViewModel.filterByCategory].
+     */
+    private fun setupCategoryChips() {
+        binding.chipGroupCategory.setOnCheckedStateChangeListener { _, checkedIds ->
+            if (checkedIds.isEmpty()) return@setOnCheckedStateChangeListener
+            val selectedId = checkedIds.first()
+            val category = when (selectedId) {
+                R.id.chipNewDrink -> "mới"
+                R.id.chipCombo -> "Combo"
+                R.id.chipCoffee -> "Cà phê"
+                R.id.chipTea -> "Trà"
+                else -> "ALL"
+            }
+            viewModel.filterByCategory(category)
+        }
+    }
 
-        // 1. Lọc theo cự ly gần
-        if (currentNearbyOnly) {
-            val maxDist = currentNearbyMaxDistanceKm
-            filtered = if (maxDist >= 999.0) {
-                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
-            } else {
-                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
-                if (nearbyDishes.isNotEmpty()) {
-                    nearbyDishes.sortedBy { it.distanceKm }
-                } else {
-                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+    /**
+     * Tên chức năng: Khởi tạo RecyclerView thực đơn món ăn
+     * Cách hoạt động: Cấu hình [MenuAdapter] với các hành động thêm/bớt món, lấy số lượng đã chọn trong giỏ và xem chi tiết món.
+     * Luồng hướng tới: Render từng món ăn trong menu.
+     */
+    private fun setupRecyclerView() {
+        adapter = MenuAdapter(
+            onAddClick = { dish ->
+                handleDishSelection(dish)
+            },
+            onRemoveClick = { itemId ->
+                viewModel.removeFromCart(itemId)
+            },
+            getQuantity = { itemId ->
+                viewModel.getItemQuantity(itemId)
+            },
+            onItemClick = { dish ->
+                handleDishSelection(dish)
+            }
+        )
+
+        binding.rvMenu.apply {
+            layoutManager = LinearLayoutManager(this@MenuActivity)
+            adapter = this@MenuActivity.adapter
+        }
+    }
+
+    /**
+     * Tên chức năng: Cấu hình thanh Đặt Món / Xem Giỏ Hàng phía dưới
+     * Cách hoạt động: Đồng bộ dữ liệu giỏ hàng vào Room/Shared ViewModel và chuyển hướng sang [CartActivity].
+     * Luồng hướng tới: [CartActivity].
+     */
+    private fun setupBottomCheckoutBar() {
+        binding.btnCheckoutNow.setOnClickListener {
+            val isClosed = viewModel.store.value?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+            if (isClosed) {
+                Toast.makeText(this, "⚠️ Quán đang tạm đóng cửa ngưng nhận đơn mới!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            viewModel.flushCart()
+            startActivity(Intent(this, CartActivity::class.java))
+        }
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe trạng thái dữ liệu từ MenuViewModel
+     * Cách hoạt động:
+     *  - Cập nhật danh sách món ăn hiển thị.
+     *  - Cập nhật thông tin món ăn đang chọn ở phần chi tiết đỉnh.
+     *  - Hiển thị hoặc ẩn thanh đặt hàng dưới cùng kèm tổng tiền.
+     * Luồng hướng tới: Đồng bộ giao diện tức thời.
+     */
+    private fun observeViewModel() {
+        viewModel.dishes.observe(this) { items ->
+            adapter.submitList(items)
+            binding.tvEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+            binding.tvDishesCountBadge.text = "${items.size} MÓN"
+        }
+
+        viewModel.categories.observe(this) { cats ->
+            if (cats.isNotEmpty()) {
+                binding.chipGroupCategory.removeAllViews()
+
+                val allChip = Chip(this).apply {
+                    id = View.generateViewId()
+                    text = "Tất cả"
+                    isCheckable = true
+                    isChecked = (viewModel.currentCategoryName == "ALL" || viewModel.currentCategoryName.isEmpty())
+                    setOnClickListener { viewModel.filterByCategory("ALL") }
+                }
+                binding.chipGroupCategory.addView(allChip)
+
+                cats.forEach { catName ->
+                    val chip = Chip(this).apply {
+                        id = View.generateViewId()
+                        text = catName
+                        isCheckable = true
+                        isChecked = (viewModel.currentCategoryName == catName)
+                        setOnClickListener { viewModel.filterByCategory(catName) }
+                    }
+                    binding.chipGroupCategory.addView(chip)
                 }
             }
         }
 
-        // 2. Lọc theo danh mục
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesCategory(dish, cat)
+        viewModel.selectedDish.observe(this) { dish ->
+            if (dish != null) {
+                bindTopDetailSection(dish)
+                adapter.setSelectedDishId(dish.id)
             }
         }
 
-        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesSearch(dish, q)
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
+
+        viewModel.cartCount.observe(this) { count ->
+            if (count > 0) {
+                binding.layoutBottomCheckoutBar.visibility = View.VISIBLE
+                binding.tvCheckoutCartSub.text = "Đã chọn $count món • $shopName"
+            } else {
+                binding.layoutBottomCheckoutBar.visibility = View.GONE
             }
         }
 
-        // 4. Lọc theo khoảng giá tiền
-        val minP = currentMinPrice
-        val maxP = currentMaxPrice
-        if (minP != null || maxP != null) {
-            filtered = filtered.filter { dish ->
-                val p = dish.price
-                (minP == null || p >= minP) && (maxP == null || p <= maxP)
+        viewModel.cartTotalPrice.observe(this) { total ->
+            binding.tvCheckoutTotalPrice.text = total.toVndCurrency()
+        }
+
+        viewModel.cartItems.observe(this) {
+            adapter.notifyDataSetChanged()
+        }
+
+        viewModel.store.observe(this) { store ->
+            if (store != null) {
+                com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                    imageView = binding.ivShopNavAvatar,
+                    imageUrl = store.effectiveImageUrl,
+                    placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
+                    cornerDp = 14
+                )
+                val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+                if (isClosed) {
+                    binding.tvShopNavTitle.text = "${store.name.ifBlank { shopName }} (Tạm đóng)"
+                    binding.tvShopNavTitle.setTextColor(Color.parseColor("#EF4444"))
+                    binding.layoutBottomCheckoutBar.visibility = View.GONE
+                } else {
+                    binding.tvShopNavTitle.text = store.name.ifBlank { shopName }
+                    binding.tvShopNavTitle.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.text_primary))
+                }
             }
         }
-
-        // 5. Lọc theo khoảng sao đánh giá
-        val minR = currentMinRating
-        val maxR = currentMaxRating
-        if (minR > 1.05f || maxR < 4.95f) {
-            filtered = filtered.filter { dish ->
-                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
-            }
-        }
-
-        // 5. Sắp xếp theo giá tiền nếu có
-        when (currentPriceSort) {
-            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
-            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
-            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
-        }
-
-        _homeDishes.value = filtered
     }
 
-    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
-        val target = filterCat.trim().lowercase()
-        val pCat = dish.platformCategory.lowercase()
-        val sCat = dish.category.lowercase()
-        val name = dish.name.lowercase()
-        val store = dish.storeName.lowercase()
-        val combined = "$name $pCat $sCat $store"
+    /**
+     * Tên chức năng: Hiển thị chi tiết món ăn ở khung nổi bật phía trên (Top Detail Card)
+     * Cách hoạt động: Render tên, giá, ảnh món ăn, mô tả, huy hiệu khuyến mãi và điểm sao đánh giá.
+     * Luồng hướng tới: Cung cấp thông tin cận cảnh về món ăn.
+     */
+    private fun bindTopDetailSection(dish: Dish) {
+        binding.tvDetailDishTitle.text = dish.name
+        binding.tvDetailDishStore.text = "Quán $shopName"
+        binding.tvDetailPriceMain.text = dish.price.toVndCurrency()
 
-        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
-        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
-        if (name.contains(target)) return true
+        binding.tvDetailPriceOld.visibility = View.GONE
 
-        if (target.contains("cơm")) {
-            return combined.contains("cơm") || combined.contains("com")
-        }
-        if (target.contains("bún đậu")) {
-            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
-        }
-        if (target.contains("phở")) {
-            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
-        }
-        if (target.contains("trà sữa")) {
-            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
-        }
-        if (target.contains("nước ép")) {
-            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
+        val rating = if (dish.ratingAvg > 0f) dish.ratingAvg else 5.0f
+        val reviewCount = dish.reviewCount
+
+        // Luôn hiển thị đánh giá & nút xem/viết đánh giá theo chuẩn b5.html
+        binding.tvDetailRatingText.visibility = View.VISIBLE
+        binding.btnViewDishReviews.visibility = View.VISIBLE
+        binding.btnHeaderDishReviews.visibility = View.VISIBLE
+
+        if (reviewCount > 0) {
+            binding.tvDetailRatingText.text = "⭐ $rating ($reviewCount đánh giá)"
+            binding.btnViewDishReviews.text = "⭐ Xem đánh giá ($reviewCount) ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ($reviewCount) ➔"
+        } else {
+            binding.tvDetailRatingText.text = "⭐ 5.0 (Chưa có đánh giá)"
+            binding.btnViewDishReviews.text = "💬 Xem đánh giá ➔"
+            binding.btnHeaderDishReviews.text = "💬 Xem đánh giá ➔"
         }
 
-        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
-        return keywords.any { kw -> combined.contains(kw) }
+        binding.tvDetailDesc.text = if (dish.description.isNotBlank()) {
+            dish.description
+        } else {
+            "Món ngon thơm lừng chế biến từ nguyên liệu tươi sạch, giữ trọn hương vị đặc trưng truyền thống."
+        }
+
+        if (dish.soldCount > 500) {
+            binding.tvDetailPromoBadge.visibility = View.VISIBLE
+            binding.tvDetailPromoBadge.text = "HOT"
+        } else {
+            binding.tvDetailPromoBadge.visibility = View.GONE
+        }
+
+        Glide.with(this)
+            .load(dish.imageUrl)
+            .transform(CenterCrop(), RoundedCorners(28))
+            .placeholder(R.drawable.placeholder_food)
+            .error(R.drawable.placeholder_food)
+            .into(binding.ivDetailFood)
+
+        binding.btnViewDishReviews.setOnClickListener {
+            val sheet = DishReviewsBottomSheetDialogFragment.newInstance(
+                dishId = dish.id,
+                dishName = dish.name,
+                dishRating = rating,
+                reviewCount = reviewCount,
+                storeId = dish.storeId.ifBlank { currentShopId }
+            )
+            sheet.show(supportFragmentManager, "DishReviewsBottomSheet")
+        }
+
+        binding.tvDetailRatingText.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
+        }
+
+        binding.btnHeaderDishReviews.setOnClickListener {
+            binding.btnViewDishReviews.performClick()
+        }
+
+        binding.cardTopDetail.setOnClickListener {
+            handleDishSelection(dish)
+        }
     }
 
-    private fun inferPlatformCategory(name: String, category: String): String {
-        val text = "$name $category".lowercase()
-        return when {
-            text.contains("cơm") -> "Cơm"
-            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
-            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
-            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
-            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
-            text.contains("trà") -> "Trà sữa"
-            else -> "Cơm"
+    /**
+     * Tên chức năng: Xử lý sự kiện chọn món và thêm vào giỏ hàng
+     * Cách hoạt động: Cập nhật món đang chọn lên ViewModel, tự động cộng thêm số lượng vào giỏ và thông báo cho người dùng.
+     * Luồng hướng tới: Thêm món vào [CartViewModel].
+     */
+    private fun handleDishSelection(dish: Dish) {
+        val currentStore = viewModel.store.value
+        val isClosed = currentStore?.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+        if (isClosed) {
+            Toast.makeText(this, "⚠️ Quán đang tạm đóng cửa ngưng nhận đơn mới. Vui lòng quay lại sau!", Toast.LENGTH_LONG).show()
+            return
         }
+
+        viewModel.selectDish(dish)
+        adapter.setSelectedDishId(dish.id)
+
+        viewModel.addToCart(dish)
+        adapter.notifyDataSetChanged()
+
+        val currentQty = viewModel.getItemQuantity(dish.id)
+        Toast.makeText(this, "Đã chọn: ${dish.name} (x$currentQty)", Toast.LENGTH_SHORT).show()
     }
 
-    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
-        if (store.latitude != 0.0 && store.longitude != 0.0) {
-            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+    private fun showDishOptionBottomSheet(dish: Dish) {
+        val bottomSheet = DishOptionBottomSheetDialogFragment(dish) { cartItem ->
+            viewModel.addCustomCartItem(cartItem)
+            adapter.notifyDataSetChanged()
         }
-        val distName = store.district.trim()
-        if (distName.isNotBlank()) {
-            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
-            if (exact != null) return exact
-            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
-                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
-            if (fuzzy != null) return fuzzy
-        }
-        return null
+        bottomSheet.show(supportFragmentManager, DishOptionBottomSheetDialogFragment.TAG)
     }
 
-    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
-        if (storeLatLng == null) return 0.0
-        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
-            currentUserLatLng,
-            storeLatLng
-        ).toDouble()
-        return Math.round(dist * 10.0) / 10.0
+    override fun onPause() {
+        super.onPause()
+        viewModel.flushCart()
     }
-
-    fun loadRestaurants() = loadStores()
 }
 ````
 
@@ -65440,6 +64842,186 @@ class OrderHistoryActivity : AppCompatActivity() {
 </resources>
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/service/LocationForegroundService.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.service
+
+import android.app.Notification
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Intent
+import android.os.IBinder
+import android.os.Looper
+import androidx.core.app.NotificationCompat
+import com.chuyen_de_2.foodorder.core.data.model.TrackingLocation
+import com.chuyen_de_2.foodorder.core.util.Constants
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.firebase.database.FirebaseDatabase
+
+/**
+ * Tên chức năng: Dịch Vụ Chạy Ngầm Theo Dõi Vị Trí GPS Tài Xế (Android Foreground Location Service)
+ * Cách hoạt động:
+ *  - Chạy dưới dạng Foreground Service với Notification thường trực (Ongoing) để chống bị Android OS tắt khi khóa màn hình (Doze Mode).
+ *  - Dùng FusedLocationProviderClient lấy tọa độ GPS chính xác cao mỗi 5 giây (`GPS_UPDATE_INTERVAL_MS`).
+ *  - Đẩy trực tiếp tọa độ (Latitude, Longitude, Timestamp) lên nút Firebase Realtime Database `tracking/{orderId}`.
+ * Luồng hướng tới:
+ *  - Ứng dụng Khách hàng [TrackingActivity] lắng nghe realtime nút này để vẽ biểu tượng xe máy di chuyển trực tiếp trên bản đồ.
+ */
+class LocationForegroundService : Service() {
+
+    companion object {
+        const val EXTRA_ORDER_ID = "extra_order_id"
+        const val EXTRA_ORDER_IDS = "extra_order_ids"
+        var isRunning: Boolean = false
+    }
+
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationCallback: LocationCallback
+    private var orderId: String = ""
+    private var activeOrderIds: ArrayList<String> = arrayListOf()
+
+    override fun onCreate() {
+        super.onCreate()
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+    }
+
+    /**
+     * Tên chức năng: Tiếp nhận lệnh khởi động dịch vụ (Start Command)
+     * Cách hoạt động: Lấy orderId từ Intent, gọi [startForeground] hiển thị notification và kích hoạt luồng GPS.
+     * Luồng hướng tới: Bắt đầu phát tọa độ vị trí.
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val newOrderId = intent?.getStringExtra(EXTRA_ORDER_ID).orEmpty()
+        val newOrderIds = intent?.getStringArrayListExtra(EXTRA_ORDER_IDS)
+
+        if (newOrderId.isNotBlank()) {
+            orderId = newOrderId
+        }
+        if (!newOrderIds.isNullOrEmpty()) {
+            activeOrderIds.clear()
+            activeOrderIds.addAll(newOrderIds)
+        }
+
+        if (orderId.isEmpty() && activeOrderIds.isEmpty()) {
+            orderId = "DRIVER_ACTIVE_DUTY"
+        }
+
+        // Bắt đầu hoặc cập nhật Foreground Service với Notification
+        startForeground(Constants.FOREGROUND_SERVICE_ID, createNotification())
+
+        // Bắt đầu lắng nghe GPS nếu chưa chạy
+        if (!isRunning) {
+            startLocationUpdates()
+            isRunning = true
+        }
+
+        return START_STICKY
+    }
+
+    /**
+     * Tên chức năng: Tạo Notification thông báo trạng thái giao hàng
+     * Cách hoạt động: Tạo thông báo thường trực trên khay hệ thống, gắn PendingIntent mở lại [DashboardActivity].
+     * Luồng hướng tới: Hiển thị thông báo cố định cho người dùng.
+     */
+    private fun createNotification(): Notification {
+        val intent = Intent(this, DashboardActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val displayText = if (orderId.isNotBlank() && orderId != "DRIVER_ACTIVE_DUTY") {
+            "GPS đang hoạt động — Đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(orderId)}"
+        } else {
+            "Sẵn sàng nhận đơn & Phát vị trí GPS trực tuyến"
+        }
+
+        return NotificationCompat.Builder(this, Constants.CHANNEL_ID_TRACKING)
+            .setContentTitle("🛵 Đang giao hàng")
+            .setContentText(displayText)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .build()
+    }
+
+    /**
+     * Tên chức năng: Kích hoạt lắng nghe cập nhật tọa độ GPS (Location Updates)
+     * Cách hoạt động: Đăng ký FusedLocationProviderClient với độ ưu tiên cao nhất PRIORITY_HIGH_ACCURACY, mỗi lần có tọa độ mới sẽ bắn lên Firebase Realtime Database.
+     * Luồng hướng tới: Ghi dữ liệu vào Firebase Realtime Database node `tracking/{orderId}`.
+     */
+    @Suppress("MissingPermission")
+    private fun startLocationUpdates() {
+        val locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            Constants.GPS_UPDATE_INTERVAL_MS
+        )
+            .setMinUpdateIntervalMillis(Constants.GPS_FASTEST_INTERVAL_MS)
+            .build()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { location ->
+                    val tracking = TrackingLocation(
+                        lat = location.latitude,
+                        lng = location.longitude,
+                        updatedAt = System.currentTimeMillis()
+                    )
+
+                    val targets = mutableSetOf<String>()
+                    if (orderId.isNotBlank() && orderId != "DRIVER_ACTIVE_DUTY") {
+                        targets.add(orderId)
+                    }
+                    activeOrderIds.forEach { id ->
+                        if (id.isNotBlank() && id != "DRIVER_ACTIVE_DUTY") {
+                            targets.add(id)
+                        }
+                    }
+
+                    val trackingRef = FirebaseDatabase.getInstance(Constants.FIREBASE_DATABASE_URL).getReference("tracking")
+                    targets.forEach { targetId ->
+                        trackingRef.child(targetId).setValue(tracking)
+                    }
+
+                    // Luôn cập nhật vị trí chung của tài xế
+                    trackingRef.child("DRIVER_ACTIVE_DUTY").setValue(tracking)
+                }
+            }
+        }
+
+        fusedLocationClient.requestLocationUpdates(
+            locationRequest,
+            locationCallback,
+            Looper.getMainLooper()
+        )
+    }
+
+    /**
+     * Tên chức năng: Giải phóng tài nguyên GPS khi dừng dịch vụ
+     * Cách hoạt động: Hủy đăng ký callback vị trí để ngắt phần cứng GPS giúp tiết kiệm pin.
+     * Luồng hướng tới: Dừng Service an toàn.
+     */
+    override fun onDestroy() {
+        super.onDestroy()
+        isRunning = false
+        if (::locationCallback.isInitialized) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+        }
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/RegisterActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.auth
@@ -65734,125 +65316,6 @@ class BossBranchAdapter(
             override fun areContentsTheSame(oldItem: Store, newItem: Store): Boolean =
                 oldItem == newItem
         }
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossMerchantAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.boss
-
-import android.graphics.Color
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ItemBossMerchantBinding
-
-class BossMerchantAdapter(
-    private val onAssignBranchClick: (User) -> Unit,
-    private val onUnassignBranchClick: (User) -> Unit,
-    private val onToggleLockMerchantClick: (User) -> Unit
-) : ListAdapter<User, BossMerchantAdapter.MerchantViewHolder>(MerchantDiffCallback()) {
-
-    private var storesMap: Map<String, Store> = emptyMap()
-
-    fun setStores(stores: List<Store>) {
-        storesMap = stores.associateBy { it.id }
-        notifyDataSetChanged()
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MerchantViewHolder {
-        val binding = ItemBossMerchantBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return MerchantViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: MerchantViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class MerchantViewHolder(
-        private val binding: ItemBossMerchantBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(merchant: User) {
-            binding.tvMerchantItemName.text = merchant.name.ifBlank { "Quản lý chưa đặt tên" }
-            binding.tvMerchantItemEmail.text = merchant.email
-            binding.tvMerchantItemPhone.text = merchant.phone.ifBlank { "Chưa có SĐT" }
-
-            val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-
-            if (isLocked) {
-                binding.tvMerchantStatusBadge.text = "Đã khóa"
-                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_red)
-                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#B91C1C"))
-
-                binding.btnToggleLockMerchant.text = "Mở khóa"
-                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#15803D"))
-
-                binding.tvMerchantAssignedBranch.text = "Tài khoản đang bị khóa"
-                binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EF4444"))
-                binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EF4444"))
-
-                binding.btnAssignMerchantItem.isEnabled = false
-                binding.btnAssignMerchantItem.alpha = 0.5f
-                binding.btnUnassignMerchantItem.visibility = View.GONE
-            } else {
-                binding.tvMerchantStatusBadge.text = "Hoạt động"
-                binding.tvMerchantStatusBadge.setBackgroundResource(R.drawable.bg_badge_green)
-                binding.tvMerchantStatusBadge.setTextColor(Color.parseColor("#15803D"))
-
-                binding.btnToggleLockMerchant.text = "Khóa"
-                binding.btnToggleLockMerchant.setTextColor(Color.parseColor("#EF4444"))
-
-                binding.btnAssignMerchantItem.isEnabled = true
-                binding.btnAssignMerchantItem.alpha = 1.0f
-
-                val assignedStore = if (merchant.storeId.isNotBlank()) storesMap[merchant.storeId] else null
-                if (merchant.storeId.isNotBlank()) {
-                    val branchTitle = assignedStore?.name?.ifBlank { null } ?: "Chi nhánh (${merchant.storeId.take(6)}...)"
-                    binding.tvMerchantAssignedBranch.text = "Chi nhánh: $branchTitle"
-                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#2563EB"))
-                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#2563EB"))
-                    binding.btnAssignMerchantItem.text = "Đổi quán"
-                    binding.btnUnassignMerchantItem.visibility = View.VISIBLE
-                } else {
-                    binding.tvMerchantAssignedBranch.text = "Chưa phân công chi nhánh"
-                    binding.tvMerchantAssignedBranch.setTextColor(Color.parseColor("#EA580C"))
-                    binding.ivBranchBadgeIcon.setColorFilter(Color.parseColor("#EA580C"))
-                    binding.btnAssignMerchantItem.text = "Phân công"
-                    binding.btnUnassignMerchantItem.visibility = View.GONE
-                }
-            }
-
-            binding.btnAssignMerchantItem.setOnClickListener {
-                if (!isLocked) {
-                    onAssignBranchClick(merchant)
-                }
-            }
-
-            binding.btnUnassignMerchantItem.setOnClickListener {
-                onUnassignBranchClick(merchant)
-            }
-
-            binding.btnToggleLockMerchant.setOnClickListener {
-                onToggleLockMerchantClick(merchant)
-            }
-        }
-    }
-
-    class MerchantDiffCallback : DiffUtil.ItemCallback<User>() {
-        override fun areItemsTheSame(oldItem: User, newItem: User): Boolean = oldItem.uid == newItem.uid
-        override fun areContentsTheSame(oldItem: User, newItem: User): Boolean = oldItem == newItem
     }
 }
 ````
@@ -66518,349 +65981,6 @@ class DriverActiveOrdersAdapter(
                 onCancelOrder(order)
             }
         }
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.ship
-
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ArrayAdapter
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogNewOrderPopupBinding
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperBinding
-import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
-import dagger.hilt.android.AndroidEntryPoint
-
-/**
- * Tên chức năng: Kênh Nhận Đơn & Trực Tuyến Của Tài Xế (Shipper Orders & Dispatch Center)
- * Cách hoạt động:
- *  - Bật/Tắt chế độ trực tuyến (Online/Offline) nhận cuốc xe giao thức ăn.
- *  - Lắng nghe danh sách đơn chờ nhận (READY) từ Quán trực thuộc của tài xế.
- *  - Quản lý đơn đang thực hiện (Active Orders) và cho phép bấm "Tiếp tục giao" để mở màn hình lộ trình GPS [DeliveryTripActivity].
- *  - Hỗ trợ hủy đơn với lý do cụ thể (xe hỏng, việc gấp...) để hoàn trả đơn về danh sách chờ cho tài xế khác.
- *  - Thống kê tức thời: Số cuốc hoàn thành hôm nay và tổng thu nhập phí ship kiếm được.
- * Luồng hướng tới:
- *  - Nhận đơn -> Cập nhật trạng thái đơn sang ASSIGNED trên Firestore.
- *  - Bấm "Tiếp tục giao" -> Mở màn hình điều hướng lộ trình bản đồ [DeliveryTripActivity].
- */
-@AndroidEntryPoint
-class ShipperFragment : Fragment() {
-
-    private var _binding: FragmentShipperBinding? = null
-    private val binding get() = _binding!!
-
-    @javax.inject.Inject
-    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-
-    private val viewModel: ShipperViewModel by activityViewModels()
-
-    private lateinit var activeAdapter: DriverActiveOrdersAdapter
-    private lateinit var pendingAdapter: DriverPendingOrdersAdapter
-
-    private var isOnline = true
-
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        if (fine || coarse) {
-            startLocationService()
-        }
-    }
-
-    private fun autoStartLocationServiceIfPermitted() {
-        val hasFine = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val hasCoarse = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasFine || hasCoarse) {
-            startLocationService()
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    private fun startLocationService() {
-        val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
-            putExtra(LocationForegroundService.EXTRA_ORDER_ID, "DRIVER_ACTIVE_DUTY")
-        }
-        try {
-            ContextCompat.startForegroundService(requireContext(), intent)
-        } catch (e: Exception) {
-            android.util.Log.e("ShipperFragment", "Error auto-starting location service: ${e.message}")
-        }
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentShipperBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo View màn hình tài xế
-     * Cách hoạt động: Gắn adapter, bật/tắt chế độ trực, gắn nút đăng xuất và lắng nghe dữ liệu từ ViewModel.
-     * Luồng hướng tới: Sẵn sàng nhận đơn giao hàng.
-     */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupAdapters()
-        setupDutyToggle()
-        setupLogout()
-        observeData()
-        autoStartLocationServiceIfPermitted()
-    }
-
-    /**
-     * Tên chức năng: Xử lý Đăng xuất ca trực của Tài xế
-     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa phiên Auth và chuyển về [LoginActivity].
-     * Luồng hướng tới: Quay về [LoginActivity].
-     */
-    private fun setupLogout() {
-        binding.btnShipperLogoutHeader.setOnClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle("🚪 Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất ca trực tài xế không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    authRepository.logout()
-                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
-                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
-                    }
-                    startActivity(intent)
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo Adapter danh sách đơn đang giao và đơn chờ nhận
-     * Cách hoạt động: Cấu hình 2 RecyclerView độc lập (rvActiveOrders và rvPendingOrders) kèm các sự kiện bấm nhận đơn, tiếp tục cuốc đi, và hủy nhận đơn.
-     * Luồng hướng tới: Hiển thị các đơn hàng cho shipper.
-     */
-    private fun setupAdapters() {
-        activeAdapter = DriverActiveOrdersAdapter(
-            onContinueTrip = { order ->
-                DeliveryTripActivity.start(requireContext(), order.orderId)
-            },
-            onCancelOrder = { order ->
-                showCancelModal(order)
-            }
-        )
-
-        pendingAdapter = DriverPendingOrdersAdapter(
-            onAcceptOrder = { order ->
-                viewModel.acceptOrder(order.orderId) { success, msg ->
-                    if (success) {
-                        Toast.makeText(requireContext(), "🛵 Đã nhận đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)} thành công!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-        )
-
-        binding.rvActiveOrders.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = activeAdapter
-        }
-
-        binding.rvPendingOrders.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = pendingAdapter
-        }
-    }
-
-    /**
-     * Tên chức năng: Chuyển đổi trạng thái Trực tuyến / Tạm nghỉ (Duty Toggle)
-     * Cách hoạt động: Gạt trạng thái trực của tài xế và đồng bộ lên Firebase qua [ShipperViewModel.toggleDuty].
-     * Luồng hướng tới: Hệ thống chỉ phát đơn mới khi tài xế ĐANG TRỰC.
-     */
-    private fun setupDutyToggle() {
-        binding.btnDutyToggle.setOnClickListener {
-            isOnline = !isOnline
-            viewModel.toggleDuty(isOnline)
-            updateDutyUI()
-            if (isOnline) {
-                autoStartLocationServiceIfPermitted()
-            } else {
-                try {
-                    requireContext().stopService(Intent(requireContext(), LocationForegroundService::class.java))
-                } catch (_: Exception) {}
-            }
-        }
-    }
-
-    private fun updateDutyUI() {
-        if (isOnline) {
-            binding.btnDutyToggle.text = "🟢 ĐANG TRỰC"
-            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.brand_green_bg))
-            Toast.makeText(requireContext(), "Bạn đã BẬT trực tuyến, sẵn sàng nhận đơn!", Toast.LENGTH_SHORT).show()
-        } else {
-            binding.btnDutyToggle.text = "⏸️ TẠM NGHỈ"
-            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.divider))
-            Toast.makeText(requireContext(), "Bạn đã chuyển sang chế độ TẠM NGHỈ.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe và đồng bộ dữ liệu đơn hàng tài xế
-     * Cách hoạt động:
-     *  - Lắng nghe đơn do chính tài xế đang giao (ASSIGNED, DELIVERING, ARRIVED_AT_SHOP, ARRIVED_AT_CUSTOMER).
-     *  - Lắng nghe đơn chờ nhận từ quán được phân công.
-     *  - Tính toán số cuốc hoàn thành và tiền cước tích lũy trong ngày.
-     * Luồng hướng tới: Cập nhật giao diện tức thời.
-     */
-    private fun observeData() {
-        viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
-            val currentUid = authRepository.currentUser?.uid ?: ""
-            val activeOrders = orders.filter {
-                (it.status == Order.Status.DELIVERING ||
-                 it.status == Order.Status.ASSIGNED ||
-                 it.status == Order.Status.ARRIVED_AT_SHOP ||
-                 it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                 it.status == Order.Status.RETURNING_TO_STORE) &&
-                        it.shipperId == currentUid
-            }
-
-            val hasActive = activeOrders.isNotEmpty()
-            activeAdapter.submitList(activeOrders)
-            binding.lblActiveBadge.text = "${activeOrders.size} đơn"
-            binding.tvStatActiveCount.text = "${activeOrders.size} đơn"
-            binding.tvEmptyActive.visibility = if (activeOrders.isEmpty()) View.VISIBLE else View.GONE
-            binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
-
-            viewModel.storePendingOrders.value?.let { pendingOrders ->
-                pendingAdapter.submitList(pendingOrders, activeOrders.size)
-            }
-
-            val calendar = java.util.Calendar.getInstance().apply {
-                set(java.util.Calendar.HOUR_OF_DAY, 0)
-                set(java.util.Calendar.MINUTE, 0)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-            }
-            val startOfToday = calendar.timeInMillis
-
-            val todayCompleted = orders.filter {
-                it.status == Order.Status.COMPLETED &&
-                it.shipperId == currentUid &&
-                (it.createdAt >= startOfToday || it.timestamp >= startOfToday)
-            }
-            val completedCount = todayCompleted.size
-            val earnings = todayCompleted.sumOf { if (it.shippingFee > 0) it.shippingFee else 0L }
-
-            binding.tvStatCompletedCount.text = "$completedCount cuốc"
-            binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
-        }
-
-        viewModel.shipperStore.observe(viewLifecycleOwner) { (storeId, storeName) ->
-            if (storeName.isNotBlank()) {
-                binding.tvShopBadge.text = "🏪 $storeName"
-            } else if (storeId.isNotBlank()) {
-                binding.tvShopBadge.text = "🏪 Quán $storeId"
-            } else {
-                binding.tvShopBadge.text = "⚠️ Chưa gán quán"
-            }
-        }
-
-        viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
-            val hasActive = activeAdapter.itemCount > 0
-            pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)
-            binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
-            binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
-
-            val currentStore = viewModel.shipperStore.value
-            val storeTitle = currentStore?.second?.ifBlank { currentStore.first } ?: ""
-            if (storeTitle.isNotBlank()) {
-                binding.tvEmptyPending.text = "Hiện tại $storeTitle chưa có đơn mới cần giao."
-            } else {
-                binding.tvEmptyPending.text = "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Quán để được thêm vào danh sách tài xế nội bộ."
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Hộp thoại Hủy nhận đơn giao hàng (Cancel Order Modal)
-     * Cách hoạt động: Cho phép tài xế chọn lý do bất khả kháng (hỏng xe, quán làm lâu...) và trả lại đơn về danh sách chờ.
-     * Luồng hướng tới: Cập nhật đơn về trạng thái READY không có tài xế trên Firestore.
-     */
-    private fun showCancelModal(order: Order) {
-        val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
-        val formattedCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
-        dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn $formattedCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
-
-        val reasons = arrayOf(
-            "Xe gặp sự cố kỹ thuật dọc đường (Thủng lốp, hỏng xe)",
-            "Quán chuẩn bị món quá lâu",
-            "Bị trùng tuyến hoặc quá tải đơn ghép",
-            "Tài xế có việc gia đình đột xuất"
-        )
-        dialogBinding.spinnerCancelReason.adapter = ArrayAdapter(
-            requireContext(), android.R.layout.simple_spinner_dropdown_item, reasons
-        )
-
-        val dialog = AlertDialog.Builder(requireContext())
-            .setView(dialogBinding.root)
-            .create()
-
-        dialogBinding.btnCancelDialogBack.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialogBinding.btnCancelDialogConfirm.setOnClickListener {
-            val selectedReason = dialogBinding.spinnerCancelReason.selectedItem.toString()
-            viewModel.cancelAssignedOrder(order.orderId, selectedReason) { success, msg ->
-                if (success) {
-                    Toast.makeText(requireContext(), "Đã hủy đơn thành công: $selectedReason", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(requireContext(), "Lỗi: $msg", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }
 ````
@@ -76261,239 +75381,596 @@ class RegisterActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/checkout/CheckoutViewModel.kt
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
 ````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.checkout
+package com.chuyen_de_2.foodorder.customer.ui.home
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Cart
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.chuyen_de_2.foodorder.core.data.model.Store
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
-class CheckoutViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository,
-    private val auth: FirebaseAuth,
-    private val database: FirebaseDatabase
+class HomeViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository
 ) : ViewModel() {
 
-    private val _carts = MutableLiveData<List<Cart>>()
-    val carts: LiveData<List<Cart>> = _carts
+    private val _stores = MutableLiveData<List<Store>>(emptyList())
+    val stores: LiveData<List<Store>> = _stores
+    val restaurants: LiveData<List<Store>> get() = _stores
 
-    private val _orderResult = MutableLiveData<Result<String>>()
-    val orderResult: LiveData<Result<String>> = _orderResult
+    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
+    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
+    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
+
+    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
+    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
+    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
+
+    enum class HotTab {
+        BEST_SELLER,
+        FAVORITE
+    }
+
+    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
+    val currentHotTab: LiveData<HotTab> = _currentHotTab
+
+    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
+    private var topBestSellerDishes = listOf<HotDish>()
+    private var topFavoriteDishes = listOf<HotDish>()
+
+    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
+    val hotDishes: LiveData<List<HotDish>> = _hotDishes
+
+    // Danh sách danh mục nền tảng thời gian thực từ Firebase
+    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
+    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
 
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
-    init {
-        loadCarts()
-    }
+    private val _error = MutableLiveData<String?>()
+    val error: LiveData<String?> = _error
 
-    fun loadCarts(filterShopId: String? = null) {
-        val userId = auth.currentUser?.uid ?: return
+    private var masterDishList = listOf<HomeDishItem>()
+    private var currentQuery: String? = null
+    private var currentCategory: String? = null
+    private var currentNearbyOnly: Boolean = false
+    var currentNearbyMaxDistanceKm: Double = 1.5
+        private set
+    var currentMinPrice: Long? = null
+        private set
+    var currentMaxPrice: Long? = null
+        private set
+    var currentMinRating: Float = 1.0f
+        private set
+    var currentMaxRating: Float = 5.0f
+        private set
+    private var currentPriceSort: PriceSort = PriceSort.NONE
+    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
+        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
 
-        database.getReference("carts").child(userId)
-            .addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val cartList = mutableListOf<Cart>()
-                    for (shopSnapshot in snapshot.children) {
-                        val currentShopId = shopSnapshot.key ?: ""
-                        if (!filterShopId.isNullOrBlank() && currentShopId != filterShopId) {
-                            continue
-                        }
-                        val cart = shopSnapshot.getValue(Cart::class.java)
-                        if (cart != null && cart.items.isNotEmpty()) {
-                            cartList.add(cart.copy(shopId = currentShopId))
-                        }
-                    }
-                    _carts.value = cartList
-                }
+    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
 
-                override fun onCancelled(error: DatabaseError) {}
-            })
-    }
-
-    /** Đặt hàng — tạo Order trên Firebase, đồng bộ thông tin khách hàng và xóa giỏ hàng */
-    fun placeOrder(
-        address: String,
-        note: String,
-        shippingFee: Long = 15000L,
-        discount: Long = 0L,
-        paymentMethod: String = Order.PaymentMethod.COD,
-        paymentMode: String = Order.PaymentMode.FULL,
-        depositAmount: Long = 0L,
-        remainAmount: Long = 0L,
-        customerPhone: String = "",
-        customerName: String = ""
-    ) {
-        val firebaseUser = auth.currentUser ?: return
-        val userId = firebaseUser.uid
-        val cartList = _carts.value ?: return
-
-        if (cartList.isEmpty()) {
-            _orderResult.value = Result.failure(Exception("Giỏ hàng trống"))
-            return
+    fun setUserLocation(lat: Double, lng: Double) {
+        if (lat != 0.0 && lng != 0.0) {
+            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
+            _stores.value?.let { processStoresAndDishes(it) }
         }
+    }
 
+    init {
+        loadStores()
+    }
+
+    fun loadStores() {
         _isLoading.value = true
+        _error.value = null
 
         viewModelScope.launch {
-            try {
-                // Lấy thông tin tên, SĐT và Gmail của khách để gắn vào đơn hàng và đồng bộ lên hồ sơ
-                var resolvedCustomerName = customerName.trim().ifBlank { firebaseUser.displayName.orEmpty().trim() }
-                var resolvedCustomerPhone = customerPhone.trim().ifBlank { firebaseUser.phoneNumber.orEmpty().trim() }
-                val customerEmail = firebaseUser.email.orEmpty().trim()
-
-                try {
-                    val userSnap = database.getReference("users").child(userId).get().await()
-                    val status = userSnap.child("status").getValue(String::class.java).orEmpty().uppercase()
-                    val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
-                        ?: userSnap.child("active").getValue(Boolean::class.java)
-                        ?: true
-                    if (status == "LOCKED" || status == "SUSPENDED" || !isActive) {
-                        val lockReason = userSnap.child("lockReason").getValue(String::class.java)
-                            ?: "Tài khoản của bạn đã bị khóa hoặc tạm ngưng bởi Quản trị viên."
-                        _orderResult.value = Result.failure(Exception(lockReason))
-                        _isLoading.value = false
-                        return@launch
-                    }
-
-                    val custSnap = try { database.getReference("customers").child(userId).get().await() } catch (_: Exception) { null }
-                    val trustScore = custSnap?.child("trustScore")?.getValue(Long::class.java) ?: userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
-                    if (paymentMethod == Order.PaymentMethod.COD && trustScore < 90L) {
-                        _orderResult.value = Result.failure(
-                            Exception("Điểm uy tín của bạn là $trustScore/100 (< 90 điểm). Hình thức COD bị khóa (yêu cầu từ 90 điểm trở lên), vui lòng chọn Chuyển khoản VietQR hoặc Đặt cọc 20%!")
-                        )
-                        _isLoading.value = false
-                        return@launch
-                    }
-
-                    val dbName = userSnap.child("name").getValue(String::class.java).orEmpty().trim()
-                    val dbPhone = userSnap.child("phone").getValue(String::class.java).orEmpty().trim()
-                    if (resolvedCustomerName.isBlank() && dbName.isNotBlank()) resolvedCustomerName = dbName
-                    if (resolvedCustomerPhone.isBlank() && dbPhone.isNotBlank()) resolvedCustomerPhone = dbPhone
-
-                    val profileUpdates = mutableMapOf<String, Any>("uid" to userId)
-                    if (customerEmail.isNotBlank()) profileUpdates["email"] = customerEmail
-                    if (resolvedCustomerName.isBlank() && customerEmail.isNotBlank()) {
-                        resolvedCustomerName = customerEmail.substringBefore("@")
-                    }
-                    if (resolvedCustomerName.isNotBlank()) profileUpdates["name"] = resolvedCustomerName
-                    if (resolvedCustomerPhone.isNotBlank()) profileUpdates["phone"] = resolvedCustomerPhone
-                    if (address.isNotBlank()) profileUpdates["address"] = address
-                    database.getReference("users").child(userId).updateChildren(profileUpdates)
-                    database.getReference("customers").child(userId).updateChildren(profileUpdates)
-                } catch (e: Exception) {
-                    if (e.message?.contains("khóa") == true || e.message?.contains("uy tín") == true) {
-                        _orderResult.value = Result.failure(e)
-                        _isLoading.value = false
-                        return@launch
-                    }
-                    if (resolvedCustomerName.isBlank()) resolvedCustomerName = customerEmail.substringBefore("@")
-                }
-
-                var lastCreatedOrderId = ""
-                // Tạo 1 order cho mỗi shop
-                for (cart in cartList) {
-                    val token = (100000..999999).random().toString()
-                    val finalPayment = maxOf(0L, cart.totalAmount + shippingFee - discount)
-
-                    val targetStore = try {
-                        firebaseRepository.getStoreOnce(cart.shopId)
-                    } catch (_: Exception) { null }
-
-                    val resolvedShopPhone = targetStore?.phone.orEmpty().trim()
-                    val resolvedShopName = targetStore?.name?.ifBlank { cart.shopName } ?: cart.shopName
-                    val resolvedShopImage = targetStore?.effectiveImageUrl.orEmpty().trim()
-
-                    if (targetStore != null && targetStore.storeStatus.equals(com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED, ignoreCase = true)) {
-                        _isLoading.value = false
-                        _orderResult.value = Result.failure(Exception("Quán '$resolvedShopName' hiện đang tạm đóng cửa ngưng nhận đơn mới. Vui lòng quay lại sau!"))
-                        return@launch
-                    }
-
-                    val initialStatus = if (paymentMode == Order.PaymentMode.COD) {
-                        Order.Status.PENDING
-                    } else {
-                        Order.Status.AWAITING_PAYMENT
-                    }
-
-                    val order = Order(
-                        customerId = userId,
-                        customerName = resolvedCustomerName.ifBlank { firebaseUser.displayName?.ifBlank { "Khách hàng" } ?: "Khách hàng" },
-                        customerPhone = resolvedCustomerPhone,
-                        storeId = cart.shopId,
-                        shopId = cart.shopId,
-                        shopName = resolvedShopName,
-                        shopPhone = resolvedShopPhone,
-                        shopImageUrl = resolvedShopImage,
-                        status = initialStatus,
-                        orderStatus = initialStatus,
-                        total = finalPayment,
-                        subtotalAmount = cart.totalAmount,
-                        shippingFee = shippingFee,
-                        discount = discount,
-                        totalPayment = finalPayment,
-                        paymentMethod = paymentMethod,
-                        paymentMode = paymentMode,
-                        depositAmount = depositAmount,
-                        remainAmount = remainAmount,
-                        paymentStatus = Order.PaymentStatus.UNPAID,
-                        customerConfirmed = (paymentMode == Order.PaymentMode.COD),
-                        customerConfirmedAt = if (paymentMode == Order.PaymentMode.COD) System.currentTimeMillis() else null,
-                        deliveryToken = token,
-                        items = cart.items.mapValues { (_, item) ->
-                            com.chuyen_de_2.foodorder.core.data.model.OrderItem(
-                                itemId = item.itemId,
-                                dishId = item.itemId,
-                                name = if (item.options.isNotBlank()) "${item.name} (${item.options})" else item.name,
-                                price = item.price,
-                                quantity = item.quantity,
-                                imageUrl = item.imageUrl
-                            )
-                        },
-                        address = address,
-                        deliveryAddress = address,
-                        note = note,
-                        createdAt = System.currentTimeMillis()
-                    )
-
-                    val result = firebaseRepository.createOrder(order)
-                    if (result.isFailure) {
-                        _orderResult.value = Result.failure(
-                            result.exceptionOrNull() ?: Exception("Lỗi tạo đơn")
-                        )
-                        _isLoading.value = false
-                        return@launch
-                    }
-
-                    lastCreatedOrderId = result.getOrNull() ?: ""
-
-                    // Xóa giỏ hàng sau khi đặt thành công
-                    firebaseRepository.clearCart(userId, cart.shopId)
-                }
-
-                _orderResult.value = Result.success(lastCreatedOrderId.ifBlank { "OK" })
-            } catch (e: Exception) {
-                _orderResult.value = Result.failure(e)
-            } finally {
+            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
+            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
                 _isLoading.value = false
+                _stores.value = firebaseStores
+                processStoresAndDishes(firebaseStores)
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
+            firebaseRepository.observeAllOrders().collectLatest { orders ->
+                cachedOrders = orders
+                _stores.value?.let { recalculateHotDishes(it) }
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
+            firebaseRepository.observeCategories().collectLatest { cats ->
+                _platformCategories.value = cats
             }
         }
     }
+
+    private fun processStoresAndDishes(storeList: List<Store>) {
+        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // 1. Quán gần đây (Sắp xếp theo thứ tự: Quán đang mở trước, khoảng cách từ gần đến xa)
+        val nearbyList = activeStores.map { store ->
+            val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
+                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
+                "$baseTime-${baseTime + 10} phút"
+            } else "15-25 phút"
+            val emoji = when {
+                store.name.contains("Trà", true) -> "🍵"
+                store.name.contains("Cơm", true) -> "🍛"
+                store.name.contains("Gà", true) -> "🍗"
+                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
+                else -> "🍲"
+            }
+            NearbyStoreItem(
+                id = store.id,
+                name = store.name,
+                address = store.address.ifBlank { "TP.HCM" },
+                distanceKm = roundedDist,
+                eta = eta,
+                rating = store.ratingAvg,
+                imageUrl = store.imageUrl,
+                emoji = emoji,
+                originalStore = store,
+                isClosed = isClosed
+            )
+        }
+
+        val sortedNearbyList = nearbyList.sortedWith(
+            compareBy<NearbyStoreItem> { if (it.isClosed) 1 else 0 }
+                .thenBy { if (it.distanceKm > 0.0) 0 else 1 }
+                .thenBy { it.distanceKm }
+        )
+        _nearbyStores.value = sortedNearbyList
+
+        // 2. Thu thập các món ăn của quán - CHỈ HIỂN THỊ MÓN CỦA CÁC QUÁN ĐANG MỞ CỬA (OPEN)
+        // Khi quán tạm đóng, ẩn toàn bộ món khỏi danh sách gợi ý trang chủ
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
+        val allDishes = mutableListOf<HomeDishItem>()
+
+        openStores.forEach { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+
+            availableDishes.forEach { dish ->
+                val platformCat = dish.platformCategory.ifBlank {
+                    inferPlatformCategory(dish.name, dish.category)
+                }
+                val emoji = when {
+                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
+                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
+                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
+                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
+                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
+                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
+                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
+                    platformCat.contains("Chay", true) -> "🥗"
+                    platformCat.contains("Hải sản", true) -> "🦐"
+                    platformCat.contains("Ăn vặt", true) -> "🍟"
+                    platformCat.contains("Tráng miệng", true) -> "🍰"
+                    platformCat.contains("Lẩu", true) -> "🍲"
+                    else -> "🍽️"
+                }
+                allDishes.add(
+                    HomeDishItem(
+                        id = dish.id,
+                        name = dish.name,
+                        price = dish.basePrice,
+                        originalPrice = dish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = emoji,
+                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
+                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
+                        distanceKm = roundedDist,
+                        promoBadge = "",
+                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
+                        category = dish.category.ifBlank { store.category },
+                        platformCategory = platformCat
+                    )
+                )
+            }
+        }
+
+        masterDishList = allDishes
+        applyFilters()
+
+        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
+        recalculateHotDishes(activeStores)
+    }
+
+    private fun recalculateHotDishes(storeList: List<Store>) {
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
+        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
+        val weeklyDishSales = mutableMapOf<String, Int>()
+        cachedOrders.filter { order ->
+            val ts = order.effectiveTimestamp
+            ts >= oneWeekAgo &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
+        }.forEach { order ->
+            order.items.values.forEach { item ->
+                if (item.dishId.isNotBlank()) {
+                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
+                }
+            }
+        }
+
+        // Chỉ tính món hot từ các quán ĐANG MỞ CỬA (OPEN)
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
+
+        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
+        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
+        openStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val bestDish = availableDishes.maxWithOrNull(
+                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
+                )
+                if (bestDish != null) {
+                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
+                    val totalCount = bestDish.soldCount
+                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
+                    val badgeText = when {
+                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
+                        totalCount > 0 -> "🔥 $totalCount đã bán"
+                        else -> "🔥 Bán chạy"
+                    }
+                    val hotDish = HotDish(
+                        id = bestDish.id,
+                        name = bestDish.name,
+                        price = bestDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    bestSellerList.add(Pair(hotDish, salesScore))
+                }
+            }
+        }
+        topBestSellerDishes = bestSellerList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
+        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
+        openStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val topRatedDish = availableDishes.maxWithOrNull(
+                    compareBy(
+                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
+                        { it.reviewCount },
+                        { it.soldCount }
+                    )
+                )
+                if (topRatedDish != null) {
+                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
+                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
+                        else 5.0f
+                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
+                    val badgeText = "⭐ $formattedRating"
+                    val hotDish = HotDish(
+                        id = topRatedDish.id,
+                        name = topRatedDish.name,
+                        price = topRatedDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    favoriteList.add(Pair(hotDish, rating))
+                }
+            }
+        }
+        topFavoriteDishes = favoriteList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    fun switchHotTab(tab: HotTab) {
+        if (_currentHotTab.value == tab) return
+        _currentHotTab.value = tab
+        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
+        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
+        return when {
+            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
+            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
+            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
+            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
+            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
+            else -> "🍽️"
+        }
+    }
+
+    enum class PriceSort {
+        NONE, ASC, DESC
+    }
+
+    /** Lọc danh sách món ăn */
+    fun filterDishes(
+        query: String? = null,
+        category: String? = null,
+        nearbyOnly: Boolean? = null,
+        maxDistanceKm: Double? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        minRating: Float? = null,
+        maxRating: Float? = null,
+        resetPrice: Boolean = false,
+        resetRating: Boolean = false,
+        priceSort: PriceSort? = null
+    ) {
+        if (query != null) currentQuery = query
+        if (category != null) currentCategory = if (category == "ALL") null else category
+        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
+        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
+        if (resetPrice) {
+            currentMinPrice = null
+            currentMaxPrice = null
+            currentPriceSort = PriceSort.NONE
+        } else {
+            if (minPrice != null || maxPrice != null) {
+                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
+                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
+            }
+            if (priceSort != null) {
+                currentPriceSort = priceSort
+            }
+        }
+        if (resetRating) {
+            currentMinRating = 1.0f
+            currentMaxRating = 5.0f
+        } else {
+            if (minRating != null) currentMinRating = minRating
+            if (maxRating != null) currentMaxRating = maxRating
+        }
+        applyFilters()
+    }
+
+    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
+    fun getFilteredDishesCount(
+        minPrice: Long?,
+        maxPrice: Long?,
+        minRating: Float,
+        maxRating: Float
+    ): Int {
+        var list = masterDishList
+
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            list = list.filter { matchesCategory(it, cat) }
+        }
+
+        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
+            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+        }
+
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            list = list.filter { matchesSearch(it, q) }
+        }
+
+        if (minPrice != null && minPrice > 0) {
+            list = list.filter { it.price >= minPrice }
+        }
+        if (maxPrice != null && maxPrice > 0) {
+            list = list.filter { it.price <= maxPrice }
+        }
+
+        if (minRating > 1.05f || maxRating < 4.95f) {
+            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
+        }
+
+        return list.size
+    }
+
+    /**
+     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     */
+    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
+        val qClean = query.trim().lowercase()
+        if (qClean.isBlank()) return true
+
+        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
+
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val cat = dish.category.lowercase()
+        val platCat = dish.platformCategory.lowercase()
+
+        val fullWithAccent = "$name $store $cat $platCat"
+        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
+
+        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
+        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
+            return true
+        }
+
+        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
+        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
+        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun applyFilters() {
+        var filtered = masterDishList
+
+        // 1. Lọc theo cự ly gần
+        if (currentNearbyOnly) {
+            val maxDist = currentNearbyMaxDistanceKm
+            filtered = if (maxDist >= 999.0) {
+                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            } else {
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
+            }
+        }
+
+        // 2. Lọc theo danh mục
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesCategory(dish, cat)
+            }
+        }
+
+        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesSearch(dish, q)
+            }
+        }
+
+        // 4. Lọc theo khoảng giá tiền
+        val minP = currentMinPrice
+        val maxP = currentMaxPrice
+        if (minP != null || maxP != null) {
+            filtered = filtered.filter { dish ->
+                val p = dish.price
+                (minP == null || p >= minP) && (maxP == null || p <= maxP)
+            }
+        }
+
+        // 5. Lọc theo khoảng sao đánh giá
+        val minR = currentMinRating
+        val maxR = currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            filtered = filtered.filter { dish ->
+                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
+            }
+        }
+
+        // 5. Sắp xếp theo giá tiền nếu có
+        when (currentPriceSort) {
+            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
+            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
+            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
+        }
+
+        _homeDishes.value = filtered
+    }
+
+    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
+        val target = filterCat.trim().lowercase()
+        val pCat = dish.platformCategory.lowercase()
+        val sCat = dish.category.lowercase()
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val combined = "$name $pCat $sCat $store"
+
+        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
+        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
+        if (name.contains(target)) return true
+
+        if (target.contains("cơm")) {
+            return combined.contains("cơm") || combined.contains("com")
+        }
+        if (target.contains("bún đậu")) {
+            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
+        }
+        if (target.contains("phở")) {
+            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
+        }
+        if (target.contains("trà sữa")) {
+            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
+        }
+        if (target.contains("nước ép")) {
+            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
+        }
+
+        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
+        return keywords.any { kw -> combined.contains(kw) }
+    }
+
+    private fun inferPlatformCategory(name: String, category: String): String {
+        val text = "$name $category".lowercase()
+        return when {
+            text.contains("cơm") -> "Cơm"
+            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
+            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
+            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
+            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
+            text.contains("trà") -> "Trà sữa"
+            else -> "Cơm"
+        }
+    }
+
+    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
+        if (store.latitude != 0.0 && store.longitude != 0.0) {
+            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+        }
+        val distName = store.district.trim()
+        if (distName.isNotBlank()) {
+            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
+            if (exact != null) return exact
+            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
+                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
+            if (fuzzy != null) return fuzzy
+        }
+        return null
+    }
+
+    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
+        if (storeLatLng == null) return 0.0
+        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+            currentUserLatLng,
+            storeLatLng
+        ).toDouble()
+        return Math.round(dist * 10.0) / 10.0
+    }
+
+    fun loadRestaurants() = loadStores()
 }
 ````
 
@@ -78610,6 +78087,367 @@ class OrderHistoryFragment : Fragment() {
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.ship
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogNewOrderPopupBinding
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperBinding
+import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
+import dagger.hilt.android.AndroidEntryPoint
+
+/**
+ * Tên chức năng: Kênh Nhận Đơn & Trực Tuyến Của Tài Xế (Shipper Orders & Dispatch Center)
+ * Cách hoạt động:
+ *  - Bật/Tắt chế độ trực tuyến (Online/Offline) nhận cuốc xe giao thức ăn.
+ *  - Lắng nghe danh sách đơn chờ nhận (READY) từ Quán trực thuộc của tài xế.
+ *  - Quản lý đơn đang thực hiện (Active Orders) và cho phép bấm "Tiếp tục giao" để mở màn hình lộ trình GPS [DeliveryTripActivity].
+ *  - Hỗ trợ hủy đơn với lý do cụ thể (xe hỏng, việc gấp...) để hoàn trả đơn về danh sách chờ cho tài xế khác.
+ *  - Thống kê tức thời: Số cuốc hoàn thành hôm nay và tổng thu nhập phí ship kiếm được.
+ * Luồng hướng tới:
+ *  - Nhận đơn -> Cập nhật trạng thái đơn sang ASSIGNED trên Firestore.
+ *  - Bấm "Tiếp tục giao" -> Mở màn hình điều hướng lộ trình bản đồ [DeliveryTripActivity].
+ */
+@AndroidEntryPoint
+class ShipperFragment : Fragment() {
+
+    private var _binding: FragmentShipperBinding? = null
+    private val binding get() = _binding!!
+
+    @javax.inject.Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
+    private val viewModel: ShipperViewModel by activityViewModels()
+
+    private lateinit var activeAdapter: DriverActiveOrdersAdapter
+    private lateinit var pendingAdapter: DriverPendingOrdersAdapter
+
+    private var isOnline = true
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fine || coarse) {
+            startLocationService()
+        }
+    }
+
+    private fun autoStartLocationServiceIfPermitted() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            startLocationService()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    private fun startLocationService() {
+        val activeIds = arrayListOf<String>()
+        val currentUid = authRepository.currentUser?.uid ?: ""
+        viewModel.assignedOrders.value?.filter {
+            (it.status == Order.Status.DELIVERING ||
+             it.status == Order.Status.ASSIGNED ||
+             it.status == Order.Status.ARRIVED_AT_SHOP ||
+             it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+             it.status == Order.Status.RETURNING_TO_STORE) &&
+            it.shipperId == currentUid
+        }?.forEach { ord ->
+            if (ord.orderId.isNotBlank()) activeIds.add(ord.orderId)
+        }
+
+        val firstId = activeIds.firstOrNull() ?: "DRIVER_ACTIVE_DUTY"
+        val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
+            putExtra(LocationForegroundService.EXTRA_ORDER_ID, firstId)
+            putStringArrayListExtra(LocationForegroundService.EXTRA_ORDER_IDS, activeIds)
+        }
+        try {
+            ContextCompat.startForegroundService(requireContext(), intent)
+        } catch (e: Exception) {
+            android.util.Log.e("ShipperFragment", "Error auto-starting location service: ${e.message}")
+        }
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentShipperBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo View màn hình tài xế
+     * Cách hoạt động: Gắn adapter, bật/tắt chế độ trực, gắn nút đăng xuất và lắng nghe dữ liệu từ ViewModel.
+     * Luồng hướng tới: Sẵn sàng nhận đơn giao hàng.
+     */
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupAdapters()
+        setupDutyToggle()
+        setupLogout()
+        observeData()
+        autoStartLocationServiceIfPermitted()
+    }
+
+    /**
+     * Tên chức năng: Xử lý Đăng xuất ca trực của Tài xế
+     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa phiên Auth và chuyển về [LoginActivity].
+     * Luồng hướng tới: Quay về [LoginActivity].
+     */
+    private fun setupLogout() {
+        binding.btnShipperLogoutHeader.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất ca trực tài xế không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    authRepository.logout()
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo Adapter danh sách đơn đang giao và đơn chờ nhận
+     * Cách hoạt động: Cấu hình 2 RecyclerView độc lập (rvActiveOrders và rvPendingOrders) kèm các sự kiện bấm nhận đơn, tiếp tục cuốc đi, và hủy nhận đơn.
+     * Luồng hướng tới: Hiển thị các đơn hàng cho shipper.
+     */
+    private fun setupAdapters() {
+        activeAdapter = DriverActiveOrdersAdapter(
+            onContinueTrip = { order ->
+                DeliveryTripActivity.start(requireContext(), order.orderId)
+            },
+            onCancelOrder = { order ->
+                showCancelModal(order)
+            }
+        )
+
+        pendingAdapter = DriverPendingOrdersAdapter(
+            onAcceptOrder = { order ->
+                viewModel.acceptOrder(order.orderId) { success, msg ->
+                    if (success) {
+                        Toast.makeText(requireContext(), "🛵 Đã nhận đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)} thành công!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        )
+
+        binding.rvActiveOrders.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = activeAdapter
+        }
+
+        binding.rvPendingOrders.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = pendingAdapter
+        }
+    }
+
+    /**
+     * Tên chức năng: Chuyển đổi trạng thái Trực tuyến / Tạm nghỉ (Duty Toggle)
+     * Cách hoạt động: Gạt trạng thái trực của tài xế và đồng bộ lên Firebase qua [ShipperViewModel.toggleDuty].
+     * Luồng hướng tới: Hệ thống chỉ phát đơn mới khi tài xế ĐANG TRỰC.
+     */
+    private fun setupDutyToggle() {
+        binding.btnDutyToggle.setOnClickListener {
+            isOnline = !isOnline
+            viewModel.toggleDuty(isOnline)
+            updateDutyUI()
+            if (isOnline) {
+                autoStartLocationServiceIfPermitted()
+            } else {
+                try {
+                    requireContext().stopService(Intent(requireContext(), LocationForegroundService::class.java))
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun updateDutyUI() {
+        if (isOnline) {
+            binding.btnDutyToggle.text = "🟢 ĐANG TRỰC"
+            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.brand_green_bg))
+            Toast.makeText(requireContext(), "Bạn đã BẬT trực tuyến, sẵn sàng nhận đơn!", Toast.LENGTH_SHORT).show()
+        } else {
+            binding.btnDutyToggle.text = "⏸️ TẠM NGHỈ"
+            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.divider))
+            Toast.makeText(requireContext(), "Bạn đã chuyển sang chế độ TẠM NGHỈ.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe và đồng bộ dữ liệu đơn hàng tài xế
+     * Cách hoạt động:
+     *  - Lắng nghe đơn do chính tài xế đang giao (ASSIGNED, DELIVERING, ARRIVED_AT_SHOP, ARRIVED_AT_CUSTOMER).
+     *  - Lắng nghe đơn chờ nhận từ quán được phân công.
+     *  - Tính toán số cuốc hoàn thành và tiền cước tích lũy trong ngày.
+     * Luồng hướng tới: Cập nhật giao diện tức thời.
+     */
+    private fun observeData() {
+        viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
+            val currentUid = authRepository.currentUser?.uid ?: ""
+            val activeOrders = orders.filter {
+                (it.status == Order.Status.DELIVERING ||
+                 it.status == Order.Status.ASSIGNED ||
+                 it.status == Order.Status.ARRIVED_AT_SHOP ||
+                 it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                 it.status == Order.Status.RETURNING_TO_STORE) &&
+                        it.shipperId == currentUid
+            }
+
+            val hasActive = activeOrders.isNotEmpty()
+            if (hasActive) {
+                startLocationService()
+            }
+            activeAdapter.submitList(activeOrders)
+            binding.lblActiveBadge.text = "${activeOrders.size} đơn"
+            binding.tvStatActiveCount.text = "${activeOrders.size} đơn"
+            binding.tvEmptyActive.visibility = if (activeOrders.isEmpty()) View.VISIBLE else View.GONE
+            binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
+
+            viewModel.storePendingOrders.value?.let { pendingOrders ->
+                pendingAdapter.submitList(pendingOrders, activeOrders.size)
+            }
+
+            val calendar = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val startOfToday = calendar.timeInMillis
+
+            val todayCompleted = orders.filter {
+                it.status == Order.Status.COMPLETED &&
+                it.shipperId == currentUid &&
+                (it.createdAt >= startOfToday || it.timestamp >= startOfToday)
+            }
+            val completedCount = todayCompleted.size
+            val earnings = todayCompleted.sumOf { if (it.shippingFee > 0) it.shippingFee else 0L }
+
+            binding.tvStatCompletedCount.text = "$completedCount cuốc"
+            binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
+        }
+
+        viewModel.shipperStore.observe(viewLifecycleOwner) { (storeId, storeName) ->
+            if (storeName.isNotBlank()) {
+                binding.tvShopBadge.text = "🏪 $storeName"
+            } else if (storeId.isNotBlank()) {
+                binding.tvShopBadge.text = "🏪 Quán $storeId"
+            } else {
+                binding.tvShopBadge.text = "⚠️ Chưa gán quán"
+            }
+        }
+
+        viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
+            val hasActive = activeAdapter.itemCount > 0
+            pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)
+            binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
+            binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
+
+            val currentStore = viewModel.shipperStore.value
+            val storeTitle = currentStore?.second?.ifBlank { currentStore.first } ?: ""
+            if (storeTitle.isNotBlank()) {
+                binding.tvEmptyPending.text = "Hiện tại $storeTitle chưa có đơn mới cần giao."
+            } else {
+                binding.tvEmptyPending.text = "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Quán để được thêm vào danh sách tài xế nội bộ."
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại Hủy nhận đơn giao hàng (Cancel Order Modal)
+     * Cách hoạt động: Cho phép tài xế chọn lý do bất khả kháng (hỏng xe, quán làm lâu...) và trả lại đơn về danh sách chờ.
+     * Luồng hướng tới: Cập nhật đơn về trạng thái READY không có tài xế trên Firestore.
+     */
+    private fun showCancelModal(order: Order) {
+        val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
+        val formattedCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
+        dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn $formattedCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
+
+        val reasons = arrayOf(
+            "Xe gặp sự cố kỹ thuật dọc đường (Thủng lốp, hỏng xe)",
+            "Quán chuẩn bị món quá lâu",
+            "Bị trùng tuyến hoặc quá tải đơn ghép",
+            "Tài xế có việc gia đình đột xuất"
+        )
+        dialogBinding.spinnerCancelReason.adapter = ArrayAdapter(
+            requireContext(), android.R.layout.simple_spinner_dropdown_item, reasons
+        )
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogBinding.root)
+            .create()
+
+        dialogBinding.btnCancelDialogBack.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialogBinding.btnCancelDialogConfirm.setOnClickListener {
+            val selectedReason = dialogBinding.spinnerCancelReason.selectedItem.toString()
+            viewModel.cancelAssignedOrder(order.orderId, selectedReason) { success, msg ->
+                if (success) {
+                    Toast.makeText(requireContext(), "Đã hủy đơn thành công: $selectedReason", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(requireContext(), "Lỗi: $msg", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/MenuManageFragment.kt
@@ -88788,6 +88626,242 @@ class LoginActivity : AppCompatActivity() {
 }
 ````
 
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/checkout/CheckoutViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.checkout
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Cart
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+@HiltViewModel
+class CheckoutViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository,
+    private val auth: FirebaseAuth,
+    private val database: FirebaseDatabase
+) : ViewModel() {
+
+    private val _carts = MutableLiveData<List<Cart>>()
+    val carts: LiveData<List<Cart>> = _carts
+
+    private val _orderResult = MutableLiveData<Result<String>>()
+    val orderResult: LiveData<Result<String>> = _orderResult
+
+    private val _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+
+    init {
+        loadCarts()
+    }
+
+    fun loadCarts(filterShopId: String? = null) {
+        val userId = auth.currentUser?.uid ?: return
+
+        database.getReference("carts").child(userId)
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val cartList = mutableListOf<Cart>()
+                    for (shopSnapshot in snapshot.children) {
+                        val currentShopId = shopSnapshot.key ?: ""
+                        if (!filterShopId.isNullOrBlank() && currentShopId != filterShopId) {
+                            continue
+                        }
+                        val cart = shopSnapshot.getValue(Cart::class.java)
+                        if (cart != null && cart.items.isNotEmpty()) {
+                            cartList.add(cart.copy(shopId = currentShopId))
+                        }
+                    }
+                    _carts.value = cartList
+                }
+
+                override fun onCancelled(error: DatabaseError) {}
+            })
+    }
+
+    /** Đặt hàng — tạo Order trên Firebase, đồng bộ thông tin khách hàng và xóa giỏ hàng */
+    fun placeOrder(
+        address: String,
+        note: String,
+        shippingFee: Long = 15000L,
+        discount: Long = 0L,
+        paymentMethod: String = Order.PaymentMethod.COD,
+        paymentMode: String = Order.PaymentMode.FULL,
+        depositAmount: Long = 0L,
+        remainAmount: Long = 0L,
+        customerPhone: String = "",
+        customerName: String = ""
+    ) {
+        val firebaseUser = auth.currentUser ?: return
+        val userId = firebaseUser.uid
+        val cartList = _carts.value ?: return
+
+        if (cartList.isEmpty()) {
+            _orderResult.value = Result.failure(Exception("Giỏ hàng trống"))
+            return
+        }
+
+        _isLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                // Lấy thông tin tên, SĐT và Gmail của khách để gắn vào đơn hàng và đồng bộ lên hồ sơ
+                var resolvedCustomerName = customerName.trim().ifBlank { firebaseUser.displayName.orEmpty().trim() }
+                var resolvedCustomerPhone = customerPhone.trim().ifBlank { firebaseUser.phoneNumber.orEmpty().trim() }
+                val customerEmail = firebaseUser.email.orEmpty().trim()
+
+                try {
+                    val userSnap = database.getReference("users").child(userId).get().await()
+                    val status = userSnap.child("status").getValue(String::class.java).orEmpty().uppercase()
+                    val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
+                        ?: userSnap.child("active").getValue(Boolean::class.java)
+                        ?: true
+                    if (status == "LOCKED" || status == "SUSPENDED" || !isActive) {
+                        val lockReason = userSnap.child("lockReason").getValue(String::class.java)
+                            ?: "Tài khoản của bạn đã bị khóa hoặc tạm ngưng bởi Quản trị viên."
+                        _orderResult.value = Result.failure(Exception(lockReason))
+                        _isLoading.value = false
+                        return@launch
+                    }
+
+                    val custSnap = try { database.getReference("customers").child(userId).get().await() } catch (_: Exception) { null }
+                    val trustScore = custSnap?.child("trustScore")?.getValue(Long::class.java) ?: userSnap.child("trustScore").getValue(Long::class.java) ?: 100L
+                    if (paymentMethod == Order.PaymentMethod.COD && trustScore < 90L) {
+                        _orderResult.value = Result.failure(
+                            Exception("Điểm uy tín của bạn là $trustScore/100 (< 90 điểm). Hình thức COD bị khóa (yêu cầu từ 90 điểm trở lên), vui lòng chọn Chuyển khoản VietQR hoặc Đặt cọc 20%!")
+                        )
+                        _isLoading.value = false
+                        return@launch
+                    }
+
+                    val dbName = userSnap.child("name").getValue(String::class.java).orEmpty().trim()
+                    val dbPhone = userSnap.child("phone").getValue(String::class.java).orEmpty().trim()
+                    if (resolvedCustomerName.isBlank() && dbName.isNotBlank()) resolvedCustomerName = dbName
+                    if (resolvedCustomerPhone.isBlank() && dbPhone.isNotBlank()) resolvedCustomerPhone = dbPhone
+
+                    val profileUpdates = mutableMapOf<String, Any>("uid" to userId)
+                    if (customerEmail.isNotBlank()) profileUpdates["email"] = customerEmail
+                    if (resolvedCustomerName.isBlank() && customerEmail.isNotBlank()) {
+                        resolvedCustomerName = customerEmail.substringBefore("@")
+                    }
+                    if (resolvedCustomerName.isNotBlank()) profileUpdates["name"] = resolvedCustomerName
+                    if (resolvedCustomerPhone.isNotBlank()) profileUpdates["phone"] = resolvedCustomerPhone
+                    if (address.isNotBlank()) profileUpdates["address"] = address
+                    database.getReference("users").child(userId).updateChildren(profileUpdates)
+                    database.getReference("customers").child(userId).updateChildren(profileUpdates)
+                } catch (e: Exception) {
+                    if (e.message?.contains("khóa") == true || e.message?.contains("uy tín") == true) {
+                        _orderResult.value = Result.failure(e)
+                        _isLoading.value = false
+                        return@launch
+                    }
+                    if (resolvedCustomerName.isBlank()) resolvedCustomerName = customerEmail.substringBefore("@")
+                }
+
+                var lastCreatedOrderId = ""
+                // Tạo 1 order cho mỗi shop
+                for (cart in cartList) {
+                    val token = (100000..999999).random().toString()
+                    val finalPayment = maxOf(0L, cart.totalAmount + shippingFee - discount)
+
+                    val targetStore = try {
+                        firebaseRepository.getStoreOnce(cart.shopId)
+                    } catch (_: Exception) { null }
+
+                    val resolvedShopPhone = targetStore?.phone.orEmpty().trim()
+                    val resolvedShopName = targetStore?.name?.ifBlank { cart.shopName } ?: cart.shopName
+                    val resolvedShopImage = targetStore?.effectiveImageUrl.orEmpty().trim()
+
+                    if (targetStore != null && targetStore.storeStatus.equals(com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED, ignoreCase = true)) {
+                        _isLoading.value = false
+                        _orderResult.value = Result.failure(Exception("Quán '$resolvedShopName' hiện đang tạm đóng cửa ngưng nhận đơn mới. Vui lòng quay lại sau!"))
+                        return@launch
+                    }
+
+                    val initialStatus = if (paymentMode == Order.PaymentMode.COD) {
+                        Order.Status.PENDING
+                    } else {
+                        Order.Status.AWAITING_PAYMENT
+                    }
+
+                    val order = Order(
+                        customerId = userId,
+                        customerName = resolvedCustomerName.ifBlank { firebaseUser.displayName?.ifBlank { "Khách hàng" } ?: "Khách hàng" },
+                        customerPhone = resolvedCustomerPhone,
+                        storeId = cart.shopId,
+                        shopId = cart.shopId,
+                        shopName = resolvedShopName,
+                        shopPhone = resolvedShopPhone,
+                        shopImageUrl = resolvedShopImage,
+                        status = initialStatus,
+                        orderStatus = initialStatus,
+                        total = finalPayment,
+                        subtotalAmount = cart.totalAmount,
+                        shippingFee = shippingFee,
+                        discount = discount,
+                        totalPayment = finalPayment,
+                        paymentMethod = paymentMethod,
+                        paymentMode = paymentMode,
+                        depositAmount = depositAmount,
+                        remainAmount = remainAmount,
+                        paymentStatus = Order.PaymentStatus.UNPAID,
+                        customerConfirmed = (paymentMode == Order.PaymentMode.COD),
+                        customerConfirmedAt = if (paymentMode == Order.PaymentMode.COD) System.currentTimeMillis() else null,
+                        deliveryToken = token,
+                        items = cart.items.mapValues { (_, item) ->
+                            com.chuyen_de_2.foodorder.core.data.model.OrderItem(
+                                itemId = item.itemId,
+                                dishId = item.itemId,
+                                name = if (item.options.isNotBlank()) "${item.name} (${item.options})" else item.name,
+                                price = item.price,
+                                quantity = item.quantity,
+                                imageUrl = item.imageUrl
+                            )
+                        },
+                        address = address,
+                        deliveryAddress = address,
+                        note = note,
+                        createdAt = System.currentTimeMillis()
+                    )
+
+                    val result = firebaseRepository.createOrder(order)
+                    if (result.isFailure) {
+                        _orderResult.value = Result.failure(
+                            result.exceptionOrNull() ?: Exception("Lỗi tạo đơn")
+                        )
+                        _isLoading.value = false
+                        return@launch
+                    }
+
+                    lastCreatedOrderId = result.getOrNull() ?: ""
+
+                    // Xóa giỏ hàng sau khi đặt thành công
+                    firebaseRepository.clearCart(userId, cart.shopId)
+                }
+
+                _orderResult.value = Result.success(lastCreatedOrderId.ifBlank { "OK" })
+            } catch (e: Exception) {
+                _orderResult.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+}
+````
+
 ## File: app-customer/src/main/res/layout/activity_checkout.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -92027,19 +92101,18 @@ class OtpVerificationActivity : AppCompatActivity() {
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                app:cardBackgroundColor="#FFF1EE"
                 app:cardCornerRadius="10dp"
                 app:cardElevation="0dp"
-                app:strokeColor="#FFDDD4"
-                app:strokeWidth="1dp">
+                app:strokeWidth="0dp">
 
                 <ImageView
+                    android:id="@+id/ivShopHeaderLogo"
                     android:importantForAccessibility="no"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_gravity="center"
-                    app:srcCompat="@drawable/ic_store"
-                    app:tint="@color/primary" />
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_app_logo"
+                    android:contentDescription="Oishi Merchant Logo" />
             </com.google.android.material.card.MaterialCardView>
 
             <LinearLayout
@@ -99023,6 +99096,758 @@ class PaymentActivity : AppCompatActivity() {
 </LinearLayout>
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossDashboardActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.boss
+
+import android.app.Dialog
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.os.Bundle
+import android.view.View
+import android.view.Window
+import android.widget.RadioButton
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityBossDashboardBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignBranchToMerchantBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignMerchantBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateBranchBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateMerchantBinding
+import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import com.chuyen_de_2.foodorder.internal.ui.auth.SelectLocationActivity
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Màn hình Bảng điều khiển Quản lý Chuỗi dành riêng cho BOSSMERCHANT.
+ * Cho phép tạo chi nhánh, tạo tài khoản Merchant, xem và quản lý danh sách Merchant đã tạo,
+ * phân công/gỡ Merchant cho từng chi nhánh, và truy cập trực tiếp vào bất kỳ chi nhánh nào để vận hành.
+ */
+@AndroidEntryPoint
+class BossDashboardActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityBossDashboardBinding
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    private lateinit var branchAdapter: BossBranchAdapter
+    private lateinit var merchantAdapter: BossMerchantAdapter
+    private var currentBossUid: String = ""
+    private var cachedBranches: List<Store> = emptyList()
+    private var cachedMerchants: List<User> = emptyList()
+
+    private var branchDialogBinding: DialogCreateBranchBinding? = null
+    private var branchSelectedLat: Double? = null
+    private var branchSelectedLng: Double? = null
+
+    private val selectBranchLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            val displayAddress = if (!fullAddress.isNullOrBlank()) fullAddress else streetAddress.orEmpty()
+            if (displayAddress.isNotBlank()) {
+                branchDialogBinding?.etBranchAddress?.setText(displayAddress)
+                branchDialogBinding?.tilBranchAddress?.error = null
+            }
+            if (!district.isNullOrBlank()) {
+                branchDialogBinding?.etBranchDistrict?.setText(district)
+                branchDialogBinding?.tilBranchDistrict?.error = null
+            }
+            if (lat != 0.0 && lng != 0.0) {
+                branchSelectedLat = lat
+                branchSelectedLng = lng
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        InsetUtils.initEdgeToEdge(this, true)
+        binding = ActivityBossDashboardBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        InsetUtils.applyStatusBarPadding(binding.bossHeaderBar, 4)
+        InsetUtils.applyNavigationBarPadding(binding.nestedScrollViewBoss)
+
+        val currentUser = authRepository.currentUser
+        if (currentUser == null) {
+            startActivity(Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
+
+        currentBossUid = currentUser.uid
+        setupUI()
+        observeBranches()
+        observeMerchants()
+        observeBusinessProfile()
+    }
+
+    private fun observeBusinessProfile() {
+        lifecycleScope.launch {
+            val stores = firebaseRepository.getStoresByBoss(currentBossUid).firstOrNull().orEmpty()
+            val hasBankInBranches = stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
+            if (hasBankInBranches) {
+                binding.cardMissingBankAlert.visibility = View.GONE
+            } else {
+                val fallbackStore = firebaseRepository.getStoreOnce("store_$currentBossUid")
+                val hasFallbackBank = fallbackStore != null && fallbackStore.bankAccountNumber.isNotBlank() && fallbackStore.cccdNumber.isNotBlank()
+                binding.cardMissingBankAlert.visibility = if (hasFallbackBank) View.GONE else View.VISIBLE
+            }
+        }
+    }
+
+    private fun setupUI() {
+        val email = authRepository.currentUser?.email.orEmpty()
+        val displayName = authRepository.currentUser?.displayName.orEmpty()
+        binding.tvBossSubtitle.text = buildString {
+            append("Chuỗi Cửa Hàng • ")
+            append(displayName.ifBlank { email })
+        }
+
+        // Branch Adapter
+        branchAdapter = BossBranchAdapter(
+            onEnterBranchClick = { store -> enterBranchAsManager(store) },
+            onAssignManagerClick = { store -> showAssignMerchantDialog(store) },
+            onUnassignManagerClick = { store -> unassignManagerFromStore(store) }
+        ).apply {
+            currentBossUid = this@BossDashboardActivity.currentBossUid
+        }
+        binding.rvBossBranches.layoutManager = LinearLayoutManager(this)
+        binding.rvBossBranches.adapter = branchAdapter
+
+        // Merchant Adapter
+        merchantAdapter = BossMerchantAdapter(
+            onAssignBranchClick = { merchant -> showAssignBranchToMerchantDialog(merchant) },
+            onUnassignBranchClick = { merchant -> unassignMerchant(merchant) },
+            onToggleLockMerchantClick = { merchant -> confirmToggleLockMerchant(merchant) }
+        )
+        binding.rvBossMerchants.layoutManager = LinearLayoutManager(this)
+        binding.rvBossMerchants.adapter = merchantAdapter
+
+        // Tab Toggle Group
+        binding.toggleGroupBossTab.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                if (checkedId == R.id.btnTabBranches) {
+                    binding.layoutBranchesSection.visibility = View.VISIBLE
+                    binding.layoutMerchantsSection.visibility = View.GONE
+                } else if (checkedId == R.id.btnTabMerchants) {
+                    binding.layoutBranchesSection.visibility = View.GONE
+                    binding.layoutMerchantsSection.visibility = View.VISIBLE
+                }
+            }
+        }
+
+        binding.btnCreateBranch.setOnClickListener {
+            showCreateBranchDialog()
+        }
+
+        binding.btnCreateMerchant.setOnClickListener {
+            showCreateMerchantDialog()
+        }
+
+        binding.btnBossBusinessProfile.setOnClickListener {
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            lifecycleScope.launch {
+                val storeId = cachedBranches.firstOrNull { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }?.id
+                    ?: cachedBranches.firstOrNull()?.id
+                    ?: firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
+                val intent = Intent(this@BossDashboardActivity, com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
+                    putExtra(AppConstants.Extras.STORE_ID, storeId)
+                }
+                startActivity(intent)
+            }
+        }
+
+        binding.cardMissingBankAlert.setOnClickListener {
+            binding.btnBossBusinessProfile.performClick()
+        }
+
+        binding.btnBossLogout.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất tài khoản Chủ chuỗi (Boss) không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
+                    authRepository.logout()
+                    startActivity(Intent(this, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra(AppConstants.Extras.LOGOUT, true)
+                    })
+                    finish()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+
+        checkNotificationAccessPermission()
+    }
+
+    private fun checkNotificationAccessPermission() {
+        if (!com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("Tự Động Duyệt Tiền VietQR")
+                .setMessage(
+                    "Để hệ thống tự động đọc thông báo biến động số dư ngân hàng và duyệt đơn VietQR ngay lập tức, vui lòng bật quyền 'Truy cập thông báo' cho Oishi Food."
+                )
+                .setPositiveButton("Bật Quyền Ngay") { _, _ ->
+                    com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.openPermissionSettings(this)
+                }
+                .setNegativeButton("Để sau", null)
+                .show()
+        } else {
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
+        }
+    }
+
+    private fun observeBranches() {
+        binding.progressBarBoss.visibility = View.VISIBLE
+        lifecycleScope.launch {
+            firebaseRepository.getStoresByBoss(currentBossUid).collect { stores ->
+                binding.progressBarBoss.visibility = View.GONE
+                cachedBranches = stores
+                branchAdapter.submitList(stores)
+                branchAdapter.setMerchants(cachedMerchants)
+                merchantAdapter.setStores(stores)
+
+                val hasBank = stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
+                if (hasBank) {
+                    binding.cardMissingBankAlert.visibility = View.GONE
+                }
+
+                val count = stores.size
+                binding.btnTabBranches.text = "Chi Nhánh ($count)"
+                binding.tvChainStats.text = "$count chi nhánh đang vận hành"
+                binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
+                binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    private fun observeMerchants() {
+        lifecycleScope.launch {
+            firebaseRepository.getMerchantsForBoss(currentBossUid).collect { merchants ->
+                cachedMerchants = merchants
+                merchantAdapter.submitList(merchants)
+                merchantAdapter.setStores(cachedBranches)
+                branchAdapter.setMerchants(merchants)
+
+                val count = merchants.size
+                binding.btnTabMerchants.text = "Quản Lý ($count)"
+                binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
+                binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    /**
+     * Boss chọn một chi nhánh để vào làm việc thay cho Merchant.
+     * Lưu chi nhánh vào SharedPreferences để khi thoát ra vào lại vẫn ở chi nhánh này.
+     */
+    private fun enterBranchAsManager(store: Store) {
+        lifecycleScope.launch {
+            // Lưu vào SharedPreferences cho Session Persistence
+            getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE)
+                .edit()
+                .putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, store.id)
+                .putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_NAME, store.name)
+                .apply()
+
+            // Đồng bộ lên Realtime DB
+            firebaseRepository.setActiveStoreForBoss(currentBossUid, store.id)
+
+            Toast.makeText(
+                this@BossDashboardActivity,
+                "✓ Đã vào chi nhánh: ${store.name}",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            val intent = Intent(this@BossDashboardActivity, DashboardActivity::class.java).apply {
+                putExtra(AppConstants.Extras.STORE_ID, store.id)
+                putExtra("FROM_BOSS", true)
+            }
+            startActivity(intent)
+            finish()
+        }
+    }
+
+    /**
+     * Dialog tạo chi nhánh mới: TÊN CHI NHÁNH, Địa chỉ bản đồ GPS...
+     */
+    private fun showCreateBranchDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogCreateBranchBinding.inflate(layoutInflater)
+        branchDialogBinding = dialogBinding
+        branchSelectedLat = null
+        branchSelectedLng = null
+
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val openMapAction = {
+            val currentAddress = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
+            val curDistrict = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
+            val intent = Intent(this, SelectLocationActivity::class.java).apply {
+                if (currentAddress.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
+                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
+                }
+                branchSelectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                branchSelectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectBranchLocationLauncher.launch(intent)
+        }
+
+        dialogBinding.btnPickBranchLocationMap.setOnClickListener { openMapAction() }
+        dialogBinding.etBranchAddress.setOnClickListener { openMapAction() }
+        dialogBinding.tilBranchAddress.setOnClickListener { openMapAction() }
+
+        dialog.setOnDismissListener {
+            branchDialogBinding = null
+        }
+
+        dialogBinding.btnCancelCreateBranch.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitCreateBranch.setOnClickListener {
+            val name = dialogBinding.etBranchName.text?.toString()?.trim().orEmpty()
+            val address = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
+            val district = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
+            val phone = dialogBinding.etBranchPhone.text?.toString()?.trim().orEmpty()
+
+            if (name.isBlank()) {
+                dialogBinding.tilBranchName.error = "Vui lòng nhập tên chi nhánh"
+                return@setOnClickListener
+            }
+            if (address.isBlank()) {
+                dialogBinding.tilBranchAddress.error = "Vui lòng chọn địa chỉ chi nhánh trên bản đồ"
+                return@setOnClickListener
+            }
+
+            dialogBinding.btnSubmitCreateBranch.isEnabled = false
+            dialogBinding.btnSubmitCreateBranch.text = "Đang tạo..."
+
+            lifecycleScope.launch {
+                val (resolvedLat, resolvedLng) = if (branchSelectedLat != null && branchSelectedLng != null && branchSelectedLat != 0.0 && branchSelectedLng != 0.0) {
+                    branchSelectedLat!! to branchSelectedLng!!
+                } else {
+                    val fullAddress = if (district.isNotBlank()) "$address, $district, TP.HCM" else "$address, TP.HCM"
+                    val coords = try {
+                        val resolved = GoogleMapUtils.geocodeAddress(this@BossDashboardActivity, fullAddress)
+                        if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                        else GoogleMapUtils.findFallbackDistrict(fullAddress)
+                    } catch (_: Exception) {
+                        GoogleMapUtils.findFallbackDistrict(fullAddress)
+                    }
+                    val fLat = if (coords.latitude != 0.0) coords.latitude else GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
+                    val fLng = if (coords.longitude != 0.0) coords.longitude else GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
+                    fLat to fLng
+                }
+
+                val result = firebaseRepository.createBranchStore(
+                    bossUid = currentBossUid,
+                    storeName = name,
+                    address = address,
+                    district = district,
+                    phone = phone,
+                    latitude = resolvedLat,
+                    longitude = resolvedLng
+                )
+                dialog.dismiss()
+                result.onSuccess { newId ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "🎉 Tạo chi nhánh '$name' thành công!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }.onFailure { err ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "Lỗi tạo chi nhánh: ${err.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Dialog tạo tài khoản MERCHANT (Quản lý) mới do Boss tạo.
+     */
+    private fun showCreateMerchantDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogCreateMerchantBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        dialogBinding.btnCancelCreateMerchant.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitCreateMerchant.setOnClickListener {
+            dialogBinding.tilMerchantName.error = null
+            dialogBinding.tilMerchantEmail.error = null
+            dialogBinding.tilMerchantPhone.error = null
+            dialogBinding.tilMerchantPassword.error = null
+
+            val name = dialogBinding.etMerchantName.text?.toString()?.trim().orEmpty()
+            val email = dialogBinding.etMerchantEmail.text?.toString()?.trim().orEmpty()
+            val phone = dialogBinding.etMerchantPhone.text?.toString()?.trim().orEmpty()
+            val password = dialogBinding.etMerchantPassword.text?.toString()?.trim().orEmpty()
+
+            var hasError = false
+            if (name.isBlank()) {
+                dialogBinding.tilMerchantName.error = "Vui lòng nhập họ tên"
+                hasError = true
+            }
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                dialogBinding.tilMerchantEmail.error = "Vui lòng nhập email hợp lệ"
+                hasError = true
+            }
+            if (phone.isBlank()) {
+                dialogBinding.tilMerchantPhone.error = "Vui lòng nhập số điện thoại"
+                hasError = true
+            }
+            if (password.length < 6) {
+                dialogBinding.tilMerchantPassword.error = "Mật khẩu phải có tối thiểu 6 ký tự"
+                hasError = true
+            }
+
+            if (hasError) return@setOnClickListener
+
+            dialogBinding.btnSubmitCreateMerchant.isEnabled = false
+            dialogBinding.btnSubmitCreateMerchant.text = "Đang tạo..."
+
+            lifecycleScope.launch {
+                val result = firebaseRepository.createMerchantByBoss(
+                    context = this@BossDashboardActivity,
+                    bossUid = currentBossUid,
+                    email = email,
+                    password = password,
+                    name = name,
+                    phone = phone
+                )
+                dialog.dismiss()
+                result.onSuccess { user ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "✓ Tạo tài khoản quản lý '${user.name}' thành công! Giờ bạn có thể phân công quản lý này vào chi nhánh.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    // Tự động chuyển sang tab Quản lý để Boss xem danh sách
+                    binding.toggleGroupBossTab.check(R.id.btnTabMerchants)
+                }.onFailure { err ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "Lỗi tạo quản lý: ${err.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Dialog gán tài khoản MERCHANT cho một Chi nhánh cụ thể (hoặc để trống - null Merchant).
+     */
+    private fun showAssignMerchantDialog(store: Store) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogAssignMerchantBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        dialogBinding.tvAssignTargetBranch.text = "Chi nhánh: ${store.name}"
+
+        var selectedUid: String? = null
+        var selectedName: String = ""
+
+        lifecycleScope.launch {
+            val merchants = firebaseRepository.getMerchantsForBoss(currentBossUid).firstOrNull().orEmpty()
+
+            for (merchant in merchants) {
+                val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+                val rb = RadioButton(this@BossDashboardActivity).apply {
+                    id = View.generateViewId()
+                    text = if (isLocked) "${merchant.name} (${merchant.email}) [Đã khóa]" else "${merchant.name} (${merchant.email})"
+                    setTextColor(if (isLocked) Color.parseColor("#94A3B8") else Color.parseColor("#0F172A"))
+                    textSize = 14f
+                    setPadding(0, 16, 0, 16)
+                    tag = merchant
+                    isEnabled = !isLocked
+                    if (merchant.uid == store.merchantId) {
+                        isChecked = true
+                        selectedUid = merchant.uid
+                        selectedName = merchant.name
+                    }
+                }
+                dialogBinding.rgMerchants.addView(rb)
+            }
+
+            if (store.merchantId.isBlank()) {
+                dialogBinding.rbNoMerchant.isChecked = true
+            }
+        }
+
+        dialogBinding.rgMerchants.setOnCheckedChangeListener { group, checkedId ->
+            if (checkedId == dialogBinding.rbNoMerchant.id) {
+                selectedUid = null
+                selectedName = ""
+            } else {
+                val checkedRb = group.findViewById<RadioButton>(checkedId)
+                val merchant = checkedRb?.tag as? User
+                if (merchant != null) {
+                    selectedUid = merchant.uid
+                    selectedName = merchant.name
+                }
+            }
+        }
+
+        dialogBinding.btnCancelAssign.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitAssign.setOnClickListener {
+            dialogBinding.btnSubmitAssign.isEnabled = false
+            dialogBinding.btnSubmitAssign.text = "Đang lưu..."
+
+            lifecycleScope.launch {
+                val result = firebaseRepository.assignMerchantToStore(
+                    storeId = store.id,
+                    merchantUid = selectedUid,
+                    merchantName = selectedName
+                )
+                dialog.dismiss()
+                result.onSuccess {
+                    val msg = if (selectedUid != null) {
+                        "✓ Đã phân công quản lý '$selectedName' cho chi nhánh '${store.name}'!"
+                    } else {
+                        "✓ Đã chuyển chi nhánh '${store.name}' về chế độ Boss tự quản lý!"
+                    }
+                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                }.onFailure { err ->
+                    Toast.makeText(
+                        this@BossDashboardActivity,
+                        "Lỗi phân công: ${err.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Gỡ quản lý khỏi một chi nhánh cụ thể từ danh sách Chi Nhánh
+     */
+    private fun unassignManagerFromStore(store: Store) {
+        val managerDisplayName = if (store.merchantName.isNotBlank()) store.merchantName else "quản lý này"
+        AlertDialog.Builder(this)
+            .setTitle("Gỡ Quản Lý")
+            .setMessage("Bạn có chắc muốn gỡ $managerDisplayName khỏi chi nhánh '${store.name}' không? Chi nhánh sẽ chuyển về chế độ Boss tự quản lý.")
+            .setPositiveButton("Gỡ") { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.unassignMerchantFromBranch(store.merchantId, store.id)
+                    result.onSuccess {
+                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh '${store.name}'!", Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Dialog phân công chi nhánh cho một Quản lý (Merchant) được chọn từ danh sách Quản lý
+     */
+    private fun showAssignBranchToMerchantDialog(merchant: User) {
+        val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+        if (isLocked) {
+            Toast.makeText(this, "Tài khoản quản lý này đang bị khóa, không thể phân công chi nhánh!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        val dialogBinding = DialogAssignBranchToMerchantBinding.inflate(layoutInflater)
+        dialog.setContentView(dialogBinding.root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        dialogBinding.tvAssignTargetMerchant.text = "Quản lý: ${merchant.name.ifBlank { merchant.email }}"
+
+        var selectedStoreId: String = merchant.storeId
+        for (branch in cachedBranches) {
+            val rb = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = "${branch.name} (${branch.address.ifBlank { "Chưa có địa chỉ" }})"
+                setTextColor(Color.parseColor("#0F172A"))
+                textSize = 14f
+                setPadding(0, 16, 0, 16)
+                tag = branch.id
+                if (branch.id == merchant.storeId) {
+                    isChecked = true
+                }
+            }
+            dialogBinding.rgBranches.addView(rb)
+        }
+
+        if (merchant.storeId.isBlank()) {
+            dialogBinding.rbNoBranch.isChecked = true
+        }
+
+        dialogBinding.rgBranches.setOnCheckedChangeListener { group, checkedId ->
+            if (checkedId == dialogBinding.rbNoBranch.id) {
+                selectedStoreId = ""
+            } else {
+                val checkedRb = group.findViewById<RadioButton>(checkedId)
+                selectedStoreId = checkedRb?.tag as? String ?: ""
+            }
+        }
+
+        dialogBinding.btnCancelAssignBranch.setOnClickListener { dialog.dismiss() }
+
+        dialogBinding.btnSubmitAssignBranch.setOnClickListener {
+            dialogBinding.btnSubmitAssignBranch.isEnabled = false
+            dialogBinding.btnSubmitAssignBranch.text = "Đang lưu..."
+            lifecycleScope.launch {
+                val targetBranchName = cachedBranches.firstOrNull { it.id == selectedStoreId }?.name.orEmpty()
+                val result = firebaseRepository.assignMerchantToBranch(
+                    merchantUid = merchant.uid,
+                    merchantName = merchant.name,
+                    targetStoreId = selectedStoreId,
+                    previousStoreId = merchant.storeId
+                )
+                dialog.dismiss()
+                result.onSuccess {
+                    val msg = if (selectedStoreId.isNotBlank()) {
+                        "✓ Đã phân công quản lý '${merchant.name}' cho chi nhánh '$targetBranchName'!"
+                    } else {
+                        "✓ Đã chuyển quản lý '${merchant.name}' về trạng thái tự do!"
+                    }
+                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                }.onFailure { err ->
+                    Toast.makeText(this@BossDashboardActivity, "Lỗi phân công: ${err.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * Gỡ quản lý khỏi chi nhánh
+     */
+    private fun unassignMerchant(merchant: User) {
+        AlertDialog.Builder(this)
+            .setTitle("Gỡ Quản Lý")
+            .setMessage("Bạn có chắc muốn gỡ quản lý '${merchant.name}' khỏi chi nhánh đang phụ trách không?")
+            .setPositiveButton("Gỡ") { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.unassignMerchantFromBranch(merchant.uid, merchant.storeId)
+                    result.onSuccess {
+                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh!", Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Khóa hoặc Mở khóa tài khoản Quản lý (thay thế xóa tài khoản)
+     */
+    private fun confirmToggleLockMerchant(merchant: User) {
+        val isCurrentlyLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
+        val shouldLock = !isCurrentlyLocked
+
+        val title = if (shouldLock) "Khóa Tài Khoản Quản Lý" else "Mở Khóa Tài Khoản Quản Lý"
+        val message = if (shouldLock) {
+            "Bạn có chắc muốn KHÓA tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nQuản lý này sẽ bị gỡ khỏi chi nhánh (nếu có) và không thể đăng nhập vào ứng dụng."
+        } else {
+            "Bạn có chắc muốn MỞ KHÓA cho tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nSau khi mở khóa, quản lý này có thể đăng nhập và được phân công lại vào chi nhánh."
+        }
+        val positiveBtn = if (shouldLock) "Khóa tài khoản" else "Mở khóa"
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(positiveBtn) { _, _ ->
+                lifecycleScope.launch {
+                    val result = firebaseRepository.toggleMerchantLockByBoss(merchant, shouldLock)
+                    result.onSuccess {
+                        val msg = if (shouldLock) "✓ Đã khóa tài khoản quản lý '${merchant.name}'!" else "✓ Đã mở khóa cho quản lý '${merchant.name}'!"
+                        Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                    }.onFailure { err ->
+                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+}
+````
+
 ## File: app-internal/src/main/res/layout/fragment_order_list.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -100121,758 +100946,6 @@ data class OrderItem(
 
     @get:Exclude
     val dishName: String get() = name
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossDashboardActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.boss
-
-import android.app.Dialog
-import android.content.Context
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.os.Bundle
-import android.view.View
-import android.view.Window
-import android.widget.RadioButton
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.AppConstants
-import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityBossDashboardBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignBranchToMerchantBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogAssignMerchantBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateBranchBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogCreateMerchantBinding
-import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
-import com.chuyen_de_2.foodorder.internal.ui.auth.SelectLocationActivity
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Màn hình Bảng điều khiển Quản lý Chuỗi dành riêng cho BOSSMERCHANT.
- * Cho phép tạo chi nhánh, tạo tài khoản Merchant, xem và quản lý danh sách Merchant đã tạo,
- * phân công/gỡ Merchant cho từng chi nhánh, và truy cập trực tiếp vào bất kỳ chi nhánh nào để vận hành.
- */
-@AndroidEntryPoint
-class BossDashboardActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityBossDashboardBinding
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    private lateinit var branchAdapter: BossBranchAdapter
-    private lateinit var merchantAdapter: BossMerchantAdapter
-    private var currentBossUid: String = ""
-    private var cachedBranches: List<Store> = emptyList()
-    private var cachedMerchants: List<User> = emptyList()
-
-    private var branchDialogBinding: DialogCreateBranchBinding? = null
-    private var branchSelectedLat: Double? = null
-    private var branchSelectedLng: Double? = null
-
-    private val selectBranchLocationLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data ?: return@registerForActivityResult
-            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
-            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
-            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
-            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
-            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
-
-            val displayAddress = if (!fullAddress.isNullOrBlank()) fullAddress else streetAddress.orEmpty()
-            if (displayAddress.isNotBlank()) {
-                branchDialogBinding?.etBranchAddress?.setText(displayAddress)
-                branchDialogBinding?.tilBranchAddress?.error = null
-            }
-            if (!district.isNullOrBlank()) {
-                branchDialogBinding?.etBranchDistrict?.setText(district)
-                branchDialogBinding?.tilBranchDistrict?.error = null
-            }
-            if (lat != 0.0 && lng != 0.0) {
-                branchSelectedLat = lat
-                branchSelectedLng = lng
-            }
-        }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        InsetUtils.initEdgeToEdge(this, true)
-        binding = ActivityBossDashboardBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        InsetUtils.applyStatusBarPadding(binding.bossHeaderBar, 4)
-        InsetUtils.applyNavigationBarPadding(binding.nestedScrollViewBoss)
-
-        val currentUser = authRepository.currentUser
-        if (currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
-            return
-        }
-
-        currentBossUid = currentUser.uid
-        setupUI()
-        observeBranches()
-        observeMerchants()
-        observeBusinessProfile()
-    }
-
-    private fun observeBusinessProfile() {
-        lifecycleScope.launch {
-            val stores = firebaseRepository.getStoresByBoss(currentBossUid).firstOrNull().orEmpty()
-            val hasBankInBranches = stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
-            if (hasBankInBranches) {
-                binding.cardMissingBankAlert.visibility = View.GONE
-            } else {
-                val fallbackStore = firebaseRepository.getStoreOnce("store_$currentBossUid")
-                val hasFallbackBank = fallbackStore != null && fallbackStore.bankAccountNumber.isNotBlank() && fallbackStore.cccdNumber.isNotBlank()
-                binding.cardMissingBankAlert.visibility = if (hasFallbackBank) View.GONE else View.VISIBLE
-            }
-        }
-    }
-
-    private fun setupUI() {
-        val email = authRepository.currentUser?.email.orEmpty()
-        val displayName = authRepository.currentUser?.displayName.orEmpty()
-        binding.tvBossSubtitle.text = buildString {
-            append("Chuỗi Cửa Hàng • ")
-            append(displayName.ifBlank { email })
-        }
-
-        // Branch Adapter
-        branchAdapter = BossBranchAdapter(
-            onEnterBranchClick = { store -> enterBranchAsManager(store) },
-            onAssignManagerClick = { store -> showAssignMerchantDialog(store) },
-            onUnassignManagerClick = { store -> unassignManagerFromStore(store) }
-        ).apply {
-            currentBossUid = this@BossDashboardActivity.currentBossUid
-        }
-        binding.rvBossBranches.layoutManager = LinearLayoutManager(this)
-        binding.rvBossBranches.adapter = branchAdapter
-
-        // Merchant Adapter
-        merchantAdapter = BossMerchantAdapter(
-            onAssignBranchClick = { merchant -> showAssignBranchToMerchantDialog(merchant) },
-            onUnassignBranchClick = { merchant -> unassignMerchant(merchant) },
-            onToggleLockMerchantClick = { merchant -> confirmToggleLockMerchant(merchant) }
-        )
-        binding.rvBossMerchants.layoutManager = LinearLayoutManager(this)
-        binding.rvBossMerchants.adapter = merchantAdapter
-
-        // Tab Toggle Group
-        binding.toggleGroupBossTab.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (isChecked) {
-                if (checkedId == R.id.btnTabBranches) {
-                    binding.layoutBranchesSection.visibility = View.VISIBLE
-                    binding.layoutMerchantsSection.visibility = View.GONE
-                } else if (checkedId == R.id.btnTabMerchants) {
-                    binding.layoutBranchesSection.visibility = View.GONE
-                    binding.layoutMerchantsSection.visibility = View.VISIBLE
-                }
-            }
-        }
-
-        binding.btnCreateBranch.setOnClickListener {
-            showCreateBranchDialog()
-        }
-
-        binding.btnCreateMerchant.setOnClickListener {
-            showCreateMerchantDialog()
-        }
-
-        binding.btnBossBusinessProfile.setOnClickListener {
-            val uid = authRepository.currentUser?.uid.orEmpty()
-            lifecycleScope.launch {
-                val storeId = cachedBranches.firstOrNull { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }?.id
-                    ?: cachedBranches.firstOrNull()?.id
-                    ?: firebaseRepository.resolveStoreIdForUser(uid).ifBlank { "store_$uid" }
-                val intent = Intent(this@BossDashboardActivity, com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity::class.java).apply {
-                    putExtra(AppConstants.Extras.STORE_ID, storeId)
-                }
-                startActivity(intent)
-            }
-        }
-
-        binding.cardMissingBankAlert.setOnClickListener {
-            binding.btnBossBusinessProfile.performClick()
-        }
-
-        binding.btnBossLogout.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất tài khoản Chủ chuỗi (Boss) không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
-                    authRepository.logout()
-                    startActivity(Intent(this, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra(AppConstants.Extras.LOGOUT, true)
-                    })
-                    finish()
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-
-        checkNotificationAccessPermission()
-    }
-
-    private fun checkNotificationAccessPermission() {
-        if (!com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
-            AlertDialog.Builder(this)
-                .setTitle("Tự Động Duyệt Tiền VietQR")
-                .setMessage(
-                    "Để hệ thống tự động đọc thông báo biến động số dư ngân hàng và duyệt đơn VietQR ngay lập tức, vui lòng bật quyền 'Truy cập thông báo' cho Oishi Food."
-                )
-                .setPositiveButton("Bật Quyền Ngay") { _, _ ->
-                    com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.openPermissionSettings(this)
-                }
-                .setNegativeButton("Để sau", null)
-                .show()
-        } else {
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
-            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
-            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
-        }
-    }
-
-    private fun observeBranches() {
-        binding.progressBarBoss.visibility = View.VISIBLE
-        lifecycleScope.launch {
-            firebaseRepository.getStoresByBoss(currentBossUid).collect { stores ->
-                binding.progressBarBoss.visibility = View.GONE
-                cachedBranches = stores
-                branchAdapter.submitList(stores)
-                branchAdapter.setMerchants(cachedMerchants)
-                merchantAdapter.setStores(stores)
-
-                val hasBank = stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
-                if (hasBank) {
-                    binding.cardMissingBankAlert.visibility = View.GONE
-                }
-
-                val count = stores.size
-                binding.btnTabBranches.text = "Chi Nhánh ($count)"
-                binding.tvChainStats.text = "$count chi nhánh đang vận hành"
-                binding.layoutEmptyBranches.visibility = if (count == 0) View.VISIBLE else View.GONE
-                binding.rvBossBranches.visibility = if (count > 0) View.VISIBLE else View.GONE
-            }
-        }
-    }
-
-    private fun observeMerchants() {
-        lifecycleScope.launch {
-            firebaseRepository.getMerchantsForBoss(currentBossUid).collect { merchants ->
-                cachedMerchants = merchants
-                merchantAdapter.submitList(merchants)
-                merchantAdapter.setStores(cachedBranches)
-                branchAdapter.setMerchants(merchants)
-
-                val count = merchants.size
-                binding.btnTabMerchants.text = "Quản Lý ($count)"
-                binding.layoutEmptyMerchants.visibility = if (count == 0) View.VISIBLE else View.GONE
-                binding.rvBossMerchants.visibility = if (count > 0) View.VISIBLE else View.GONE
-            }
-        }
-    }
-
-    /**
-     * Boss chọn một chi nhánh để vào làm việc thay cho Merchant.
-     * Lưu chi nhánh vào SharedPreferences để khi thoát ra vào lại vẫn ở chi nhánh này.
-     */
-    private fun enterBranchAsManager(store: Store) {
-        lifecycleScope.launch {
-            // Lưu vào SharedPreferences cho Session Persistence
-            getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE)
-                .edit()
-                .putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, store.id)
-                .putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_NAME, store.name)
-                .apply()
-
-            // Đồng bộ lên Realtime DB
-            firebaseRepository.setActiveStoreForBoss(currentBossUid, store.id)
-
-            Toast.makeText(
-                this@BossDashboardActivity,
-                "✓ Đã vào chi nhánh: ${store.name}",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            val intent = Intent(this@BossDashboardActivity, DashboardActivity::class.java).apply {
-                putExtra(AppConstants.Extras.STORE_ID, store.id)
-                putExtra("FROM_BOSS", true)
-            }
-            startActivity(intent)
-            finish()
-        }
-    }
-
-    /**
-     * Dialog tạo chi nhánh mới: TÊN CHI NHÁNH, Địa chỉ bản đồ GPS...
-     */
-    private fun showCreateBranchDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogCreateBranchBinding.inflate(layoutInflater)
-        branchDialogBinding = dialogBinding
-        branchSelectedLat = null
-        branchSelectedLng = null
-
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val openMapAction = {
-            val currentAddress = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
-            val curDistrict = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
-            val intent = Intent(this, SelectLocationActivity::class.java).apply {
-                if (currentAddress.isNotBlank()) {
-                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
-                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
-                }
-                branchSelectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
-                branchSelectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
-            }
-            selectBranchLocationLauncher.launch(intent)
-        }
-
-        dialogBinding.btnPickBranchLocationMap.setOnClickListener { openMapAction() }
-        dialogBinding.etBranchAddress.setOnClickListener { openMapAction() }
-        dialogBinding.tilBranchAddress.setOnClickListener { openMapAction() }
-
-        dialog.setOnDismissListener {
-            branchDialogBinding = null
-        }
-
-        dialogBinding.btnCancelCreateBranch.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitCreateBranch.setOnClickListener {
-            val name = dialogBinding.etBranchName.text?.toString()?.trim().orEmpty()
-            val address = dialogBinding.etBranchAddress.text?.toString()?.trim().orEmpty()
-            val district = dialogBinding.etBranchDistrict.text?.toString()?.trim().orEmpty()
-            val phone = dialogBinding.etBranchPhone.text?.toString()?.trim().orEmpty()
-
-            if (name.isBlank()) {
-                dialogBinding.tilBranchName.error = "Vui lòng nhập tên chi nhánh"
-                return@setOnClickListener
-            }
-            if (address.isBlank()) {
-                dialogBinding.tilBranchAddress.error = "Vui lòng chọn địa chỉ chi nhánh trên bản đồ"
-                return@setOnClickListener
-            }
-
-            dialogBinding.btnSubmitCreateBranch.isEnabled = false
-            dialogBinding.btnSubmitCreateBranch.text = "Đang tạo..."
-
-            lifecycleScope.launch {
-                val (resolvedLat, resolvedLng) = if (branchSelectedLat != null && branchSelectedLng != null && branchSelectedLat != 0.0 && branchSelectedLng != 0.0) {
-                    branchSelectedLat!! to branchSelectedLng!!
-                } else {
-                    val fullAddress = if (district.isNotBlank()) "$address, $district, TP.HCM" else "$address, TP.HCM"
-                    val coords = try {
-                        val resolved = GoogleMapUtils.geocodeAddress(this@BossDashboardActivity, fullAddress)
-                        if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
-                        else GoogleMapUtils.findFallbackDistrict(fullAddress)
-                    } catch (_: Exception) {
-                        GoogleMapUtils.findFallbackDistrict(fullAddress)
-                    }
-                    val fLat = if (coords.latitude != 0.0) coords.latitude else GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude
-                    val fLng = if (coords.longitude != 0.0) coords.longitude else GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude
-                    fLat to fLng
-                }
-
-                val result = firebaseRepository.createBranchStore(
-                    bossUid = currentBossUid,
-                    storeName = name,
-                    address = address,
-                    district = district,
-                    phone = phone,
-                    latitude = resolvedLat,
-                    longitude = resolvedLng
-                )
-                dialog.dismiss()
-                result.onSuccess { newId ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "🎉 Tạo chi nhánh '$name' thành công!",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }.onFailure { err ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "Lỗi tạo chi nhánh: ${err.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Dialog tạo tài khoản MERCHANT (Quản lý) mới do Boss tạo.
-     */
-    private fun showCreateMerchantDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogCreateMerchantBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        dialogBinding.btnCancelCreateMerchant.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitCreateMerchant.setOnClickListener {
-            dialogBinding.tilMerchantName.error = null
-            dialogBinding.tilMerchantEmail.error = null
-            dialogBinding.tilMerchantPhone.error = null
-            dialogBinding.tilMerchantPassword.error = null
-
-            val name = dialogBinding.etMerchantName.text?.toString()?.trim().orEmpty()
-            val email = dialogBinding.etMerchantEmail.text?.toString()?.trim().orEmpty()
-            val phone = dialogBinding.etMerchantPhone.text?.toString()?.trim().orEmpty()
-            val password = dialogBinding.etMerchantPassword.text?.toString()?.trim().orEmpty()
-
-            var hasError = false
-            if (name.isBlank()) {
-                dialogBinding.tilMerchantName.error = "Vui lòng nhập họ tên"
-                hasError = true
-            }
-            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                dialogBinding.tilMerchantEmail.error = "Vui lòng nhập email hợp lệ"
-                hasError = true
-            }
-            if (phone.isBlank()) {
-                dialogBinding.tilMerchantPhone.error = "Vui lòng nhập số điện thoại"
-                hasError = true
-            }
-            if (password.length < 6) {
-                dialogBinding.tilMerchantPassword.error = "Mật khẩu phải có tối thiểu 6 ký tự"
-                hasError = true
-            }
-
-            if (hasError) return@setOnClickListener
-
-            dialogBinding.btnSubmitCreateMerchant.isEnabled = false
-            dialogBinding.btnSubmitCreateMerchant.text = "Đang tạo..."
-
-            lifecycleScope.launch {
-                val result = firebaseRepository.createMerchantByBoss(
-                    context = this@BossDashboardActivity,
-                    bossUid = currentBossUid,
-                    email = email,
-                    password = password,
-                    name = name,
-                    phone = phone
-                )
-                dialog.dismiss()
-                result.onSuccess { user ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "✓ Tạo tài khoản quản lý '${user.name}' thành công! Giờ bạn có thể phân công quản lý này vào chi nhánh.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    // Tự động chuyển sang tab Quản lý để Boss xem danh sách
-                    binding.toggleGroupBossTab.check(R.id.btnTabMerchants)
-                }.onFailure { err ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "Lỗi tạo quản lý: ${err.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Dialog gán tài khoản MERCHANT cho một Chi nhánh cụ thể (hoặc để trống - null Merchant).
-     */
-    private fun showAssignMerchantDialog(store: Store) {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogAssignMerchantBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        dialogBinding.tvAssignTargetBranch.text = "Chi nhánh: ${store.name}"
-
-        var selectedUid: String? = null
-        var selectedName: String = ""
-
-        lifecycleScope.launch {
-            val merchants = firebaseRepository.getMerchantsForBoss(currentBossUid).firstOrNull().orEmpty()
-
-            for (merchant in merchants) {
-                val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-                val rb = RadioButton(this@BossDashboardActivity).apply {
-                    id = View.generateViewId()
-                    text = if (isLocked) "${merchant.name} (${merchant.email}) [Đã khóa]" else "${merchant.name} (${merchant.email})"
-                    setTextColor(if (isLocked) Color.parseColor("#94A3B8") else Color.parseColor("#0F172A"))
-                    textSize = 14f
-                    setPadding(0, 16, 0, 16)
-                    tag = merchant
-                    isEnabled = !isLocked
-                    if (merchant.uid == store.merchantId) {
-                        isChecked = true
-                        selectedUid = merchant.uid
-                        selectedName = merchant.name
-                    }
-                }
-                dialogBinding.rgMerchants.addView(rb)
-            }
-
-            if (store.merchantId.isBlank()) {
-                dialogBinding.rbNoMerchant.isChecked = true
-            }
-        }
-
-        dialogBinding.rgMerchants.setOnCheckedChangeListener { group, checkedId ->
-            if (checkedId == dialogBinding.rbNoMerchant.id) {
-                selectedUid = null
-                selectedName = ""
-            } else {
-                val checkedRb = group.findViewById<RadioButton>(checkedId)
-                val merchant = checkedRb?.tag as? User
-                if (merchant != null) {
-                    selectedUid = merchant.uid
-                    selectedName = merchant.name
-                }
-            }
-        }
-
-        dialogBinding.btnCancelAssign.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitAssign.setOnClickListener {
-            dialogBinding.btnSubmitAssign.isEnabled = false
-            dialogBinding.btnSubmitAssign.text = "Đang lưu..."
-
-            lifecycleScope.launch {
-                val result = firebaseRepository.assignMerchantToStore(
-                    storeId = store.id,
-                    merchantUid = selectedUid,
-                    merchantName = selectedName
-                )
-                dialog.dismiss()
-                result.onSuccess {
-                    val msg = if (selectedUid != null) {
-                        "✓ Đã phân công quản lý '$selectedName' cho chi nhánh '${store.name}'!"
-                    } else {
-                        "✓ Đã chuyển chi nhánh '${store.name}' về chế độ Boss tự quản lý!"
-                    }
-                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
-                }.onFailure { err ->
-                    Toast.makeText(
-                        this@BossDashboardActivity,
-                        "Lỗi phân công: ${err.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Gỡ quản lý khỏi một chi nhánh cụ thể từ danh sách Chi Nhánh
-     */
-    private fun unassignManagerFromStore(store: Store) {
-        val managerDisplayName = if (store.merchantName.isNotBlank()) store.merchantName else "quản lý này"
-        AlertDialog.Builder(this)
-            .setTitle("Gỡ Quản Lý")
-            .setMessage("Bạn có chắc muốn gỡ $managerDisplayName khỏi chi nhánh '${store.name}' không? Chi nhánh sẽ chuyển về chế độ Boss tự quản lý.")
-            .setPositiveButton("Gỡ") { _, _ ->
-                lifecycleScope.launch {
-                    val result = firebaseRepository.unassignMerchantFromBranch(store.merchantId, store.id)
-                    result.onSuccess {
-                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh '${store.name}'!", Toast.LENGTH_SHORT).show()
-                    }.onFailure { err ->
-                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    /**
-     * Dialog phân công chi nhánh cho một Quản lý (Merchant) được chọn từ danh sách Quản lý
-     */
-    private fun showAssignBranchToMerchantDialog(merchant: User) {
-        val isLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-        if (isLocked) {
-            Toast.makeText(this, "Tài khoản quản lý này đang bị khóa, không thể phân công chi nhánh!", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        val dialogBinding = DialogAssignBranchToMerchantBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        dialogBinding.tvAssignTargetMerchant.text = "Quản lý: ${merchant.name.ifBlank { merchant.email }}"
-
-        var selectedStoreId: String = merchant.storeId
-        for (branch in cachedBranches) {
-            val rb = RadioButton(this).apply {
-                id = View.generateViewId()
-                text = "${branch.name} (${branch.address.ifBlank { "Chưa có địa chỉ" }})"
-                setTextColor(Color.parseColor("#0F172A"))
-                textSize = 14f
-                setPadding(0, 16, 0, 16)
-                tag = branch.id
-                if (branch.id == merchant.storeId) {
-                    isChecked = true
-                }
-            }
-            dialogBinding.rgBranches.addView(rb)
-        }
-
-        if (merchant.storeId.isBlank()) {
-            dialogBinding.rbNoBranch.isChecked = true
-        }
-
-        dialogBinding.rgBranches.setOnCheckedChangeListener { group, checkedId ->
-            if (checkedId == dialogBinding.rbNoBranch.id) {
-                selectedStoreId = ""
-            } else {
-                val checkedRb = group.findViewById<RadioButton>(checkedId)
-                selectedStoreId = checkedRb?.tag as? String ?: ""
-            }
-        }
-
-        dialogBinding.btnCancelAssignBranch.setOnClickListener { dialog.dismiss() }
-
-        dialogBinding.btnSubmitAssignBranch.setOnClickListener {
-            dialogBinding.btnSubmitAssignBranch.isEnabled = false
-            dialogBinding.btnSubmitAssignBranch.text = "Đang lưu..."
-            lifecycleScope.launch {
-                val targetBranchName = cachedBranches.firstOrNull { it.id == selectedStoreId }?.name.orEmpty()
-                val result = firebaseRepository.assignMerchantToBranch(
-                    merchantUid = merchant.uid,
-                    merchantName = merchant.name,
-                    targetStoreId = selectedStoreId,
-                    previousStoreId = merchant.storeId
-                )
-                dialog.dismiss()
-                result.onSuccess {
-                    val msg = if (selectedStoreId.isNotBlank()) {
-                        "✓ Đã phân công quản lý '${merchant.name}' cho chi nhánh '$targetBranchName'!"
-                    } else {
-                        "✓ Đã chuyển quản lý '${merchant.name}' về trạng thái tự do!"
-                    }
-                    Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
-                }.onFailure { err ->
-                    Toast.makeText(this@BossDashboardActivity, "Lỗi phân công: ${err.message}", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-        dialog.show()
-    }
-
-    /**
-     * Gỡ quản lý khỏi chi nhánh
-     */
-    private fun unassignMerchant(merchant: User) {
-        AlertDialog.Builder(this)
-            .setTitle("Gỡ Quản Lý")
-            .setMessage("Bạn có chắc muốn gỡ quản lý '${merchant.name}' khỏi chi nhánh đang phụ trách không?")
-            .setPositiveButton("Gỡ") { _, _ ->
-                lifecycleScope.launch {
-                    val result = firebaseRepository.unassignMerchantFromBranch(merchant.uid, merchant.storeId)
-                    result.onSuccess {
-                        Toast.makeText(this@BossDashboardActivity, "✓ Đã gỡ quản lý khỏi chi nhánh!", Toast.LENGTH_SHORT).show()
-                    }.onFailure { err ->
-                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    /**
-     * Khóa hoặc Mở khóa tài khoản Quản lý (thay thế xóa tài khoản)
-     */
-    private fun confirmToggleLockMerchant(merchant: User) {
-        val isCurrentlyLocked = !merchant.isActive || merchant.status == User.Status.LOCKED || merchant.status == "SUSPENDED"
-        val shouldLock = !isCurrentlyLocked
-
-        val title = if (shouldLock) "Khóa Tài Khoản Quản Lý" else "Mở Khóa Tài Khoản Quản Lý"
-        val message = if (shouldLock) {
-            "Bạn có chắc muốn KHÓA tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nQuản lý này sẽ bị gỡ khỏi chi nhánh (nếu có) và không thể đăng nhập vào ứng dụng."
-        } else {
-            "Bạn có chắc muốn MỞ KHÓA cho tài khoản quản lý '${merchant.name}' (${merchant.email}) không?\n\nSau khi mở khóa, quản lý này có thể đăng nhập và được phân công lại vào chi nhánh."
-        }
-        val positiveBtn = if (shouldLock) "Khóa tài khoản" else "Mở khóa"
-
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setPositiveButton(positiveBtn) { _, _ ->
-                lifecycleScope.launch {
-                    val result = firebaseRepository.toggleMerchantLockByBoss(merchant, shouldLock)
-                    result.onSuccess {
-                        val msg = if (shouldLock) "✓ Đã khóa tài khoản quản lý '${merchant.name}'!" else "✓ Đã mở khóa cho quản lý '${merchant.name}'!"
-                        Toast.makeText(this@BossDashboardActivity, msg, Toast.LENGTH_SHORT).show()
-                    }.onFailure { err ->
-                        Toast.makeText(this@BossDashboardActivity, "Lỗi: ${err.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
 }
 ````
 
@@ -103240,6 +103313,7 @@ class DeliveryTripActivity : AppCompatActivity() {
                             needsRebindStep2 = true
                         }
                     }
+                    syncActiveOrdersToLocationService()
 
                     // Đồng bộ các đơn đã hoàn tất
                     orders.filter { it.status == Order.Status.COMPLETED }.forEach { done ->
@@ -103932,8 +104006,86 @@ class DeliveryTripActivity : AppCompatActivity() {
         }
     }
 
+    private var continuousLocationCallback: com.google.android.gms.location.LocationCallback? = null
+
+    private fun syncActiveOrdersToLocationService() {
+        val allOrderIds = arrayListOf<String>()
+        if (currentOrderId.isNotBlank()) {
+            allOrderIds.add(currentOrderId)
+        }
+        bundleOrders.forEach { bOrder ->
+            if (bOrder.orderId.isNotBlank() && !allOrderIds.contains(bOrder.orderId)) {
+                allOrderIds.add(bOrder.orderId)
+            }
+        }
+        val serviceIntent = Intent(this, com.chuyen_de_2.foodorder.internal.service.LocationForegroundService::class.java).apply {
+            putExtra(com.chuyen_de_2.foodorder.internal.service.LocationForegroundService.EXTRA_ORDER_ID, currentOrderId)
+            putStringArrayListExtra(com.chuyen_de_2.foodorder.internal.service.LocationForegroundService.EXTRA_ORDER_IDS, allOrderIds)
+        }
+        try {
+            ContextCompat.startForegroundService(this, serviceIntent)
+        } catch (e: Exception) {
+            android.util.Log.e("DeliveryTripActivity", "Cannot sync orders to LocationForegroundService: ${e.message}")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startContinuousLocationUpdates() {
+        if (continuousLocationCallback != null) return
+
+        val locationRequest = com.google.android.gms.location.LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            3000L
+        )
+            .setMinUpdateIntervalMillis(1500L)
+            .setMinUpdateDistanceMeters(2f)
+            .build()
+
+        continuousLocationCallback = object : com.google.android.gms.location.LocationCallback() {
+            override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
+                val loc = result.lastLocation ?: return
+                driverLat = loc.latitude
+                driverLng = loc.longitude
+
+                binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+                binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+
+                // Đồng bộ vị trí realtime lên Firebase tracking cho Khách hàng
+                val tracking = com.chuyen_de_2.foodorder.core.data.model.TrackingLocation(
+                    lat = driverLat,
+                    lng = driverLng,
+                    updatedAt = System.currentTimeMillis()
+                )
+                try {
+                    val db = com.google.firebase.database.FirebaseDatabase.getInstance(com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL).getReference("tracking")
+                    if (currentOrderId.isNotBlank()) {
+                        db.child(currentOrderId).setValue(tracking)
+                    }
+                    bundleOrders.forEach { bOrder ->
+                        if (bOrder.orderId.isNotBlank()) {
+                            db.child(bOrder.orderId).setValue(tracking)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        try {
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                continuousLocationCallback!!,
+                Looper.getMainLooper()
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("DeliveryTripActivity", "requestLocationUpdates failed: ${e.message}")
+        }
+    }
+
     @SuppressLint("MissingPermission")
     private fun fetchRealShipperLocation() {
+        syncActiveOrdersToLocationService()
+        startContinuousLocationUpdates()
+
         try {
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener { location ->
@@ -103942,6 +104094,18 @@ class DeliveryTripActivity : AppCompatActivity() {
                         driverLng = location.longitude
                         binding.webViewMapStep1.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
                         binding.webViewMapStep3.evaluateJavascript("updateDriverLocation($driverLat, $driverLng);", null)
+
+                        try {
+                            val tracking = com.chuyen_de_2.foodorder.core.data.model.TrackingLocation(
+                                lat = driverLat,
+                                lng = driverLng,
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            val db = com.google.firebase.database.FirebaseDatabase.getInstance(com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL).getReference("tracking")
+                            if (currentOrderId.isNotBlank()) {
+                                db.child(currentOrderId).setValue(tracking)
+                            }
+                        } catch (_: Exception) {}
                     }
                 }
                 .addOnFailureListener {
@@ -105668,6 +105832,12 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        continuousLocationCallback?.let {
+            try {
+                fusedLocationClient.removeLocationUpdates(it)
+            } catch (_: Exception) {}
+            continuousLocationCallback = null
+        }
         countdownTimer?.cancel()
         activeIncidentDialog?.dismiss()
         activeIncidentDialog = null

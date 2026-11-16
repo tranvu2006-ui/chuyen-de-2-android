@@ -180,6 +180,15 @@ class OrderHistoryActivity : AppCompatActivity() {
         binding.rvOrders.adapter = adapter
     }
 
+    private fun isOrderFullPaid(order: Order): Boolean {
+        val isPaid = order.isPaid || order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
+                order.paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)
+        val isDeposit = order.paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) ||
+                order.paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+        return isPaid && !isCod && !isDeposit
+    }
+
     private fun handleCancelOrderClick(order: Order) {
         val status = order.effectiveStatus.uppercase()
         if (status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
@@ -209,9 +218,16 @@ class OrderHistoryActivity : AppCompatActivity() {
             addView(input)
         }
 
+        val isFullPaid = isOrderFullPaid(order)
+        val penaltyNotice = if (isFullPaid) {
+            "💡 Đơn hàng đã thanh toán 100%, bạn có thể hủy đơn mà KHÔNG bị trừ điểm uy tín."
+        } else {
+            "⚠️ Lưu ý: Đơn hàng COD hoặc cọc. Việc hủy đơn sẽ bị TRỪ 10 ĐIỂM UY TÍN."
+        }
+
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("✕ Hủy Đơn Hàng")
-            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức mà không bị ảnh hưởng đến điểm uy tín.\n\nVui lòng chọn lý do hủy:")
+            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức.\n\n$penaltyNotice\n\nVui lòng chọn lý do hủy:")
             .setSingleChoiceItems(reasons, 0) { _, which ->
                 selectedIndex = which
                 input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
@@ -225,7 +241,8 @@ class OrderHistoryActivity : AppCompatActivity() {
                 }
                 lifecycleScope.launch {
                     firebaseRepository.cancelOrderImmediately(order.orderId, reasonText)
-                    Toast.makeText(this@OrderHistoryActivity, "✓ Đã hủy đơn hàng thành công!", Toast.LENGTH_SHORT).show()
+                    val successMsg = if (isFullPaid) "✓ Đã hủy đơn hàng thành công! (Không trừ điểm uy tín)" else "✓ Đã hủy đơn hàng (-10 điểm uy tín do hủy đơn COD/Cọc)"
+                    Toast.makeText(this@OrderHistoryActivity, successMsg, Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Giữ Lại Đơn", null)

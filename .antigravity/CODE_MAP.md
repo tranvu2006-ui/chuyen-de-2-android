@@ -59337,6 +59337,15 @@ class OrderHistoryActivity : AppCompatActivity() {
         binding.rvOrders.adapter = adapter
     }
 
+    private fun isOrderFullPaid(order: Order): Boolean {
+        val isPaid = order.isPaid || order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
+                order.paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)
+        val isDeposit = order.paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) ||
+                order.paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+        return isPaid && !isCod && !isDeposit
+    }
+
     private fun handleCancelOrderClick(order: Order) {
         val status = order.effectiveStatus.uppercase()
         if (status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
@@ -59366,9 +59375,16 @@ class OrderHistoryActivity : AppCompatActivity() {
             addView(input)
         }
 
+        val isFullPaid = isOrderFullPaid(order)
+        val penaltyNotice = if (isFullPaid) {
+            "💡 Đơn hàng đã thanh toán 100%, bạn có thể hủy đơn mà KHÔNG bị trừ điểm uy tín."
+        } else {
+            "⚠️ Lưu ý: Đơn hàng COD hoặc cọc. Việc hủy đơn sẽ bị TRỪ 10 ĐIỂM UY TÍN."
+        }
+
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("✕ Hủy Đơn Hàng")
-            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức mà không bị ảnh hưởng đến điểm uy tín.\n\nVui lòng chọn lý do hủy:")
+            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức.\n\n$penaltyNotice\n\nVui lòng chọn lý do hủy:")
             .setSingleChoiceItems(reasons, 0) { _, which ->
                 selectedIndex = which
                 input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
@@ -59382,7 +59398,8 @@ class OrderHistoryActivity : AppCompatActivity() {
                 }
                 lifecycleScope.launch {
                     firebaseRepository.cancelOrderImmediately(order.orderId, reasonText)
-                    Toast.makeText(this@OrderHistoryActivity, "✓ Đã hủy đơn hàng thành công!", Toast.LENGTH_SHORT).show()
+                    val successMsg = if (isFullPaid) "✓ Đã hủy đơn hàng thành công! (Không trừ điểm uy tín)" else "✓ Đã hủy đơn hàng (-10 điểm uy tín do hủy đơn COD/Cọc)"
+                    Toast.makeText(this@OrderHistoryActivity, successMsg, Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Giữ Lại Đơn", null)
@@ -59794,6 +59811,15 @@ class OrderHistoryFragment : Fragment() {
         binding.rvOrders.adapter = adapter
     }
 
+    private fun isOrderFullPaid(order: Order): Boolean {
+        val isPaid = order.isPaid || order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
+                order.paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)
+        val isDeposit = order.paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) ||
+                order.paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+        return isPaid && !isCod && !isDeposit
+    }
+
     private fun handleCancelOrderClick(order: Order) {
         val status = order.effectiveStatus.uppercase()
         if (status == Order.Status.PENDING || status == Order.Status.PAID || status == Order.Status.AWAITING_PAYMENT) {
@@ -59823,9 +59849,16 @@ class OrderHistoryFragment : Fragment() {
             addView(input)
         }
 
+        val isFullPaid = isOrderFullPaid(order)
+        val penaltyNotice = if (isFullPaid) {
+            "💡 Đơn hàng đã thanh toán 100%, bạn có thể hủy đơn mà KHÔNG bị trừ điểm uy tín."
+        } else {
+            "⚠️ Lưu ý: Đơn hàng thanh toán khi nhận (COD) hoặc cọc. Theo quy định, việc hủy đơn sẽ bị TRỪ 10 ĐIỂM UY TÍN."
+        }
+
         androidx.appcompat.app.AlertDialog.Builder(requireContext())
             .setTitle("✕ Hủy Đơn Hàng")
-            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức mà không bị ảnh hưởng đến điểm uy tín.\n\nVui lòng chọn lý do hủy:")
+            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức.\n\n$penaltyNotice\n\nVui lòng chọn lý do hủy:")
             .setSingleChoiceItems(reasons, 0) { _, which ->
                 selectedIndex = which
                 input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
@@ -59839,7 +59872,8 @@ class OrderHistoryFragment : Fragment() {
                 }
                 viewLifecycleOwner.lifecycleScope.launch {
                     firebaseRepository.cancelOrderImmediately(order.orderId, reasonText)
-                    Toast.makeText(requireContext(), "✓ Đã hủy đơn hàng thành công!", Toast.LENGTH_SHORT).show()
+                    val successMsg = if (isFullPaid) "✓ Đã hủy đơn hàng thành công! (Không trừ điểm uy tín)" else "✓ Đã hủy đơn hàng (-10 điểm uy tín do hủy đơn COD/Cọc)"
+                    Toast.makeText(requireContext(), successMsg, Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Giữ Lại Đơn", null)
@@ -102801,6 +102835,15 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    private fun isOrderFullPaid(order: Order): Boolean {
+        val isPaid = order.isPaid || order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)
+        val isCod = order.paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) ||
+                order.paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)
+        val isDeposit = order.paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) ||
+                order.paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+        return isPaid && !isCod && !isDeposit
+    }
+
     private fun handleCancelOrderClick() {
         val order = currentOrder ?: return
         val status = order.effectiveStatus.uppercase()
@@ -102810,17 +102853,11 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 status == Order.Status.DELIVERING ||
                 status == Order.Status.ARRIVED_AT_CUSTOMER
 
-        if (isShipperAssigned) {
-            Toast.makeText(this, "Tài xế đã nhận đơn hàng, không thể hủy đơn!", Toast.LENGTH_SHORT).show()
-            binding.btnCancelOrder.isVisible = false
-            return
-        }
-
-        when (status) {
-            Order.Status.PENDING, Order.Status.PAID, Order.Status.AWAITING_PAYMENT -> {
-                showInstantCancelDialog(order)
+        when {
+            isShipperAssigned -> {
+                showAssignedDriverCancelDialog(order)
             }
-            Order.Status.PREPARING, Order.Status.READY -> {
+            status == Order.Status.PREPARING || status == Order.Status.READY -> {
                 showKitchenCancelDialog(order)
             }
             else -> {
@@ -102849,9 +102886,16 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             addView(input)
         }
 
+        val isFullPaid = isOrderFullPaid(order)
+        val penaltyNotice = if (isFullPaid) {
+            "💡 Đơn hàng đã thanh toán 100%, bạn có thể hủy đơn mà KHÔNG bị trừ điểm uy tín."
+        } else {
+            "⚠️ Lưu ý: Đơn hàng thanh toán khi nhận (COD) hoặc cọc. Theo quy định, việc hủy đơn sẽ bị TRỪ 10 ĐIỂM UY TÍN."
+        }
+
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("✕ Hủy Đơn Hàng")
-            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức mà không bị ảnh hưởng đến điểm uy tín.\n\nVui lòng chọn lý do hủy:")
+            .setMessage("Do quán chưa xác nhận làm món, bạn có thể hủy đơn ngay lập tức.\n\n$penaltyNotice\n\nVui lòng chọn lý do hủy:")
             .setSingleChoiceItems(reasons, 0) { _, which ->
                 selectedIndex = which
                 input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
@@ -102864,7 +102908,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                     reasons[selectedIndex]
                 }
                 viewModel.cancelOrderImmediately(order.orderId, "Khách hủy (Quán chưa làm): $reasonText")
-                Toast.makeText(this, "✓ Đã hủy đơn hàng thành công!", Toast.LENGTH_SHORT).show()
+                val successMsg = if (isFullPaid) "✓ Đã hủy đơn hàng thành công! (Không trừ điểm uy tín)" else "✓ Đã hủy đơn hàng (-10 điểm uy tín do hủy đơn COD/Cọc)"
+                Toast.makeText(this, successMsg, Toast.LENGTH_LONG).show()
             }
             .setNegativeButton("Giữ Lại Đơn", null)
             .show()
@@ -102891,9 +102936,16 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             addView(input)
         }
 
+        val isFullPaid = isOrderFullPaid(order)
+        val penaltyNotice = if (isFullPaid) {
+            "💡 Đơn hàng đã thanh toán 100%, hệ thống sẽ dừng làm món và KHÔNG trừ điểm uy tín của bạn."
+        } else {
+            "⚠️ Lưu ý: Đơn hàng COD hoặc cọc. Việc hủy đơn khi quán đang chuẩn bị món sẽ bị TRỪ 10 ĐIỂM UY TÍN."
+        }
+
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("✕ HỦY ĐƠN HÀNG (QUÁN ĐANG LÀM)")
-            .setMessage("Quán đang chuẩn bị món ăn. Nếu bạn hủy đơn ngay bây giờ, hệ thống sẽ gửi thông báo dừng làm món tới quán ngay lập tức.\n\nVui lòng chọn lý do hủy:")
+            .setMessage("Quán đang chuẩn bị món ăn. Nếu bạn hủy đơn ngay bây giờ, hệ thống sẽ gửi thông báo dừng làm món tới quán ngay lập tức.\n\n$penaltyNotice\n\nVui lòng chọn lý do hủy:")
             .setSingleChoiceItems(reasons, 0) { _, which ->
                 selectedIndex = which
                 input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
@@ -102907,7 +102959,8 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
                 val fullReason = "Khách hủy khi quán đang làm (Quán dừng làm món): $reasonText"
                 viewModel.cancelOrderImmediately(order.orderId, fullReason)
-                Toast.makeText(this, "✓ Đã hủy đơn hàng! Quán đã nhận thông báo dừng làm món.", Toast.LENGTH_LONG).show()
+                val successMsg = if (isFullPaid) "✓ Đã hủy đơn hàng! Quán đã nhận thông báo (Không trừ điểm uy tín)." else "✓ Đã hủy đơn hàng (-10 điểm uy tín do hủy đơn COD/Cọc)."
+                Toast.makeText(this, successMsg, Toast.LENGTH_LONG).show()
             }
             .setNegativeButton("Giữ Lại Đơn", null)
             .show()
@@ -102934,9 +102987,16 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             addView(input)
         }
 
+        val isFullPaid = isOrderFullPaid(order)
+        val penaltyNotice = if (isFullPaid) {
+            "💡 Đơn hàng đã thanh toán 100%, hệ thống sẽ hủy chuyến giao và KHÔNG trừ điểm uy tín của bạn."
+        } else {
+            "⚠️ Lưu ý: Đơn hàng COD hoặc cọc. Việc hủy đơn khi tài xế đang giao sẽ bị TRỪ 10 ĐIỂM UY TÍN."
+        }
+
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("✕ HỦY ĐƠN HÀNG (TÀI XẾ Ở QUÁN)")
-            .setMessage("Tài xế đang có mặt tại quán để nhận món. Nếu bạn hủy đơn, hệ thống sẽ thông báo quán dừng làm món và tài xế hủy chuyến giao này.\n\nVui lòng chọn lý do hủy:")
+            .setTitle("✕ HỦY ĐƠN HÀNG (TÀI XẾ ĐANG XỬ LÝ)")
+            .setMessage("Tài xế đang đến quán hoặc đang giao đơn hàng này. Nếu bạn hủy đơn, hệ thống sẽ thông báo dừng giao tới tài xế và quán.\n\n$penaltyNotice\n\nVui lòng chọn lý do hủy:")
             .setSingleChoiceItems(reasons, 0) { _, which ->
                 selectedIndex = which
                 input.visibility = if (which == reasons.size - 1) View.VISIBLE else View.GONE
@@ -102944,13 +103004,14 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
             .setView(container)
             .setPositiveButton("Xác Nhận Hủy") { _, _ ->
                 val reasonText = if (selectedIndex == reasons.size - 1) {
-                    input.text.toString().trim().ifBlank { "Khách hủy khi tài xế ở quán" }
+                    input.text.toString().trim().ifBlank { "Khách hủy khi tài xế đang xử lý" }
                 } else {
                     reasons[selectedIndex]
                 }
-                val fullReason = "Khách hủy khi tài xế ở quán (Quán dừng làm & Hủy giao): $reasonText"
+                val fullReason = "Khách hủy khi tài xế đang xử lý (Hủy giao & Dừng làm): $reasonText"
                 viewModel.cancelOrderImmediately(order.orderId, fullReason)
-                Toast.makeText(this, "✓ Đã hủy đơn hàng! Quán và tài xế đã nhận thông báo.", Toast.LENGTH_LONG).show()
+                val successMsg = if (isFullPaid) "✓ Đã hủy đơn hàng! Quán và tài xế đã nhận thông báo (Không trừ điểm uy tín)." else "✓ Đã hủy đơn hàng (-10 điểm uy tín do hủy đơn COD/Cọc)."
+                Toast.makeText(this, successMsg, Toast.LENGTH_LONG).show()
             }
             .setNegativeButton("Giữ Lại Đơn", null)
             .show()
@@ -103324,11 +103385,13 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 statusUpper == Order.Status.DELIVERING ||
                 statusUpper == Order.Status.ARRIVED_AT_CUSTOMER
 
+        val isTerminal = statusUpper == Order.Status.CANCELLED || statusUpper == Order.Status.BOOM ||
+                statusUpper == Order.Status.COMPLETED || statusUpper == Order.Status.RETURNING_TO_STORE ||
+                statusUpper == Order.Status.RETURNED_TO_STORE
+
         when {
-            // Đã hoàn tất, đã hủy, hoặc tài xế ĐÃ NHẬN ĐƠN -> Khách KHÔNG được hủy đơn nữa
-            statusUpper == Order.Status.CANCELLED || statusUpper == Order.Status.BOOM ||
-            statusUpper == Order.Status.COMPLETED || statusUpper == Order.Status.RETURNING_TO_STORE ||
-            statusUpper == Order.Status.RETURNED_TO_STORE || isShipperAssigned -> {
+            // Đã hoàn tất, đã hủy, hoặc trả hàng về quán -> Khách không được hủy đơn nữa
+            isTerminal -> {
                 binding.btnCancelOrder.isVisible = false
                 binding.boxCancelRequestStatus.isVisible = false
             }
@@ -103341,7 +103404,7 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
                 binding.tvCancelRequestDesc.text = "Lý do: ${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\nQuán đang xem xét yêu cầu hủy của bạn. Bạn cũng có thể bấm Hủy ngay bên dưới."
                 binding.btnWithdrawCancelRequest.isVisible = true
             }
-            // Khi ship CHƯA nhận đơn (PENDING, PAID, AWAITING_PAYMENT, PREPARING, READY): Cho phép khách hủy đơn
+            // Khách có thể hủy đơn bất cứ lúc nào khi đơn đang xử lý / đang giao
             else -> {
                 binding.boxCancelRequestStatus.isVisible = false
                 binding.btnCancelOrder.isVisible = true
@@ -108668,6 +108731,9 @@ class FirebaseRepository @Inject constructor(
         cancelledBy: String
     ) {
         val now = System.currentTimeMillis()
+        val orderRef = database.getReference("orders").child(orderId)
+        val orderSnap = try { readCacheFirst(orderRef) } catch (_: Exception) { null }
+
         val updates = mapOf<String, Any>(
             "status" to Order.Status.CANCELLED,
             "orderStatus" to Order.Status.CANCELLED,
@@ -108678,8 +108744,113 @@ class FirebaseRepository @Inject constructor(
             "cancelledAt" to now,
             "updatedAt" to now
         )
-        database.getReference("orders").child(orderId).updateChildren(updates).await()
+        orderRef.updateChildren(updates).await()
         try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+
+        // Giải phóng tài xế nếu đơn đã được gán shipper
+        val shipperId = orderSnap?.child("shipperId")?.getValue(String::class.java).orEmpty()
+        if (shipperId.isNotBlank() && shipperId != "null") {
+            try {
+                database.getReference("drivers").child(shipperId).updateChildren(
+                    mapOf(
+                        "isDelivering" to false,
+                        "hasActiveOrder" to false,
+                        "currentOrderId" to ""
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+
+        // Quy tắc điểm uy tín khi khách hủy đơn: COD và Cọc trừ 10 điểm uy tín, Trả hết không trừ
+        if (cancelledBy.equals("CUSTOMER", ignoreCase = true)) {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val customerId = orderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
+                        .ifBlank { orderSnap?.child("userId")?.getValue(String::class.java).orEmpty() }
+                    if (customerId.isNotBlank()) {
+                        val isPaid = orderSnap?.child("isPaid")?.getValue(Boolean::class.java) ?: false
+                        val paymentStatus = orderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty()
+                        val paymentMethod = orderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                        val paymentMode = orderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+
+                        val isFullPaid = (isPaid || paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) &&
+                                !paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) &&
+                                !paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) &&
+                                !paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+
+                        if (!isFullPaid) {
+                            val userRef = database.getReference("users").child(customerId)
+                            val custNodeRef = database.getReference("customers").child(customerId)
+                            val userSnap = try { readCacheFirst(userRef) } catch (_: Exception) { null }
+                            val custNodeSnap = try { readCacheFirst(custNodeRef) } catch (_: Exception) { null }
+
+                            val currentScore = custNodeSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                                ?: custNodeSnap?.child("trustScore")?.getValue(Long::class.java)
+                                ?: userSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                                ?: userSnap?.child("trustScore")?.getValue(Long::class.java)
+                                ?: 100L
+
+                            val currentBoom = maxOf(
+                                custNodeSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: custNodeSnap?.child("boomOrders")?.getValue(Long::class.java)
+                                    ?: userSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: userSnap?.child("boomOrders")?.getValue(Long::class.java)
+                                    ?: 0L
+                            )
+                            val currentTotal = maxOf(
+                                custNodeSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: custNodeSnap?.child("totalOrders")?.getValue(Long::class.java)
+                                    ?: userSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: userSnap?.child("totalOrders")?.getValue(Long::class.java)
+                                    ?: 0L
+                            )
+
+                            val newScore = maxOf(0L, currentScore - 10L)
+                            val scoreChange = (newScore - currentScore).toInt()
+                            val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
+                            val penaltyType = if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) || paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)) "đơn COD" else "đơn cọc"
+                            val logReason = "Khách hủy $penaltyType #$shortCode: $finalReason (-10 điểm)"
+
+                            val statsUpdates = mutableMapOf<String, Any>(
+                                "trustScore" to newScore,
+                                "boomOrders" to currentBoom + 1,
+                                "totalOrders" to currentTotal + 1
+                            )
+                            if (newScore < 20L) {
+                                statsUpdates["status"] = "LOCKED"
+                                statsUpdates["isActive"] = false
+                                statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do hủy đơn COD/Cọc"
+                            }
+
+                            userRef.updateChildren(statsUpdates)
+                            custNodeRef.updateChildren(statsUpdates)
+                            database.getReference("orders").child(orderId).updateChildren(
+                                mapOf(
+                                    "customerTrustScore" to newScore,
+                                    "trustScoreChange" to scoreChange
+                                )
+                            )
+
+                            val logRef = database.getReference("trust_score_logs").push()
+                            val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
+                            val logEntry = TrustScoreLog(
+                                logId = logId,
+                                customerId = customerId,
+                                orderId = orderId,
+                                changeAmount = scoreChange,
+                                oldScore = currentScore.toInt(),
+                                newScore = newScore.toInt(),
+                                reason = logReason,
+                                createdAt = System.currentTimeMillis()
+                            )
+                            logRef.setValue(logEntry)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("FirebaseRepo", "markOrderCancelledImmediately trust score error: ${e.message}")
+                }
+            }
+        }
     }
 
     /** Khách hàng hủy đơn trực tiếp khi đơn chưa được quán xác nhận (PENDING, PAID, AWAITING_PAYMENT) */
@@ -108876,15 +109047,34 @@ class FirebaseRepository @Inject constructor(
                         }
                         Order.Status.CANCELLED -> {
                             val isApprovedByShop = reason.startsWith("Quán đồng ý hủy", ignoreCase = true) ||
+                                reason.startsWith("Quán hủy đơn", ignoreCase = true) ||
+                                prevOrderSnap?.child("cancelledBy")?.getValue(String::class.java) == "STORE" ||
                                 prevOrderSnap?.child("cancelRequestStatus")?.getValue(String::class.java) == Order.CancelRequestStatus.APPROVED ||
                                 prevOrderSnap?.child("cancelRequested")?.getValue(Boolean::class.java) == true
-                            if (!isApprovedByShop && (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING || prevStatus == Order.Status.ARRIVED_AT_CUSTOMER)) {
+
+                            val isPaid = prevOrderSnap?.child("isPaid")?.getValue(Boolean::class.java) ?: false
+                            val paymentStatus = prevOrderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty()
+                            val paymentMethod = prevOrderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                            val paymentMode = prevOrderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+                            val isFullPaid = (isPaid || paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) &&
+                                    !paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+
+                            // Quy tắc: Khách hủy đơn COD và Cọc thì trừ uy tín, trả hết thì không trừ
+                            if (!isApprovedByShop && !isFullPaid) {
                                 newScore = maxOf(0L, currentScore - 10L)
                                 scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Hủy đơn muộn #$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #$shortCode sau khi quán đã chế biến (-10 điểm)"
+                                val penaltyType = if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) || paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)) "đơn COD" else "đơn cọc"
+                                logReason = if (reason.isNotBlank()) "Khách hủy $penaltyType #$shortCode: $reason (-10 điểm)" else "Khách hủy $penaltyType #$shortCode (-10 điểm)"
                                 statsUpdates["boomOrders"] = currentBoom + 1
                                 statsUpdates["totalOrders"] = currentTotal + 1
                                 statsUpdates["trustScore"] = newScore
+                                if (newScore < 20L) {
+                                    statsUpdates["status"] = "LOCKED"
+                                    statsUpdates["isActive"] = false
+                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do hủy đơn COD/Cọc"
+                                }
                             }
                         }
                     }

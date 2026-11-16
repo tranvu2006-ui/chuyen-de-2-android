@@ -516,6 +516,9 @@ class FirebaseRepository @Inject constructor(
         cancelledBy: String
     ) {
         val now = System.currentTimeMillis()
+        val orderRef = database.getReference("orders").child(orderId)
+        val orderSnap = try { readCacheFirst(orderRef) } catch (_: Exception) { null }
+
         val updates = mapOf<String, Any>(
             "status" to Order.Status.CANCELLED,
             "orderStatus" to Order.Status.CANCELLED,
@@ -526,8 +529,113 @@ class FirebaseRepository @Inject constructor(
             "cancelledAt" to now,
             "updatedAt" to now
         )
-        database.getReference("orders").child(orderId).updateChildren(updates).await()
+        orderRef.updateChildren(updates).await()
         try { database.getReference("tracking").child(orderId).removeValue() } catch (_: Exception) {}
+
+        // Giải phóng tài xế nếu đơn đã được gán shipper
+        val shipperId = orderSnap?.child("shipperId")?.getValue(String::class.java).orEmpty()
+        if (shipperId.isNotBlank() && shipperId != "null") {
+            try {
+                database.getReference("drivers").child(shipperId).updateChildren(
+                    mapOf(
+                        "isDelivering" to false,
+                        "hasActiveOrder" to false,
+                        "currentOrderId" to ""
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+
+        // Quy tắc điểm uy tín khi khách hủy đơn: COD và Cọc trừ 10 điểm uy tín, Trả hết không trừ
+        if (cancelledBy.equals("CUSTOMER", ignoreCase = true)) {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val customerId = orderSnap?.child("customerId")?.getValue(String::class.java).orEmpty()
+                        .ifBlank { orderSnap?.child("userId")?.getValue(String::class.java).orEmpty() }
+                    if (customerId.isNotBlank()) {
+                        val isPaid = orderSnap?.child("isPaid")?.getValue(Boolean::class.java) ?: false
+                        val paymentStatus = orderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty()
+                        val paymentMethod = orderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                        val paymentMode = orderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+
+                        val isFullPaid = (isPaid || paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) &&
+                                !paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) &&
+                                !paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) &&
+                                !paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+
+                        if (!isFullPaid) {
+                            val userRef = database.getReference("users").child(customerId)
+                            val custNodeRef = database.getReference("customers").child(customerId)
+                            val userSnap = try { readCacheFirst(userRef) } catch (_: Exception) { null }
+                            val custNodeSnap = try { readCacheFirst(custNodeRef) } catch (_: Exception) { null }
+
+                            val currentScore = custNodeSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                                ?: custNodeSnap?.child("trustScore")?.getValue(Long::class.java)
+                                ?: userSnap?.child("trustScore")?.getValue(Int::class.java)?.toLong()
+                                ?: userSnap?.child("trustScore")?.getValue(Long::class.java)
+                                ?: 100L
+
+                            val currentBoom = maxOf(
+                                custNodeSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: custNodeSnap?.child("boomOrders")?.getValue(Long::class.java)
+                                    ?: userSnap?.child("boomOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: userSnap?.child("boomOrders")?.getValue(Long::class.java)
+                                    ?: 0L
+                            )
+                            val currentTotal = maxOf(
+                                custNodeSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: custNodeSnap?.child("totalOrders")?.getValue(Long::class.java)
+                                    ?: userSnap?.child("totalOrders")?.getValue(Int::class.java)?.toLong()
+                                    ?: userSnap?.child("totalOrders")?.getValue(Long::class.java)
+                                    ?: 0L
+                            )
+
+                            val newScore = maxOf(0L, currentScore - 10L)
+                            val scoreChange = (newScore - currentScore).toInt()
+                            val shortCode = if (orderId.length > 5) orderId.takeLast(6).uppercase() else orderId
+                            val penaltyType = if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) || paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)) "đơn COD" else "đơn cọc"
+                            val logReason = "Khách hủy $penaltyType #$shortCode: $finalReason (-10 điểm)"
+
+                            val statsUpdates = mutableMapOf<String, Any>(
+                                "trustScore" to newScore,
+                                "boomOrders" to currentBoom + 1,
+                                "totalOrders" to currentTotal + 1
+                            )
+                            if (newScore < 20L) {
+                                statsUpdates["status"] = "LOCKED"
+                                statsUpdates["isActive"] = false
+                                statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do hủy đơn COD/Cọc"
+                            }
+
+                            userRef.updateChildren(statsUpdates)
+                            custNodeRef.updateChildren(statsUpdates)
+                            database.getReference("orders").child(orderId).updateChildren(
+                                mapOf(
+                                    "customerTrustScore" to newScore,
+                                    "trustScoreChange" to scoreChange
+                                )
+                            )
+
+                            val logRef = database.getReference("trust_score_logs").push()
+                            val logId = logRef.key ?: "log_${System.currentTimeMillis()}"
+                            val logEntry = TrustScoreLog(
+                                logId = logId,
+                                customerId = customerId,
+                                orderId = orderId,
+                                changeAmount = scoreChange,
+                                oldScore = currentScore.toInt(),
+                                newScore = newScore.toInt(),
+                                reason = logReason,
+                                createdAt = System.currentTimeMillis()
+                            )
+                            logRef.setValue(logEntry)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("FirebaseRepo", "markOrderCancelledImmediately trust score error: ${e.message}")
+                }
+            }
+        }
     }
 
     /** Khách hàng hủy đơn trực tiếp khi đơn chưa được quán xác nhận (PENDING, PAID, AWAITING_PAYMENT) */
@@ -724,15 +832,34 @@ class FirebaseRepository @Inject constructor(
                         }
                         Order.Status.CANCELLED -> {
                             val isApprovedByShop = reason.startsWith("Quán đồng ý hủy", ignoreCase = true) ||
+                                reason.startsWith("Quán hủy đơn", ignoreCase = true) ||
+                                prevOrderSnap?.child("cancelledBy")?.getValue(String::class.java) == "STORE" ||
                                 prevOrderSnap?.child("cancelRequestStatus")?.getValue(String::class.java) == Order.CancelRequestStatus.APPROVED ||
                                 prevOrderSnap?.child("cancelRequested")?.getValue(Boolean::class.java) == true
-                            if (!isApprovedByShop && (prevStatus == Order.Status.READY || prevStatus == Order.Status.ASSIGNED || prevStatus == Order.Status.DELIVERING || prevStatus == Order.Status.ARRIVED_AT_CUSTOMER)) {
+
+                            val isPaid = prevOrderSnap?.child("isPaid")?.getValue(Boolean::class.java) ?: false
+                            val paymentStatus = prevOrderSnap?.child("paymentStatus")?.getValue(String::class.java).orEmpty()
+                            val paymentMethod = prevOrderSnap?.child("paymentMethod")?.getValue(String::class.java).orEmpty()
+                            val paymentMode = prevOrderSnap?.child("paymentMode")?.getValue(String::class.java).orEmpty()
+                            val isFullPaid = (isPaid || paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true)) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) &&
+                                    !paymentMode.equals(Order.PaymentMode.DEPOSIT, ignoreCase = true) &&
+                                    !paymentMethod.equals(Order.PaymentMethod.DEPOSIT, ignoreCase = true)
+
+                            // Quy tắc: Khách hủy đơn COD và Cọc thì trừ uy tín, trả hết thì không trừ
+                            if (!isApprovedByShop && !isFullPaid) {
                                 newScore = maxOf(0L, currentScore - 10L)
                                 scoreChange = (newScore - currentScore).toInt()
-                                logReason = if (reason.isNotBlank()) "Hủy đơn muộn #$shortCode khi đã chế biến/giao: $reason (-10 điểm)" else "Hủy đơn muộn #$shortCode sau khi quán đã chế biến (-10 điểm)"
+                                val penaltyType = if (paymentMethod.equals(Order.PaymentMethod.COD, ignoreCase = true) || paymentMode.equals(Order.PaymentMode.COD, ignoreCase = true)) "đơn COD" else "đơn cọc"
+                                logReason = if (reason.isNotBlank()) "Khách hủy $penaltyType #$shortCode: $reason (-10 điểm)" else "Khách hủy $penaltyType #$shortCode (-10 điểm)"
                                 statsUpdates["boomOrders"] = currentBoom + 1
                                 statsUpdates["totalOrders"] = currentTotal + 1
                                 statsUpdates["trustScore"] = newScore
+                                if (newScore < 20L) {
+                                    statsUpdates["status"] = "LOCKED"
+                                    statsUpdates["isActive"] = false
+                                    statsUpdates["lockReason"] = "Điểm uy tín dưới 20 điểm ($newScore/100) do hủy đơn COD/Cọc"
+                                }
                             }
                         }
                     }

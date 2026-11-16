@@ -2178,7 +2178,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                 binding.step2Text.setTextColor(colorMuted)
                 binding.stepDivider.setBackgroundColor(ContextCompat.getColor(this, R.color.border))
 
-                binding.btnTripCancel.visibility = View.GONE
+                val hasPickedAny = bundleOrders.any { isOrderAlreadyPickedUp(it) }
+                binding.btnTripCancel.visibility = if (!hasPickedAny) View.VISIBLE else View.GONE
+                binding.btnTripCancel.text = "Hủy nhận đơn"
             } else {
                 binding.layoutTripStepper.visibility = View.GONE
                 binding.layoutTripStepperBundle.visibility = View.VISIBLE
@@ -2200,7 +2202,9 @@ class DeliveryTripActivity : AppCompatActivity() {
                 binding.step2Text.setTextColor(colorMuted)
                 binding.stepDivider.setBackgroundColor(ContextCompat.getColor(this, R.color.border))
 
-                binding.btnTripCancel.visibility = View.GONE
+                val isPicked = currentOrder?.let { isOrderAlreadyPickedUp(it) } ?: false
+                binding.btnTripCancel.visibility = if (!isPicked) View.VISIBLE else View.GONE
+                binding.btnTripCancel.text = "Hủy nhận đơn"
             } else {
                 binding.step1Badge.setBackgroundResource(R.drawable.bg_badge_green)
                 binding.step1Badge.text = "✓"
@@ -3195,8 +3199,21 @@ class DeliveryTripActivity : AppCompatActivity() {
     }
 
     private fun showCancelOrderDialog() {
+        val targetOrder = if (isBundleMode) {
+            bundleOrders.getOrNull(activeBundleIndex) ?: currentOrder
+        } else {
+            currentOrder
+        }
+
+        // Chặn shipper hủy nếu đã nhận hàng khỏi quán
+        if (targetOrder != null && isOrderAlreadyPickedUp(targetOrder)) {
+            Toast.makeText(this, "Món ăn đã được lấy khỏi quán, không thể hủy nhận đơn!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
-        val shortCode = QRCodeUtils.getShortOrderCode(currentOrderId)
+        val targetOrderId = targetOrder?.orderId ?: currentOrderId
+        val shortCode = QRCodeUtils.getShortOrderCode(targetOrderId)
         dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn #${shortCode} khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
 
         val reasons = arrayOf(
@@ -3219,11 +3236,25 @@ class DeliveryTripActivity : AppCompatActivity() {
 
         dialogBinding.btnCancelDialogConfirm.setOnClickListener {
             val selectedReason = dialogBinding.spinnerCancelReason.selectedItem.toString()
-            firebaseRepository.unassignShipper(currentOrderId) { success, msg ->
+            firebaseRepository.unassignShipper(targetOrderId, selectedReason) { success, msg ->
                 if (success) {
-                    Toast.makeText(this, "Đã hủy đơn thành công: ${selectedReason}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Đã hủy nhận đơn thành công: ${selectedReason}", Toast.LENGTH_LONG).show()
                     dialog.dismiss()
-                    finish()
+                    if (isBundleMode && bundleOrders.size > 1) {
+                        bundleOrders.removeAll { it.orderId == targetOrderId }
+                        if (bundleOrders.isEmpty()) {
+                            finish()
+                        } else {
+                            activeBundleIndex = activeBundleIndex.coerceAtMost(bundleOrders.size - 1)
+                            val nextTarget = bundleOrders[activeBundleIndex]
+                            currentOrder = nextTarget
+                            currentOrderId = nextTarget.orderId
+                            bindOrderData(nextTarget)
+                            updateStepUI(currentStep)
+                        }
+                    } else {
+                        finish()
+                    }
                 } else {
                     Toast.makeText(this, "Lỗi hủy đơn: ${msg}", Toast.LENGTH_SHORT).show()
                 }

@@ -95,7 +95,10 @@ class DriverActiveOrdersAdapter(
                     Order.Status.ARRIVED_AT_CUSTOMER -> "Đã đến nhà khách"
                     else -> "Đang lấy món"
                 }
-                binding.btnCancelOrder.visibility = View.GONE
+                val isPickedUp = order.status == Order.Status.DELIVERING ||
+                        order.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                        order.status == Order.Status.COMPLETED
+                binding.btnCancelOrder.visibility = if (!isPickedUp) View.VISIBLE else View.GONE
                 binding.btnContinueTrip.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#EE4D2D"))
                 if (orders.size > 1) {
                     binding.btnContinueTrip.text = "🛵 TIẾP TỤC CHẶNG $ch/${orders.size} ➔"

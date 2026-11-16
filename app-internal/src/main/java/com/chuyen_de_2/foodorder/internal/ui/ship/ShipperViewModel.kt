@@ -230,7 +230,7 @@ class ShipperViewModel @Inject constructor(
         _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
 
         viewModelScope.launch {
-            firebaseRepository.unassignShipper(orderId) { success, msg ->
+            firebaseRepository.unassignShipper(orderId, reason) { success, msg ->
                 if (!success && removedOrder != null) {
                     val current = _assignedOrders.value.orEmpty().toMutableList()
                     current.add(removedOrder)

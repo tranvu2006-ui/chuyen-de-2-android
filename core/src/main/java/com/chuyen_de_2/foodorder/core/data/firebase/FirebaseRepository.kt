@@ -365,19 +365,27 @@ class FirebaseRepository @Inject constructor(
      */
     fun unassignShipper(
         orderId: String,
+        reason: String = "",
         onResult: (Boolean, String) -> Unit
     ) {
         val dbRef = database.getReference("orders").child(orderId)
-        val updates = mapOf<String, Any?>(
+        val updates = mutableMapOf<String, Any?>(
             "shipperId" to null,
             "shipperName" to "",
+            "shipperPhone" to "",
             "driverId" to null,
             "status" to Order.Status.READY,
             "orderStatus" to Order.Status.READY,
             "updatedAt" to System.currentTimeMillis()
         )
+        if (reason.isNotBlank()) {
+            updates["shipperCancelReason"] = reason
+        }
         dbRef.updateChildren(updates).addOnCompleteListener { task ->
             if (task.isSuccessful) {
+                try {
+                    database.getReference("tracking").child(orderId).removeValue()
+                } catch (_: Exception) {}
                 onResult(true, "Đã hoàn trả đơn về danh sách chờ của quán!")
             } else {
                 onResult(false, task.exception?.message ?: "Lỗi hủy nhận đơn")

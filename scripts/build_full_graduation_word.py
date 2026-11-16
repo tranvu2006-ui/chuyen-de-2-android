@@ -31,10 +31,19 @@ r.font.size = Pt(13)
 r.bold = True
 r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
 
-# Logo / Kẻ ngang
+# Logo đề tài Oishi Food trang bìa
+p_logo = doc.add_paragraph()
+p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+p_logo.paragraph_format.space_before = Pt(12)
+p_logo.paragraph_format.space_after = Pt(14)
+logo_path = r"c:\DuAn\Chuyen-De-Tot-Nghiep-2-android\logo-app-khach.png"
+if os.path.exists(logo_path):
+    run_logo = p_logo.add_run()
+    run_logo.add_picture(logo_path, width=Inches(1.8))
+
 p_line = doc.add_paragraph()
 p_line.alignment = WD_ALIGN_PARAGRAPH.CENTER
-p_line.paragraph_format.space_after = Pt(36)
+p_line.paragraph_format.space_after = Pt(20)
 r_line = p_line.add_run("-------------------***-------------------")
 r_line.font.name = 'Times New Roman'
 r_line.bold = True

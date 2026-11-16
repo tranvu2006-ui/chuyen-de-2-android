@@ -253,6 +253,9 @@
                 android:id="@+id/cardShopStatusToggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
                 app:cardBackgroundColor="@color/background"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="0dp"
@@ -281,6 +284,8 @@
                         android:id="@+id/switchShopStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:checked="true"
                         app:thumbTint="@color/switch_thumb_status_selector"
                         app:trackTint="@color/switch_track_status_selector" />

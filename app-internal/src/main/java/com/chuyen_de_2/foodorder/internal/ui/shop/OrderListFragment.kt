@@ -73,6 +73,11 @@ class OrderListFragment : Fragment() {
     private var isBossUser: Boolean = false
     private var cachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
 
+    companion object {
+        var lastCachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
+        var lastResolvedStoreId: String = ""
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
@@ -88,7 +93,14 @@ class OrderListFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        if (cachedStore == null) {
+            cachedStore = lastCachedStore
+        }
+        if (currentStoreId.isBlank()) {
+            currentStoreId = lastResolvedStoreId
+        }
         cachedStore?.let { renderStoreHeader(it) }
+
         setupUI()
         setupTabs()
         setupRecyclerView()
@@ -103,10 +115,29 @@ class OrderListFragment : Fragment() {
      */
     private fun resolveCurrentStoreIdAndObserve() {
         val uid = auth.currentUser?.uid.orEmpty()
-        viewLifecycleOwner.lifecycleScope.launch {
-            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+        val intentStoreId = activity?.intent?.getStringExtra(AppConstants.Extras.STORE_ID).orEmpty()
+        val prefs = requireContext().getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE)
+        val sessionStoreId = prefs.getString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, "").orEmpty()
+
+        val fastStoreId = intentStoreId.ifBlank { sessionStoreId }
+        if (fastStoreId.isNotBlank()) {
+            currentStoreId = fastStoreId
+            lastResolvedStoreId = fastStoreId
             viewModel.setStoreId(currentStoreId)
             observeStoreProfile()
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val resolvedId = if (fastStoreId.isNotBlank()) fastStoreId else firebaseRepository.resolveStoreIdForUser(uid)
+            if (resolvedId.isNotBlank()) {
+                val shouldReObserve = (resolvedId != currentStoreId) || fastStoreId.isBlank()
+                currentStoreId = resolvedId
+                lastResolvedStoreId = resolvedId
+                viewModel.setStoreId(currentStoreId)
+                if (shouldReObserve) {
+                    observeStoreProfile()
+                }
+            }
         }
     }
 
@@ -165,6 +196,8 @@ class OrderListFragment : Fragment() {
                         requireContext().getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
                     } catch (_: Exception) {}
                     cachedStore = null
+                    lastCachedStore = null
+                    lastResolvedStoreId = ""
                     currentStoreId = ""
                     authRepository.logout()
                     val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
@@ -181,8 +214,8 @@ class OrderListFragment : Fragment() {
             firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
                 if (store != null) {
                     cachedStore = store
+                    lastCachedStore = store
                     renderStoreHeader(store)
-                    bindShopStatusSwitchListener()
                     adapter.canOperate = canOperateCurrentStore()
                 }
             }
@@ -261,6 +294,9 @@ class OrderListFragment : Fragment() {
             }
         }
 
+        // Luôn gắn lại listener sau khi cập nhật giao diện
+        bindShopStatusSwitchListener()
+
         currentB.cardShopStatusToggle.setOnClickListener {
             if (!canOperateCurrentStore()) {
                 val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
@@ -269,6 +305,8 @@ class OrderListFragment : Fragment() {
                     .setMessage("Chi nhánh này đã được giao cho Trưởng chi nhánh ($managerName) trực tiếp vận hành.\n\nChủ chuỗi không thể đóng/mở quán ở chế độ giám sát.")
                     .setPositiveButton("Đã hiểu", null)
                     .show()
+            } else if (currentB.switchShopStatus.isEnabled) {
+                currentB.switchShopStatus.isChecked = !currentB.switchShopStatus.isChecked
             }
         }
     }
@@ -312,9 +350,15 @@ class OrderListFragment : Fragment() {
                 b.tvShopStatusTxt.text = "Tạm Đóng"
                 b.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
             }
+
+            cachedStore = cachedStore?.copy(storeStatus = newStatus)
+            lastCachedStore = cachedStore
+
             viewLifecycleOwner.lifecycleScope.launch {
                 val result = firebaseRepository.updateStoreStatus(currentStoreId, newStatus)
                 if (result.isSuccess) {
+                    cachedStore = cachedStore?.copy(storeStatus = newStatus)
+                    lastCachedStore = cachedStore
                     if (isChecked) {
                         Toast.makeText(requireContext(), "Quán đã mở cửa nhận đơn hàng mới!", Toast.LENGTH_SHORT).show()
                     } else {

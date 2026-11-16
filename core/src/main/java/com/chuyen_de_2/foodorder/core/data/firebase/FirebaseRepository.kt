@@ -1069,11 +1069,20 @@ class FirebaseRepository @Inject constructor(
 
     /** Lắng nghe thông tin hồ sơ quán theo thời gian thực */
     fun observeStore(storeId: String): Flow<com.chuyen_de_2.foodorder.core.data.model.Store?> = callbackFlow {
+        if (storeId.isBlank()) {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
         val ref = database.getReference("stores").child(storeId)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val store = snapshot.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
                 if (store != null) {
+                    val rawStatus = snapshot.child("storeStatus").getValue(String::class.java)
+                        ?: snapshot.child("status").getValue(String::class.java)
+                        ?: (if (snapshot.child("open").getValue(Boolean::class.java) == true) "OPEN" else if (snapshot.child("open").getValue(Boolean::class.java) == false) "CLOSED" else null)
+                        ?: store.storeStatus
                     val rawImg = snapshot.child("imageUrl").getValue(String::class.java)
                         ?: snapshot.child("avatarUrl").getValue(String::class.java)
                         ?: snapshot.child("avatar").getValue(String::class.java)
@@ -1081,6 +1090,7 @@ class FirebaseRepository @Inject constructor(
                         ?: snapshot.child("image").getValue(String::class.java)
                         ?: store.effectiveImageUrl
                     trySend(store.copy(
+                        storeStatus = rawStatus,
                         imageUrl = rawImg,
                         avatarUrl = rawImg,
                         avatar = rawImg,
@@ -1167,6 +1177,11 @@ class FirebaseRepository @Inject constructor(
             if (!snap.exists()) null
             else {
                 val store = snap.getValue(com.chuyen_de_2.foodorder.core.data.model.Store::class.java)
+                val rawStatus = snap.child("storeStatus").getValue(String::class.java)
+                    ?: snap.child("status").getValue(String::class.java)
+                    ?: (if (snap.child("open").getValue(Boolean::class.java) == true) "OPEN" else if (snap.child("open").getValue(Boolean::class.java) == false) "CLOSED" else null)
+                    ?: store?.storeStatus
+                    ?: com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING
                 val isVer = snap.child("isVerified").getValue(Boolean::class.java)
                     ?: snap.child("verified").getValue(Boolean::class.java)
                     ?: store?.isVerified
@@ -1190,6 +1205,7 @@ class FirebaseRepository @Inject constructor(
                     ?: snap.child("image").getValue(String::class.java)
                     ?: store?.effectiveImageUrl.orEmpty()
                 store?.copy(
+                    storeStatus = rawStatus,
                     imageUrl = rawImg,
                     avatarUrl = rawImg,
                     avatar = rawImg,
@@ -3487,10 +3503,14 @@ class FirebaseRepository @Inject constructor(
                         val rawLng = child.child("longitude").getValue(Double::class.java)
                             ?: child.child("lng").getValue(Double::class.java)
                             ?: 0.0
+                        val rawStatus = child.child("storeStatus").getValue(String::class.java)
+                            ?: child.child("status").getValue(String::class.java)
+                            ?: (if (child.child("open").getValue(Boolean::class.java) == true) "OPEN" else if (child.child("open").getValue(Boolean::class.java) == false) "CLOSED" else null)
+                            ?: store.storeStatus
                         val finalStore = if ((store.latitude == 0.0 || store.longitude == 0.0) && (rawLat != 0.0 && rawLng != 0.0)) {
-                            store.copy(latitude = rawLat, longitude = rawLng, lat = rawLat, lng = rawLng)
+                            store.copy(storeStatus = rawStatus, latitude = rawLat, longitude = rawLng, lat = rawLat, lng = rawLng)
                         } else {
-                            store
+                            store.copy(storeStatus = rawStatus)
                         }
                         if (bId == bossUid || (bId.isBlank() && mId == bossUid)) {
                             list.add(finalStore)

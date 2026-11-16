@@ -28,7 +28,8 @@ data class HomeDishItem(
     val tag1: String = "",
     val tag2: String = "",
     val category: String = "",
-    val platformCategory: String = ""
+    val platformCategory: String = "",
+    val isCombo: Boolean = false
 )
 
 class HomeDishAdapter(

@@ -196,10 +196,18 @@ def main():
             "displayOrder": 4,
             "isActive": True,
             "description": "Bánh mì chảo, bánh mì thịt nướng và thức ăn nhanh tiện lợi"
+        },
+        "cat_combo": {
+            "categoryId": "cat_combo",
+            "categoryName": "Combo",
+            "iconUrl": "https://images.unsplash.com/photo-1544025162-d76694265947?w=120",
+            "displayOrder": 5,
+            "isActive": True,
+            "description": "Gói món ăn kèm tiết kiệm và tiện lợi toàn sàn Oishi Food"
         }
     }
     make_request(f"{DATABASE_URL}/categories.json?auth={admin_token}", method="PUT", data=categories_data)
-    print(" -> Đã tạo 4 Danh mục toàn sàn: Cơm, Trà Sữa & Ăn Vặt, Bún & Phở, Bánh Mì & Fastfood.")
+    print(" -> Đã tạo 5 Danh mục toàn sàn: Cơm, Trà Sữa & Ăn Vặt, Bún & Phở, Bánh Mì & Fastfood, Combo.")
 
     # 5. Tạo 4 Cửa hàng với 3 món + 1 combo mỗi quán
     print("\n[5/7] Đang khởi tạo 4 Cửa hàng, Menu món ăn thật và Gói Combo...")
@@ -227,7 +235,7 @@ def main():
             "statusId": 2,
             "isVerified": True,
             "category": "Cơm",
-            "storeCategories": ["Món chính", "Món canh", "Đồ uống", "Combo Tiết Kiệm"],
+            "storeCategories": ["Món chính", "Món canh", "Đồ uống"],
             "rating": 4.9,
             "ratingAvg": 4.9,
             "reviewCount": 128,
@@ -283,9 +291,10 @@ def main():
                 f"combo_{store_1_id}_1": {
                     "id": f"combo_{store_1_id}_1",
                     "storeId": store_1_id,
-                    "categoryId": "cat_com",
-                    "category": "Combo Tiết Kiệm",
-                    "platformCategory": "Cơm",
+                    "categoryId": "cat_combo",
+                    "category": "Combo",
+                    "platformCategory": "Combo",
+                    "isCombo": True,
                     "name": "🔥 COMBO: Cơm Sườn Bì Chả + Trà Tắc Mát Lạnh",
                     "description": "Gói tiết kiệm trưa: 1 dĩa cơm tấm sườn bì chả đầy đủ + 1 ly trà tắc hạt chia 500ml siêu đã khát.",
                     "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500",
@@ -315,7 +324,7 @@ def main():
             "statusId": 2,
             "isVerified": True,
             "category": "Trà Sữa & Ăn Vặt",
-            "storeCategories": ["Trà sữa", "Trà trái cây", "Ăn vặt", "Combo Siêu Hời"],
+            "storeCategories": ["Trà sữa", "Trà trái cây", "Ăn vặt"],
             "rating": 4.8,
             "ratingAvg": 4.8,
             "reviewCount": 95,
@@ -371,9 +380,10 @@ def main():
                 f"combo_{store_2_id}_1": {
                     "id": f"combo_{store_2_id}_1",
                     "storeId": store_2_id,
-                    "categoryId": "cat_trasua",
-                    "category": "Combo Siêu Hời",
-                    "platformCategory": "Trà Sữa & Ăn Vặt",
+                    "categoryId": "cat_combo",
+                    "category": "Combo",
+                    "platformCategory": "Combo",
+                    "isCombo": True,
                     "name": "🔥 COMBO: 1 Trà Sữa Size L + 1 Bánh Tráng Trộn",
                     "description": "Cặp đôi ăn vặt số 1: Trà sữa trân châu hoàng gia mát lạnh cùng dĩa bánh tráng trộn cay cay đã miệng.",
                     "imageUrl": "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?w=500",
@@ -403,7 +413,7 @@ def main():
             "statusId": 2,
             "isVerified": True,
             "category": "Bún & Phở",
-            "storeCategories": ["Bún bò đặc biệt", "Món gọi thêm", "Giải khát", "Combo No Nê"],
+            "storeCategories": ["Bún bò đặc biệt", "Món gọi thêm", "Giải khát"],
             "rating": 5.0,
             "ratingAvg": 5.0,
             "reviewCount": 142,
@@ -459,9 +469,10 @@ def main():
                 f"combo_{store_3_id}_1": {
                     "id": f"combo_{store_3_id}_1",
                     "storeId": store_3_id,
-                    "categoryId": "cat_bun",
-                    "category": "Combo No Nê",
-                    "platformCategory": "Bún & Phở",
+                    "categoryId": "cat_combo",
+                    "category": "Combo",
+                    "platformCategory": "Combo",
+                    "isCombo": True,
                     "name": "🔥 COMBO: Bún Bò Giò Nạc + Nước Sâm Thảo Mộc",
                     "description": "1 tô bún bò nạm giò đầy đặn + 1 chai nước sâm bông cúc nấu đường phèn thanh mát giải ngấy tuyệt đối.",
                     "imageUrl": "https://images.unsplash.com/photo-1543353071-873f17a7a088?w=500",
@@ -491,7 +502,7 @@ def main():
             "statusId": 2,
             "isVerified": True,
             "category": "Bánh Mì & Fastfood",
-            "storeCategories": ["Bánh mì chảo", "Bánh mì kẹp", "Khai vị", "Combo Bữa Sáng"],
+            "storeCategories": ["Bánh mì chảo", "Bánh mì kẹp", "Khai vị"],
             "rating": 4.9,
             "ratingAvg": 4.9,
             "reviewCount": 112,
@@ -547,9 +558,10 @@ def main():
                 f"combo_{store_4_id}_1": {
                     "id": f"combo_{store_4_id}_1",
                     "storeId": store_4_id,
-                    "categoryId": "cat_banhmi",
-                    "category": "Combo Bữa Sáng",
-                    "platformCategory": "Bánh Mì & Fastfood",
+                    "categoryId": "cat_combo",
+                    "category": "Combo",
+                    "platformCategory": "Combo",
+                    "isCombo": True,
                     "name": "🔥 COMBO: Bánh Mì Chảo Bò Né + Cà Phê Sữa Đá",
                     "description": "Bữa sáng tràn đầy năng lượng: 1 chảo bò phô mai trứng ốp la bánh mì + 1 ly cà phê sữa pha phin đậm vị.",
                     "imageUrl": "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=500",

@@ -216,8 +216,20 @@ class MenuManageFragment : Fragment() {
             }
             binding.chipGroupStoreCategories.addView(allChip)
 
-            storeCategories.forEach { catName ->
-                val count = dishList.count { it.category.equals(catName, ignoreCase = true) }
+            // Chip Combo độc lập (Danh mục cấp sàn Oishi Food)
+            val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
+            val comboCount = dishList.count { isComboDish(it) }
+            if (comboCount > 0) {
+                val comboChip = createCategoryChip("🍱 Combo ($comboCount)", selectedStoreCategory == "COMBO_FILTER") {
+                    selectedStoreCategory = "COMBO_FILTER"
+                    updateList()
+                }
+                binding.chipGroupStoreCategories.addView(comboChip)
+            }
+
+            // Các chip danh mục nội bộ riêng của quán (không bao gồm Combo)
+            storeCategories.filter { !it.equals("Combo", ignoreCase = true) }.forEach { catName ->
+                val count = dishList.count { !isComboDish(it) && it.category.equals(catName, ignoreCase = true) }
                 val label = if (count > 0) "$catName ($count)" else catName
                 val chip = createCategoryChip(label, selectedStoreCategory.equals(catName, ignoreCase = true)) {
                     selectedStoreCategory = catName
@@ -253,10 +265,11 @@ class MenuManageFragment : Fragment() {
      * Tên chức năng: Làm mới danh sách hiển thị món ăn có lọc theo danh mục
      */
     private fun updateList() {
-        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
-            dishList
-        } else {
-            dishList.filter { it.category.equals(selectedStoreCategory, ignoreCase = true) }
+        val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
+        val filtered = when {
+            selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank() -> dishList
+            selectedStoreCategory == "COMBO_FILTER" -> dishList.filter { isComboDish(it) }
+            else -> dishList.filter { !isComboDish(it) && it.category.equals(selectedStoreCategory, ignoreCase = true) }
         }
         adapter.submitList(filtered.toList())
         binding.layoutEmptyDishes.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
@@ -1052,12 +1065,8 @@ class MenuManageFragment : Fragment() {
             (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                 try {
                     firebaseRepository.saveStoreDish(currentStoreId, comboDish)
-                    if (!storeCategories.contains("Combo")) {
-                        firebaseRepository.addStoreCategory(currentStoreId, "Combo")
-                        storeCategories.add("Combo")
-                        setupCategoryFilterChips()
-                    }
                     dishList.add(comboDish)
+                    setupCategoryFilterChips()
                     updateList()
                     Toast.makeText(requireContext(), "✓ Đã tạo Combo [$name] thành công!", Toast.LENGTH_SHORT).show()
                     dialog.dismiss()

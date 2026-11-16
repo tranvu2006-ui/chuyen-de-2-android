@@ -172,10 +172,12 @@ class HomeViewModel @Inject constructor(
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
 
             availableDishes.forEach { dish ->
-                val platformCat = dish.platformCategory.ifBlank {
+                val isCombo = dish.isCombo || dish.platformCategory.equals("Combo", ignoreCase = true) || dish.id.startsWith("combo_")
+                val platformCat = if (isCombo) "Combo" else dish.platformCategory.ifBlank {
                     inferPlatformCategory(dish.name, dish.category)
                 }
                 val emoji = when {
+                    isCombo -> "🍱"
                     platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
                     platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
                     platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
@@ -195,7 +197,7 @@ class HomeViewModel @Inject constructor(
                         id = dish.id,
                         name = dish.name,
                         price = dish.basePrice,
-                        originalPrice = dish.basePrice,
+                        originalPrice = if (dish.originalPrice > 0L) dish.originalPrice else dish.basePrice,
                         storeId = store.id,
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
@@ -203,11 +205,12 @@ class HomeViewModel @Inject constructor(
                         rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
                         soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
-                        promoBadge = "",
-                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        promoBadge = if (isCombo) "Combo" else "",
+                        tag1 = if (isCombo) "Combo Tiết Kiệm" else platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
                         tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
-                        category = dish.category.ifBlank { store.category },
-                        platformCategory = platformCat
+                        category = if (isCombo) "Combo" else dish.category.ifBlank { store.category },
+                        platformCategory = platformCat,
+                        isCombo = isCombo
                     )
                 )
             }
@@ -518,6 +521,20 @@ class HomeViewModel @Inject constructor(
 
     private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
         val target = filterCat.trim().lowercase()
+
+        // 1. Trường hợp người dùng lọc danh mục cấp sàn "Combo"
+        val isFilterCombo = target.contains("combo")
+        if (isFilterCombo) {
+            return dish.isCombo || dish.platformCategory.equals("Combo", ignoreCase = true)
+        }
+
+        // 2. Trường hợp lọc các danh mục cấp sàn món lẻ (Phở, Cơm, Trà sữa, Bún đậu...):
+        // BẮT BUỘC LOẠI TRỪ 100% CÁC MÓN COMBO
+        // Ngăn chặn triệt để tình trạng combo chứa cả Phở + Trà sữa bị chồng chéo làm xuất hiện ở danh mục Phở
+        if (dish.isCombo || dish.platformCategory.equals("Combo", ignoreCase = true)) {
+            return false
+        }
+
         val pCat = dish.platformCategory.lowercase()
         val sCat = dish.category.lowercase()
         val name = dish.name.lowercase()

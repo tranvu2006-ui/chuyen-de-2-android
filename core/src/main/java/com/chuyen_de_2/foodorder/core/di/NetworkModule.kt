@@ -1,7 +1,5 @@
 package com.chuyen_de_2.foodorder.core.di
 
-import com.chuyen_de_2.foodorder.core.data.remote.MockInterceptor
-import com.chuyen_de_2.foodorder.core.data.remote.RestBackendApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -14,16 +12,12 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 /**
- * Hilt Module cung cấp OkHttpClient, Retrofit, RestBackendApi
- *
- * Lưu ý: MockInterceptor được thêm vào OkHttpClient để giả lập REST API.
- * Khi có backend thật, thay BASE_URL và xóa MockInterceptor.
+ * Hilt Module cung cấp OkHttpClient và Retrofit cho các nhu cầu kết nối HTTP ngoài (nếu có).
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // Base URL placeholder — thay bằng URL backend thật khi có
     private const val BASE_URL = "https://api.foodorder.example.com/"
 
     @Provides
@@ -37,11 +31,9 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        loggingInterceptor: HttpLoggingInterceptor,
-        mockInterceptor: MockInterceptor
+        loggingInterceptor: HttpLoggingInterceptor
     ): OkHttpClient {
         return OkHttpClient.Builder()
-            .addInterceptor(mockInterceptor) // Giả lập API — xóa khi có backend thật
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -57,11 +49,5 @@ object NetworkModule {
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideRestBackendApi(retrofit: Retrofit): RestBackendApi {
-        return retrofit.create(RestBackendApi::class.java)
     }
 }

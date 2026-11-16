@@ -88,9 +88,15 @@ class DriverAdapter(
             }
 
             // Xe máy
-            val vehicleModelStr = if (driver.vehicleModel.isNotBlank()) driver.vehicleModel else "Yamaha Sirius"
-            val vehiclePlateStr = if (driver.vehiclePlate.isNotBlank()) " (${driver.vehiclePlate})" else ""
-            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleModelStr$vehiclePlateStr"
+            val vehicleModelStr = driver.vehicleModel.trim()
+            val vehiclePlateStr = driver.vehiclePlate.trim()
+            val vehicleInfo = when {
+                vehicleModelStr.isNotBlank() && vehiclePlateStr.isNotBlank() -> "$vehicleModelStr ($vehiclePlateStr)"
+                vehiclePlateStr.isNotBlank() -> vehiclePlateStr
+                vehicleModelStr.isNotBlank() -> vehicleModelStr
+                else -> "Chưa cập nhật xe"
+            }
+            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleInfo"
 
             // Đơn giao
             if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {

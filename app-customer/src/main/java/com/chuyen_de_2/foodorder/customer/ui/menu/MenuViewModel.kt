@@ -9,9 +9,7 @@ import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
 import com.chuyen_de_2.foodorder.core.data.model.CartPayload
 import com.chuyen_de_2.foodorder.core.data.model.Dish
-import com.chuyen_de_2.foodorder.core.data.model.MenuItem
 import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.remote.RestBackendApi
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,13 +22,12 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * ViewModel cho màn hình Menu — load dữ liệu từ Retrofit, thêm vào giỏ hàng.
+ * ViewModel cho màn hình Menu — load dữ liệu từ Firebase, thêm vào giỏ hàng.
  * Hỗ trợ giao diện b5.html: Nửa trên (selectedDish), Nửa dưới (filteredDishes), Bottom Bar (cartTotal).
  */
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class MenuViewModel @Inject constructor(
-    private val api: RestBackendApi,
     private val firebaseRepository: FirebaseRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
@@ -244,18 +241,6 @@ class MenuViewModel @Inject constructor(
         _cartItems.value = currentMap
         updateCartTotals()
         emitCartUpdate()
-    }
-
-    fun addToCart(menuItem: MenuItem) {
-        val dish = Dish(
-            id = menuItem.id,
-            name = menuItem.name,
-            basePrice = menuItem.price,
-            imageUrl = menuItem.imageUrl,
-            description = menuItem.description,
-            category = menuItem.category
-        )
-        addToCart(dish)
     }
 
     fun removeFromCart(itemId: String): Boolean {

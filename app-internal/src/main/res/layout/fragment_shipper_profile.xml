@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background"
@@ -108,7 +109,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="0908 123 456 • Sirius 59-T1 882.91"
+                        android:text="Tài xế chuyên quán"
+                        tools:text="0908 123 456 • Sirius 59-T1 882.91"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 
@@ -217,7 +219,8 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Sirius FI"
+                        android:text="Chưa cập nhật"
+                        tools:text="Sirius FI"
                         android:textColor="@color/text_primary"
                         android:textSize="12.5sp"
                         android:textStyle="bold" />

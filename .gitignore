@@ -36,3 +36,8 @@ backup_*.json
 
 # Office temp lock files
 ~$*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo

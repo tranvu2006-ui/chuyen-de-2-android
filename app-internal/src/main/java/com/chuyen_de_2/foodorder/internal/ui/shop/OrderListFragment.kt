@@ -223,12 +223,7 @@ class OrderListFragment : Fragment() {
             currentB.tvShopAddress.text = if (store.address.isNotBlank()) store.address else "Chưa cập nhật địa chỉ"
         }
 
-        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-            imageView = currentB.ivShopHeaderLogo,
-            imageUrl = store.effectiveImageUrl,
-            placeholderResId = com.chuyen_de_2.foodorder.core.R.drawable.ic_store,
-            cornerDp = 10
-        )
+        currentB.ivShopHeaderLogo.setImageResource(R.drawable.ic_app_logo)
 
         val st = store.storeStatus.uppercase()
         val canOperate = canOperateCurrentStore()

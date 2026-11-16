@@ -33,7 +33,8 @@ class EditOrderDialogFragment(
 
     private val paymentOptions = listOf(
         "COD",
-        "MOMO",
+        "BANKING",
+        "DEPOSIT",
         "VN_PAY",
         "ZALO_PAY",
         "WALLET"
@@ -89,7 +90,8 @@ class EditOrderDialogFragment(
 
         val paymentLabels = listOf(
             "Tiền mặt khi nhận (COD)",
-            "Ví điện tử MoMo",
+            "Chuyển khoản Ngân hàng (VietQR)",
+            "Đặt cọc 20% + Thu hộ COD",
             "Cổng VNPAY QR",
             "Ví ZaloPay",
             "Ví số Oishi Food"

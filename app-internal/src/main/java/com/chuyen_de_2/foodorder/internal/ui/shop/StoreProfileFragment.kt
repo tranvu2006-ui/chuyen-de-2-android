@@ -523,8 +523,6 @@ class StoreProfileFragment : Fragment() {
                     bankAccountNumber = newBankNo,
                     bankAccountName = newBankOwnerName,
                     bankBin = newBankBin,
-                    momoPhone = "",
-                    momoAccountName = "",
                     latitude = resolvedLat,
                     longitude = resolvedLng
                 )

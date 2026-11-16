@@ -68,7 +68,6 @@ object BankData {
         SupportedBank("Kookmin Bank (Hà Nội)", "970462", "KB_HN"),
         SupportedBank("Kookmin Bank (TP.HCM)", "970463", "KB_HCM"),
         SupportedBank("Nonghyup Bank (Hà Nội)", "801011", "Nonghyup"),
-        SupportedBank("Ví MoMo", "971025", "MoMo"),
         SupportedBank("Ví ZaloPay", "971101", "ZaloPay")
     )
 
@@ -144,7 +143,6 @@ object BankData {
         "timo.banviet.vn",
         "vn.tnex.consumer",                     // TNEX
         "vn.com.liobank",                       // Liobank
-        "com.mservice.momotransfer",            // MoMo
         "vn.com.vng.zalopay",                   // ZaloPay
         "com.bplus.vtpay",                      // Viettel Money
         "com.airpay",                           // ShopeePay
@@ -175,7 +173,7 @@ object BankData {
         "NAMABANK", "BACABANK", "BVBANK", "CAKE", "TIMO", "TNEX", "LIOBANK",
         "PVCOMBANK", "SHINHAN", "ABBANK", "VIETABANK", "VIETBANK", "BAOVIET",
         "SAIGONBANK", "PGBANK", "NCB", "SCB", "KIENLONG", "COOPBANK", "KBANK",
-        "WOORI", "CIMB", "IVB", "MOMO", "ZALOPAY", "VIETTELMONEY"
+        "WOORI", "CIMB", "IVB", "ZALOPAY", "VIETTELMONEY"
     )
 }
 

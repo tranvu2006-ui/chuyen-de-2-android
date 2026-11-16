@@ -1282,7 +1282,6 @@ class TrackingActivity : AppCompatActivity(), OnMapReadyCallback {
         // Hình thức thanh toán
         val isPaid = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid || order.status == Order.Status.PAID
         val payMethodStr = when (order.paymentMethod.uppercase()) {
-            Order.PaymentMethod.MOMO -> if (isPaid) "Ví điện tử MoMo (Đã chuyển khoản)" else "Ví điện tử MoMo (Chờ chuyển khoản)"
             Order.PaymentMethod.BANKING -> if (isPaid) "Chuyển khoản Ngân hàng (Đã thanh toán)" else "Chuyển khoản VietQR (Chờ chuyển khoản)"
             else -> "Tiền mặt khi nhận món (COD)"
         }

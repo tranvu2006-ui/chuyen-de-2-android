@@ -176,32 +176,6 @@ object QRCodeUtils {
         }
     }
 
-    fun buildMomoQrPayload(
-        phone: String,
-        receiverName: String,
-        amount: Long,
-        transferSyntax: String
-    ): String {
-        val cleanPhone = phone.replace(Regex("[^0-9]"), "")
-        val cleanName = removeAccents(receiverName)
-            .replace(Regex("[^A-Za-z0-9 ]"), " ")
-            .trim()
-            .uppercase()
-        val cleanNote = removeAccents(transferSyntax)
-            .replace(Regex("[^A-Za-z0-9 ]"), " ")
-            .trim()
-            .uppercase()
-        return "2|99|$cleanPhone|$cleanName||0|0|${amount.coerceAtLeast(0L)}|$cleanNote|transfer_myqr"
-    }
-
-    private fun removeAccents(input: String): String {
-        val normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
-        return normalized
-            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
-            .replace('đ', 'd')
-            .replace('Đ', 'D')
-    }
-
     /**
      * Tạo Bitmap QR Code thực tế theo chuẩn quốc tế ISO/IEC 18004 bằng ZXing QRCodeWriter.
      * Đảm bảo mọi camera điện thoại / máy quét QR đều nhận diện được ngay lập tức.

@@ -57,10 +57,6 @@ class OrderAdapter(
                     "⚡ ĐÃ CỌC ${order.depositAmount.toVndCurrency()} • CÒN THU ${order.remainAmount.toVndCurrency()} KHI GIAO"
                 order.paymentMode == Order.PaymentMode.DEPOSIT ->
                     "⏳ CHƯA XÁC NHẬN CỌC ${order.depositAmount.toVndCurrency()}"
-                order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
-                    if (isPaidOnline) "✅ Đã chuyển khoản Ví MoMo"
-                    else "⏳ Chờ khách chuyển khoản Ví MoMo (Chưa chuyển)"
-                }
                 order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
                     if (isPaidOnline) "💰 Đã thanh toán Ngân hàng"
                     else "⏳ Chờ chuyển khoản VietQR (Chưa nhận)"
@@ -78,17 +74,6 @@ class OrderAdapter(
                     binding.tvPaymentStatusBadge.text = "⏳ Chờ xác nhận cọc"
                     binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
-                }
-                order.paymentMethod.equals(Order.PaymentMethod.MOMO, ignoreCase = true) -> {
-                    if (isPaidOnline) {
-                        binding.tvPaymentStatusBadge.text = "✅ Đã chuyển MoMo"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_status_ready)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.WHITE)
-                    } else {
-                        binding.tvPaymentStatusBadge.text = "⏳ Chờ chuyển MoMo"
-                        binding.tvPaymentStatusBadge.setBackgroundResource(R.drawable.bg_badge_orange)
-                        binding.tvPaymentStatusBadge.setTextColor(Color.parseColor("#B45309"))
-                    }
                 }
                 order.paymentMethod.equals(Order.PaymentMethod.BANKING, ignoreCase = true) -> {
                     if (isPaidOnline) {

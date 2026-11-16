@@ -815,13 +815,13 @@ class CheckoutActivity : AppCompatActivity() {
             firebaseRepository.observeStore(shopId).collectLatest { store ->
                 if (store != null) {
                     currentStore = store
-                    updatePaymentPreviewBox(false)
+                    updatePaymentPreviewBox()
                 }
             }
         }
     }
 
-    private fun updatePaymentPreviewBox(isMomo: Boolean = false) {
+    private fun updatePaymentPreviewBox() {
         val store = currentStore
         binding.tvBankingTitle.text = "THÔNG TIN TÀI KHOẢN NGÂN HÀNG"
         binding.tvBankingTitle.setTextColor(android.graphics.Color.parseColor("#0284C7"))
@@ -834,7 +834,7 @@ class CheckoutActivity : AppCompatActivity() {
 
     private fun selectOnlineChannel(channel: String = "bank") {
         selectedChannel = "bank"
-        updatePaymentPreviewBox(false)
+        updatePaymentPreviewBox()
     }
 
 

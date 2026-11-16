@@ -46,9 +46,9 @@ ARCHITECTURE_OVERVIEW = [
 
 MODULES_SUMMARY = [
     (":core", "com.chuyen_de_2.foodorder.core", "Thư viện nền tảng dùng chung cho cả 3 app Android",
-     "Chứa 28 Data Models (@IgnoreExtraProperties), AuthRepository, FirebaseRepository (~3.858 dòng), EmailOtpApi, AccountLockWatcher, AppConstants, CccdOcrHelper, MomoPaymentGatewayClient, BankData (54 ngân hàng VietQR), QRCodeUtils, GoogleMapUtils."),
+     "Chứa Data Models (@IgnoreExtraProperties), AuthRepository, FirebaseRepository (~3.858 dòng), EmailOtpApi, AccountLockWatcher, AppConstants, CccdOcrHelper, BankData (53 ngân hàng/ví VietQR), QRCodeUtils, GoogleMapUtils."),
     (":app-customer", "com.chuyen_de_2.foodorder.customer", "Ứng dụng dành cho Khách hàng (CUSTOMER)",
-     "Đăng ký/đăng nhập + OTP Gmail, duyệt quán theo danh mục/vị trí/bán chạy, tùy biến món (Size/Đường/Đá/Topping), giỏ hàng đồng bộ realtime, Checkout (COD/VietQR/Đặt cọc 20%/MoMo), theo dõi đơn & GPS tài xế realtime, chat với quán, quét/hiện mã QR nhận đơn, đánh giá món & gửi khiếu nại."),
+     "Đăng ký/đăng nhập + OTP Gmail, duyệt quán theo danh mục/vị trí/bán chạy, tùy biến món (Size/Đường/Đá/Topping), giỏ hàng đồng bộ realtime, Checkout (COD/VietQR/Đặt cọc 20%), theo dõi đơn & GPS tài xế realtime, chat với quán, quét/hiện mã QR nhận đơn, đánh giá món & gửi khiếu nại."),
     (":app-internal", "com.chuyen_de_2.foodorder.internal", "Ứng dụng Nội bộ (BOSSMERCHANT, MERCHANT, CHEF, DRIVER)",
      "Tích hợp 4 vai trò nội bộ: Chủ chuỗi (quản lý nhiều chi nhánh, phân công quản lý), Quản lý quán (Kanban duyệt đơn, đóng/mở quán, menu, báo cáo, gán bếp/tài xế, BankNotificationListenerService tự động duyệt tiền VietQR 24/7), Đầu bếp (nhận nấu đơn PREPARING->READY), Tài xế nội bộ (chuyến giao 4 bước GPS liên tục, LocationForegroundService, đếm ngược bom hàng, chứng cứ gọi/nhắn)."),
     (":app-admin", "com.chuyen_de_2.foodorder.admin", "Ứng dụng Quản trị viên Sàn (ADMIN)",
@@ -89,7 +89,7 @@ FIREBASE_NODES = [
      "auth != null", "Chính chủ, ADMIN, BOSSMERCHANT, MERCHANT",
      "storeId, status, approvalStatus"),
     (5, "stores", "stores/{storeId}", "Store.kt", "Cửa hàng & Thực đơn",
-     "Lưu thông tin chi nhánh quán ăn: tên quán, địa chỉ, tọa độ GPS (latitude/longitude), ảnh đại diện, giờ mở cửa, trạng thái quán (PENDING/OPEN/CLOSED/LOCKED), chế tài phạt (NONE/WARN/HIDE/LOCK), đánh giá trung bình, tài khoản VietQR/MoMo nhận tiền và map món ăn con (dishes).",
+     "Lưu thông tin chi nhánh quán ăn: tên quán, địa chỉ, tọa độ GPS (latitude/longitude), ảnh đại diện, giờ mở cửa, trạng thái quán (PENDING/OPEN/CLOSED/LOCKED), chế tài phạt (NONE/WARN/HIDE/LOCK), đánh giá trung bình, tài khoản ngân hàng VietQR nhận tiền và map món ăn con (dishes).",
      "true (Công khai cho mọi app)", "auth != null",
      "merchantId, ownerId, bossId, storeStatus, status, category, isVerified, penaltyTier"),
     (6, "boss_stores", "boss_stores/{bossUid}/{storeId}", "Boolean (true) / Store mapping", "Cửa hàng & Phân cấp Chuỗi",
@@ -220,7 +220,6 @@ NODE_FIELDS_DETAIL = [
     ("stores/{storeId}", "Store.kt", "ratingAvg / reviewCount", "Float / Int", "5.0 / 0", "Điểm đánh giá sao trung bình và tổng số lượt đánh giá của quán."),
     ("stores/{storeId}", "Store.kt", "openHours / prepTime / deliveryTime", "String", "\"\"", "Khung giờ mở cửa, thời gian chuẩn bị món và thời gian giao dự kiến."),
     ("stores/{storeId}", "Store.kt", "bankName / bankAccountNumber / bankAccountName / bankBin", "String", "MB Bank / 970422", "Thông tin tài khoản ngân hàng của quán dùng tạo mã QR chuyển khoản VietQR động khi khách đặt món."),
-    ("stores/{storeId}", "Store.kt", "momoPhone / momoAccountName", "String", "\"\"", "Thông tin ví MoMo nhận thanh toán của quán."),
     ("stores/{storeId}", "Store.kt", "storeCategories", "List<String>", "[]", "Danh mục thực đơn nội bộ riêng của quán (ví dụ: Món đặc biệt, Đồ uống...)."),
     ("stores/{storeId}", "Store.kt", "dishes", "Map<String, Dish>", "{}", "Danh sách toàn bộ món ăn thuộc quán (mỗi Dish có id, name, basePrice, imageUrl, isAvailable, isHidden, soldCount, ratingAvg, hasOptions, specs, isCombo...)."),
 
@@ -246,7 +245,7 @@ NODE_FIELDS_DETAIL = [
     ("orders/{orderId}", "Order.kt", "driverId / shipperId / shipperName / shipperPhone", "String?", "null", "Tài xế nội bộ được quán giao đơn hoặc tự nhận đơn."),
     ("orders/{orderId}", "Order.kt", "address / deliveryAddress", "String", "\"\"", "Địa chỉ giao hàng cuối cùng tới tay khách."),
     ("orders/{orderId}", "Order.kt", "subtotalAmount / shippingFee / discount / totalPayment", "Long", "0", "Tiền món ăn, phí ship (15k cho 3km đầu + 5k/km), giảm giá và tổng thanh toán."),
-    ("orders/{orderId}", "Order.kt", "paymentMethod / paymentMode / paymentStatus / isPaid", "String / Bool", "COD / FULL / UNPAID", "Hình thức thanh toán (COD, BANKING, DEPOSIT, MOMO), chế độ (FULL/DEPOSIT 20%) và trạng thái thanh toán (PAID/UNPAID)."),
+    ("orders/{orderId}", "Order.kt", "paymentMethod / paymentMode / paymentStatus / isPaid", "String / Bool", "COD / FULL / UNPAID", "Hình thức thanh toán (COD, BANKING, DEPOSIT), chế độ (FULL/DEPOSIT 20%) và trạng thái thanh toán (PAID/UNPAID)."),
     ("orders/{orderId}", "Order.kt", "depositAmount / remainAmount / isDepositPaid", "Long / Bool", "0 / false", "Số tiền đã cọc 20% và số tiền còn lại tài xế cần thu hộ (nếu paymentMode = DEPOSIT)."),
     ("orders/{orderId}", "Order.kt", "status / orderStatus", "String", "\"PENDING\"", "Vòng đời 15 trạng thái: AWAITING_PAYMENT -> PAID -> PENDING -> PREPARING -> READY -> ASSIGNED -> ARRIVED_AT_SHOP -> DELIVERING -> ARRIVED_AT_CUSTOMER -> COMPLETED (hoặc BOOM / RETURNING_TO_STORE / RETURNED_TO_STORE / CANCELLED)."),
     ("orders/{orderId}", "Order.kt", "deliveryToken", "String", "\"\"", "Chuỗi Token QR Code bảo mật để Tài xế quét trên máy Khách xác nhận giao thành công."),
@@ -273,13 +272,13 @@ CODE_MODULES_DETAIL = [
     (":core", "data/firebase/EmailOtpApi.kt", "Kết nối Supabase Auth REST API để gửi & xác thực mã OTP 6 số qua Gmail (kèm bộ nhớ đệm verifiedOtpCache 10 phút)."),
     (":core", "util/AccountLockWatcher.kt", "Lắng nghe node users/{uid} qua WebSocket Firebase: hiển thị ngay Dialog khóa tài khoản không thể tắt (<500ms) nếu Admin khóa tài khoản đang online."),
     (":core", "util/CccdOcrHelper.kt", "Dùng Google ML Kit Text Recognition trích xuất tự động số CCCD, họ tên, ngày sinh, giới tính, địa chỉ từ ảnh chụp mặt trước CCCD."),
-    (":core", "util/MomoPaymentGatewayClient.kt & BankData.kt", "Tích hợp API api.vietqr.io (với danh sách 54 ngân hàng chuẩn NAPAS 24/7) để sinh mã VietQR / MoMo thanh toán động theo mã đơn OISHI_******."),
+    (":core", "util/BankData.kt", "Cung cấp danh sách 53 ngân hàng/ví chuẩn NAPAS 24/7 kèm mã BIN VietQR và danh sách package/brandname lọc thông báo biến động số dư."),
     (":core", "util/QRCodeUtils.kt & AppConstants.kt", "Sinh mã QR deliveryToken xác thực giao hàng (ZXing), chuẩn hóa mã đơn hàng, tập trung các hằng số FirebaseNodes, ShippingRules, TrustScoreRules."),
 
     (":app-customer", "ui/auth/* (Login, Register, OtpVerificationActivity)", "Đăng nhập, đăng ký tài khoản Khách hàng kèm xác thực mã OTP gửi về Gmail."),
     (":app-customer", "ui/home/* (HomeActivity, HomeViewModel, Adapters)", "Trang chủ hiển thị danh mục món ăn, quán gần đây, Top bán chạy/yêu thích (lọc các quán OPEN và không bị penaltyTier=HIDE/LOCK)."),
     (":app-customer", "ui/menu/* (MenuActivity, DishOptionBottomSheet, DishReviewsBottomSheet)", "Xem thực đơn quán, chọn tùy chọn Size/Đường/Đá/Topping, xem & lọc đánh giá món ăn."),
-    (":app-customer", "ui/cart/* & ui/checkout/* & ui/payment/*", "Quản lý giỏ hàng theo quán (Debounce sync), chọn/ghim địa chỉ bản đồ (SelectLocationActivity), kiểm tra điều kiện COD (trustScore >= 90), thanh toán VietQR/MoMo/Cọc 20%."),
+    (":app-customer", "ui/cart/* & ui/checkout/* & ui/payment/*", "Quản lý giỏ hàng theo quán (Debounce sync), chọn/ghim địa chỉ bản đồ (SelectLocationActivity), kiểm tra điều kiện COD (trustScore >= 90), thanh toán VietQR/Cọc 20%."),
     (":app-customer", "ui/tracking/* & ui/order/* & ui/complaint/*", "Theo dõi trạng thái đơn realtime, bản đồ GPS vị trí xe tài xế live từ tracking/{orderId}, chat trực tiếp với quán, hiện QR deliveryToken, đánh giá món & gửi khiếu nại."),
 
     (":app-internal", "ui/auth/* & StoreVerificationActivity", "Đăng nhập chung 4 vai trò nội bộ (Boss/Quản lý/Bếp/Tài xế), đăng ký & xác minh đối tác kèm chụp/tải ảnh CCCD mặt trước + mặt sau, chọn tọa độ quán trên bản đồ Leaflet (select_map.html)."),
@@ -312,10 +311,10 @@ CORE_FLOWS = [
      "3) Admin mở :app-admin hoặc admin.html đối chiếu ảnh CCCD -> Duyệt (storeStatus=OPEN, isVerified=true) hoặc Từ chối kèm lý do.\n"
      "4) BOSSMERCHANT có thể tạo nhiều chi nhánh quán (lưu trong boss_stores/{bossUid}), tạo tài khoản MERCHANT bằng Firebase Auth phụ (không văng phiên Boss) và gán quản lý vào từng chi nhánh."),
     ("3. Quy trình Đặt hàng, Kiểm tra Điểm Uy Tín & Thanh toán Tự động",
-     "CheckoutViewModel.kt, MomoPaymentGatewayClient.kt, BankNotificationListenerService.kt",
+     "CheckoutViewModel.kt, PaymentActivity.kt, BankNotificationListenerService.kt",
      "1) Hệ thống đọc customers/{uid}/trustScore: nếu >=90 điểm mới được chọn COD; >=95 điểm được giảm 5.000đ phí ship; <90 điểm buộc chọn Cọc 20% hoặc Chuyển khoản 100%.\n"
      "2) Phí ship tự tính theo khoảng cách GPS: 15.000đ cho 3km đầu + 5.000đ/km tiếp theo.\n"
-     "3) Nếu chọn VietQR/MoMo, MomoPaymentGatewayClient gọi api.vietqr.io tạo QR kèm cú pháp OISHI_******.\n"
+     "3) Nếu chọn Chuyển khoản ngân hàng / Cọc 20%, PaymentActivity gọi ảnh VietQR từ api.vietqr.io kèm cú pháp OISHI_******.\n"
      "4) Trên máy Quản lý quán/Boss, dịch vụ BankNotificationListenerService chạy ngầm đọc thông báo biến động số dư ngân hàng -> khớp mã OISHI_****** & số tiền -> tự động cập nhật paymentStatus=PAID, status=PAID lên Firebase trong vài giây."),
     ("4. Quy trình Vận hành Nội bộ Quán (Quản lý -> Đầu bếp -> Tài xế)",
      "OrderListFragment.kt, ChefFragment.kt, ShipperFragment.kt, FirebaseRepository.kt",
@@ -517,8 +516,11 @@ def generate_excel():
     )
     ws5.freeze_panes = "C5"
 
-    wb.save(XLSX_PATH)
-    print(f"✓ Đã tạo file Excel: {XLSX_PATH}")
+    try:
+        wb.save(XLSX_PATH)
+        print(f"✓ Đã tạo file Excel: {XLSX_PATH}")
+    except PermissionError:
+        print(f"⚠ Không thể ghi đè {XLSX_PATH} vì file đang được mở trên ứng dụng khác (hãy đóng Excel và chạy lại).")
 
 
 # ==============================================================================
@@ -719,8 +721,11 @@ def generate_word():
             p_step.paragraph_format.left_indent = Inches(0.2)
             p_step.paragraph_format.space_after = Pt(3)
 
-    doc.save(DOCX_PATH)
-    print(f"✓ Đã tạo file Word:  {DOCX_PATH}")
+    try:
+        doc.save(DOCX_PATH)
+        print(f"✓ Đã tạo file Word:  {DOCX_PATH}")
+    except PermissionError:
+        print(f"⚠ Không thể ghi đè {DOCX_PATH} vì file đang được mở trên ứng dụng khác (hãy đóng Word và chạy lại).")
 
 if __name__ == "__main__":
     generate_excel()

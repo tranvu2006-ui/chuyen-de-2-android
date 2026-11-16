@@ -106,12 +106,6 @@ data class Order(
     @SerializedName("paidAt")
     var paidAt: Long? = null,
 
-    @SerializedName("momoOrderId")
-    var momoOrderId: String = "",
-
-    @SerializedName("momoRequestId")
-    var momoRequestId: String = "",
-
     @SerializedName("status")
     var status: String = Status.PENDING,
 
@@ -290,10 +284,9 @@ data class Order(
         const val COD = "COD"
         const val BANKING = "BANKING"
         const val DEPOSIT = "DEPOSIT"
-        const val MOMO = "MOMO"
     }
 
-    /** Trạng thái thanh toán chuyển khoản / ví MoMo */
+    /** Trạng thái thanh toán chuyển khoản ngân hàng */
     object PaymentStatus {
         const val UNPAID = "UNPAID"
         const val PAID = "PAID"

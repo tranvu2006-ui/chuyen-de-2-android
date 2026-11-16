@@ -872,6 +872,23 @@ class OrderListFragment : Fragment() {
                 viewModel.dismissAlert()
             }
         }
+
+        // Thông báo khi khách hủy đơn
+        viewModel.customerCancelledOrderAlert.observe(viewLifecycleOwner) { order ->
+            if (order != null) {
+                playAlertSound()
+                val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
+                val reason = order.cancelReason.ifBlank { "Khách hủy đơn hàng" }
+                AlertDialog.Builder(requireContext())
+                    .setTitle("⚠️ KHÁCH ĐÃ HỦY ĐƠN #$shortCode")
+                    .setMessage("Đơn hàng #$shortCode vừa bị khách hàng hủy!\n\nLý do: $reason\n\n👉 Quán vui lòng dừng chế biến hoặc chuẩn bị cho đơn này.")
+                    .setPositiveButton("Đã hiểu") { _, _ ->
+                        viewModel.clearCustomerCancelledAlert()
+                    }
+                    .setCancelable(false)
+                    .show()
+            }
+        }
     }
 
     /**

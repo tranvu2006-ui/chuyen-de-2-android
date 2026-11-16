@@ -80,6 +80,14 @@ class ChefFragment : Fragment() {
             },
             onCancelOrder = { order ->
                 confirmCancelOrder(order)
+            },
+            onDismissCancelled = { order ->
+                viewModel.dismissCancelledOrder(order.orderId)
+                Toast.makeText(
+                    requireContext(),
+                    "Đã xóa đơn hủy #${QRCodeUtils.getShortOrderCode(order.orderId)} khỏi danh sách bếp",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         )
 
@@ -184,6 +192,25 @@ class ChefFragment : Fragment() {
 
         viewModel.todayDoneCount.observe(viewLifecycleOwner) { count ->
             binding.tvStatDoneChef.text = "$count đơn"
+        }
+
+        viewModel.cancelledOrderEvent.observe(viewLifecycleOwner) { order ->
+            if (order != null) {
+                val shortCode = QRCodeUtils.getShortOrderCode(order.orderId)
+                val reason = order.cancelReason.ifBlank { "Khách đổi ý hủy đơn" }
+                AlertDialog.Builder(requireContext())
+                    .setTitle("⚠️ KHÁCH ĐÃ HỦY ĐƠN #$shortCode")
+                    .setMessage("Khách hàng vừa hủy đơn hàng #$shortCode!\n\nLý do: $reason\n\n👉 VUI LÒNG DỪNG NẤU MÓN CHO ĐƠN NÀY.")
+                    .setPositiveButton("Đã hiểu (Xóa khỏi bếp)") { _, _ ->
+                        viewModel.dismissCancelledOrder(order.orderId)
+                        viewModel.clearCancelledOrderEvent()
+                    }
+                    .setNegativeButton("Để lại xem") { _, _ ->
+                        viewModel.clearCancelledOrderEvent()
+                    }
+                    .setCancelable(false)
+                    .show()
+            }
         }
     }
 

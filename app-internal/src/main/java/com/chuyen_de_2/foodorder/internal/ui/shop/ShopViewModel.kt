@@ -62,6 +62,16 @@ class ShopViewModel @Inject constructor(
     private val _activeShippers = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.User>>()
     val activeShippers: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.User>> = _activeShippers
 
+    private val alertedCancelledOrderIds = mutableSetOf<String>()
+    private val previousProcessingOrderIds = mutableSetOf<String>()
+
+    private val _customerCancelledOrderAlert = MutableLiveData<Order?>()
+    val customerCancelledOrderAlert: LiveData<Order?> = _customerCancelledOrderAlert
+
+    fun clearCustomerCancelledAlert() {
+        _customerCancelledOrderAlert.value = null
+    }
+
     private var previousOrderCount = 0
 
     init {
@@ -164,6 +174,30 @@ class ShopViewModel @Inject constructor(
     private fun observeOrders() {
         viewModelScope.launch {
             firebaseRepository.observeAllOrders().collectLatest { orders ->
+                // Kiểm tra đơn đang xử lý bị khách hủy để thông báo cho quán
+                orders.forEach { order ->
+                    val wasProcessing = previousProcessingOrderIds.contains(order.orderId)
+                    val isCancelled = order.status.equals(Order.Status.CANCELLED, ignoreCase = true)
+                    val isCancelledByCustomer = order.cancelledBy.equals("CUSTOMER", ignoreCase = true) ||
+                            order.cancelReason.startsWith("Khách", ignoreCase = true)
+
+                    if (isCancelled && wasProcessing && isCancelledByCustomer && !alertedCancelledOrderIds.contains(order.orderId)) {
+                        alertedCancelledOrderIds.add(order.orderId)
+                        _customerCancelledOrderAlert.postValue(order)
+                    }
+                }
+
+                // Cập nhật danh sách các đơn đang xử lý để phát hiện khi chuyển sang CANCELLED
+                previousProcessingOrderIds.clear()
+                orders.filter {
+                    it.status != Order.Status.COMPLETED &&
+                    it.status != Order.Status.CANCELLED &&
+                    it.status != Order.Status.BOOM &&
+                    it.status != Order.Status.RETURNED_TO_STORE
+                }.forEach {
+                    previousProcessingOrderIds.add(it.orderId)
+                }
+
                 val pendingCount = orders.count {
                     it.status == Order.Status.PENDING ||
                     it.status == Order.Status.PAID ||

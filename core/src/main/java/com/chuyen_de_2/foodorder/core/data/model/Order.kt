@@ -148,6 +148,9 @@ data class Order(
     @SerializedName("cancelReason")
     val cancelReason: String = "",
 
+    @SerializedName("cancelledBy")
+    val cancelledBy: String = "",
+
     @SerializedName("riskReason")
     val riskReason: String = "",
 

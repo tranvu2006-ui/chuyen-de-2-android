@@ -34,10 +34,27 @@ class ChefViewModel @Inject constructor(
     private val _chefName = MutableLiveData<String>()
     val chefName: LiveData<String> = _chefName
 
+    private val dismissedCancelledOrderIds = mutableSetOf<String>()
+    private val alertedCancelledOrderIds = mutableSetOf<String>()
+    private val previousActiveChefOrderIds = mutableSetOf<String>()
+
+    private val _cancelledOrderEvent = MutableLiveData<Order?>()
+    val cancelledOrderEvent: LiveData<Order?> = _cancelledOrderEvent
+
     private var cachedChefPhone: String = ""
 
     init {
         loadChefStoreAndOrders()
+    }
+
+    fun clearCancelledOrderEvent() {
+        _cancelledOrderEvent.value = null
+    }
+
+    fun dismissCancelledOrder(orderId: String) {
+        dismissedCancelledOrderIds.add(orderId)
+        val current = _activeOrders.value.orEmpty()
+        _activeOrders.value = current.filter { it.orderId != orderId }
     }
 
     fun refresh() {
@@ -83,10 +100,34 @@ class ChefViewModel @Inject constructor(
                 }
                 _pendingOrders.value = pending
 
-                // 2. Đơn tôi đang nấu: Trạng thái PREPARING và chefId là của tôi
-                val active = storeOrders.filter { order ->
-                    order.status == Order.Status.PREPARING && order.chefId == chefId
+                // Kiểm tra đơn mà đầu bếp này đang nấu bị khách hủy để thông báo popup
+                storeOrders.forEach { order ->
+                    val wasActive = previousActiveChefOrderIds.contains(order.orderId)
+                    val isCancelled = order.status.equals(Order.Status.CANCELLED, ignoreCase = true)
+                    val isMyOrder = order.chefId == chefId
+
+                    if (isCancelled && (wasActive || isMyOrder) && !alertedCancelledOrderIds.contains(order.orderId)) {
+                        alertedCancelledOrderIds.add(order.orderId)
+                        _cancelledOrderEvent.postValue(order)
+                    }
                 }
+
+                // 2. Đơn tôi đang nấu:
+                // Không tự mất đơn khi bị khách hủy: Giữ đơn CANCELLED cho đến khi đầu bếp bấm xác nhận đã biết
+                val active = storeOrders.filter { order ->
+                    val isPreparing = order.status == Order.Status.PREPARING && order.chefId == chefId
+                    val isCancelledUnacknowledged = order.status.equals(Order.Status.CANCELLED, ignoreCase = true) &&
+                            (order.chefId == chefId || previousActiveChefOrderIds.contains(order.orderId)) &&
+                            !dismissedCancelledOrderIds.contains(order.orderId)
+                    isPreparing || isCancelledUnacknowledged
+                }
+
+                // Cập nhật lại các ID đang nấu để theo dõi thay đổi sang CANCELLED
+                previousActiveChefOrderIds.clear()
+                active.filter { it.status == Order.Status.PREPARING }.forEach {
+                    previousActiveChefOrderIds.add(it.orderId)
+                }
+
                 _activeOrders.value = active
 
                 // 3. Đơn tôi đã nấu xong hôm nay

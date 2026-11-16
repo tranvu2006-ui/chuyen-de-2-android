@@ -77,11 +77,16 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     tcPr.append(tcMar)
 
 def add_title(text, level=1, space_before=12, space_after=6):
-    # Sử dụng doc.add_heading để gắn chính xác Outline Level cho Word Navigation Pane
+    # Sử dụng doc.add_heading và gắn rõ ràng outlineLvl để 100% Word hiển thị trên thanh Navigation Pane
     p = doc.add_heading(level=level)
     p.paragraph_format.space_before = Pt(space_before)
     p.paragraph_format.space_after = Pt(space_after)
     p.paragraph_format.keep_with_next = True
+    
+    # Gắn outlineLvl vào pPr (0 cho Heading 1, 1 cho Heading 2, 2 cho Heading 3)
+    pPr = p._p.get_or_add_pPr()
+    outlineLvl = parse_xml(f'<w:outlineLvl {nsdecls("w")} w:val="{level-1}"/>')
+    pPr.append(outlineLvl)
     
     run = p.add_run(text)
     run.font.name = 'Times New Roman'

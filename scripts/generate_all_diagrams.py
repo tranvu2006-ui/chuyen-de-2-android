@@ -52,7 +52,7 @@ def generate_so_do_1():
     # Phải: Boss, Merchant, Admin
     draw_actor(89, 80, "Chủ chuỗi\n(Boss)", "app-internal\n(Quản lý chi nhánh)")
     draw_actor(89, 48, "Quản lý quán\n(Merchant)", "app-internal\n(Menu, Đơn Kanban)")
-    draw_actor(89, 18, "Quản trị viên\n(Admin)", "admin.html\n(Duyệt quán, Cấu hình)")
+    draw_actor(89, 18, "Quản trị viên\n(Admin)", "app-admin Native\n(5 Tab: KPI, Quán, Menu,\nKhiếu nại, Giám sát)")
 
     # Use Cases
     use_cases = [
@@ -173,7 +173,7 @@ def generate_so_do_2():
         "- Bảo toàn tiền cọc cho Tài xế"
     ], "#F8FAFC", "#334155")
 
-    draw_box(68, 15, 28, 25, "6. QUẢN TRỊ VIÊN (admin.html)", [
+    draw_box(68, 15, 28, 25, "6. QUẢN TRỊ VIÊN (app-admin Native)", [
         "- Kiểm duyệt hồ sơ cửa hàng mới",
         "- Quản lý danh mục món toàn hệ thống",
         "- Giám sát trực tiếp đơn hàng toàn sàn",

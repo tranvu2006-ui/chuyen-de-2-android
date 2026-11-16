@@ -35,9 +35,9 @@ screenshots = [
     ("anh_21.png", "Ảnh 21", "Sảnh Nhận đơn & Ghép đơn đa điểm", "fragment_shipper.xml", "app-internal (Driver)", "#F0FDF4", "#15803D"),
     ("anh_22.png", "Ảnh 22", "Hành trình Giao hàng Google Maps", "activity_delivery_trip.xml", "app-internal (Driver)", "#F0FDF4", "#15803D"),
     ("anh_23.png", "Ảnh 23", "Quét Camera QR / Nhập PIN giao món", "activity_driver_scan_qr.xml", "app-internal (Driver)", "#F0FDF4", "#15803D"),
-    ("anh_24.png", "Ảnh 24", "Admin: Duyệt Quán & Cấu hình sàn", "admin.html (Stores & Config)", "app-admin", "#FEE2E2", "#B91C1C"),
-    ("anh_25a.png", "Ảnh 25A", "Admin: Giám sát Đơn hàng Realtime", "admin.html (Orders)", "app-admin", "#FEE2E2", "#B91C1C"),
-    ("anh_25b.png", "Ảnh 25B", "Admin: Giải quyết Khiếu nại", "admin.html (Complaints)", "app-admin", "#FEE2E2", "#B91C1C"),
+    ("anh_24.png", "Ảnh 24", "Admin: Dashboard KPI & Duyệt Quán", "fragment_admin_store_list.xml", "app-admin", "#FEE2E2", "#B91C1C"),
+    ("anh_25a.png", "Ảnh 25A", "Admin: Giám sát Đơn & User Realtime", "fragment_admin_monitor.xml", "app-admin", "#FEE2E2", "#B91C1C"),
+    ("anh_25b.png", "Ảnh 25B", "Admin: Xử lý Khiếu nại & Phán quyết", "fragment_admin_complaint_list.xml", "app-admin", "#FEE2E2", "#B91C1C"),
 ]
 
 def make_screen_placeholder(filename, code, title, layout, module, bg_col, border_col):

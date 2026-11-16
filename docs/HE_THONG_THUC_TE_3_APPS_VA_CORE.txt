@@ -1,0 +1,985 @@
+================================================================================
+BẢN QUÉT CHI TIẾT TOÀN BỘ 100% CÁC FILE TRONG HỆ THỐNG OISHI FOOD (3 APPS NATIVE + CORE)
+================================================================================
+
+
+################################################################################
+MODULE: core
+################################################################################
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\AuthRepository.kt (1249 dòng)
+  - Classes/Objects: EmailOtpRequiredException, EmailNotRegisteredException, AuthRepository
+  - Mô tả: Repository xử lý xác thực — Firebase Authentication | Hỗ trợ: Login Email/Password, Register, Supabase Email OTP
+  - Các hàm chính (20 hàm): login, completePostLogin, requestLoginOtp, requestEmailOtp, verifyEmailOtp, verifyLoginOtp, registerWithOtp, register
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\EmailOtpApi.kt (145 dòng)
+  - Classes/Objects: EmailOtpApi
+  - Mô tả: Client API giao tiếp với Supabase Auth REST API phục vụ chức năng nhận và xác thực mã OTP qua Email.
+  - Các hàm chính (3 hàm): requestCode, verifyCode, post
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\FirebaseAuthChecker.kt (117 dòng)
+  - Classes/Objects: FirebaseAuthChecker
+  - Mô tả: Kiểm tra sự tồn tại của Email trên Firebase Authentication thông qua Google Identity Toolkit REST API. | Thực hiện độc lập trên luồng HTTP riêng, tuyệt đối không làm ảnh hưởng hay thay đổi phiên FirebaseAuth | hiện tại trên thiết bị người dùng.
+  - Các hàm chính (3 hàm): getApiKey, isEmailRegistered, deleteTemporaryAccount
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\FirebaseRepository.kt (4173 dòng)
+  - Classes/Objects: FirebaseRepository
+  - Mô tả: Repository xử lý toàn bộ CRUD trên Firebase Realtime Database | Bao gồm: Giỏ hàng, Đơn hàng, GPS Tracking | API Contract (Section 5 - doc-adr):
+  - Các hàm chính (178 hàm): readCacheFirst, onDataChange, onCancelled, syncCartToFirebase, observeCart, onDataChange, onCancelled, clearCart
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\AddressSuggestion.kt (12 dòng)
+  - Classes/Objects: AddressSuggestion
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Admin.kt (23 dòng)
+  - Classes/Objects: Admin
+  - Mô tả: Bảng 4: admins — Hồ sơ Quản trị viên hệ thống (Actor ADMIN) | Lưu tại: admins/{adminId} | Chịu trách nhiệm vận hành sàn, kiểm duyệt đối tác và giải quyết khiếu nại
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\ApiResponse.kt (17 dòng)
+  - Classes/Objects: ApiResponse
+  - Mô tả: Wrapper cho response từ REST API
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Cart.kt (37 dòng)
+  - Classes/Objects: Cart, CartPayload
+  - Mô tả: Giỏ hàng — lưu tại: carts/{userId}/{shopId} | Firebase Realtime Database JSON Schema (Section 4 - doc-adr)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\CartItem.kt (27 dòng)
+  - Classes/Objects: CartItem
+  - Mô tả: Mục trong giỏ hàng — lưu tại: carts/{userId}/{shopId}/items/{itemId} | Firebase Realtime Database JSON Schema (Section 4 - doc-adr)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Category.kt (57 dòng)
+  - Classes/Objects: Category
+  - Mô tả: Danh mục ngành hàng thực phẩm | Giao diện: khách/b1.html — Grid danh mục (Cơm, Trà sữa, Phở, Gà...) | Mapping: Bảng 4 - categories (database_schema.sql)
+  - Các hàm chính (1 hàm): getDefaultCategories
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Chef.kt (16 dòng)
+  - Classes/Objects: Chef
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Combo.kt (64 dòng)
+  - Classes/Objects: Combo, ComboItem
+  - Mô tả: Gói combo khuyến mãi — lưu tại: combos/{comboId} | Giao diện: Quán/3.html — Tạo gói Combo món ăn | Mapping: Bảng 8 - combos (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Complaint.kt (130 dòng)
+  - Classes/Objects: Complaint, ComplaintStatus, SenderType, TargetType, ComplaintType, Priority
+  - Mô tả: Khiếu nại đơn hàng & Báo cáo vi phạm — lưu tại: complaints/{complaintId} | Giao diện: khách/b12.html — Gửi khiếu nại | admin.html — Xử lý khiếu nại & phán quyết 3 mức chế tài vi phạm
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Customer.kt (68 dòng)
+  - Classes/Objects: Customer
+  - Mô tả: Hồ sơ khách hàng — lưu tại: customers/{customerId} | Giao diện: khách/b11.html — Trang cá nhân + Thẻ Điểm Uy Tín | Mapping: Bảng 2 - customers (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\CustomerAddress.kt (49 dòng)
+  - Classes/Objects: CustomerAddress
+  - Mô tả: Địa chỉ giao hàng — lưu tại: customer_addresses/{addressId} | Giao diện: khách/b8.html — Checkout chọn địa chỉ TP.HCM | Mapping: Bảng 3 - customer_addresses (database_schema.sql)
+  - Các hàm chính (1 hàm): fullAddress
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\DeliveryCountdownConfig.kt (10 dòng)
+  - Classes/Objects: DeliveryCountdownConfig
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Dish.kt (90 dòng)
+  - Classes/Objects: Dish
+  - Mô tả: Món ăn — dữ liệu lấy từ REST API | Giao diện: khách/b5.html — Chi tiết menu quán | Mapping: Bảng 6 - dishes (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\DishOption.kt (36 dòng)
+  - Classes/Objects: DishOption, Group
+  - Mô tả: Tùy chọn tùy biến món ăn (ShopeeFood-style) | Giao diện: khách/b6.html — Modal tùy chọn Size, Đường, Đá, Topping | Mapping: Bảng 7 - dish_options (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\DishReview.kt (54 dòng)
+  - Classes/Objects: DishReview
+  - Mô tả: Đánh giá món ăn — lưu tại: dish_reviews/{reviewId} | Giao diện: Đánh giá món ăn sau khi hoàn tất đơn hàng & Đánh giá tại thực đơn (b5.html & b9.html) | Mapping: Bảng 16 - dish_reviews (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Driver.kt (93 dòng)
+  - Classes/Objects: Driver, VehicleType, DutyStatus
+  - Mô tả: Tài xế nội bộ quán — lưu tại: drivers/{driverId} | Giao diện: Quán/1.html — Quản lý tài xế nội bộ | ship/2.html — Vào ca trực tuyến
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Merchant.kt (55 dòng)
+  - Classes/Objects: Merchant, ApprovalStatus
+  - Mô tả: Bảng 6: merchants — Hồ sơ chủ cửa hàng / đối tác | Lưu tại: merchants/{merchantId} | Chứa hồ sơ định danh, 4 ảnh CCCD, giấy phép kinh doanh để Admin xét duyệt
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Notification.kt (38 dòng)
+  - Classes/Objects: Notification, Type
+  - Mô tả: Thông báo ứng dụng — lưu tại: notifications/{notificationId} | Giao diện: khách/b10.html — Hộp thư thông báo | Mapping: Bảng 15 - notifications (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Order.kt (349 dòng)
+  - Classes/Objects: Order, CancelRequestStatus, Status, OrderStatus, PaymentMode, PaymentMethod, PaymentStatus, OrderItem
+  - Mô tả: Đơn hàng — lưu tại: orders/{orderId} | Giao diện: khách/b9.html — Theo dõi đơn + Mã QR Token | Quán/4.html — Tiếp nhận & Duyệt đơn
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Role.kt (30 dòng)
+  - Classes/Objects: Role
+  - Mô tả: Bảng 1: roles — Danh mục vai trò và quyền hạn (RBAC) | Quản lý 4 nhóm tác nhân: ADMIN (1), CUSTOMER (2), MERCHANT (3), DRIVER (4)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\ShippingRule.kt (35 dòng)
+  - Classes/Objects: ShippingRule, ZoneType
+  - Mô tả: Cấu hình phí ship TP.HCM | Giao diện: khách/b8.html — Phân vùng cước ship | Mapping: Bảng 11 - shipping_rules (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Store.kt (194 dòng)
+  - Classes/Objects: Store, StoreStatus, PenaltyTier
+  - Mô tả: Cửa hàng / Quán ăn — lưu tại: stores/{storeId} | Giao diện: Quán/5.html — Dashboard quán, Quán/8.html — Hồ sơ CCCD | 4 trạng thái: PENDING → OPEN / LOCKED / CLOSED
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\TrackingLocation.kt (21 dòng)
+  - Classes/Objects: TrackingLocation
+  - Mô tả: Tọa độ GPS Realtime — lưu tại: tracking/{orderId} | Firebase Realtime Database JSON Schema (Section 4 - doc-adr) | Shipper cập nhật liên tục qua Foreground Service.
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\TrustScoreLog.kt (33 dòng)
+  - Classes/Objects: TrustScoreLog
+  - Mô tả: Bảng 21: trust_score_logs — Lịch sử biến động điểm uy tín khách hàng | Lưu tại: trust_score_logs/{logId}
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\User.kt (92 dòng)
+  - Classes/Objects: User, ApprovalStatus, Role, Status
+  - Mô tả: Tài khoản người dùng chung — lưu tại: users/{userId} | 4 Roles: ADMIN, CUSTOMER, MERCHANT, DRIVER | Mapping: Bảng 1 - users (database_schema.sql)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\UserStatus.kt (29 dòng)
+  - Classes/Objects: UserStatus
+  - Mô tả: Bảng 2: user_statuses — Danh mục trạng thái tài khoản người dùng | Quản lý trạng thái đăng nhập & hoạt động: ACTIVE (1), INACTIVE (2), OFFLINE (3)
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\di\FirebaseModule.kt (44 dòng)
+  - Classes/Objects: FirebaseModule
+  - Mô tả: Hilt Module cung cấp các Firebase instances đã được tối ưu hóa bộ nhớ đệm (Disk Persistence)
+  - Các hàm chính (3 hàm): provideFirebaseAuth, provideFirebaseDatabase, provideFirebaseMessaging
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\di\NetworkModule.kt (53 dòng)
+  - Classes/Objects: NetworkModule
+  - Mô tả: Hilt Module cung cấp OkHttpClient và Retrofit cho các nhu cầu kết nối HTTP ngoài (nếu có).
+  - Các hàm chính (3 hàm): provideLoggingInterceptor, provideOkHttpClient, provideRetrofit
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\AccountLockWatcher.kt (244 dòng)
+  - Classes/Objects: AccountLockWatcher
+  - Mô tả: AccountLockWatcher: Giám sát trạng thái Khóa / Mở khóa tài khoản thời gian thực qua WebSocket Firebase. | Khi Quản trị viên (Admin) nhấn Khóa tài khoản: | - WebSocket Firebase lập tức đẩy sự kiện về máy người dùng trong <500ms.
+  - Các hàm chính (18 hàm): init, onActivityResumed, onActivityPaused, onActivityCreated, onActivityStarted, onActivityStopped, onActivitySaveInstanceState, onActivityDestroyed
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\AppConstants.kt (75 dòng)
+  - Classes/Objects: AppConstants, FirebaseNodes, Prefs, Extras, Defaults, ShippingRules, TrustScoreRules, AuthConfig
+  - Mô tả: Hằng số dùng chung toàn hệ thống Oishi Food. | Tập trung tên node Firebase, khóa SharedPreferences/Intent, giá trị mặc định và quy tắc nghiệp vụ | để tránh rải rác hardcode trên nhiều lớp.
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\BankData.kt (179 dòng)
+  - Classes/Objects: BankData, SupportedBank
+  - Mô tả: Danh sách 54 Ngân hàng thành viên VietQR (NAPAS 24/7) và Ví điện tử tại Việt Nam. | Cung cấp mã BIN chuẩn để sinh VietQR và danh sách Package Name để lọc thông báo biến động số dư.
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\CategoryIconCache.kt (60 dòng)
+  - Classes/Objects: CategoryIconCache
+  - Mô tả: Cache bộ nhớ đệm (In-Memory LRU Cache) cho ảnh Icon Danh mục (Base64 và Bitmap) | Giúp hiển thị tức thì (0ms) trên RecyclerView, loại bỏ hoàn toàn độ trễ giải mã | và hiện tượng giật/chớp icon mặc định khi chuyển đổi nhanh giữa các danh mục.
+  - Các hàm chính (4 hàm): get, put, getOrDecode, clear
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\CccdOcrHelper.kt (383 dòng)
+  - Classes/Objects: CccdScanResult, CccdOcrHelper
+  - Mô tả: Nhận diện thẻ CCCD từ ảnh Bitmap
+  - Các hàm chính (8 hàm): scanCccdFromBitmap, scanCccdFromUri, parseCccdText, cleanNameCandidate, isValidVietnameseName, removeAccents, toTitleCase, decodeRotatedBitmap
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\Constants.kt (63 dòng)
+  - Classes/Objects: Constants
+  - Mô tả: Constants và Extension functions dùng chung
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\GoogleMapUtils.kt (462 dòng)
+  - Classes/Objects: GoogleMapUtils
+  - Mô tả: Tiện ích Google Maps & Geocoding cho toàn bộ dự án Oishi Food | - Geocoding: Chuyển đổi tên đường / địa chỉ sang tọa độ LatLng | - Reverse Geocoding: Chuyển tọa độ GPS sang địa chỉ người dùng
+  - Các hàm chính (14 hàm): findNearestDistrict, geocodeAddress, reverseGeocode, formatAddress, findFallbackDistrict, calculateDistanceKm, calculateShippingFeeByDistance, openGoogleMapsNavigation
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\ImageLoadUtils.kt (207 dòng)
+  - Classes/Objects: ImageLoadUtils
+  - Mô tả: Tiện ích tải ảnh đồng bộ tối ưu hóa toàn diện cho toàn hệ thống: | - Tự động nhận diện chính xác URL mạng (http, https, content, file) và Base64 / Data URI | - Khắc phục triệt để lỗi URL dài (>300 ký tự) từ Firebase Storage / Cloudinary bị nhận nhầm thành Base64
+  - Các hàm chính (5 hàm): loadStoreImage, loadEvidenceImage, loadDishImage, loadUserAvatar, loadUserAvatarWithTintRes
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\ImagePickerUtils.kt (161 dòng)
+  - Classes/Objects: ImagePickerUtils
+  - Mô tả: Tiện ích xử lý và nén ảnh chọn từ thư viện điện thoại (Gallery Picker) | - Tự động đọc toàn bộ byte 1 lần duy nhất từ ContentProvider (chống lỗi SecurityException / StreamClosed khi mở nhiều lần trên Android 10+). | - Tự động xoay ảnh theo đúng EXIF Orientation (chống lật/ngang trên camera Samsung/Xiaomi).
+  - Các hàm chính (2 hàm): compressUriToBase64, compressBitmapToBase64
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\InsetUtils.kt (217 dòng)
+  - Classes/Objects: InsetUtils
+  - Mô tả: Tiện ích xử lý Window Insets cho giao diện Edge-to-Edge trên Android 14, 15+ | Đảm bảo các thành phần UI (Header, Toolbar, Bottom Navigation) không bị trùng lặp | với thanh trạng thái (Status Bar: pin, mạng, giờ), bàn phím ảo (IME) và thanh điều hướng (Navigation Bar).
+  - Các hàm chính (10 hàm): initEdgeToEdge, getFallbackStatusBarHeight, applyStatusBarPadding, applyToolbarInsets, applyNavigationBarPadding, applyImeAndSystemInsets, setLightStatusBar, requestApplyInsetsWhenAttached
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\KeyboardUtils.kt (120 dòng)
+  - Classes/Objects: KeyboardUtils
+  - Mô tả: Tiện ích hỗ trợ quản lý bàn phím ảo (Soft Keyboard / IME). | Cung cấp chức năng ẩn bàn phím khi người dùng chạm ra ngoài ô nhập liệu (EditText).
+  - Các hàm chính (8 hàm): hideKeyboard, hideKeyboard, showKeyboard, dispatchTouchEvent, dispatchTouchEvent, handleTouchOutsideToHideKeyboard, isPartOfSameInputContainer, findViewAtCoordinates
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\OtpNotificationHelper.kt (68 dòng)
+  - Classes/Objects: OtpNotificationHelper
+  - Mô tả: Tiện ích gửi mã xác thực OTP thông qua Thông báo đẩy (Status Bar Notification / FCM). | Giải pháp miễn phí 100%, không phụ thuộc vào gói cước SMS của Firebase hay thẻ thanh toán.
+  - Các hàm chính (2 hàm): generateOtp, showOtpNotification
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\OtpSessionManager.kt (113 dòng)
+  - Classes/Objects: OtpSessionManager
+  - Mô tả: OtpSessionManager: Quản lý phiên xác minh mã OTP Email với thời hạn 1 ngày (24 giờ). | Yêu cầu: | - Xác minh OTP 1 lần từ bất kể login hay register từ 1 gmail đồng nhất thì lưu lại trên thiết bị.
+  - Các hàm chính (8 hàm): getPrefs, normalizeEmail, updateBypassOtpConfig, isBypassOtpEnabled, isSessionValid, markEmailVerified, getRemainingHours, clearSession
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\PhoneNumberUtils.kt (38 dòng)
+  - Classes/Objects: PhoneNumberUtils
+  - Mô tả: Tiện ích chuẩn hóa và kiểm tra số điện thoại Việt Nam phục vụ gửi OTP qua SMS Firebase.
+  - Các hàm chính (2 hàm): normalizeToE164, isValidVietnamesePhone
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\QRCodeUtils.kt (227 dòng)
+  - Classes/Objects: QRCodeUtils, QrVerifyResult
+  - Mô tả: Tiện ích sinh mã QR chuẩn quốc tế ISO/IEC 18004 (ZXing) và xác thực mã QR đối soát giao hàng | giữa ứng dụng Khách hàng (app-customer) và ứng dụng Tài xế Shipper (app-internal).
+  - Các hàm chính (6 hàm): getShortOrderCode, formatOrderCode, getDisplayToken, buildOrderQrPayload, verifyOrderQrPayload, generateQRCodeBitmap
+
+FILE: core\src\main\java\com\chuyen_de_2\foodorder\core\util\RegistrationOtpManager.kt (115 dòng)
+  - Classes/Objects: RegistrationOtpManager
+  - Mô tả: RegistrationOtpManager: Quản lý trạng thái và thời hạn của mã OTP đang chờ xác thực trong luồng đăng ký. | Mục đích: | - Khi người dùng bấm "Đăng ký", hệ thống gửi OTP và lưu lại thời điểm gửi.
+  - Các hàm chính (7 hàm): getPrefs, normalizeEmail, recordOtpSent, hasValidPendingOtp, getRemainingCooldownMs, clearPendingOtp, isRateLimitError
+
+LAYOUT: core\src\main\res\layout\item_address_suggestion.xml (53 dòng)
+
+
+################################################################################
+MODULE: app-customer
+################################################################################
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\FoodOrderCustomerApp.kt (51 dòng)
+  - Classes/Objects: FoodOrderCustomerApp
+  - Mô tả: Application class — Customer App | Trade-off (Section 13 - doc-adr): Chọn Phương án 1 — Firebase Offline Persistence. | Bật setPersistenceEnabled(true) để Firebase tự cache disk,
+  - Các hàm chính (2 hàm): onCreate, createNotificationChannels
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\service\CustomerFCMService.kt (76 dòng)
+  - Classes/Objects: CustomerFCMService
+  - Mô tả: Tên chức năng: Dịch Vụ Tiếp Nhận Thông Báo Đẩy Cho Khách Hàng (Customer FCM Push Notification Service) | Cách hoạt động: | - Nhận tin nhắn thông báo đẩy từ Firebase Cloud Messaging khi trạng thái đơn hàng thay đổi (Quán xác nhận, Đang nấu, Đang giao, Đã giao thành công).
+  - Các hàm chính (3 hàm): onNewToken, onMessageReceived, showNotification
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\AuthViewModel.kt (228 dòng)
+  - Classes/Objects: AuthViewModel
+  - Mô tả: ViewModel xử lý đăng nhập, đăng ký và xác thực mã OTP qua Email.
+  - Các hàm chính (10 hàm): getUserRole, checkAccountActiveStatus, logout, requestLoginOtp, requestEmailOtp, verifyEmailOtp, verifyLoginOtp, login
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\LoginActivity.kt (243 dòng)
+  - Classes/Objects: LoginActivity
+  - Mô tả: Màn hình đăng nhập khách hàng. | Nếu tài khoản chưa xác thực OTP hoặc phiên 24h đã hết hạn, hệ thống sẽ chuyển sang | màn hình OtpVerificationActivity riêng biệt (tương tự như luồng Đăng ký).
+  - Các hàm chính (11 hàm): onCreate, onResume, onNewIntent, setupUI, syncBypassOtpConfig, onDataChange, onCancelled, observeViewModel
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\OtpVerificationActivity.kt (383 dòng)
+  - Classes/Objects: OtpVerificationActivity
+  - Mô tả: Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập. | Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật, | bộ đếm ngược thời gian và nút gửi lại trực quan.
+  - Các hàm chính (13 hàm): onCreate, setupUI, updateOtpBoxes, showOtpError, submitOtpVerification, observeViewModel, checkRoleAndRoute, startCountdown
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\RegisterActivity.kt (178 dòng)
+  - Classes/Objects: RegisterActivity
+  - Mô tả: Màn hình nhập thông tin đăng ký tài khoản khách hàng. | Form đăng ký dành riêng cho Khách Hàng (User.Role.CUSTOMER). | Sau khi bấm "Đăng ký", hệ thống sẽ chuyển sang màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
+  - Các hàm chính (6 hàm): onCreate, checkNotificationPermission, setupUI, openOtpVerificationActivity, observeViewModel, dispatchTouchEvent
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\cart\CartActivity.kt (127 dòng)
+  - Classes/Objects: CartActivity
+  - Mô tả: Tên chức năng: Màn Hình Quản Lý Giỏ Hàng Đa Quán (Multi-Store Shopping Cart) | Cách hoạt động: | - Hỗ trợ giỏ hàng phân tách theo từng quán ăn (Multi-Store Architecture).
+  - Các hàm chính (5 hàm): onCreate, setupToolbar, setupRecyclerView, observeViewModel, onPause
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\cart\CartAdapter.kt (137 dòng)
+  - Classes/Objects: CartAdapter, ShopViewHolder, CartDishAdapter, DishViewHolder
+  - Mô tả: Adapter cho các món ăn bên trong từng Shop Card (theo mockup a1.html)
+  - Các hàm chính (9 hàm): submitCarts, bind, onCreateViewHolder, onBindViewHolder, getItemCount, submitDishes, onCreateViewHolder, onBindViewHolder
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\cart\CartViewModel.kt (171 dòng)
+  - Classes/Objects: CartViewModel
+  - Mô tả: CartViewModel — Quản lý giỏ hàng với Debounce Algorithm (Section 6 - doc-adr) | Lắng nghe realtime giỏ hàng từ Firebase, cho phép sửa số lượng. | Mỗi thay đổi được gom qua debounce(1500ms) trước khi sync lên server.
+  - Các hàm chính (7 hàm): loadCarts, onDataChange, onCancelled, updateItemQuantity, flushCart, clearCart, onCleared
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\AddressSuggestionAdapter.kt (53 dòng)
+  - Classes/Objects: AddressSuggestionAdapter, SuggestionViewHolder, SuggestionDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\CheckoutActivity.kt (842 dòng)
+  - Classes/Objects: CheckoutActivity
+  - Mô tả: Tên chức năng: Màn Hình Xác Nhận Thanh Toán & Đặt Hàng (Checkout & Order Placement Screen) | Cách hoạt động: | - Thu thập thông tin giao hàng: Họ tên người nhận, SĐT, Địa chỉ chi tiết, Quận/Huyện.
+  - Các hàm chính (18 hàm): onCreate, setupToolbar, setupUI, onItemSelected, onNothingSelected, shakeView, scrollToMissingField, selectPaymentMode
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\CheckoutViewModel.kt (232 dòng)
+  - Classes/Objects: CheckoutViewModel
+  - Mô tả: Đặt hàng — tạo Order trên Firebase, đồng bộ thông tin khách hàng và xóa giỏ hàng
+  - Các hàm chính (4 hàm): loadCarts, onDataChange, onCancelled, placeOrder
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\SelectLocationActivity.kt (376 dòng)
+  - Classes/Objects: SelectLocationActivity, AndroidBridge
+  - Mô tả: Chuyển đổi toạ độ sang địa chỉ chi tiết và tự nhận diện quận huyện theo cự ly thực tế
+  - Các hàm chính (14 hàm): onCreate, setupWebView, onPageFinished, setupUI, beforeTextChanged, onTextChanged, afterTextChanged, moveMapTo
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\ComplaintActivity.kt (443 dòng)
+  - Classes/Objects: ComplaintActivity, ReasonItem
+  - Mô tả: Trung tâm gửi khiếu nại đơn hàng chuẩn b12.html | - Chọn đơn hàng từ danh sách đơn đã đặt hoặc nhập mã đơn tùy chỉnh. | - Xem trước chi tiết đơn hàng (Quán ăn, danh sách món, Shipper, tổng tiền).
+  - Các hàm chính (18 hàm): toString, onCreate, setupWindowInsets, setupToolbar, setupReasonSpinner, onItemSelected, onNothingSelected, setupOrderSelection
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\CustomerComplaintAdapter.kt (189 dòng)
+  - Classes/Objects: CustomerComplaintAdapter, ComplaintViewHolder, ComplaintDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\CustomerComplaintDetailBottomSheet.kt (257 dòng)
+  - Classes/Objects: CustomerComplaintDetailBottomSheet
+  - Các hàm chính (7 hàm): onCreate, onCreateView, onViewCreated, bindComplaintData, showFullEvidenceDialog, onDestroyView, newInstance
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\CustomerComplaintTrackingActivity.kt (149 dòng)
+  - Classes/Objects: CustomerComplaintTrackingActivity, FilterMode
+  - Mô tả: Màn hình Theo Dõi Khiếu Nại & Xử Lý dành cho Khách hàng | - Lắng nghe danh sách khiếu nại theo thời gian thực (Realtime) | - Thống kê số lượng hồ sơ (Tổng, Đang xử lý, Đã có phán quyết)
+  - Các hàm chính (8 hàm): onCreate, setupToolbar, openNewComplaint, setupRecyclerView, setupFilterChips, observeComplaints, updateStatistics, applyFilter
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeActivity.kt (1054 dòng)
+  - Classes/Objects: HomeActivity
+  - Mô tả: Tên chức năng: Trang Chủ Khám Phá & Đặt Món Ăn (Customer Home Marketplace) | Cách hoạt động: | - Hiển thị danh mục món ăn (Cơm, Trà sữa, Bún/Phở, Gà rán, Bánh mì, v.v.).
+  - Các hàm chính (45 hàm): onCreate, onResume, checkAccountLock, openSelectLocationMap, applyCustomLocation, setupHeader, detectUserLocation, checkGpsPermissionAndFetch
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeCategoryAdapter.kt (211 dòng)
+  - Classes/Objects: HomeCategoryAdapter, CategoryViewHolder
+  - Các hàm chính (10 hàm): submitCategories, findCategoryIndex, isCategorySelected, setSelected, onCreateViewHolder, onBindViewHolder, onBindViewHolder, getItemCount
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeDishAdapter.kt (167 dòng)
+  - Classes/Objects: HomeDishItem, HomeDishAdapter, ViewHolder
+  - Các hàm chính (5 hàm): submitList, bind, onCreateViewHolder, onBindViewHolder, getItemCount
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeViewModel.kt (589 dòng)
+  - Classes/Objects: HomeViewModel, HotTab, PriceSort
+  - Mô tả: Lọc danh sách món ăn
+  - Các hàm chính (16 hàm): getUserLocation, setUserLocation, loadStores, processStoresAndDishes, recalculateHotDishes, switchHotTab, inferDishEmoji, filterDishes
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HotDishAdapter.kt (107 dòng)
+  - Classes/Objects: HotDish, HotDishAdapter, ViewHolder
+  - Các hàm chính (5 hàm): submitList, bind, onCreateViewHolder, onBindViewHolder, getItemCount
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\NearbyStoreAdapter.kt (103 dòng)
+  - Classes/Objects: NearbyStoreItem, NearbyStoreAdapter, ViewHolder
+  - Các hàm chính (5 hàm): submitList, bind, onCreateViewHolder, onBindViewHolder, getItemCount
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\RestaurantAdapter.kt (79 dòng)
+  - Classes/Objects: RestaurantAdapter, ViewHolder, DiffCallback
+  - Các hàm chính (5 hàm): bind, onCreateViewHolder, onBindViewHolder, areItemsTheSame, areContentsTheSame
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\DishOptionBottomSheetDialogFragment.kt (199 dòng)
+  - Classes/Objects: DishOptionBottomSheetDialogFragment
+  - Mô tả: BottomSheetDialogFragment tùy chọn món ăn theo chuẩn b6.html | (Size, Độ ngọt, Lượng đá, Topping trân châu/thạch/pudding, Số lượng & Tổng tiền động)
+  - Các hàm chính (8 hàm): getTheme, onCreateView, onViewCreated, setupDishInfo, setupListeners, calculateUnitPriceAndDescription, updatePrice, onDestroyView
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\DishReviewsAdapter.kt (117 dòng)
+  - Classes/Objects: DishReviewItem, DishReviewsAdapter, ViewHolder
+  - Các hàm chính (5 hàm): updateData, bind, onCreateViewHolder, onBindViewHolder, getItemCount
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\DishReviewsBottomSheetDialogFragment.kt (240 dòng)
+  - Classes/Objects: DishReviewsBottomSheetDialogFragment
+  - Các hàm chính (11 hàm): newInstance, onCreate, onCreateView, onViewCreated, setupAdapter, setupFilterChips, observeReviewsFromFirebase, updateOverviewCard
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\MenuActivity.kt (379 dòng)
+  - Classes/Objects: MenuActivity
+  - Mô tả: Tên chức năng: Chi Tiết Thực Đơn Quán & Đặt Món (Store Menu & Item Detail Screen) | Cách hoạt động: | - Lấy danh sách món ăn từ Cửa hàng tương ứng theo `shopId` từ Firestore.
+  - Các hàm chính (10 hàm): onCreate, setupTopNav, setupCategoryChips, setupRecyclerView, setupBottomCheckoutBar, observeViewModel, bindTopDetailSection, handleDishSelection
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\MenuAdapter.kt (156 dòng)
+  - Classes/Objects: MenuAdapter, ViewHolder, DiffCallback
+  - Các hàm chính (7 hàm): setSelectedDishId, bind, updateStepperUI, onCreateViewHolder, onBindViewHolder, areItemsTheSame, areContentsTheSame
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\MenuViewModel.kt (314 dòng)
+  - Classes/Objects: MenuViewModel
+  - Mô tả: ViewModel cho màn hình Menu — load dữ liệu từ Firebase, thêm vào giỏ hàng. | Hỗ trợ giao diện b5.html: Nửa trên (selectedDish), Nửa dưới (filteredDishes), Bottom Bar (cartTotal).
+  - Các hàm chính (14 hàm): setShopInfo, loadShopDetails, observeShopCart, loadMenu, selectDish, filterByCategory, applyFilter, addToCart
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationActivity.kt (240 dòng)
+  - Classes/Objects: NotificationActivity
+  - Mô tả: Tên chức năng: Hộp Thư Thông Báo Khách Hàng (Customer Notification Center) | Cách hoạt động: | - Thu thập danh sách thông báo Realtime từ hệ thống: Tiến độ đơn hàng, tin nhắn từ quán/tài xế, chương trình khuyến mãi và cảnh báo khẩn cấp.
+  - Các hàm chính (8 hàm): onCreate, setupToolbar, setupRecyclerView, setupFilterChips, filterList, updateEmptyState, loadNotifications, createNotificationFromOrder
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationAdapter.kt (74 dòng)
+  - Classes/Objects: NotificationAdapter, NotificationViewHolder
+  - Các hàm chính (6 hàm): onCreateViewHolder, onBindViewHolder, bind, formatTimestamp, areItemsTheSame, areContentsTheSame
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationFragment.kt (257 dòng)
+  - Classes/Objects: NotificationFragment
+  - Mô tả: Tên chức năng: Fragment Hộp Thư Thông Báo Khách Hàng (Customer Notification Center) | Cách hoạt động: | - Tích hợp trực tiếp vào thanh Bottom Navigation của HomeActivity.
+  - Các hàm chính (10 hàm): onCreateView, onViewCreated, onDestroyView, setupToolbar, setupRecyclerView, setupFilterChips, filterList, updateEmptyState
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationItem.kt (20 dòng)
+  - Classes/Objects: NotificationType, NotificationItem
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\IncidentProofBottomSheetDialogFragment.kt (72 dòng)
+  - Classes/Objects: IncidentProofBottomSheetDialogFragment
+  - Các hàm chính (5 hàm): newInstance, onCreate, onCreateView, onViewCreated, onDestroyView
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderHistoryActivity.kt (455 dòng)
+  - Classes/Objects: OrderHistoryActivity
+  - Mô tả: Tên chức năng: Màn Hình Lịch Sử Đơn Hàng & Xử Lý Sự Cố (Customer Order History & Incidents) | Cách hoạt động: | - Truy xuất toàn bộ lịch sử đơn hàng của khách hàng từ Firestore.
+  - Các hàm chính (15 hàm): onCreate, setupHeader, setupRecyclerView, isOrderFullPaid, handleCancelOrderClick, showInstantCancelDialog, showRequestCancelDialog, handleWithdrawCancelClick
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderHistoryAdapter.kt (582 dòng)
+  - Classes/Objects: OrderHistoryAdapter, OrderViewHolder, DiffCallback
+  - Các hàm chính (9 hàm): onCreateViewHolder, onBindViewHolder, bind, onDataChange, onCancelled, onDataChange, onCancelled, areItemsTheSame
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderHistoryFragment.kt (471 dòng)
+  - Classes/Objects: OrderHistoryFragment
+  - Mô tả: Tên chức năng: Fragment Lịch Sử Đơn Hàng & Xử Lý Sự Cố (Customer Order History Fragment) | Cách hoạt động: | - Tích hợp trực tiếp vào thanh Bottom Navigation của HomeActivity.
+  - Các hàm chính (17 hàm): onCreateView, onViewCreated, onDestroyView, setupHeader, setupRecyclerView, isOrderFullPaid, handleCancelOrderClick, showInstantCancelDialog
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderSuccessActivity.kt (147 dòng)
+  - Classes/Objects: OrderSuccessActivity
+  - Các hàm chính (5 hàm): onCreate, setupToolbar, bindOrderData, setupActions, navigateHome
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\payment\PaymentActivity.kt (396 dòng)
+  - Classes/Objects: PaymentActivity
+  - Mô tả: Màn hình thanh toán Chuyển khoản VietQR — Chuẩn ngân hàng số | Tự động đồng bộ số tài khoản và ngân hàng thực tế của từng Quán ăn
+  - Các hàm chính (17 hàm): onCreate, observeOrderPaymentRealtime, onDataChange, onCancelled, handleOrderCancelled, navigateToOrderSuccessAuto, setupToolbar, renderPaymentUI
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\profile\AddressBookAdapter.kt (85 dòng)
+  - Classes/Objects: AddressBookAdapter, AddressViewHolder, DiffCallback
+  - Các hàm chính (5 hàm): bind, onCreateViewHolder, onBindViewHolder, areItemsTheSame, areContentsTheSame
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\profile\ProfileActivity.kt (593 dòng)
+  - Classes/Objects: ProfileActivity
+  - Mô tả: Trang cá nhân & Điểm uy tín chuẩn b11.html | Hỗ trợ: | - Upload ảnh avatar từ máy hoặc chọn Emoji avatar
+  - Các hàm chính (13 hàm): onCreate, setupToolbar, loadUserProfile, displayAvatar, setupListeners, showTrustScoreHistoryDialog, showEditProfileDialog, processAndPreviewAvatar
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\profile\ProfileFragment.kt (586 dòng)
+  - Classes/Objects: ProfileFragment
+  - Mô tả: Tên chức năng: Fragment Trang Cá Nhân, Điểm Uy Tín & Sổ Địa Chỉ Khách Hàng (Customer Profile Fragment) | Cách hoạt động: | - Tích hợp trực tiếp vào thanh Bottom Navigation của HomeActivity.
+  - Các hàm chính (14 hàm): onCreateView, onViewCreated, onDestroyView, setupToolbar, loadUserProfile, displayAvatar, setupListeners, showTrustScoreHistoryDialog
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\tracking\ChatStoreBottomSheetDialogFragment.kt (255 dòng)
+  - Classes/Objects: ChatStoreBottomSheetDialogFragment
+  - Các hàm chính (14 hàm): onCreate, onCreateView, onViewCreated, onChildAdded, onChildChanged, onChildRemoved, onChildMoved, onCancelled
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\tracking\TrackingActivity.kt (1452 dòng)
+  - Classes/Objects: TrackingActivity, DishRatingState
+  - Mô tả: Màn hình Theo Dõi Đơn Hàng (TrackingActivity) | Thiết kế đồng bộ 100% với khách/b9.html: | - Stepper 4 bước chuẩn Oishi Food (Chờ xác nhận -> Quán đang làm -> Đang giao -> Đã nhận)
+  - Các hàm chính (36 hàm): onCreate, setupUI, setupListeners, isOrderFullPaid, handleCancelOrderClick, showInstantCancelDialog, showKitchenCancelDialog, showAssignedDriverCancelDialog
+
+FILE: app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\tracking\TrackingViewModel.kt (67 dòng)
+  - Classes/Objects: TrackingViewModel
+  - Mô tả: Tracking ViewModel — lắng nghe GPS realtime (Section 5 - doc-adr) | API Contract: GET tracking/{orderId} (SDK addValueEventListener) | Response: Stream trả về liên tục {lat, lng, updatedAt}
+  - Các hàm chính (4 hàm): startTracking, cancelOrderImmediately, requestCancelOrder, withdrawCancelRequest
+
+LAYOUT: app-customer\src\main\res\layout\activity_cart.xml (171 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_checkout.xml (1023 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_complaint.xml (534 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_customer_complaint_tracking.xml (316 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_home.xml (565 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_login.xml (165 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_menu.xml (507 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_notification.xml (150 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_order_history.xml (271 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_order_success.xml (472 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_otp_verification.xml (391 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_payment.xml (499 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_profile.xml (518 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_register.xml (213 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_select_location.xml (202 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\activity_tracking.xml (1115 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\bottom_sheet_advanced_filter.xml (556 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\bottom_sheet_customer_complaint_detail.xml (438 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\bottom_sheet_nearby_stores.xml (234 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\bottom_sheet_trust_score_detail.xml (536 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\dialog_address_book.xml (91 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\dialog_chat_store.xml (252 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\dialog_dish_option.xml (416 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\dialog_dish_reviews.xml (355 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\dialog_edit_address.xml (227 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\dialog_edit_profile.xml (205 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\dialog_incident_proof.xml (259 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_customer_address.xml (112 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_customer_complaint.xml (297 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_dish_review.xml (146 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_district_spinner.xml (13 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_home_category.xml (41 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_home_dish.xml (239 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_hot_dish.xml (133 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_menu.xml (185 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_nearby_store.xml (142 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_notification.xml (107 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_order_dish_rating.xml (228 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_order_history.xml (364 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_restaurant.xml (175 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_shop_cart.xml (162 dòng)
+
+LAYOUT: app-customer\src\main\res\layout\item_shop_dish.xml (121 dòng)
+
+
+################################################################################
+MODULE: app-internal
+################################################################################
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\FoodOrderInternalApp.kt (55 dòng)
+  - Classes/Objects: FoodOrderInternalApp
+  - Các hàm chính (2 hàm): onCreate, createNotificationChannels
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\BankNotificationListenerService.kt (371 dòng)
+  - Classes/Objects: BankNotificationListenerService
+  - Mô tả: Dịch vụ chạy ngầm lắng nghe thông báo biến động số dư ngân hàng | để tự động xác nhận thanh toán đơn hàng VietQR chuẩn OISHI_******. | - Mã đơn: OISHI_****** (với 6 ký tự số hoặc chữ in hoa)
+  - Các hàm chính (11 hàm): isPermissionGranted, openPermissionSettings, forceRebindService, requestIgnoreBatteryOptimizations, requestRebindIfNecessary, openAutostartSettings, onListenerConnected, onNotificationPosted
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\InternalFCMService.kt (93 dòng)
+  - Classes/Objects: InternalFCMService
+  - Mô tả: Tên chức năng: Dịch Vụ Thông Báo Đẩy Firebase Cloud Messaging (Internal FCM Push Service) | Cách hoạt động: | - Nhận tin nhắn thông báo đẩy (Push Notification) từ Cloud Functions / Backend khi có đơn hàng mới phát sinh hoặc có cập nhật trạng thái đơn.
+  - Các hàm chính (3 hàm): onNewToken, onMessageReceived, showHighPriorityNotification
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\LocationForegroundService.kt (176 dòng)
+  - Classes/Objects: LocationForegroundService
+  - Mô tả: Tên chức năng: Dịch Vụ Chạy Ngầm Theo Dõi Vị Trí GPS Tài Xế (Android Foreground Location Service) | Cách hoạt động: | - Chạy dưới dạng Foreground Service với Notification thường trực (Ongoing) để chống bị Android OS tắt khi khóa màn hình (Doze Mode).
+  - Các hàm chính (7 hàm): onCreate, onStartCommand, createNotification, startLocationUpdates, onLocationResult, onDestroy, onBind
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\MerchantKeepAliveService.kt (105 dòng)
+  - Classes/Objects: MerchantKeepAliveService
+  - Mô tả: Foreground Service giữ tiến trình Quán luôn hoạt động ở chế độ Tiền cảnh (Foreground). | Ngăn chặn triệt để các trình tối ưu pin của mọi hãng máy (Xiaomi, Vivo, OPPO, Samsung...) | đảm bảo BankNotificationListenerService luôn kết nối và bắt thông báo ngân hàng 24/7.
+  - Các hàm chính (7 hàm): start, stop, onBind, onCreate, onStartCommand, createNotificationChannel, createNotification
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\AddressSuggestionAdapter.kt (53 dòng)
+  - Classes/Objects: AddressSuggestionAdapter, SuggestionViewHolder, SuggestionDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\AuthViewModel.kt (216 dòng)
+  - Classes/Objects: AuthViewModel
+  - Mô tả: ViewModel xác thực cho app nội bộ (Chủ quán/Tài xế), hỗ trợ xác minh qua Email.
+  - Các hàm chính (7 hàm): requestLoginOtp, requestEmailOtp, verifyEmailOtp, verifyLoginOtp, login, register, registerWithOtp
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\LoginActivity.kt (268 dòng)
+  - Classes/Objects: LoginActivity
+  - Mô tả: Màn hình đăng nhập đối tác nội bộ (Chủ quán/Tài xế). | Nếu tài khoản chưa xác thực OTP hoặc phiên 24h đã hết hạn, hệ thống sẽ chuyển sang | màn hình OtpVerificationActivity riêng biệt (tương tự như luồng Đăng ký).
+  - Các hàm chính (12 hàm): onCreate, onResume, onNewIntent, setupUI, syncBypassOtpConfig, onDataChange, onCancelled, observeViewModel
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\OtpVerificationActivity.kt (393 dòng)
+  - Classes/Objects: OtpVerificationActivity
+  - Mô tả: Màn hình xác thực OTP dùng chung cho cả luồng Đăng ký và Đăng nhập đối tác. | Thiết kế giao diện hiện đại với 6 ô vuông nhập số OTP, thẻ email nổi bật, | bộ đếm ngược thời gian và nút gửi lại trực quan.
+  - Các hàm chính (13 hàm): onCreate, setupUI, updateOtpBoxes, showOtpError, submitOtpVerification, observeViewModel, checkRoleAndRoute, startCountdown
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\RegisterActivity.kt (177 dòng)
+  - Classes/Objects: RegisterActivity
+  - Mô tả: Màn hình nhập thông tin đăng ký đối tác (Chủ quán/Tài xế). | Không còn ô nhập OTP trên form. Sau khi bấm "Đăng Ký Đối Tác", hệ thống sẽ chuyển sang | màn hình xác minh OTP riêng biệt để hoàn tất việc tạo tài khoản.
+  - Các hàm chính (5 hàm): onCreate, checkNotificationPermission, setupUI, openOtpVerificationActivity, observeViewModel
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\SelectLocationActivity.kt (375 dòng)
+  - Classes/Objects: SelectLocationActivity, AndroidBridge
+  - Mô tả: Chuyển đổi toạ độ sang địa chỉ chi tiết và tự nhận diện quận huyện theo cự ly thực tế
+  - Các hàm chính (14 hàm): onCreate, setupWebView, onPageFinished, setupUI, beforeTextChanged, onTextChanged, afterTextChanged, moveMapTo
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\StoreVerificationActivity.kt (680 dòng)
+  - Classes/Objects: StoreVerificationActivity, CccdSide, SupportedBank
+  - Mô tả: Tên chức năng: Phiếu Thiết Lập Địa Chỉ Bắt Buộc & Xác Minh Thông Tin Quán | Cách hoạt động: | - Thu thập hồ sơ kinh doanh của Quán: Tên quán, SĐT, Địa chỉ lấy hàng chi tiết, Quận/Huyện, Họ tên chủ quán, CCCD (12 số).
+  - Các hàm chính (15 hàm): checkPermissionAndLaunchCamera, launchCamera, onCreate, setupSpinners, processPickedCccdImage, loadInitialData, setupListeners, beforeTextChanged
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\boss\BossBranchAdapter.kt (114 dòng)
+  - Classes/Objects: BossBranchAdapter, BranchViewHolder
+  - Mô tả: Adapter danh sách chi nhánh cửa hàng dành riêng cho BOSSMERCHANT.
+  - Các hàm chính (6 hàm): setMerchants, onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\boss\BossDashboardActivity.kt (748 dòng)
+  - Classes/Objects: BossDashboardActivity
+  - Mô tả: Màn hình Bảng điều khiển Quản lý Chuỗi dành riêng cho BOSSMERCHANT. | Cho phép tạo chi nhánh, tạo tài khoản Merchant, xem và quản lý danh sách Merchant đã tạo, | phân công/gỡ Merchant cho từng chi nhánh, và truy cập trực tiếp vào bất kỳ chi nhánh nào để vận hành.
+  - Các hàm chính (15 hàm): onCreate, observeBusinessProfile, setupUI, checkNotificationAccessPermission, onResume, observeBranches, observeMerchants, enterBranchAsManager
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\boss\BossMerchantAdapter.kt (115 dòng)
+  - Classes/Objects: BossMerchantAdapter, MerchantViewHolder, MerchantDiffCallback
+  - Các hàm chính (6 hàm): setStores, onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefActiveOrdersAdapter.kt (114 dòng)
+  - Classes/Objects: ChefActiveOrdersAdapter, ActiveChefViewHolder
+  - Các hàm chính (5 hàm): submitList, onCreateViewHolder, onBindViewHolder, getItemCount, bind
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefAdapter.kt (61 dòng)
+  - Classes/Objects: ChefAdapter, ChefViewHolder, ChefDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefFragment.kt (221 dòng)
+  - Classes/Objects: ChefFragment
+  - Mô tả: Màn hình Bếp (Kitchen / Chef Dashboard): | - Xem danh sách đơn đang chờ đầu bếp nhận nấu (PREPARING, chefId rỗng). | - Bấm "Nhận nấu" tương tự như shipper nhận đơn (atomic lock chống nhận trùng).
+  - Các hàm chính (8 hàm): onCreateView, onViewCreated, setupLogout, setupAdapters, confirmMarkDone, confirmCancelOrder, observeData, onDestroyView
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefPendingOrdersAdapter.kt (63 dòng)
+  - Classes/Objects: ChefPendingOrdersAdapter, PendingChefViewHolder
+  - Các hàm chính (5 hàm): submitList, onCreateViewHolder, onBindViewHolder, getItemCount, bind
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefViewModel.kt (178 dòng)
+  - Classes/Objects: ChefViewModel
+  - Mô tả: Đầu bếp bấm nhận nấu đơn
+  - Các hàm chính (8 hàm): clearCancelledOrderEvent, dismissCancelledOrder, refresh, loadChefStoreAndOrders, observeChefOrders, acceptOrder, cancelOrder, markCookingDone
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\dashboard\DashboardActivity.kt (626 dòng)
+  - Classes/Objects: DashboardActivity
+  - Mô tả: Tên chức năng: Bảng điều khiển Trung tâm Phân quyền (Role-Based Dashboard) | Cách hoạt động: | - Phân tích quyền tài khoản (RBAC): MERCHANT / MANAGER (Quán ăn) hoặc SHIPPER / DRIVER (Tài xế giao hàng).
+  - Các hàm chính (12 hàm): onCreate, applyWindowPadding, setupToolbar, handleBossRoleAndProceed, loadUserRole, checkMerchantVerificationAndProceed, setupShipperNavigation, setupChefNavigation
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\driver\DriverAdapter.kt (143 dòng)
+  - Classes/Objects: DriverAdapter, DriverViewHolder, DriverDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\driver\DriverListFragment.kt (533 dòng)
+  - Classes/Objects: DriverListFragment
+  - Mô tả: Quản lý Đội ngũ Nhân sự Của Quán (Staff Management): | - Tab 1: Đội Tài Xế (Drivers): Thống kê, giám sát tình trạng trực/giao đơn, tạo tài khoản tài xế. | - Tab 2: Đội Đầu Bếp (Chefs): Thống kê, giám sát tình trạng nấu món, tạo tài khoản đầu bếp trực thuộc quán.
+  - Các hàm chính (15 hàm): onCreateView, onViewCreated, resolveCurrentStoreIdAndObserve, setupRecyclerViews, setupTabs, updateTabUI, setupListeners, observeDrivers
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\DeliveryTripActivity.kt (3366 dòng)
+  - Classes/Objects: DeliveryTripActivity
+  - Mô tả: Tên chức năng: Màn Hình Chuyến Giao Hàng & Điều Hướng GPS (Shipper Delivery Trip & GPS Navigation) | Cách hoạt động: | - Dẫn đường theo thời gian thực (Realtime Route Navigation) từ vị trí tài xế -> Quán lấy hàng -> Điểm giao của Khách hàng qua Leaflet / OSM Map.
+  - Các hàm chính (75 hàm): start, onCreate, setupSwipeToConfirmStep2, isStep2AllChecked, updateStep2ReadinessUI, setupSwipeToConfirmStep3, setupWebViews, onPageFinished
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\DriverActiveOrdersAdapter.kt (130 dòng)
+  - Classes/Objects: DriverActiveOrdersAdapter, ActiveOrderViewHolder
+  - Các hàm chính (5 hàm): submitList, onCreateViewHolder, onBindViewHolder, getItemCount, bind
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\DriverPendingOrdersAdapter.kt (89 dòng)
+  - Classes/Objects: DriverPendingOrdersAdapter, PendingOrderViewHolder
+  - Các hàm chính (5 hàm): submitList, onCreateViewHolder, onBindViewHolder, getItemCount, bind
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperFragment.kt (373 dòng)
+  - Classes/Objects: ShipperFragment
+  - Mô tả: Tên chức năng: Kênh Nhận Đơn & Trực Tuyến Của Tài Xế (Shipper Orders & Dispatch Center) | Cách hoạt động: | - Bật/Tắt chế độ trực tuyến (Online/Offline) nhận cuốc xe giao thức ăn.
+  - Các hàm chính (11 hàm): autoStartLocationServiceIfPermitted, startLocationService, onCreateView, onViewCreated, setupLogout, setupAdapters, setupDutyToggle, updateDutyUI
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperIncomeAdapter.kt (63 dòng)
+  - Classes/Objects: ShipperIncomeAdapter, TripViewHolder
+  - Các hàm chính (5 hàm): submitList, onCreateViewHolder, onBindViewHolder, getItemCount, bind
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperIncomeFragment.kt (168 dòng)
+  - Classes/Objects: ShipperIncomeFragment
+  - Mô tả: Tên chức năng: Quản Lý Thu Nhập & Ví Tiền Của Tài Xế (Shipper Income & Earnings) | Cách hoạt động: | - Thu thập danh sách các cuốc giao hàng hoàn tất (COMPLETED) của tài xế.
+  - Các hàm chính (7 hàm): onCreateView, onViewCreated, setupRecyclerView, setupFilterTabs, observeData, filterTrips, onDestroyView
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperProfileFragment.kt (490 dòng)
+  - Classes/Objects: ShipperProfileFragment
+  - Mô tả: Tên chức năng: Quản Lý Hồ Sơ Tài Xế & Cấu Hình Định Vị GPS Nền (Shipper Profile & Background Location Service) | Cách hoạt động: | - Hiển thị thông tin cá nhân của tài xế (Tên, Email, Trạng thái hoạt động).
+  - Các hàm chính (13 hàm): onCreateView, onViewCreated, autoEnableGps, setupUI, bindDriverData, displayAvatar, processAndPreviewAvatar, setupListeners
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperViewModel.kt (279 dòng)
+  - Classes/Objects: ShipperViewModel
+  - Mô tả: Nhận đơn mới từ quán (ghép chuyến)
+  - Các hàm chính (8 hàm): loadShipperStoreAndOrders, observeShipperOrders, observePendingStoreOrders, toggleDuty, acceptOrder, cancelAssignedOrder, confirmPickedUpAtShop, completeDelivery
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\BestSellerDishAdapter.kt (69 dòng)
+  - Classes/Objects: BestSellerItem, BestSellerDishAdapter, ViewHolder
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ChatCustomerBottomSheetDialogFragment.kt (283 dòng)
+  - Classes/Objects: ChatCustomerBottomSheetDialogFragment
+  - Mô tả: Tin nhắn của Quán gửi đi (nằm bên phải, nền xanh)
+  - Các hàm chính (14 hàm): onCreate, onCreateView, onViewCreated, onChildAdded, onChildChanged, onChildRemoved, onChildMoved, onCancelled
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ManageDishAdapter.kt (121 dòng)
+  - Classes/Objects: ManageDishAdapter, ViewHolder, DiffCallback
+  - Mô tả: ManageDishAdapter — Adapter hiển thị danh sách thực đơn quán theo Quán/2.html
+  - Các hàm chính (5 hàm): bind, onCreateViewHolder, onBindViewHolder, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ManageStoreCategoryAdapter.kt (58 dòng)
+  - Classes/Objects: StoreCategoryItem, ManageStoreCategoryAdapter, ViewHolder, DiffCallback
+  - Mô tả: Adapter quản lý danh mục riêng của quán (Thêm / Sửa / Xóa)
+  - Các hàm chính (5 hàm): bind, onCreateViewHolder, onBindViewHolder, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\MenuManageFragment.kt (1081 dòng)
+  - Classes/Objects: MenuManageFragment
+  - Mô tả: Tên chức năng: Quản Lý Thực Đơn & Điểm Danh Mở Ca Quán (Menu Management) | Cách hoạt động: | - Cung cấp tính năng Check-in mở ca bán hàng / tạm nghỉ ngơi cho Quán.
+  - Các hàm chính (26 hàm): onCreateView, onViewCreated, resolveCurrentStoreIdAndObserve, observeStoreCategories, observePlatformCategories, observeStoreDishes, setupUI, createCategoryChip
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\OrderAdapter.kt (409 dòng)
+  - Classes/Objects: OrderAdapter, ViewHolder, DiffCallback
+  - Mô tả: OrderAdapter — Hiển thị danh sách đơn hàng cho Quán theo mẫu Quán/5.html | Quy trình 3 bước: Xác nhận đơn -> Nấu xong -> Giao tài xế
+  - Các hàm chính (8 hàm): bind, onDataChange, onCancelled, setupStatusAndActions, onCreateViewHolder, onBindViewHolder, areItemsTheSame, areContentsTheSame
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\OrderListFragment.kt (913 dòng)
+  - Classes/Objects: OrderListFragment
+  - Mô tả: Tên chức năng: Kênh Quản Lý Đơn Hàng Dành Cho Quán (Merchant Order Kanban) | Cách hoạt động: | - Lắng nghe Realtime luồng đơn hàng của Quán theo thời gian thực từ Firestore.
+  - Các hàm chính (21 hàm): onCreateView, onViewCreated, resolveCurrentStoreIdAndObserve, observeStoreProfile, canOperateCurrentStore, showManagerRestrictedAlert, renderStoreHeader, bindShopStatusSwitchListener
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\SelectComboDishAdapter.kt (127 dòng)
+  - Classes/Objects: SelectableComboDish, SelectComboDishAdapter, ViewHolder
+  - Mô tả: Adapter danh sách món ăn chọn đưa vào Combo
+  - Các hàm chính (7 hàm): submitDishes, getSelectedItems, calculateTotalOriginalPrice, bind, onCreateViewHolder, onBindViewHolder, getItemCount
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ShopViewModel.kt (302 dòng)
+  - Classes/Objects: ShopViewModel, TabType
+  - Mô tả: Shop ViewModel — Quản lý đơn hàng Kanban 3 bước cho Quán theo Quán/5.html | 1. Mới Nhận (PENDING) -> Xác nhận đơn khách -> COOKING (PREPARING) | 2. Đang Nấu (PREPARING) -> Nấu xong -> READY
+  - Các hàm chính (16 hàm): clearCustomerCancelledAlert, cleanupOrphanedData, setStoreId, selectTab, filterOrders, observeOrders, observeShippers, updateLocalOrderStatus
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\StoreProfileFragment.kt (550 dòng)
+  - Classes/Objects: StoreProfileFragment
+  - Mô tả: Tên chức năng: Quản Lý Hồ Sơ & Cài Đặt Quán Ăn (Merchant Profile & Store Settings) | Cách hoạt động: | - Hiển thị đầy đủ thông tin pháp lý và nhận diện của quán: Tên, địa chỉ, số điện thoại, chủ hộ kinh doanh, CCCD, ảnh đại diện.
+  - Các hàm chính (12 hàm): onCreateView, onViewCreated, checkRoleAndSetupUI, resolveCurrentStoreIdAndObserve, setupListeners, observeStoreProfile, processAndPreviewAvatar, displayStoreAvatar
+
+FILE: app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\StoreReportFragment.kt (250 dòng)
+  - Classes/Objects: StoreReportFragment
+  - Mô tả: Tên chức năng: Báo Cáo Doanh Số & Hiệu Quả Bán Hàng Của Quán (Store Performance & Revenue Analytics) | Cách hoạt động: | - Phân tích và tổng hợp toàn bộ đơn hàng của Cửa hàng theo các mốc thời gian: Hôm nay, Tuần này, Tháng này.
+  - Các hàm chính (7 hàm): onCreateView, onViewCreated, setupRecyclerView, setupTimeFilterTabs, loadStoreAndObserveData, computeAndDisplayMetrics, onDestroyView
+
+LAYOUT: app-internal\src\main\res\layout\activity_boss_dashboard.xml (492 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\activity_dashboard.xml (68 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\activity_delivery_trip.xml (2406 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\activity_login_internal.xml (184 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\activity_otp_verification_internal.xml (393 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\activity_register_internal.xml (240 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\activity_select_location.xml (202 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\activity_store_verification.xml (817 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_add_chef.xml (175 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_add_driver.xml (240 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_assign_branch_to_merchant.xml (119 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_assign_merchant.xml (114 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_bom_return_flow.xml (469 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_cancel_order_reason.xml (81 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_chat_customer.xml (215 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_create_branch.xml (204 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_create_combo.xml (352 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_create_merchant.xml (172 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_edit_category_name.xml (85 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_edit_dish.xml (343 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_edit_driver_profile.xml (352 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_edit_store_profile.xml (405 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_manage_store_categories.xml (171 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_new_order_popup.xml (144 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_qr_scanner.xml (291 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_report_incident.xml (468 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_store_chat_customer.xml (255 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\dialog_store_warning_detail.xml (376 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_chef.xml (380 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_driver_list.xml (409 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_menu_manage.xml (354 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_order_list.xml (744 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_shipper.xml (415 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_shipper_income.xml (255 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_shipper_profile.xml (648 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_store_profile.xml (600 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\fragment_store_report.xml (469 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_best_seller_dish.xml (75 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_boss_branch.xml (208 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_boss_merchant.xml (204 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_bundle_order_card.xml (207 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_chef_active_order.xml (153 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_chef_manage.xml (158 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_chef_pending_order.xml (129 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_driver.xml (206 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_driver_active_order.xml (227 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_driver_pending_order.xml (86 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_manage_dish.xml (208 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_manage_store_category.xml (69 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_order.xml (598 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_select_combo_dish.xml (114 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_shipper_trip.xml (96 dòng)
+
+LAYOUT: app-internal\src\main\res\layout\item_store_category_chip.xml (16 dòng)
+
+
+################################################################################
+MODULE: app-admin
+################################################################################
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\FoodOrderAdminApp.kt (16 dòng)
+  - Classes/Objects: FoodOrderAdminApp
+  - Các hàm chính (1 hàm): onCreate
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\auth\AdminAuthViewModel.kt (125 dòng)
+  - Classes/Objects: AdminAuthState, Idle, Loading, Success, Error, AdminAuthViewModel
+  - Các hàm chính (3 hàm): checkExistingSession, login, logout
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\auth\AdminLoginActivity.kt (111 dòng)
+  - Classes/Objects: AdminLoginActivity
+  - Các hàm chính (4 hàm): onCreate, setupWindowInsets, setupListeners, observeViewModel
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\category\AddEditCategoryDialogFragment.kt (219 dòng)
+  - Classes/Objects: AddEditCategoryDialogFragment
+  - Các hàm chính (7 hàm): onCreateView, onViewCreated, convertUriToBase64Icon, populateExistingData, updateIconPreview, setupListeners, onDestroyView
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\category\AdminCategoryAdapter.kt (113 dòng)
+  - Classes/Objects: AdminCategoryAdapter, CategoryViewHolder, CategoryDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\category\AdminCategoryListFragment.kt (123 dòng)
+  - Classes/Objects: AdminCategoryListFragment
+  - Các hàm chính (6 hàm): onCreateView, onViewCreated, setupRecyclerView, setupListeners, observeViewModel, onDestroyView
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\category\AdminCategoryViewModel.kt (88 dòng)
+  - Classes/Objects: AdminCategoryViewModel
+  - Các hàm chính (6 hàm): observeCategories, saveCategory, toggleCategoryActive, deleteCategory, restoreDefaults, clearMessage
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\complaint\AdminComplaintAdapter.kt (194 dòng)
+  - Classes/Objects: AdminComplaintAdapter, ComplaintViewHolder, ComplaintDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\complaint\AdminComplaintDetailActivity.kt (617 dòng)
+  - Classes/Objects: AdminComplaintDetailActivity
+  - Các hàm chính (12 hàm): onCreate, setupWindowInsets, setupViews, observeComplaintData, bindComplaintData, loadLinkedOrder, updatePenaltyImpactCallout, submitVerdict
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\complaint\AdminComplaintListFragment.kt (137 dòng)
+  - Classes/Objects: AdminComplaintListFragment
+  - Các hàm chính (9 hàm): onCreateView, onViewCreated, setupRecyclerView, setupListeners, beforeTextChanged, onTextChanged, afterTextChanged, observeViewModel
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\complaint\AdminComplaintViewModel.kt (133 dòng)
+  - Classes/Objects: ComplaintFilter, ComplaintCounts, AdminComplaintViewModel
+  - Các hàm chính (7 hàm): observeComplaints, updateCounts, setFilter, setSearchQuery, applyFilter, resolveComplaint, clearMessage
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\complaint\ResolveComplaintDialogFragment.kt (259 dòng)
+  - Classes/Objects: ResolveComplaintDialogFragment
+  - Các hàm chính (8 hàm): onCreateView, onViewCreated, populateData, updatePenaltyCallout, setupActions, submitResolve, showFullEvidenceDialog, onDestroyView
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\dashboard\AdminDashboardFragment.kt (205 dòng)
+  - Classes/Objects: AdminDashboardFragment
+  - Các hàm chính (6 hàm): onCreateView, onViewCreated, setupNavigationClicks, observeViewModel, showCountdownConfigDialog, onDestroyView
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\dashboard\AdminDashboardViewModel.kt (156 dòng)
+  - Classes/Objects: DashboardKpi, AdminDashboardViewModel
+  - Các hàm chính (5 hàm): observeCountdownConfig, saveCountdownConfig, observePlatformData, restoreDefaultCategories, clearActionMessage
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\main\AdminMainActivity.kt (161 dòng)
+  - Classes/Objects: AdminMainActivity
+  - Các hàm chính (10 hàm): onCreate, setupWindowInsets, setupTopBar, setupBottomNavigation, setupBackNavigation, handleOnBackPressed, observeAuth, updateAlertBadge
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\monitor\AdminMonitorFragment.kt (158 dòng)
+  - Classes/Objects: AdminMonitorFragment
+  - Các hàm chính (12 hàm): onCreateView, onViewCreated, setupRecyclerViews, setupListeners, beforeTextChanged, onTextChanged, afterTextChanged, onTabSelected
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\monitor\AdminMonitorViewModel.kt (170 dòng)
+  - Classes/Objects: UserWithCustomerInfo, AdminMonitorViewModel
+  - Các hàm chính (7 hàm): observeData, setSearchQuery, applySearch, toggleUserLock, saveUserWithTrustScore, saveOrderFull, clearMessage
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\monitor\AdminOrderAdapter.kt (105 dòng)
+  - Classes/Objects: AdminOrderAdapter, OrderViewHolder, OrderDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\monitor\AdminUserAdapter.kt (157 dòng)
+  - Classes/Objects: AdminUserAdapter, UserViewHolder, UserDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\monitor\EditOrderDialogFragment.kt (168 dòng)
+  - Classes/Objects: EditOrderDialogFragment
+  - Các hàm chính (7 hàm): onCreateDialog, onCreateView, onViewCreated, setupSpinners, populateCurrentData, setupListeners, onDestroyView
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\monitor\EditUserDialogFragment.kt (360 dòng)
+  - Classes/Objects: EditUserDialogFragment
+  - Các hàm chính (11 hàm): uriToBase64, onCreateDialog, onCreateView, onViewCreated, setupSpinners, updateAvatarPreview, populateCurrentData, setupListeners
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\store\AdminStoreAdapter.kt (116 dòng)
+  - Classes/Objects: AdminStoreAdapter, StoreViewHolder, StoreDiffCallback
+  - Các hàm chính (5 hàm): onCreateViewHolder, onBindViewHolder, bind, areItemsTheSame, areContentsTheSame
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\store\AdminStoreDetailBottomSheetDialogFragment.kt (169 dòng)
+  - Classes/Objects: AdminStoreDetailBottomSheetDialogFragment
+  - Các hàm chính (5 hàm): onCreateView, onViewCreated, populateData, setupActions, onDestroyView
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\store\AdminStoreListFragment.kt (128 dòng)
+  - Classes/Objects: AdminStoreListFragment
+  - Các hàm chính (9 hàm): onCreateView, onViewCreated, setupRecyclerView, setupListeners, beforeTextChanged, onTextChanged, afterTextChanged, observeViewModel
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\store\AdminStoreViewModel.kt (167 dòng)
+  - Classes/Objects: StoreFilter, StoreCounts, AdminStoreViewModel
+  - Các hàm chính (11 hàm): observeStores, updateCounts, setFilter, setSearchQuery, applyFilterAndSearch, approveStore, rejectStore, lockStore
+
+FILE: app-admin\src\main\java\com\chuyen_de_2\foodorder\admin\ui\store\EditStoreDialogFragment.kt (269 dòng)
+  - Classes/Objects: EditStoreDialogFragment
+  - Các hàm chính (9 hàm): uriToBase64, updateStoreImagePreview, onCreateDialog, onCreateView, onViewCreated, setupSpinners, populateCurrentData, setupListeners
+
+LAYOUT: app-admin\src\main\res\layout\activity_admin_complaint_detail.xml (1096 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\activity_admin_login.xml (341 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\activity_admin_main.xml (208 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\bottom_sheet_admin_store_detail.xml (405 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\dialog_add_edit_category.xml (287 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\dialog_apply_store_penalty.xml (148 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\dialog_edit_countdown_config.xml (153 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\dialog_edit_order.xml (406 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\dialog_edit_store.xml (635 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\dialog_edit_user.xml (600 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\dialog_resolve_complaint.xml (426 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\fragment_admin_category_list.xml (154 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\fragment_admin_complaint_list.xml (403 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\fragment_admin_dashboard.xml (1109 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\fragment_admin_monitor.xml (177 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\fragment_admin_store_list.xml (204 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\item_admin_category.xml (135 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\item_admin_complaint.xml (376 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\item_admin_order.xml (178 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\item_admin_spinner.xml (13 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\item_admin_spinner_dropdown.xml (13 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\item_admin_store.xml (228 dòng)
+
+LAYOUT: app-admin\src\main\res\layout\item_admin_user.xml (134 dòng)

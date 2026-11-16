@@ -127,7 +127,7 @@ diary_rows = [
     [
         "3",
         "Dương Minh Thư\n(24211TTxxxx)\nThành viên",
-        "• Thiết kế kiến trúc Firebase Realtime Database phân cấp (15 node) & Firebase Authentication (Email OTP, công tắc Bypass OTP).\n• Xây dựng module lõi core (26 Data Models, FirebaseRepository, AuthRepository, CccdOcrHelper).\n• Phát triển ứng dụng Quản trị viên admin.html (Kiểm duyệt cửa hàng mới, Quản lý danh mục sàn, Giám sát đơn realtime, Can thiệp điểm uy tín).\n• Tổng hợp và biên tập tài liệu báo cáo kỹ thuật.",
+        "• Thiết kế kiến trúc Firebase Realtime Database phân cấp (15 node) & Firebase Authentication (Email OTP, công tắc Bypass OTP).\n• Xây dựng module lõi core (26 Data Models, FirebaseRepository 178 hàm, AuthRepository 20 hàm, GeolocationUtils, NotificationHelper, StatusUtils).\n• Phát triển ứng dụng Android Quản trị viên app-admin hoàn chỉnh (5 tab: Dashboard KPI, Quản lý Cửa hàng, Danh mục món toàn sàn, Xử lý Khiếu nại & Phán quyết, Giám sát Realtime).\n• Tổng hợp và biên tập tài liệu báo cáo kỹ thuật chuẩn TDC.",
         "33%",
         ""
     ],
@@ -183,7 +183,7 @@ fig_rows = [
     ["Sơ đồ 6", "Sơ đồ máy trạng thái vòng đời đơn hàng (Order State Machine)", "Mục 2.5.4"],
     ["Ảnh 1 – Ảnh 12", "Bộ ảnh chụp giao diện Ứng dụng Khách hàng (app-customer)", "Mục 2.6 - Phần A"],
     ["Ảnh 13 – Ảnh 23", "Bộ ảnh chụp giao diện Ứng dụng Nội bộ Quán, Bếp & Tài xế (app-internal)", "Mục 2.6 - Phần B"],
-    ["Ảnh 24 – Ảnh 25B", "Bộ ảnh chụp giao diện Bảng điều khiển Quản trị viên (admin.html)", "Mục 2.6 - Phần C"],
+    ["Ảnh 24 – Ảnh 25B", "Bộ ảnh chụp giao diện Ứng dụng Android Quản trị viên (app-admin Native)", "Mục 2.6 - Phần C"],
     ["Ảnh KT-1 – KT-6", "Bộ ảnh chụp minh chứng kết quả kiểm thử thực nghiệm hệ thống", "Mục 3.2"]
 ]
 create_table(fig_headers, fig_rows, col_widths=[1.5, 4.3, 1.0])
@@ -250,7 +250,7 @@ rbac_rows = [
     ["MERCHANT", "Quản lý quán", "app-internal", "Thiết lập thông tin quán, cấu hình VietQR ngân hàng, quản lý thực đơn/combo, tiếp nhận đơn Kanban và điều phối tài xế trực thuộc."],
     ["CHEF", "Đầu bếp", "app-internal", "Tiếp nhận đơn cần nấu (PREPARING), chế biến món theo định lượng, bấm 'Đã nấu xong' chuyển đơn sang READY thông báo tài xế."],
     ["DRIVER", "Tài xế giao hàng", "app-internal", "Nhận đơn READY, ghép đơn đa điểm, điều hướng Google Maps, quét Camera QR/PIN giao hàng, báo sự cố 15p hoàn trả quán RETURNING_TO_STORE."],
-    ["ADMIN", "Quản trị viên", "admin.html", "Kiểm duyệt cửa hàng mới, quản lý danh mục toàn sàn, giám sát realtime đơn hàng, giải quyết khiếu nại, can thiệp uy tín và cấu hình hệ thống."]
+    ["ADMIN", "Quản trị viên", "app-admin", "Ứng dụng Android Native độc lập (5 tab: Dashboard KPI doanh số, Kiểm duyệt cửa hàng & VietQR, Quản lý danh mục sàn, Xử lý khiếu nại & phán quyết bằng chứng, Giám sát đơn & người dùng realtime)."]
 ]
 create_table(rbac_headers, rbac_rows, col_widths=[1.2, 1.4, 1.2, 3.0])
 
@@ -340,9 +340,9 @@ screens_data = [
     ("anh_23.png", "Ảnh 23", "Màn hình Quét Camera QR / PIN Giao món", "activity_driver_scan_qr.xml", "Tài xế (Driver)", "Quét mã QR trên máy khách hoặc nhập mã PIN 4 số", "ZXing BarcodeScanner xác thực khớp mã, chuyển đơn sang COMPLETED."),
 
     # Phần C: Admin (Ảnh 24 -> Ảnh 25B)
-    ("anh_24.png", "Ảnh 24", "Bảng điều khiển Admin: Duyệt Quán & Cấu hình", "admin.html (Stores & Config)", "Quản trị viên", "Kiểm tra địa chỉ, định vị và ngân hàng của quán, bấm 'Duyệt / Từ chối' và chỉnh phí sàn", "Cập nhật isApproved = true và lưu tham số vào /system_config."),
-    ("anh_25a.png", "Ảnh 25A", "Màn hình Admin: Giám sát Đơn hàng Realtime", "admin.html (Orders)", "Quản trị viên", "Giám sát trực tiếp trạng thái đơn hàng toàn sàn trên bảng Kanban tổng", "Hiển thị实时 mọi thay đổi trạng thái và định vị các cuốc xe đang chạy."),
-    ("anh_25b.png", "Ảnh 25B", "Màn hình Admin: Giải quyết Khiếu nại & Khóa tài khoản", "admin.html (Complaints & Users)", "Quản trị viên", "Xem ảnh bằng chứng sai món/thái độ, đưa ra phán quyết và can thiệp điểm uy tín", "Cộng/trừ điểm trustScore hoặc khóa tài khoản vi phạm vĩnh viễn.")
+    ("anh_24.png", "Ảnh 24", "Màn hình Admin: Dashboard KPI & Duyệt Quán", "fragment_admin_dashboard.xml & fragment_admin_store_list.xml", "Quản trị viên (Admin)", "Kiểm tra doanh thu sàn, số lượng đơn active, duyệt/từ chối hồ sơ quán mới và cấu hình ngân hàng VietQR của quán", "Cập nhật isApproved = true trên nhánh /stores và đồng bộ realtime xuống app-internal."),
+    ("anh_25a.png", "Ảnh 25A", "Màn hình Admin: Giám sát Đơn hàng & User Realtime", "fragment_admin_monitor.xml", "Quản trị viên (Admin)", "Theo dõi danh sách toàn bộ đơn hàng đang chạy trên sàn, vị trí tài xế và danh sách người dùng", "Lắng nghe ValueEventListener từ Firebase /orders và /users, cập nhật trạng thái tức thời."),
+    ("anh_25b.png", "Ảnh 25B", "Màn hình Admin: Giải quyết Khiếu nại & Phán quyết", "fragment_admin_complaint_list.xml & activity_admin_complaint_detail.xml", "Quản trị viên (Admin)", "Xem xét ảnh chứng từ vi phạm (sai món, bom hàng, cuộc gọi sự cố), đưa ra phán quyết hoàn tiền hoặc phạt", "Cập nhật trạng thái complaint RESOLVED/REJECTED, can thiệp điểm trustScore và khóa tài khoản nếu vi phạm nặng.")
 ]
 
 for idx, (img_file, code, title, layout, actor, action, reaction) in enumerate(screens_data):
@@ -458,7 +458,7 @@ add_title("CHƯƠNG 4. ĐÁNH GIÁ, KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN", le
 
 add_title("4.1 Đánh giá kết quả đạt được", level=2)
 add_p("Sau quá trình nghiên cứu, thiết kế và phát triển nghiêm túc, nhóm đã hoàn thành 100% các mục tiêu đề ra ban đầu cho đồ án Chuyên đề Tốt nghiệp 2:")
-add_bullet("Xây dựng thành công hệ sinh thái 3 ứng dụng hoàn chỉnh: app-customer (Khách hàng), app-internal (Đối tác Quán ăn, Chủ chuỗi, Đầu bếp, Tài xế) và admin.html (Bảng điều khiển Quản trị viên sàn).")
+add_bullet("Xây dựng thành công hệ sinh thái 3 ứng dụng Android Native hoàn chỉnh: app-customer (Khách hàng), app-internal (Đối tác Quán ăn, Chủ chuỗi, Đầu bếp, Tài xế) và app-admin (Quản trị viên sàn 5 phân hệ độc lập), cùng thư viện dùng chung :core.")
 add_bullet("Hoàn thiện phân quyền 6 Roles (RBAC Matrix) rõ ràng, khoa học, bảo mật và phân tách trách nhiệm mạch lạc.")
 add_bullet("Hiện thực hóa thành công tính năng tự động duyệt thanh toán VietQR Napas247, giải quyết bài toán kiểm tra biến động số dư thủ công.")
 add_bullet("Thiết kế và chạy thực nghiệm thành công cơ chế Điểm uy tín (trustScore) và quy trình hoàn hàng RETURNING_TO_STORE, giải quyết triệt để nạn bùng hàng trong ngành giao đồ ăn.")

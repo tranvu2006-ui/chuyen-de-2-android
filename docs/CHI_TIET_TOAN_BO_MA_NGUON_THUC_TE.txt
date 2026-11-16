@@ -1,0 +1,343 @@
+BẢNG TỔNG HỢP TOÀN BỘ MÃ NGUỒN THỰC TẾ OISHI FOOD
+======================================================================
+
+1. DANH SÁCH DATA MODELS (:core/data/model)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\AddressSuggestion.kt (Classes: AddressSuggestion)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Admin.kt (Classes: Admin)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\ApiResponse.kt (Classes: ApiResponse)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Cart.kt (Classes: Cart, CartPayload)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\CartItem.kt (Classes: CartItem)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Category.kt (Classes: Category)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Chef.kt (Classes: Chef)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Combo.kt (Classes: Combo, ComboItem)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Complaint.kt (Classes: Complaint, ComplaintStatus, SenderType, TargetType, ComplaintType, Priority)
+    const PENDING = "PENDING"
+    const RESOLVED = "RESOLVED"
+    const REJECTED = "REJECTED"
+    const CUSTOMER = "CUSTOMER"
+    const STORE = "STORE"
+    const DRIVER = "DRIVER"
+    const STORE = "STORE"
+    const CUSTOMER = "CUSTOMER"
+    const DRIVER = "DRIVER"
+    const ATTP = "ATTP"                     // An toàn vệ sinh thực phẩm
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Customer.kt (Classes: Customer)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\CustomerAddress.kt (Classes: CustomerAddress)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\DeliveryCountdownConfig.kt (Classes: DeliveryCountdownConfig)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Dish.kt (Classes: Dish)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\DishOption.kt (Classes: DishOption, Group)
+    const SIZE = "SIZE"
+    const SUGAR = "SUGAR"
+    const ICE = "ICE"
+    const TOPPING = "TOPPING"
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\DishReview.kt (Classes: DishReview)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Driver.kt (Classes: Driver, VehicleType, DutyStatus)
+    const MOTORBIKE = "MOTORBIKE"
+    const ELECTRIC_BIKE = "ELECTRIC_BIKE"
+    const AVAILABLE = "AVAILABLE"
+    const DELIVERING = "DELIVERING"
+    const OFF_DUTY = "OFF_DUTY"
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Merchant.kt (Classes: Merchant, ApprovalStatus)
+    const PENDING = "PENDING"
+    const APPROVED = "APPROVED"
+    const REJECTED = "REJECTED"
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Notification.kt (Classes: Notification, Type)
+    const ORDER_UPDATE = "ORDER_UPDATE"
+    const TRUST_SCORE = "TRUST_SCORE"
+    const WARNING = "WARNING"
+    const SYSTEM = "SYSTEM"
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Order.kt (Classes: Order, CancelRequestStatus, Status, OrderStatus, PaymentMode, PaymentMethod, PaymentStatus, OrderItem)
+    const PENDING = "PENDING"
+    const APPROVED = "APPROVED"
+    const REJECTED = "REJECTED"
+    const WITHDRAWN = "WITHDRAWN"
+    const AWAITING_CUSTOMER_CONFIRMATION = "AWAITING_CUSTOMER_CONFIRMATION" // Chờ khách bấm xác nhận đơn
+    const AWAITING_PAYMENT = "AWAITING_PAYMENT"
+    const PAID = "PAID" // Đã thanh toán chuyển khoản thành công
+    const PENDING = "PENDING"
+    const PREPARING = "PREPARING"
+    const READY = "READY"
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Role.kt (Classes: Role)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\ShippingRule.kt (Classes: ShippingRule, ZoneType)
+    const INTRA_DISTRICT = "INTRA_DISTRICT"     // 15,000đ
+    const INTER_DISTRICT = "INTER_DISTRICT"     // 25,000đ
+    const SUBURBAN = "SUBURBAN"                   // 45,000đ
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\Store.kt (Classes: Store, StoreStatus, PenaltyTier)
+    const PENDING = "PENDING"
+    const OPEN = "OPEN"
+    const LOCKED = "LOCKED"
+    const CLOSED = "CLOSED"
+    const REJECTED = "REJECTED"
+    const NONE = "NONE"
+    const WARN = "WARN"
+    const HIDE = "HIDE"
+    const LOCK = "LOCK"
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\TrackingLocation.kt (Classes: TrackingLocation)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\TrustScoreLog.kt (Classes: TrustScoreLog)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\User.kt (Classes: User, ApprovalStatus, Role, Status)
+    const PENDING = "PENDING"
+    const APPROVED = "APPROVED"
+    const REJECTED = "REJECTED"
+    const ADMIN = "ADMIN"
+    const CUSTOMER = "CUSTOMER"
+    const BOSSMERCHANT = "BOSSMERCHANT"
+    const MERCHANT = "MERCHANT"
+    const MANAGER = "MANAGER"
+    const DRIVER = "DRIVER"
+    const SHIPPER = "SHIPPER"
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\model\UserStatus.kt (Classes: UserStatus)
+
+======================================================================
+
+2. REPOSITORIES & DATA ACCESS (:core/data/firebase)
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\AuthRepository.kt (20 methods)
+    fun login()
+    fun completePostLogin()
+    fun requestLoginOtp()
+    fun requestEmailOtp()
+    fun verifyEmailOtp()
+    fun verifyLoginOtp()
+    fun registerWithOtp()
+    fun register()
+    fun getCurrentCustomerData()
+    fun getCurrentUserData()
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\EmailOtpApi.kt (3 methods)
+    fun requestCode()
+    fun verifyCode()
+    fun post()
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\FirebaseAuthChecker.kt (3 methods)
+    fun getApiKey()
+    fun isEmailRegistered()
+    fun deleteTemporaryAccount()
+- core\src\main\java\com\chuyen_de_2\foodorder\core\data\firebase\FirebaseRepository.kt (178 methods)
+    fun readCacheFirst()
+    fun onDataChange()
+    fun onCancelled()
+    fun syncCartToFirebase()
+    fun observeCart()
+    fun onDataChange()
+    fun onCancelled()
+    fun clearCart()
+    fun generateOrderCode()
+    fun createOrder()
+
+======================================================================
+
+3. UI CUSTOMER (:app-customer/ui)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\AuthViewModel.kt (Classes: AuthViewModel)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\LoginActivity.kt (Classes: LoginActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\OtpVerificationActivity.kt (Classes: OtpVerificationActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\auth\RegisterActivity.kt (Classes: RegisterActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\cart\CartActivity.kt (Classes: CartActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\cart\CartAdapter.kt (Classes: CartAdapter, ShopViewHolder, CartDishAdapter, DishViewHolder)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\cart\CartViewModel.kt (Classes: CartViewModel)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\AddressSuggestionAdapter.kt (Classes: AddressSuggestionAdapter, SuggestionViewHolder, SuggestionDiffCallback)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\CheckoutActivity.kt (Classes: CheckoutActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\CheckoutViewModel.kt (Classes: CheckoutViewModel)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\checkout\SelectLocationActivity.kt (Classes: SelectLocationActivity, AndroidBridge)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\ComplaintActivity.kt (Classes: ComplaintActivity, ReasonItem)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\CustomerComplaintAdapter.kt (Classes: CustomerComplaintAdapter, ComplaintViewHolder, ComplaintDiffCallback)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\CustomerComplaintDetailBottomSheet.kt (Classes: CustomerComplaintDetailBottomSheet)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\complaint\CustomerComplaintTrackingActivity.kt (Classes: CustomerComplaintTrackingActivity, FilterMode)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeActivity.kt (Classes: HomeActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeCategoryAdapter.kt (Classes: HomeCategoryAdapter, CategoryViewHolder)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeDishAdapter.kt (Classes: HomeDishItem, HomeDishAdapter, ViewHolder)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HomeViewModel.kt (Classes: HomeViewModel, HotTab, PriceSort)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\HotDishAdapter.kt (Classes: HotDish, HotDishAdapter, ViewHolder)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\NearbyStoreAdapter.kt (Classes: NearbyStoreItem, NearbyStoreAdapter, ViewHolder)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\home\RestaurantAdapter.kt (Classes: RestaurantAdapter, ViewHolder, DiffCallback)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\DishOptionBottomSheetDialogFragment.kt (Classes: DishOptionBottomSheetDialogFragment)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\DishReviewsAdapter.kt (Classes: DishReviewItem, DishReviewsAdapter, ViewHolder)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\DishReviewsBottomSheetDialogFragment.kt (Classes: DishReviewsBottomSheetDialogFragment)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\MenuActivity.kt (Classes: MenuActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\MenuAdapter.kt (Classes: MenuAdapter, ViewHolder, DiffCallback)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\menu\MenuViewModel.kt (Classes: MenuViewModel)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationActivity.kt (Classes: NotificationActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationAdapter.kt (Classes: NotificationAdapter, NotificationViewHolder)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationFragment.kt (Classes: NotificationFragment)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\notification\NotificationItem.kt (Classes: NotificationType, NotificationItem)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\IncidentProofBottomSheetDialogFragment.kt (Classes: IncidentProofBottomSheetDialogFragment)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderHistoryActivity.kt (Classes: OrderHistoryActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderHistoryAdapter.kt (Classes: OrderHistoryAdapter, OrderViewHolder, DiffCallback)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderHistoryFragment.kt (Classes: OrderHistoryFragment)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\order\OrderSuccessActivity.kt (Classes: OrderSuccessActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\payment\PaymentActivity.kt (Classes: PaymentActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\profile\AddressBookAdapter.kt (Classes: AddressBookAdapter, AddressViewHolder, DiffCallback)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\profile\ProfileActivity.kt (Classes: ProfileActivity)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\profile\ProfileFragment.kt (Classes: ProfileFragment)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\tracking\ChatStoreBottomSheetDialogFragment.kt (Classes: ChatStoreBottomSheetDialogFragment)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\tracking\TrackingActivity.kt (Classes: TrackingActivity, DishRatingState)
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\ui\tracking\TrackingViewModel.kt (Classes: TrackingViewModel)
+
+======================================================================
+
+4. UI INTERNAL (:app-internal/ui)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\AddressSuggestionAdapter.kt (Classes: AddressSuggestionAdapter, SuggestionViewHolder, SuggestionDiffCallback)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\AuthViewModel.kt (Classes: AuthViewModel)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\LoginActivity.kt (Classes: LoginActivity)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\OtpVerificationActivity.kt (Classes: OtpVerificationActivity)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\RegisterActivity.kt (Classes: RegisterActivity)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\SelectLocationActivity.kt (Classes: SelectLocationActivity, AndroidBridge)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\auth\StoreVerificationActivity.kt (Classes: StoreVerificationActivity, CccdSide, SupportedBank)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\boss\BossBranchAdapter.kt (Classes: BossBranchAdapter, BranchViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\boss\BossDashboardActivity.kt (Classes: BossDashboardActivity)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\boss\BossMerchantAdapter.kt (Classes: BossMerchantAdapter, MerchantViewHolder, MerchantDiffCallback)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefActiveOrdersAdapter.kt (Classes: ChefActiveOrdersAdapter, ActiveChefViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefAdapter.kt (Classes: ChefAdapter, ChefViewHolder, ChefDiffCallback)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefFragment.kt (Classes: ChefFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefPendingOrdersAdapter.kt (Classes: ChefPendingOrdersAdapter, PendingChefViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\chef\ChefViewModel.kt (Classes: ChefViewModel)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\dashboard\DashboardActivity.kt (Classes: DashboardActivity)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\driver\DriverAdapter.kt (Classes: DriverAdapter, DriverViewHolder, DriverDiffCallback)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\driver\DriverListFragment.kt (Classes: DriverListFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\DeliveryTripActivity.kt (Classes: DeliveryTripActivity)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\DriverActiveOrdersAdapter.kt (Classes: DriverActiveOrdersAdapter, ActiveOrderViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\DriverPendingOrdersAdapter.kt (Classes: DriverPendingOrdersAdapter, PendingOrderViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperFragment.kt (Classes: ShipperFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperIncomeAdapter.kt (Classes: ShipperIncomeAdapter, TripViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperIncomeFragment.kt (Classes: ShipperIncomeFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperProfileFragment.kt (Classes: ShipperProfileFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\ship\ShipperViewModel.kt (Classes: ShipperViewModel)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\BestSellerDishAdapter.kt (Classes: BestSellerItem, BestSellerDishAdapter, ViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ChatCustomerBottomSheetDialogFragment.kt (Classes: ChatCustomerBottomSheetDialogFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ManageDishAdapter.kt (Classes: ManageDishAdapter, ViewHolder, DiffCallback)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ManageStoreCategoryAdapter.kt (Classes: StoreCategoryItem, ManageStoreCategoryAdapter, ViewHolder, DiffCallback)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\MenuManageFragment.kt (Classes: MenuManageFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\OrderAdapter.kt (Classes: OrderAdapter, ViewHolder, DiffCallback)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\OrderListFragment.kt (Classes: OrderListFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\SelectComboDishAdapter.kt (Classes: SelectableComboDish, SelectComboDishAdapter, ViewHolder)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\ShopViewModel.kt (Classes: ShopViewModel, TabType)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\StoreProfileFragment.kt (Classes: StoreProfileFragment)
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\ui\shop\StoreReportFragment.kt (Classes: StoreReportFragment)
+
+======================================================================
+
+5. SERVICES & BACKGROUND TASKS
+- app-customer\src\main\java\com\chuyen_de_2\foodorder\customer\service\CustomerFCMService.kt
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\BankNotificationListenerService.kt
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\InternalFCMService.kt
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\LocationForegroundService.kt
+- app-internal\src\main\java\com\chuyen_de_2\foodorder\internal\service\MerchantKeepAliveService.kt
+
+======================================================================
+
+6. WEB ADMIN (admin.html)
+Tổng số hàm JS: 118
+  function formatTimeAgo()
+  function formatVnd()
+  function setFirebaseConnectionUI()
+  function writeWithAdminRole()
+  function initFirebaseRealtime()
+  function normalizeStoreRecord()
+  function rebuildCustomersAndDrivers()
+  function rebuildOrders()
+  function rebuildComplaints()
+  function attachRealtimeListeners()
+  function syncFromFirebaseNow()
+  function saveState()
+  function addLog()
+  function updateAdminDisplay()
+  function toggleAdminDropdown()
+  function openAdminProfileModal()
+  function openAdminPasswordModal()
+  function saveAdminSettings()
+  function changeAdminPassword()
+  function adminLogout()
+  function resetDefaultData()
+  function switchTab()
+  function renderKPIs()
+  function renderOverviewStores()
+  function renderLogs()
+  function clearLogs()
+  function filterCategories()
+  function updateCatIconPreview()
+  function selectQuickEmoji()
+  function seedDefaultCategories()
+  function restoreDefaultCategories()
+  function matchCategoryKeywords()
+  function renderCategories()
+  function openAddCategoryModal()
+  function openEditCategoryModal()
+  function saveCategory()
+  function toggleCategoryStatus()
+  function deleteCategory()
+  function filterCustomers()
+  function renderCustomers()
+  function copyCustomerUid()
+  function openEditCustomerModal()
+  function saveEditCustomer()
+  function deleteCustomerAccount()
+  function adjustCustomerTrustScore()
+  function openLockCustomerModal()
+  function confirmLockCustomer()
+  function exportCustomerCSV()
+  function populateStoreCategoryDropdowns()
+  function filterStores()
+  function renderStores()
+  function rejectPendingStore()
+  function syncStoreStatusToFirebase()
+  function getStoreOrders()
+  function getStoreDrivers()
+  function refreshOpenStoreDetailModal()
+  function openStoreDetailModal()
+  function renderStoreDishesList()
+  function openAddDishModal()
+  function openEditDishModal()
+  function saveStoreDish()
+  function toggleStoreDishAvailable()
+  function deleteStoreDish()
+  function filterCurrentStoreOrders()
+  function renderStoreOrdersList()
+  function switchStoreDetailTab()
+  function populateGlobalOrderStoreFilter()
+  function setGlobalOrderFilter()
+  function renderGlobalOrders()
+  function updateLiveOrderStatus()
+  function assignLiveOrderDriver()
+  function deleteLiveOrder()
+  function renderGlobalDrivers()
+  function toggleDriverActiveStatus()
+  function quickApproveStore()
+  function openChangeStatusModal()
+  function handleStoreStatusDropdownChange()
+  function submitChangeStoreStatus()
+  function previewImage()
+  function openLockStoreModal()
+  function handleStoreReasonChange()
+  function confirmLockStore()
+  function openAddStoreModal()
+  function saveNewStore()
+  function deleteStore()
+  function openResetPasswordModal()
+  function generateStrongPassword()
+  function generateRandomPass()
+  function copyPasswordToClipboard()
+  function saveNewPassword()
+  function filterComplaintsByStatus()
+  function filterComplaints()
+  function renderComplaints()
+  function selectPenaltyAction()
+  function toggleRefundInput()
+  function openResolveComplaintModal()
+  function quickRejectComplaint()
+  function submitResolveComplaint()
+  function openNewComplaintModal()
+  function saveNewComplaint()
+  function rebuildReviews()
+  function filterReviews()
+  function populateReviewStoreFilter()
+  function renderReviewKPIs()
+  function renderReviews()
+  function toggleReviewStatus()
+  function deleteReview()
+  function openReviewDetailModal()
+  function saveReviewReply()
+  function openAddReviewModal()
+  function saveNewReview()
+  function seedSampleReviews()
+  function handleGlobalSearch()
+  function openStoreCccdModal()
+  function setStoreStatusFromModal()
+  function openModal()
+  function closeModal()
+  function showToast()
